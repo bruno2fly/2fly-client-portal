@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/login.html",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/agency.html",
+      "destination": "/agency.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
