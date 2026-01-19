@@ -936,6 +936,8 @@ if (!session) {
     session.clientId = session.clientId.toLowerCase().trim();
   }
 
+  /* ================== State (localStorage) ================== */
+  const LS_KEY = `client_portal_${currentClientId}_v1`;
   console.log("Using localStorage key:", LS_KEY);
 
 // Load state from localStorage
