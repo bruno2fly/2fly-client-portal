@@ -748,7 +748,7 @@ body[data-theme="dark"] .kpi-card.motivation{
     </div>
   </div>
 
-<script>
+<script type="module">
 /* ================== Authentication ================== */
 const LS_SESSION_KEY = "2fly_client_session";
 const LS_CLIENTS_KEY = "2fly_clients_v1";
@@ -811,12 +811,20 @@ function checkAuth() {
 // Check authentication on page load
 // Only check if we're not already on login page
 let session = null;
-if (!window.location.pathname.includes('login.html') && window.location.pathname !== '/login') {
+const pathname = window.location.pathname || '';
+const href = window.location.href || '';
+const isLoginPage = pathname.includes('login.html') || 
+                    pathname === '/login' || 
+                    pathname.endsWith('/login.html') ||
+                    href.includes('login.html');
+
+if (!isLoginPage) {
   session = checkAuth();
   if (!session) {
     // Redirect is happening, stop execution of this script
     // The redirect will navigate away, but wrap rest of code in session check
     // to prevent errors during redirect transition
+    console.log("No session found, redirecting to login...");
   }
 }
 
@@ -827,6 +835,7 @@ if (!session) {
   console.log("No session - redirecting to login or on login page");
   // Early return - wrap everything else in else block
 } else {
+  console.log("Session found, initializing application...");
   // Debug logging
   console.log("Session loaded:", session);
   console.log("Client ID:", session.clientId);
