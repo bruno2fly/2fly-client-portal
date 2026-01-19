@@ -1,17 +1,98 @@
 /* ================== State Management ================== */
-const LS_KEY = "client_portal_casa_nova_v1";
+const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
 const LS_REPORTS_KEY = "client_portal_reports_v1";
 const TEAM_PIN = "2468";
 
-// Current selected client (for future multi-client support)
-let currentClientId = "casa-nova";
+// Current selected client
+let currentClientId = null;
+
+// Load clients registry
+function loadClientsRegistry() {
+  const data = localStorage.getItem(LS_CLIENTS_KEY);
+  if (!data) {
+    // Create default client if none exist
+    const defaultClient = {
+      id: "casa-nova",
+      name: "CASA NOVA",
+      category: "Restaurant",
+      primaryContactName: "Client",
+      primaryContactWhatsApp: "",
+      primaryContactEmail: "",
+      preferredChannel: "portal",
+      platformsManaged: ["instagram", "facebook"],
+      postingFrequency: "4x_week",
+      approvalRequired: true,
+      language: "bilingual",
+      assetsLink: "",
+      brandGuidelinesLink: "",
+      primaryGoal: "visibility",
+      secondaryGoal: "",
+      internalBehaviorType: "fast",
+      riskLevel: "low",
+      internalNotes: "",
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    const clients = { [defaultClient.id]: defaultClient };
+    localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(clients));
+    if (!currentClientId) {
+      currentClientId = defaultClient.id;
+    }
+    return clients;
+  }
+  try {
+    const clients = JSON.parse(data);
+    // Remove _lastSelected from clients object (it's metadata, not a client)
+    if (clients._lastSelected) {
+      currentClientId = clients._lastSelected;
+      delete clients._lastSelected;
+    }
+    // Set current client if not set
+    if (!currentClientId && Object.keys(clients).length > 0) {
+      currentClientId = Object.keys(clients)[0];
+    }
+    return clients;
+  } catch {
+    return {};
+  }
+}
+
+function saveClientsRegistry(clients) {
+  // Preserve _lastSelected if it exists
+  const data = localStorage.getItem(LS_CLIENTS_KEY);
+  if (data) {
+    try {
+      const existing = JSON.parse(data);
+      if (existing._lastSelected) {
+        clients._lastSelected = existing._lastSelected;
+      }
+    } catch {}
+  }
+  localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(clients));
+}
+
+// Get current client data
+function getCurrentClient() {
+  const clients = loadClientsRegistry();
+  return clients[currentClientId] || null;
+}
+
+// Legacy support - get portal data key for a client
+function getClientPortalKey(clientId) {
+  return `client_portal_${clientId}_v1`;
+}
 
 function load() {
-  const d = localStorage.getItem(LS_KEY);
+  if (!currentClientId) {
+    loadClientsRegistry();
+  }
+  const key = getClientPortalKey(currentClientId);
+  const d = localStorage.getItem(key);
   if (!d) {
     // Initialize with empty state if doesn't exist
+    const client = getCurrentClient();
     const empty = {
-      client: { id: "casa-nova", name: "CASA NOVA", whatsapp: "" },
+      client: { id: currentClientId, name: client?.name || "Client", whatsapp: client?.primaryContactWhatsApp || "" },
       kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
       approvals: [],
       needs: [],
@@ -20,7 +101,7 @@ function load() {
       activity: [],
       seen: false
     };
-    localStorage.setItem(LS_KEY, JSON.stringify(empty));
+    localStorage.setItem(key, JSON.stringify(empty));
     return empty;
   }
   try {
@@ -58,8 +139,9 @@ function load() {
     if (changed) save(state);
     return state;
   } catch {
+    const client = getCurrentClient();
     return {
-      client: { id: "casa-nova", name: "CASA NOVA", whatsapp: "" },
+      client: { id: currentClientId, name: client?.name || "Client", whatsapp: client?.primaryContactWhatsApp || "" },
       kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
       approvals: [],
       needs: [],
@@ -72,7 +154,9 @@ function load() {
 }
 
 function save(x) {
-  localStorage.setItem(LS_KEY, JSON.stringify(x));
+  if (!currentClientId) return;
+  const key = getClientPortalKey(currentClientId);
+  localStorage.setItem(key, JSON.stringify(x));
 }
 
 function loadReports() {
@@ -144,48 +228,232 @@ function calculateScheduledPosts(approvals) {
 
 /* ================== Client Selection ================== */
 function renderClientsSidebar() {
-  const state = load();
+  const clients = loadClientsRegistry();
   const container = $('#clientsList');
   if (!container) return;
 
   container.innerHTML = '';
 
-  // For now, just show Casa Nova
-  const clientTile = el('div', { class: 'client-tile active', 'data-client-id': state.client.id });
-  
-  const name = el('div', { class: 'client-tile__name' });
-  name.textContent = state.client.name;
-  
-  const badges = el('div', { class: 'client-tile__badges' });
-  
-  // Calculate counts
-  const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
-  const openRequests = (state.requests || []).filter(r => r.status === 'open').length;
-  
-  if (state.kpis && state.kpis.scheduled) {
-    badges.appendChild(el('div', { class: 'badge' }, `${state.kpis.scheduled} scheduled`));
+  if (Object.keys(clients).length === 0) {
+    container.appendChild(el('div', { style: 'color: rgba(255,255,255,0.7); font-size: 13px; padding: 16px; text-align: center;' }, 'No clients yet. Click "+ New Client" to add one.'));
+    return;
   }
-  badges.appendChild(el('div', { class: 'badge' }, `${pendingCount} pending`));
-  badges.appendChild(el('div', { class: 'badge' }, `${openRequests} requests`));
-  
-  clientTile.appendChild(name);
-  clientTile.appendChild(badges);
-  
-  clientTile.addEventListener('click', () => {
-    currentClientId = state.client.id;
-    $$('.client-tile').forEach(t => t.classList.remove('active'));
-    clientTile.classList.add('active');
-    renderAll();
+
+  Object.values(clients).forEach(client => {
+    const clientTile = el('div', { 
+      class: `client-tile ${currentClientId === client.id ? 'active' : ''}`, 
+      'data-client-id': client.id 
+    });
+    
+    const name = el('div', { class: 'client-tile__name' });
+    name.textContent = client.name;
+    
+    const badges = el('div', { class: 'client-tile__badges' });
+    
+    // Load client's portal data to get counts
+    const portalKey = getClientPortalKey(client.id);
+    const portalData = localStorage.getItem(portalKey);
+    if (portalData) {
+      try {
+        const state = JSON.parse(portalData);
+        const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
+        const openRequests = (state.requests || []).filter(r => r.status === 'open').length;
+        
+        if (state.kpis && state.kpis.scheduled) {
+          badges.appendChild(el('div', { class: 'badge' }, `${state.kpis.scheduled} scheduled`));
+        }
+        badges.appendChild(el('div', { class: 'badge' }, `${pendingCount} pending`));
+        badges.appendChild(el('div', { class: 'badge' }, `${openRequests} requests`));
+      } catch (e) {
+        console.warn('Error loading client data:', e);
+      }
+    }
+    
+    clientTile.appendChild(name);
+    clientTile.appendChild(badges);
+    
+    clientTile.addEventListener('click', () => {
+      selectClient(client.id);
+    });
+    
+    container.appendChild(clientTile);
   });
+}
+
+function selectClient(clientId) {
+  currentClientId = clientId;
+  const clients = loadClientsRegistry();
+  const client = clients[clientId];
   
-  container.appendChild(clientTile);
+  if (!client) return;
+  
+  // Update client registry with last selected (preserve existing clients)
+  const allClients = { ...clients, _lastSelected: clientId };
+  localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(allClients));
+  
+  // Re-render sidebar and main view
+  renderClientsSidebar();
+  renderClientHeader();
+  renderAll();
+}
+
+/* ================== Client Header with Logo ================== */
+function renderClientHeader() {
+  if (!currentClientId) {
+    const header = $('#clientHeader');
+    if (header) header.style.display = 'none';
+    return;
+  }
+  
+  const clients = loadClientsRegistry();
+  const client = clients[currentClientId];
+  
+  if (!client) {
+    const header = $('#clientHeader');
+    if (header) header.style.display = 'none';
+    return;
+  }
+  
+  const header = $('#clientHeader');
+  const logoImg = $('#clientLogoImg');
+  const logoInitials = $('#clientLogoInitials');
+  const headerName = $('#clientHeaderName');
+  
+  if (!header) return;
+  
+  header.style.display = 'block';
+  
+  // Set client name
+  if (headerName) {
+    headerName.textContent = client.name || 'Client';
+  }
+  
+  // Set logo or initials
+  const addLogoBtn = $('#addLogoBtn');
+  if (client.logoUrl) {
+    if (logoImg) {
+      logoImg.src = client.logoUrl;
+      logoImg.style.display = 'block';
+    }
+    if (logoInitials) {
+      logoInitials.style.display = 'none';
+    }
+    if (addLogoBtn) {
+      addLogoBtn.textContent = 'Change Logo';
+    }
+  } else {
+    if (logoImg) {
+      logoImg.style.display = 'none';
+    }
+    if (logoInitials) {
+      logoInitials.style.display = 'block';
+      // Get initials from client name
+      const initials = (client.name || 'CN')
+        .split(' ')
+        .map(word => word.charAt(0))
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+      logoInitials.textContent = initials || 'CN';
+    }
+    if (addLogoBtn) {
+      addLogoBtn.textContent = 'Add Logo';
+    }
+  }
+  
+  // Setup logo upload handler
+  setupLogoUpload();
+}
+
+function setupLogoUpload() {
+  const addLogoBtn = $('#addLogoBtn');
+  const logoInput = $('#clientLogoInput');
+  
+  if (!addLogoBtn || !logoInput) return;
+  
+  // Remove existing handlers
+  const newBtn = addLogoBtn.cloneNode(true);
+  addLogoBtn.parentNode.replaceChild(newBtn, addLogoBtn);
+  
+  const newInput = $('#clientLogoInput');
+  const newAddBtn = $('#addLogoBtn');
+  
+  // Click on Add Logo button to trigger file input
+  if (newAddBtn) {
+    newAddBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (newInput) newInput.click();
+    });
+  }
+  
+  // Handle file selection
+  if (newInput) {
+    // Remove existing change handler if any
+    if (newInput._logoChangeHandler) {
+      newInput.removeEventListener('change', newInput._logoChangeHandler);
+    }
+    
+    newInput._logoChangeHandler = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Read file as data URL
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const logoUrl = event.target.result;
+        saveClientLogo(logoUrl);
+      };
+      reader.onerror = () => {
+        alert('Error reading file. Please try again.');
+      };
+      reader.readAsDataURL(file);
+    };
+    
+    newInput.addEventListener('change', newInput._logoChangeHandler);
+  }
+}
+
+function saveClientLogo(logoUrl) {
+  if (!currentClientId) return;
+  
+  const clients = loadClientsRegistry();
+  const client = clients[currentClientId];
+  
+  if (!client) return;
+  
+  // Save logo URL to client data
+  client.logoUrl = logoUrl;
+  client.updatedAt = Date.now();
+  clients[currentClientId] = client;
+  saveClientsRegistry(clients);
+  
+  // Update display
+  renderClientHeader();
+  
+  showToast('Logo uploaded successfully!');
 }
 
 /* ================== Tab Management ================== */
-let currentTab = 'overview';
+// Load saved tab from localStorage or default to 'overview'
+let currentTab = localStorage.getItem('2fly_agency_current_tab') || 'overview';
 
 function switchTab(tabName) {
   currentTab = tabName;
+  
+  // Save current tab to localStorage
+  localStorage.setItem('2fly_agency_current_tab', tabName);
   
   // Update tab buttons
   $$('.tab').forEach(tab => {
@@ -228,12 +496,14 @@ function switchTab(tabName) {
   }
 }
 
-// Setup tab click handlers
-$$('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    switchTab(tab.dataset.tab);
+// Setup tab click handlers - will be called after DOM loads
+function setupTabHandlers() {
+  $$('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchTab(tab.dataset.tab);
+    });
   });
-});
+}
 
 /* ================== Overview Tab ================== */
 function renderOverviewTab() {
@@ -266,6 +536,145 @@ function renderOverviewTab() {
   } else if (lastActivity) {
     lastActivity.textContent = 'Last portal activity: None';
   }
+  
+  // Setup edit and delete client buttons
+  setupClientManagementButtons();
+}
+
+// Setup edit and delete client buttons
+function setupClientManagementButtons() {
+  const editBtn = $('#editClientBtn');
+  const deleteBtn = $('#deleteClientBtn');
+  
+  if (editBtn) {
+    editBtn.removeEventListener('click', editCurrentClient);
+    editBtn.addEventListener('click', editCurrentClient);
+  }
+  
+  if (deleteBtn) {
+    deleteBtn.removeEventListener('click', deleteCurrentClient);
+    deleteBtn.addEventListener('click', deleteCurrentClient);
+  }
+}
+
+// Edit current client - opens form with existing data
+function editCurrentClient() {
+  if (!currentClientId) {
+    showToast('Please select a client first');
+    return;
+  }
+  
+  const clients = loadClientsRegistry();
+  const client = clients[currentClientId];
+  
+  if (!client) {
+    showToast('Client not found');
+    return;
+  }
+  
+  // Set edit mode flag
+  window.editingClientId = currentClientId;
+  
+  // Populate form with client data
+  $('#clientName').value = client.name || '';
+  $('#clientIdInput').value = client.id || '';
+  $('#clientIdInput').disabled = true; // Don't allow ID changes
+  $('#clientCategory').value = client.category || '';
+  $('#primaryContactName').value = client.primaryContactName || '';
+  $('#primaryContactWhatsApp').value = client.primaryContactWhatsApp || '';
+  $('#primaryContactEmail').value = client.primaryContactEmail || '';
+  $('#preferredChannel').value = client.preferredChannel || '';
+  
+  // Populate logo in form
+  updateFormLogo(client.logoUrl, client.name);
+  
+  // Set platforms
+  $$('input[name="platformsManaged"]').forEach(cb => {
+    cb.checked = (client.platformsManaged || []).includes(cb.value);
+  });
+  
+  $('#postingFrequency').value = client.postingFrequency || '';
+  if (client.postingFrequency === 'custom' && client.postingFrequencyNote) {
+    $('#postingFrequencyNote').value = client.postingFrequencyNote;
+    $('#postingFrequencyNote').style.display = 'block';
+  }
+  
+  $('#approvalRequired').value = client.approvalRequired ? 'true' : 'false';
+  $('#language').value = client.language || '';
+  $('#assetsLink').value = client.assetsLink || '';
+  $('#brandGuidelinesLink').value = client.brandGuidelinesLink || '';
+  $('#primaryGoal').value = client.primaryGoal || '';
+  $('#secondaryGoal').value = client.secondaryGoal || '';
+  $('#internalBehaviorType').value = client.internalBehaviorType || '';
+  $('#riskLevel').value = client.riskLevel || '';
+  $('#internalNotes').value = client.internalNotes || '';
+  
+  // Update form title and submit button
+  const formTitle = $('#editPanelTitle') || document.querySelector('#newClientForm h2');
+  if (formTitle) formTitle.textContent = 'Edit Client';
+  
+  const submitBtn = $('#newClientForm button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = 'Update Client';
+  
+  // Clear password field (don't show existing password)
+  $('#clientPassword').value = '';
+  $('#clientPassword').required = false;
+  
+  // Show modal
+  showNewClientModal();
+}
+
+// Delete current client
+function deleteCurrentClient() {
+  if (!currentClientId) {
+    showToast('Please select a client first');
+    return;
+  }
+  
+  const clients = loadClientsRegistry();
+  const client = clients[currentClientId];
+  
+  if (!client) {
+    showToast('Client not found');
+    return;
+  }
+  
+  const confirmMessage = `Are you sure you want to delete "${client.name}"?\n\nThis will permanently delete:\n- Client information\n- All approvals\n- All requests\n- All portal data\n\nThis action cannot be undone!`;
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  
+  // Delete client from registry
+  delete clients[currentClientId];
+  saveClientsRegistry(clients);
+  
+  // Delete client login credentials
+  const LS_CLIENTS_LOGIN_KEY = "2fly_clients_v1";
+  const loginClients = JSON.parse(localStorage.getItem(LS_CLIENTS_LOGIN_KEY) || '{}');
+  delete loginClients[currentClientId];
+  localStorage.setItem(LS_CLIENTS_LOGIN_KEY, JSON.stringify(loginClients));
+  
+  // Delete client portal data
+  const portalKey = getClientPortalKey(currentClientId);
+  localStorage.removeItem(portalKey);
+  
+  // Clear current client selection
+  currentClientId = null;
+  clients._lastSelected = null;
+  saveClientsRegistry(clients);
+  
+  // Re-render sidebar and switch to first available client
+  renderClientsList();
+  const remainingClients = Object.keys(clients).filter(k => k !== '_lastSelected');
+  if (remainingClients.length > 0) {
+    selectClient(remainingClients[0]);
+  } else {
+    // No clients left, render empty state
+    switchTab('overview');
+  }
+  
+  showToast(`Client "${client.name}" has been deleted`);
 }
 
 /* ================== Approvals Tab ================== */
@@ -278,59 +687,169 @@ function renderApprovalsTab() {
   
   container.innerHTML = '';
   
+  // Add click handler to container to deselect when clicking outside items
+  // Remove previous handler if exists
+  if (container._deselectHandler) {
+    container.removeEventListener('click', container._deselectHandler);
+  }
+  
+  container._deselectHandler = function(e) {
+    // If clicking directly on the container or section title (but not on approval items)
+    const clickedItem = e.target.closest('.approval-item');
+    
+    // Only deselect if clicking on container background or section titles (not on items)
+    if (!clickedItem) {
+      // Deselect approval
+      selectedApprovalId = null;
+      $$('.approval-item').forEach(i => i.classList.remove('selected'));
+      // Reset form
+      const approvalForm = $('#approvalForm');
+      if (approvalForm) {
+        approvalForm.reset();
+        $('#approvalId').value = '';
+        $('#editPanelTitle').textContent = 'Create Approval';
+        $('#approvalDelete').style.display = 'none';
+      }
+    }
+  };
+  
+  container.addEventListener('click', container._deselectHandler);
+  
   // Group by status
   const pending = (state.approvals || []).filter(a => !a.status || a.status === 'pending');
   const changes = (state.approvals || []).filter(a => a.status === 'changes');
   const approved = (state.approvals || []).filter(a => a.status === 'approved');
   
-  function renderSection(title, items, containerEl) {
-    if (items.length === 0) return;
-    
+  // Store collapsed state for each section (default: all expanded)
+  if (!window.approvalsSectionState) {
+    window.approvalsSectionState = {
+      pending: false,
+      changes: false,
+      approved: false
+    };
+  }
+  
+  function renderSection(title, items, containerEl, sectionKey) {
+    // Always show section, even if empty (but collapsed by default if empty)
     const section = el('div', { class: 'approvals-section' });
     const sectionTitle = el('div', { class: 'approvals-section__title' });
-    sectionTitle.textContent = `${title} (${items.length})`;
+    
+    // If section is empty, default to collapsed
+    const isEmpty = items.length === 0;
+    if (isEmpty && window.approvalsSectionState[sectionKey] === undefined) {
+      window.approvalsSectionState[sectionKey] = true; // Collapse empty sections by default
+    }
+    
+    // Title content with arrow
+    const titleContent = el('div', { class: 'approvals-section__title-content' });
+    const arrow = el('span', { 
+      class: `approvals-section__arrow ${window.approvalsSectionState[sectionKey] ? 'collapsed' : ''}`
+    });
+    // Use SVG arrow for better compatibility
+    arrow.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const titleText = el('span', {});
+    titleText.textContent = `${title} (${items.length})`;
+    titleContent.appendChild(arrow);
+    titleContent.appendChild(titleText);
+    sectionTitle.appendChild(titleContent);
+    
+    // Make title clickable to toggle (only if there are items)
+    if (items.length > 0) {
+      sectionTitle.style.cursor = 'pointer';
+      sectionTitle.addEventListener('click', () => {
+        window.approvalsSectionState[sectionKey] = !window.approvalsSectionState[sectionKey];
+        const isCollapsed = window.approvalsSectionState[sectionKey];
+        
+        if (isCollapsed) {
+          arrow.classList.add('collapsed');
+          list.classList.remove('expanded');
+          list.classList.add('collapsed');
+        } else {
+          arrow.classList.remove('collapsed');
+          list.classList.remove('collapsed');
+          list.classList.add('expanded');
+        }
+      });
+    } else {
+      // Empty section - no hover effect
+      sectionTitle.style.cursor = 'default';
+      sectionTitle.style.opacity = '0.6';
+    }
+    
     section.appendChild(sectionTitle);
     
-    const list = el('div', { class: 'approvals-list' });
-    
-    items.forEach(item => {
-      const itemEl = el('div', {
-        class: `approval-item ${selectedApprovalId === item.id ? 'selected' : ''}`,
-        'data-approval-id': item.id
-      });
-      
-      const header = el('div', { class: 'approval-item__header' });
-      const titleEl = el('div', { class: 'approval-item__title' });
-      titleEl.textContent = item.title;
-      header.appendChild(titleEl);
-      
-      const meta = el('div', { class: 'approval-item__meta' });
-      meta.appendChild(el('span', { class: 'chip chip--type' }, item.type || 'Post'));
-      meta.appendChild(el('span', {
-        class: `chip chip--status-${item.status || 'pending'}`
-      }, (item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)));
-      meta.appendChild(el('span', { class: 'approval-item__date' }, `Due ${item.date || 'N/A'}`));
-      
-      itemEl.appendChild(header);
-      itemEl.appendChild(meta);
-      
-      itemEl.addEventListener('click', () => {
-        selectedApprovalId = item.id;
-        $$('.approval-item').forEach(i => i.classList.remove('selected'));
-        itemEl.classList.add('selected');
-        loadApprovalForEdit(item.id);
-      });
-      
-      list.appendChild(itemEl);
+    const list = el('div', { 
+      class: `approvals-list approvals-section__list ${window.approvalsSectionState[sectionKey] ? 'collapsed' : 'expanded'}`
     });
+    
+    if (items.length === 0) {
+      // Show empty state message
+      const emptyMsg = el('div', { 
+        style: 'padding: 16px; text-align: center; color: #94a3b8; font-size: 14px; font-style: italic;'
+      }, 'No items in this section');
+      list.appendChild(emptyMsg);
+    } else {
+      items.forEach(item => {
+        const itemEl = el('div', {
+          class: `approval-item ${selectedApprovalId === item.id ? 'selected' : ''}`,
+          'data-approval-id': item.id
+        });
+        
+        const header = el('div', { class: 'approval-item__header' });
+        const titleEl = el('div', { class: 'approval-item__title' });
+        titleEl.textContent = item.title;
+        header.appendChild(titleEl);
+        
+        const meta = el('div', { class: 'approval-item__meta' });
+        meta.appendChild(el('span', { class: 'chip chip--type' }, item.type || 'Post'));
+        meta.appendChild(el('span', {
+          class: `chip chip--status-${item.status || 'pending'}`
+        }, (item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)));
+        meta.appendChild(el('span', { class: 'approval-item__date' }, `Due ${item.date || 'N/A'}`));
+        
+        itemEl.appendChild(header);
+        itemEl.appendChild(meta);
+        
+        // Show change request notes if status is "changes" and notes exist
+        if (item.status === 'changes' && item.change_notes && item.change_notes.length > 0) {
+          const latestNote = item.change_notes[item.change_notes.length - 1];
+          const changeRequestBox = el('div', { 
+            class: 'approval-item__change-request',
+            style: 'margin-top: 12px; padding: 12px; background: #fff7ed; border-left: 3px solid #ea580c; border-radius: 6px;'
+          });
+          
+          const changeRequestLabel = el('div', {
+            style: 'font-size: 12px; font-weight: 600; color: #ea580c; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;'
+          }, 'Change Request:');
+          
+          const changeRequestText = el('div', {
+            style: 'font-size: 13px; color: #9a3412; line-height: 1.5;'
+          }, latestNote.note || 'Change requested.');
+          
+          changeRequestBox.appendChild(changeRequestLabel);
+          changeRequestBox.appendChild(changeRequestText);
+          itemEl.appendChild(changeRequestBox);
+        }
+        
+        itemEl.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent section toggle and container click when clicking item
+          selectedApprovalId = item.id;
+          $$('.approval-item').forEach(i => i.classList.remove('selected'));
+          itemEl.classList.add('selected');
+          loadApprovalForEdit(item.id);
+        });
+        
+        list.appendChild(itemEl);
+      });
+    }
     
     section.appendChild(list);
     containerEl.appendChild(section);
   }
   
-  renderSection('Pending', pending, container);
-  renderSection('Changes Requested', changes, container);
-  renderSection('Approved', approved, container);
+  renderSection('Pending', pending, container, 'pending');
+  renderSection('Changes Requested', changes, container, 'changes');
+  renderSection('Approved', approved, container, 'approved');
   
   if ((state.approvals || []).length === 0) {
     container.appendChild(el('div', { class: 'empty-state' },
@@ -367,10 +886,11 @@ function loadApprovalForEdit(id) {
   $('#approvalDelete').style.display = 'block';
 }
 
-// Approval form handler
-const approvalForm = $('#approvalForm');
-if (approvalForm) {
-  approvalForm.addEventListener('submit', (e) => {
+// Setup approval form handler - will be called after DOM loads
+function setupApprovalHandlers() {
+  const approvalForm = $('#approvalForm');
+  if (approvalForm) {
+    approvalForm.addEventListener('submit', (e) => {
     e.preventDefault();
     
     const state = load();
@@ -430,27 +950,27 @@ if (approvalForm) {
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
   });
-}
+  }
 
-const approvalCancel = $('#approvalCancel');
-if (approvalCancel) {
-  approvalCancel.addEventListener('click', () => {
+  const approvalCancel = $('#approvalCancel');
+  if (approvalCancel) {
+    approvalCancel.addEventListener('click', () => {
     approvalForm.reset();
     $('#approvalId').value = '';
     $('#editPanelTitle').textContent = 'Create Approval';
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
     $$('.approval-item').forEach(i => i.classList.remove('selected'));
-  });
-}
+    });
+  }
 
-// Preview button handler
-const approvalPreview = $('#approvalPreview');
-if (approvalPreview) {
-  approvalPreview.addEventListener('click', () => {
-    openPreviewModal();
-  });
-}
+  // Preview button handler
+  const approvalPreview = $('#approvalPreview');
+  if (approvalPreview) {
+    approvalPreview.addEventListener('click', () => {
+      openPreviewModal();
+    });
+  }
 
 // Preview Modal functions
 function openPreviewModal() {
@@ -510,37 +1030,37 @@ function closePreviewModal() {
   }
 }
 
-// Close preview modal handlers
-const closePreviewModalBtn = $('#closePreviewModal');
-if (closePreviewModalBtn) {
-  closePreviewModalBtn.addEventListener('click', () => {
-    closePreviewModal();
-  });
-}
-
-// Close on backdrop click
-const previewModal = $('#previewModal');
-if (previewModal) {
-  previewModal.addEventListener('click', (e) => {
-    if (e.target === previewModal) {
+  // Close preview modal handlers
+  const closePreviewModalBtn = $('#closePreviewModal');
+  if (closePreviewModalBtn) {
+    closePreviewModalBtn.addEventListener('click', () => {
       closePreviewModal();
-    }
-  });
-}
-
-// Close on ESC key
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    const previewModal = $('#previewModal');
-    if (previewModal && previewModal.classList.contains('show')) {
-      closePreviewModal();
-    }
+    });
   }
-});
 
-const approvalDelete = $('#approvalDelete');
-if (approvalDelete) {
-  approvalDelete.addEventListener('click', () => {
+  // Close on backdrop click
+  const previewModal = $('#previewModal');
+  if (previewModal) {
+    previewModal.addEventListener('click', (e) => {
+      if (e.target === previewModal) {
+        closePreviewModal();
+      }
+    });
+  }
+
+  // Close on ESC key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const previewModal = $('#previewModal');
+      if (previewModal && previewModal.classList.contains('show')) {
+        closePreviewModal();
+      }
+    }
+  });
+
+  const approvalDelete = $('#approvalDelete');
+  if (approvalDelete) {
+    approvalDelete.addEventListener('click', () => {
     const id = $('#approvalId').value;
     if (!id || !confirm('Are you sure you want to delete this approval?')) return;
     
@@ -575,7 +1095,8 @@ if (approvalDelete) {
       $('#approvalDelete').style.display = 'none';
       selectedApprovalId = null;
     }
-  });
+    });
+  }
 }
 
 /* ================== Requests Tab ================== */
@@ -653,12 +1174,14 @@ function markRequestDone(id) {
   renderRequestsTab();
 }
 
-const showClosedCheckbox = $('#showClosedRequests');
-if (showClosedCheckbox) {
-  showClosedCheckbox.addEventListener('change', (e) => {
-    showClosedRequests = e.target.checked;
-    renderRequestsTab();
-  });
+function setupRequestsHandlers() {
+  const showClosedCheckbox = $('#showClosedRequests');
+  if (showClosedCheckbox) {
+    showClosedCheckbox.addEventListener('change', (e) => {
+      showClosedRequests = e.target.checked;
+      renderRequestsTab();
+    });
+  }
 }
 
 /* ================== Needs Tab ================== */
@@ -764,9 +1287,10 @@ function removeNeed(id) {
   renderNeedsTab();
 }
 
-const needForm = $('#needForm');
-if (needForm) {
-  needForm.addEventListener('submit', (e) => {
+function setupNeedsHandlers() {
+  const needForm = $('#needForm');
+  if (needForm) {
+    needForm.addEventListener('submit', (e) => {
     e.preventDefault();
     
     const state = load();
@@ -798,7 +1322,8 @@ if (needForm) {
     save(state);
     needForm.reset();
     renderNeedsTab();
-  });
+    });
+  }
 }
 
 /* ================== Content Library Tab ================== */
@@ -956,10 +1481,11 @@ function deleteAsset(id) {
   renderContentLibraryTab();
 }
 
-// Asset form handler
-const assetForm = $('#assetForm');
-if (assetForm) {
-  assetForm.addEventListener('submit', (e) => {
+// Setup asset handlers
+function setupAssetHandlers() {
+  const assetForm = $('#assetForm');
+  if (assetForm) {
+    assetForm.addEventListener('submit', (e) => {
     e.preventDefault();
     
     const state = load();
@@ -992,24 +1518,568 @@ if (assetForm) {
     assetForm.reset();
     $('#assetStatus').value = 'pending'; // Reset to default
     renderContentLibraryTab();
-  });
+    });
+  }
+
+  // Filter handlers
+  const filterStatus = $('#filterStatus');
+  if (filterStatus) {
+    filterStatus.addEventListener('change', (e) => {
+      assetFilterStatus = e.target.value;
+      renderContentLibraryTab();
+    });
+  }
+
+  const filterType = $('#filterType');
+  if (filterType) {
+    filterType.addEventListener('change', (e) => {
+      assetFilterType = e.target.value;
+      renderContentLibraryTab();
+    });
+  }
 }
 
-// Filter handlers
-const filterStatus = $('#filterStatus');
-if (filterStatus) {
-  filterStatus.addEventListener('change', (e) => {
-    assetFilterStatus = e.target.value;
-    renderContentLibraryTab();
-  });
+/* ================== New Client Modal ================== */
+function showNewClientModal() {
+  const modal = $('#newClientModal');
+  if (modal) {
+    modal.classList.add('show');
+    // Reset form and clear edit mode
+    window.editingClientId = null;
+    const form = $('#newClientForm');
+    if (form) form.reset();
+    // Clear client ID input (will auto-generate)
+    const clientIdInput = $('#clientIdInput');
+    if (clientIdInput) {
+      clientIdInput.value = '';
+      clientIdInput.disabled = false;
+    }
+    // Hide custom frequency note
+    const customGroup = $('#customFrequencyGroup');
+    if (customGroup) customGroup.style.display = 'none';
+    // Clear errors
+    $$('.error-message').forEach(el => {
+      el.classList.remove('show');
+      el.textContent = '';
+    });
+    // Reset form title and submit button
+    const formTitle = $('#editPanelTitle') || document.querySelector('#newClientForm h2');
+    if (formTitle) formTitle.textContent = 'Create New Client';
+    const submitBtn = $('#newClientForm button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = 'Create Client';
+    // Password required for new clients
+    const passwordInput = $('#clientPassword');
+    if (passwordInput) passwordInput.required = true;
+    // Reset logo in form
+    updateFormLogo(null, '');
+    // Clear form logo input
+    const formLogoInput = $('#formLogoInput');
+    if (formLogoInput) formLogoInput.value = '';
+    // Store form logo URL (will be set when user uploads)
+    window.formLogoUrl = null;
+  }
 }
 
-const filterType = $('#filterType');
-if (filterType) {
-  filterType.addEventListener('change', (e) => {
-    assetFilterType = e.target.value;
-    renderContentLibraryTab();
+// Update logo display in form
+function updateFormLogo(logoUrl, clientName) {
+  const formLogoImg = $('#formLogoImg');
+  const formLogoInitials = $('#formLogoInitials');
+  const formAddLogoBtn = $('#formAddLogoBtn');
+  
+  if (logoUrl) {
+    if (formLogoImg) {
+      formLogoImg.src = logoUrl;
+      formLogoImg.style.display = 'block';
+    }
+    if (formLogoInitials) {
+      formLogoInitials.style.display = 'none';
+    }
+    if (formAddLogoBtn) {
+      formAddLogoBtn.textContent = 'Change Logo';
+    }
+    window.formLogoUrl = logoUrl;
+  } else {
+    if (formLogoImg) {
+      formLogoImg.style.display = 'none';
+    }
+    if (formLogoInitials) {
+      formLogoInitials.style.display = 'block';
+      // Get initials from client name or current name input
+      const nameInput = $('#clientName');
+      const name = clientName || (nameInput ? nameInput.value : '');
+      const initials = (name || 'CN')
+        .split(' ')
+        .map(word => word.charAt(0))
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+      formLogoInitials.textContent = initials || 'CN';
+    }
+    if (formAddLogoBtn) {
+      formAddLogoBtn.textContent = 'Add Logo';
+    }
+    window.formLogoUrl = null;
+  }
+}
+
+// Setup form logo upload handler
+function setupFormLogoUpload() {
+  const formAddLogoBtn = $('#formAddLogoBtn');
+  const formLogoInput = $('#formLogoInput');
+  
+  if (!formAddLogoBtn || !formLogoInput) return;
+  
+  // Remove existing handlers
+  const newBtn = formAddLogoBtn.cloneNode(true);
+  formAddLogoBtn.parentNode.replaceChild(newBtn, formAddLogoBtn);
+  
+  const newInput = $('#formLogoInput');
+  const newAddBtn = $('#formAddLogoBtn');
+  
+  // Click on Add Logo button to trigger file input
+  if (newAddBtn) {
+    newAddBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (newInput) newInput.click();
+    });
+  }
+  
+  // Handle file selection
+  if (newInput) {
+    // Remove existing change handler if any
+    if (newInput._formLogoChangeHandler) {
+      newInput.removeEventListener('change', newInput._formLogoChangeHandler);
+    }
+    
+    newInput._formLogoChangeHandler = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Read file as data URL
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const logoUrl = event.target.result;
+        const nameInput = $('#clientName');
+        const clientName = nameInput ? nameInput.value : '';
+        updateFormLogo(logoUrl, clientName);
+      };
+      reader.onerror = () => {
+        alert('Error reading file. Please try again.');
+      };
+      reader.readAsDataURL(file);
+    };
+    
+    newInput.addEventListener('change', newInput._formLogoChangeHandler);
+  }
+  
+  // Update initials when client name changes
+  const nameInput = $('#clientName');
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      if (!window.formLogoUrl) {
+        // Only update initials if no logo is set
+        const formLogoInitials = $('#formLogoInitials');
+        if (formLogoInitials && formLogoInitials.style.display !== 'none') {
+          const name = nameInput.value;
+          const initials = (name || 'CN')
+            .split(' ')
+            .map(word => word.charAt(0))
+            .join('')
+            .substring(0, 2)
+            .toUpperCase();
+          formLogoInitials.textContent = initials || 'CN';
+        }
+      }
+    });
+  }
+}
+
+function hideNewClientModal() {
+  const modal = $('#newClientModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+function showFieldError(fieldId, message) {
+  const errorEl = $(`#error-${fieldId}`);
+  if (errorEl) {
+    errorEl.textContent = message;
+    errorEl.classList.add('show');
+  }
+}
+
+function clearFieldError(fieldId) {
+  const errorEl = $(`#error-${fieldId}`);
+  if (errorEl) {
+    errorEl.classList.remove('show');
+    errorEl.textContent = '';
+  }
+}
+
+function validateNewClientForm(isEditing) {
+  let isValid = true;
+  
+  // Clear all errors
+  $$('.error-message').forEach(el => {
+    el.classList.remove('show');
+    el.textContent = '';
   });
+  
+  // A) Client Identity
+  const clientName = $('#clientName').value.trim();
+  if (!clientName) {
+    showFieldError('clientName', 'Client name is required');
+    isValid = false;
+  }
+  
+  const clientCategory = $('#clientCategory').value;
+  if (!clientCategory) {
+    showFieldError('clientCategory', 'Category is required');
+    isValid = false;
+  }
+  
+  // Client ID validation (only for new clients, editing uses existing ID)
+  if (!isEditing) {
+    const clientIdInput = $('#clientIdInput').value.trim().toLowerCase();
+    if (clientIdInput && !/^[a-z0-9-]+$/.test(clientIdInput)) {
+      showFieldError('clientIdInput', 'Client ID must contain only lowercase letters, numbers, and hyphens');
+      isValid = false;
+    }
+  }
+  
+  // Password validation (required for new clients, optional for editing)
+  if (!isEditing) {
+    const password = $('#clientPassword').value;
+    if (!password || password.length < 6) {
+      showFieldError('clientPassword', 'Password must be at least 6 characters long');
+      isValid = false;
+    }
+  } else {
+    // For editing, password is optional but if provided must be at least 6 characters
+    const password = $('#clientPassword').value;
+    if (password && password.length < 6) {
+      showFieldError('clientPassword', 'Password must be at least 6 characters long');
+      isValid = false;
+    }
+  }
+  
+  // B) Primary Contact
+  const primaryContactName = $('#primaryContactName').value.trim();
+  if (!primaryContactName) {
+    showFieldError('primaryContactName', 'Contact name is required');
+    isValid = false;
+  }
+  
+  const primaryContactWhatsApp = $('#primaryContactWhatsApp').value.trim();
+  if (!primaryContactWhatsApp) {
+    showFieldError('primaryContactWhatsApp', 'WhatsApp is required');
+    isValid = false;
+  }
+  
+  const primaryContactEmail = $('#primaryContactEmail').value.trim();
+  if (!primaryContactEmail || !primaryContactEmail.includes('@')) {
+    showFieldError('primaryContactEmail', 'Valid email is required');
+    isValid = false;
+  }
+  
+  const preferredChannel = $('#preferredChannel').value;
+  if (!preferredChannel) {
+    showFieldError('preferredChannel', 'Preferred channel is required');
+    isValid = false;
+  }
+  
+  // C) Platforms Managed
+  const platformsCheckboxes = $$('input[name="platformsManaged"]:checked');
+  if (platformsCheckboxes.length === 0) {
+    showFieldError('platformsManaged', 'At least one platform must be selected');
+    isValid = false;
+  }
+  
+  return isValid;
+}
+
+function generateClientId(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .substring(0, 50);
+}
+
+function createNewClient() {
+  // Check if we're editing or creating
+  const isEditing = window.editingClientId;
+  
+  if (!validateNewClientForm(isEditing)) {
+    return false;
+  }
+  
+  const clients = loadClientsRegistry();
+  
+  // Get or generate client ID
+  let clientId = $('#clientIdInput').value.trim().toLowerCase();
+  
+  if (isEditing) {
+    // Editing mode - use existing client ID
+    clientId = window.editingClientId;
+  } else {
+    // Creating new client
+    if (!clientId) {
+      // Auto-generate from name if empty
+      clientId = generateClientId($('#clientName').value.trim());
+      let counter = 1;
+      while (clients[clientId]) {
+        clientId = `${generateClientId($('#clientName').value.trim())}-${counter}`;
+        counter++;
+      }
+    } else {
+      // Validate client ID format
+      if (!/^[a-z0-9-]+$/.test(clientId)) {
+        showFieldError('clientIdInput', 'Client ID must contain only lowercase letters, numbers, and hyphens');
+        return false;
+      }
+      // Check if client ID already exists (only for new clients)
+      if (clients[clientId]) {
+        showFieldError('clientIdInput', 'Client ID already exists. Please choose a different one.');
+        return false;
+      }
+    }
+  }
+  
+  // Validate password (only required for new clients, optional for editing)
+  const password = $('#clientPassword').value;
+  if (!isEditing && (!password || password.length < 6)) {
+    showFieldError('clientPassword', 'Password must be at least 6 characters long');
+    return false;
+  }
+  
+  // Clear any previous errors for these fields
+  clearFieldError('clientIdInput');
+  if (!isEditing) clearFieldError('clientPassword');
+  
+  // Get platforms
+  const platformsCheckboxes = $$('input[name="platformsManaged"]:checked');
+  const platformsManaged = Array.from(platformsCheckboxes).map(cb => cb.value);
+  
+  // Get posting frequency
+  const postingFrequency = $('#postingFrequency').value;
+  const postingFrequencyNote = postingFrequency === 'custom' ? $('#postingFrequencyNote').value.trim() : '';
+  
+  // Create/update client object
+  const existingClient = isEditing ? clients[clientId] : null;
+  const clientData = {
+    id: clientId,
+    name: $('#clientName').value.trim(),
+    category: $('#clientCategory').value,
+    primaryContactName: $('#primaryContactName').value.trim(),
+    primaryContactWhatsApp: $('#primaryContactWhatsApp').value.trim(),
+    primaryContactEmail: $('#primaryContactEmail').value.trim(),
+    preferredChannel: $('#preferredChannel').value,
+    platformsManaged: platformsManaged,
+    postingFrequency: postingFrequency,
+    postingFrequencyNote: postingFrequencyNote,
+    approvalRequired: $('#approvalRequired').value === 'true',
+    language: $('#language').value,
+    assetsLink: $('#assetsLink').value.trim() || '',
+    brandGuidelinesLink: $('#brandGuidelinesLink').value.trim() || '',
+    primaryGoal: $('#primaryGoal').value || '',
+    secondaryGoal: $('#secondaryGoal').value.trim() || '',
+    internalBehaviorType: $('#internalBehaviorType').value,
+    riskLevel: $('#riskLevel').value,
+    internalNotes: $('#internalNotes').value.trim() || '',
+    logoUrl: window.formLogoUrl !== undefined ? window.formLogoUrl : (existingClient ? existingClient.logoUrl : undefined), // Use form logo if uploaded, otherwise preserve existing
+    createdAt: existingClient ? existingClient.createdAt : Date.now(),
+    updatedAt: Date.now()
+  };
+  
+  // Save to clients registry
+  clients[clientId] = clientData;
+  saveClientsRegistry(clients);
+  
+  // Update login credentials (only if password was provided)
+  const LS_CLIENTS_LOGIN_KEY = "2fly_clients_v1";
+  const loginClients = JSON.parse(localStorage.getItem(LS_CLIENTS_LOGIN_KEY) || '{}');
+  
+  if (isEditing) {
+    // Update existing login credentials (only update password if provided)
+    if (password && password.length >= 6) {
+      loginClients[clientId].password = password;
+    }
+    loginClients[clientId].name = clientData.name;
+    loginClients[clientId].whatsapp = clientData.primaryContactWhatsApp;
+  } else {
+    // Create new login credentials
+    loginClients[clientId] = {
+      name: clientData.name,
+      password: password,
+      whatsapp: clientData.primaryContactWhatsApp,
+      createdAt: Date.now()
+    };
+  }
+  localStorage.setItem(LS_CLIENTS_LOGIN_KEY, JSON.stringify(loginClients));
+  
+  // Initialize/update client portal data (only create if new)
+  if (!isEditing) {
+    const portalKey = getClientPortalKey(clientId);
+    const portalData = {
+      client: { 
+        id: clientId, 
+        name: clientData.name, 
+        whatsapp: clientData.primaryContactWhatsApp 
+      },
+      kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
+      approvals: [],
+      needs: [],
+      requests: [],
+      assets: [],
+      activity: [],
+      seen: false
+    };
+    localStorage.setItem(portalKey, JSON.stringify(portalData));
+  } else {
+    // Update client name in portal data if it changed
+    const portalKey = getClientPortalKey(clientId);
+    const portalData = localStorage.getItem(portalKey);
+    if (portalData) {
+      try {
+        const data = JSON.parse(portalData);
+        if (data.client) {
+          data.client.name = clientData.name;
+          data.client.whatsapp = clientData.primaryContactWhatsApp;
+          localStorage.setItem(portalKey, JSON.stringify(data));
+        }
+      } catch(e) {
+        console.error('Error updating portal data:', e);
+      }
+    }
+  }
+  
+  // Select the client
+  selectClient(clientId);
+  
+  // Show success message
+  if (isEditing) {
+    showToast(`Client "${clientData.name}" updated successfully!`);
+  } else {
+    showToast(`Client "${clientData.name}" created successfully!\n\nClient ID: ${clientId}\nPassword: ${password.substring(0, 3)}***`);
+    // Also show alert with full credentials for easy copying
+    alert(`Client "${clientData.name}" created successfully!\n\nClient ID: ${clientId}\nPassword: ${password}\n\nShare these credentials with the client for login.`);
+  }
+  
+  // Close modal
+  hideNewClientModal();
+  
+  return true;
+}
+
+function showToast(message) {
+  // Simple toast notification
+  const toast = el('div', {
+    style: 'position: fixed; top: 20px; right: 20px; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; font-weight: 600;'
+  }, message);
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Setup new client modal handlers
+function setupNewClientHandlers() {
+  const newClientBtn = $('#newClientBtn');
+  if (newClientBtn) {
+    newClientBtn.addEventListener('click', () => {
+      showNewClientModal();
+    });
+  }
+
+  const closeClientModal = $('#closeClientModal');
+  if (closeClientModal) {
+    closeClientModal.addEventListener('click', () => {
+      hideNewClientModal();
+    });
+  }
+
+  const cancelClientForm = $('#cancelClientForm');
+  if (cancelClientForm) {
+    cancelClientForm.addEventListener('click', () => {
+      hideNewClientModal();
+    });
+  }
+  
+  // Setup form logo upload
+  setupFormLogoUpload();
+
+  // Close modal on overlay click
+  const newClientModal = $('#newClientModal');
+  if (newClientModal) {
+    newClientModal.addEventListener('click', (e) => {
+      if (e.target === newClientModal) {
+        hideNewClientModal();
+      }
+    });
+  }
+
+  // Close modal on ESC key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = $('#newClientModal');
+      if (modal && modal.classList.contains('show')) {
+        hideNewClientModal();
+      }
+    }
+  });
+
+  // Handle posting frequency change
+  const postingFrequency = $('#postingFrequency');
+  if (postingFrequency) {
+    postingFrequency.addEventListener('change', (e) => {
+      const customGroup = $('#customFrequencyGroup');
+      if (customGroup) {
+        customGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+      }
+    });
+  }
+
+  // Auto-generate client ID when name changes
+  const clientNameInput = $('#clientName');
+  if (clientNameInput) {
+    clientNameInput.addEventListener('input', (e) => {
+      const clientIdInput = $('#clientIdInput');
+      if (clientIdInput && !clientIdInput.value.trim()) {
+        // Only auto-generate if field is empty
+        const generatedId = generateClientId(e.target.value.trim());
+        if (generatedId) {
+          clientIdInput.value = generatedId;
+        }
+      }
+    });
+  }
+
+  // New client form submission
+  const newClientForm = $('#newClientForm');
+  if (newClientForm) {
+    newClientForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      createNewClient();
+    });
+  }
 }
 
 /* ================== Reports Tab ================== */
@@ -1100,14 +2170,15 @@ function renderReportsTab() {
   container.appendChild(highlightsCard);
 }
 
-// Reports admin form
-const openReportsAdmin = $('#openReportsAdmin');
-const reportsAdmin = $('#reportsAdmin');
-const reportsForm = $('#reportsForm');
-const cancelReports = $('#cancelReports');
+// Setup reports handlers
+function setupReportsHandlers() {
+  const openReportsAdmin = $('#openReportsAdmin');
+  const reportsAdmin = $('#reportsAdmin');
+  const reportsForm = $('#reportsForm');
+  const cancelReports = $('#cancelReports');
 
-if (openReportsAdmin) {
-  openReportsAdmin.addEventListener('click', () => {
+  if (openReportsAdmin) {
+    openReportsAdmin.addEventListener('click', () => {
     if (reportsAdmin) {
       reportsAdmin.style.display = reportsAdmin.style.display === 'none' ? 'block' : 'none';
       if (reportsAdmin.style.display === 'block') {
@@ -1128,17 +2199,17 @@ if (openReportsAdmin) {
         $('#repRequests').value = r.work.requestsResolved || '';
       }
     }
-  });
-}
+    });
+  }
 
-if (cancelReports) {
-  cancelReports.addEventListener('click', () => {
-    if (reportsAdmin) reportsAdmin.style.display = 'none';
-  });
-}
+  if (cancelReports) {
+    cancelReports.addEventListener('click', () => {
+      if (reportsAdmin) reportsAdmin.style.display = 'none';
+    });
+  }
 
-if (reportsForm) {
-  reportsForm.addEventListener('submit', (e) => {
+  if (reportsForm) {
+    reportsForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const pin = $('#repPin').value.trim();
     if (pin !== TEAM_PIN) {
@@ -1189,22 +2260,50 @@ if (reportsForm) {
     save(state);
     
     renderReportsTab();
-  });
+    });
+  }
 }
 
 /* ================== Render All ================== */
 function renderAll() {
   renderClientsSidebar();
-  renderOverviewTab();
-  if (currentTab === 'approvals') renderApprovalsTab();
-  if (currentTab === 'requests') renderRequestsTab();
-  if (currentTab === 'needs') renderNeedsTab();
-  if (currentTab === 'contentlibrary') renderContentLibraryTab();
-  if (currentTab === 'reports') renderReportsTab();
+  renderClientHeader();
+  // Only render the current tab (switchTab will handle rendering)
+  // This prevents duplicate rendering during initialization
+  switchTab(currentTab);
 }
 
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize clients registry and set current client
+  const clients = loadClientsRegistry();
+  if (!currentClientId && Object.keys(clients).length > 0) {
+    // Use last selected or first client
+    currentClientId = clients._lastSelected || Object.keys(clients)[0];
+  }
+  
+  // Restore saved tab from localStorage
+  const savedTab = localStorage.getItem('2fly_agency_current_tab');
+  if (savedTab) {
+    currentTab = savedTab;
+  }
+  
+  // Setup all event handlers
+  setupTabHandlers();
+  setupApprovalHandlers();
+  setupRequestsHandlers();
+  setupNeedsHandlers();
+  setupAssetHandlers();
+  setupNewClientHandlers();
+  setupReportsHandlers();
+  setupLogoUpload();
+  
+  // Render initial view
   renderAll();
+  
+  // Switch to saved tab to ensure UI is updated correctly
+  if (savedTab) {
+    switchTab(savedTab);
+  }
 });
 

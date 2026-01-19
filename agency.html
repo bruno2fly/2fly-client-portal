@@ -124,6 +124,27 @@
       padding: 24px;
     }
     
+    /* Client Header */
+    .client-header {
+      animation: fadeIn 0.3s ease;
+    }
+    
+    #addLogoBtn:hover {
+      background: rgba(255,255,255,0.3) !important;
+      border-color: rgba(255,255,255,0.5) !important;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
     /* Tabs */
     .tabs {
       display: flex;
@@ -224,6 +245,68 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background-color 0.2s;
+    }
+    
+    .approvals-section__title:hover {
+      background-color: #f1f5f9;
+    }
+    
+    .approvals-section__title-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .approvals-section__arrow {
+      transition: transform 0.2s ease;
+      color: #0052CC;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(0, 82, 204, 0.1);
+      flex-shrink: 0;
+    }
+    
+    .approvals-section__arrow svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+    
+    .approvals-section__title:hover .approvals-section__arrow {
+      background: rgba(0, 82, 204, 0.2);
+      color: #003d99;
+    }
+    
+    .approvals-section__arrow.collapsed {
+      transform: rotate(-90deg);
+    }
+    
+    .approvals-section__list {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, opacity 0.2s;
+    }
+    
+    .approvals-section__list.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-bottom: 0;
+    }
+    
+    .approvals-section__list.expanded {
+      max-height: 5000px;
+      opacity: 1;
     }
     
     .approval-item {
@@ -642,6 +725,57 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
     
+    /* New Client Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .modal.show {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      max-width: 700px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .modal-header {
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .form-section {
+      margin-bottom: 32px;
+    }
+    
+    .form-section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
     .preview-modal__head {
       display: flex;
       justify-content: space-between;
@@ -766,10 +900,31 @@
     <aside class="sidebar">
       <div class="sidebar__title">Clients</div>
       <div id="clientsList"></div>
+      <button class="btn btn-primary" id="newClientBtn" style="width: 100%; margin-top: 16px; padding: 12px; background: #0052CC; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">+ New Client</button>
     </aside>
 
     <!-- Main Content -->
     <main class="main">
+      <!-- Client Header with Logo -->
+      <div id="clientHeader" class="client-header" style="display: none; background: #0052CC; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div id="clientLogoContainer" class="client-logo-container" style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div id="clientLogo" class="client-logo" style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid rgba(255,255,255,0.3);">
+              <img id="clientLogoImg" src="" alt="Client Logo" style="max-width: 80px; max-height: 80px; width: auto; height: auto; object-fit: contain; display: none;">
+              <span id="clientLogoInitials" style="font-size: 32px; font-weight: 700; color: white; text-transform: uppercase;">CN</span>
+            </div>
+            <button id="addLogoBtn" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+              Add Logo
+            </button>
+            <input type="file" id="clientLogoInput" accept="image/*" style="display: none;">
+          </div>
+          <div style="flex: 1;">
+            <h2 id="clientHeaderName" style="font-size: 28px; font-weight: 700; color: white; margin: 0 0 8px 0;">Client Name</h2>
+            <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin: 0;">Real-time status • Approvals • Request</p>
+          </div>
+        </div>
+      </div>
+      
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab active" data-tab="overview">Overview</button>
@@ -782,6 +937,19 @@
 
       <!-- Tab Contents -->
       <div id="tabOverview" class="tab-content active">
+        <div class="client-management-section" style="background: white; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Client Management</h3>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button id="editClientBtn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
+              <span>✏️</span>
+              <span>Edit Client</span>
+            </button>
+            <button id="deleteClientBtn" class="btn btn-danger" style="display: inline-flex; align-items: center; gap: 8px;">
+              <span>🗑️</span>
+              <span>Delete Client</span>
+            </button>
+          </div>
+        </div>
         <div class="cards-grid">
           <div class="card">
             <div class="card__title">Scheduled Posts</div>
@@ -960,6 +1128,7 @@
         <div id="assetsList"></div>
       </div>
 
+
       <div id="tabReports" class="tab-content">
         <div id="reportsContent"></div>
         <div class="card" style="margin-top: 24px;">
@@ -1051,6 +1220,248 @@
       </div>
     </div>
   </div>
+
+  <!-- New Client Modal -->
+  <div id="newClientModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="font-size: 24px; font-weight: 700; color: #0f172a; margin: 0;">Add New Client</h2>
+        <button id="closeClientModal" style="background: transparent; border: none; font-size: 28px; color: #64748b; cursor: pointer; line-height: 1; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">&times;</button>
+      </div>
+      <form id="newClientForm" style="padding: 24px;">
+        <h2 id="editPanelTitle" style="margin: 0 0 24px 0; font-size: 20px; font-weight: 700; color: #0f172a;">Create New Client</h2>
+        
+        <!-- Client Logo Section -->
+        <div class="form-section" style="margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Client Logo</h3>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div id="formLogoContainer" class="client-logo-container" style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+              <div id="formLogo" class="client-logo" style="width: 80px; height: 80px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #e2e8f0;">
+                <img id="formLogoImg" src="" alt="Client Logo" style="max-width: 80px; max-height: 80px; width: auto; height: auto; object-fit: contain; display: none;">
+                <span id="formLogoInitials" style="font-size: 32px; font-weight: 700; color: #64748b; text-transform: uppercase;">CN</span>
+              </div>
+              <button type="button" id="formAddLogoBtn" class="btn btn-secondary" style="background: #f1f5f9; color: #0f172a; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                Add Logo
+              </button>
+              <input type="file" id="formLogoInput" accept="image/*" style="display: none;">
+            </div>
+            <div style="flex: 1; color: #64748b; font-size: 13px;">
+              Upload a logo for this client. Maximum size: 80px. Supported formats: JPG, PNG, SVG.
+            </div>
+          </div>
+        </div>
+        
+        <!-- A) Client Identity -->
+        <div class="form-section">
+          <h3>A) Client Identity</h3>
+          <div class="form-group">
+            <label class="form-label" for="clientName">Client Name <span style="color: #ef4444;">*</span></label>
+            <input type="text" class="form-input" id="clientName" required />
+            <div class="error-message" id="error-clientName"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="clientCategory">Category <span style="color: #ef4444;">*</span></label>
+            <select class="form-select" id="clientCategory" required>
+              <option value="">Select category</option>
+              <option value="Restaurant">Restaurant</option>
+              <option value="Med Spa">Med Spa</option>
+              <option value="Service Business">Service Business</option>
+              <option value="E-commerce">E-commerce</option>
+              <option value="Personal Brand">Personal Brand</option>
+              <option value="Other">Other</option>
+            </select>
+            <div class="error-message" id="error-clientCategory"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="clientIdInput">Client ID <span style="color: #ef4444;">*</span></label>
+            <input type="text" class="form-input" id="clientIdInput" required pattern="[a-z0-9-]+" placeholder="Auto-generated from name" />
+            <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Lowercase letters, numbers, and hyphens only. Will be auto-generated if left empty.</small>
+            <div class="error-message" id="error-clientIdInput"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="clientPassword">Password <span style="color: #ef4444;">*</span></label>
+            <input type="password" class="form-input" id="clientPassword" required minlength="6" />
+            <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Minimum 6 characters. Share this with the client for login.</small>
+            <div class="error-message" id="error-clientPassword"></div>
+          </div>
+        </div>
+
+        <!-- B) Primary Contact -->
+        <div class="form-section">
+          <h3>B) Primary Contact</h3>
+          <div class="form-group">
+            <label class="form-label" for="primaryContactName">Contact Name <span style="color: #ef4444;">*</span></label>
+            <input type="text" class="form-input" id="primaryContactName" required />
+            <div class="error-message" id="error-primaryContactName"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="primaryContactWhatsApp">WhatsApp <span style="color: #ef4444;">*</span></label>
+            <input type="text" class="form-input" id="primaryContactWhatsApp" required placeholder="e.g., 15551234567" />
+            <div class="error-message" id="error-primaryContactWhatsApp"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="primaryContactEmail">Email <span style="color: #ef4444;">*</span></label>
+            <input type="email" class="form-input" id="primaryContactEmail" required />
+            <div class="error-message" id="error-primaryContactEmail"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="preferredChannel">Preferred Channel <span style="color: #ef4444;">*</span></label>
+            <select class="form-select" id="preferredChannel" required>
+              <option value="">Select channel</option>
+              <option value="portal">Portal</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="email">Email</option>
+            </select>
+            <div class="error-message" id="error-preferredChannel"></div>
+          </div>
+        </div>
+
+        <!-- C) Platforms Managed -->
+        <div class="form-section">
+          <h3>C) Platforms Managed <span style="color: #ef4444;">*</span></h3>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="instagram" />
+              <span>Instagram</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="facebook" />
+              <span>Facebook</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="google_business" />
+              <span>Google Business</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="website" />
+              <span>Website</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="meta_ads" />
+              <span>Meta Ads</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" name="platformsManaged" value="google_ads" />
+              <span>Google Ads</span>
+            </label>
+          </div>
+          <div class="error-message" id="error-platformsManaged"></div>
+        </div>
+
+        <!-- D) Content Rules -->
+        <div class="form-section">
+          <h3>D) Content Rules</h3>
+          <div class="form-group">
+            <label class="form-label" for="postingFrequency">Posting Frequency</label>
+            <select class="form-select" id="postingFrequency">
+              <option value="3x_week">3x/week</option>
+              <option value="4x_week" selected>4x/week</option>
+              <option value="daily">Daily</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-group" id="customFrequencyGroup" style="display: none;">
+            <label class="form-label" for="postingFrequencyNote">Custom Note</label>
+            <input type="text" class="form-input" id="postingFrequencyNote" placeholder="Describe custom frequency" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="approvalRequired">Approval Required</label>
+            <select class="form-select" id="approvalRequired">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="language">Language</label>
+            <select class="form-select" id="language">
+              <option value="english">English</option>
+              <option value="portuguese">Portuguese</option>
+              <option value="bilingual" selected>Bilingual</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- E) Links -->
+        <div class="form-section">
+          <h3>E) Links (Optional)</h3>
+          <div class="form-group">
+            <label class="form-label" for="assetsLink">Assets / Drive Link</label>
+            <input type="url" class="form-input" id="assetsLink" placeholder="https://..." />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="brandGuidelinesLink">Brand Guidelines Link</label>
+            <input type="url" class="form-input" id="brandGuidelinesLink" placeholder="https://..." />
+          </div>
+        </div>
+
+        <!-- F) Goals -->
+        <div class="form-section">
+          <h3 style="font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">F) Goals (Optional)</h3>
+          <div class="form-group">
+            <label class="form-label" for="primaryGoal">Primary Goal</label>
+            <select class="form-select" id="primaryGoal">
+              <option value="">Select goal</option>
+              <option value="visibility">More visibility</option>
+              <option value="leads">More leads</option>
+              <option value="visits">More store visits</option>
+              <option value="awareness">Brand awareness</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="secondaryGoal">Secondary Goal</label>
+            <input type="text" class="form-input" id="secondaryGoal" placeholder="Optional secondary goal" />
+          </div>
+        </div>
+
+        <!-- G) Internal Notes -->
+        <div class="form-section">
+          <h3>G) Internal Notes (Agency Only)</h3>
+          <div class="form-group">
+            <label class="form-label" for="internalBehaviorType">Behavior Type</label>
+            <select class="form-select" id="internalBehaviorType">
+              <option value="fast">Fast</option>
+              <option value="slow">Slow</option>
+              <option value="needs_reminders">Needs reminders</option>
+              <option value="hands_off">Hands-off</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="riskLevel">Risk Level</label>
+            <select class="form-select" id="riskLevel">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="internalNotes">Notes</label>
+            <textarea class="form-textarea" id="internalNotes" rows="4" placeholder="Internal notes about this client..."></textarea>
+          </div>
+        </div>
+
+        <!-- Form Footer -->
+        <div class="form-actions" style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+          <button type="button" class="btn btn-secondary" id="cancelClientForm">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Client</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    .error-message {
+      color: #ef4444;
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
+    }
+    .error-message.show {
+      display: block;
+    }
+    .form-input:invalid, .form-select:invalid {
+      border-color: #ef4444;
+    }
+  </style>
 
   <script src="agency.js"></script>
 </body>

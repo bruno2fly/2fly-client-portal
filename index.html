@@ -56,6 +56,20 @@
   }
   .notification-icon:hover{background:rgba(255,255,255,.15);}
   .notification-icon svg{width:20px;height:20px;stroke:white;fill:none;stroke-width:2;}
+  .logout-link{
+    color:rgba(255,255,255,.9);
+    font-size:13px;
+    text-decoration:none;
+    cursor:pointer;
+    padding:8px 12px;
+    border-radius:8px;
+    transition:all 0.2s;
+    white-space:nowrap;
+  }
+  .logout-link:hover{
+    background:rgba(255,255,255,.1);
+    color:#ffffff;
+  }
   .logo{width:38px;height:38px;border-radius:10px;background:
         conic-gradient(from 210deg at 50% 50%, var(--brand), var(--brand-2) 60%, var(--brand));
         box-shadow:0 6px 24px rgba(124,92,255,.35), inset 0 0 0 2px rgba(255,255,255,.08);
@@ -440,9 +454,12 @@ body[data-theme="dark"] .kpi-card.motivation{
   <div class="wrap">
     <header>
       <div class="brand">
-        <div class="profile-avatar" aria-hidden="true">👤</div>
+        <div id="clientLogoContainer" class="profile-logo-container" style="width: 60px; height: 60px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; border-radius: 0;">
+          <img id="clientLogoImg" src="" alt="Client Logo" style="max-width: 60px; max-height: 60px; width: auto; height: auto; object-fit: contain; display: none;">
+          <span id="clientLogoInitials" style="font-size: 24px; font-weight: 700; color: white; text-transform: uppercase;">CN</span>
+        </div>
         <div class="title">
-          <h1 id="clientName">Casa Nova</h1>
+          <h1 id="clientName">Loading...</h1>
           <div class="sub">Real-time status • Approvals • Requests</div>
         </div>
       </div>
@@ -453,6 +470,7 @@ body[data-theme="dark"] .kpi-card.motivation{
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
           </svg>
         </div>
+        <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;">Logout</a>
         <button class="btn small" id="toggleMode" style="display:none">☀️</button>
       </div>
     </header>
@@ -731,68 +749,330 @@ body[data-theme="dark"] .kpi-card.motivation{
   </div>
 
 <script>
-/* ================== State (localStorage) ================== */
-const LS_KEY = "client_portal_casa_nova_v1";
-function load(){ let d = localStorage.getItem(LS_KEY); if(!d){ localStorage.setItem(LS_KEY, JSON.stringify(seed)); d = JSON.stringify(seed); } return JSON.parse(d); }
-function save(x){ localStorage.setItem(LS_KEY, JSON.stringify(x)); }
+/* ================== Authentication ================== */
+const LS_SESSION_KEY = "2fly_client_session";
+const LS_CLIENTS_KEY = "2fly_clients_v1";
 
-const seed = {
-  client:{ id:"casa-nova", name:"CASA NOVA", whatsapp:"15551234567" },
-  kpis:{ scheduled:20, waitingApproval:3, missingAssets:2, frustration:3 },
-  approvals:[
-    { id:"ap1", title:"Weekend Promo", type:"Reel", date:"2025-11-04", status:"pending", tags:["Promo","Video"], imageUrl:"https://images.unsplash.com/photo-1556912172-45b7abe8b7e4?w=600&h=600&fit=crop", caption:"🎉 Weekend Special! Get 20% off on all items this weekend. Don't miss out on our amazing deals! #WeekendSale #SpecialOffer #ShopNow", instagramLink:"https://instagram.com/p/weekend-promo" },
-    { id:"ap2", title:"New Arrivals (x5)", type:"Story", date:"2025-11-05", status:"pending", tags:["Stories","Product"], imageUrl:"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=600&fit=crop", caption:"✨ New arrivals just dropped! Check out our latest collection featuring 5 stunning pieces. Swipe up to shop! #NewArrivals #Fashion #ShopNow", instagramLink:"https://instagram.com/stories/new-arrivals" },
-    { id:"ap3", title:"Chef's Special", type:"Post", date:"2025-11-06", status:"pending", tags:["Feed","Food"], imageUrl:"https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=600&fit=crop", caption:"👨‍🍳 Chef's Special of the Week: Our signature dish prepared with love and the finest ingredients. Book your table now! #ChefsSpecial #Foodie #Restaurant", instagramLink:"https://instagram.com/p/chefs-special" },
-    { id:"ap4", title:"Summer Collection Launch", type:"Reel", date:"2025-11-07", status:"pending", tags:["Promo","Launch"], imageUrl:"https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&h=600&fit=crop", caption:"☀️ Summer Collection is here! Fresh styles, vibrant colors, perfect for the season. Watch the full reel! #SummerCollection #NewLaunch #Fashion", instagramLink:"https://instagram.com/reel/summer-collection" },
-    { id:"ap5", title:"Daily Specials Menu", type:"Story", date:"2025-11-08", status:"pending", tags:["Menu","Food"], imageUrl:"https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=600&fit=crop", caption:"📋 Today's Specials: Fresh daily menu with chef's recommendations. Limited availability! #DailySpecials #Menu #Food", instagramLink:"https://instagram.com/stories/daily-specials" },
-    { id:"ap6", title:"Customer Testimonials", type:"Post", date:"2025-11-09", status:"pending", tags:["Testimonials","Social"], imageUrl:"https://images.unsplash.com/photo-1521791136064-7986c2920216?w=600&h=600&fit=crop", caption:"💬 What our customers are saying! Real reviews from real people. Thank you for your trust! #Testimonials #CustomerLove #Reviews", instagramLink:"https://instagram.com/p/customer-testimonials" },
-    { id:"ap7", title:"Holiday Campaign Preview", type:"Reel", date:"2025-11-10", status:"changes", tags:["Holiday","Campaign"], change_notes:[{when:Date.now()-86400000, note:"Need to adjust color scheme to match brand guidelines"}], imageUrl:"https://images.unsplash.com/photo-1482517967863-00e15c9b44be?w=600&h=600&fit=crop", caption:"🎄 Holiday Campaign Preview - Get ready for the most wonderful time of the year! #HolidayCampaign #Christmas #HolidaySeason", instagramLink:"https://instagram.com/reel/holiday-campaign" },
-    { id:"ap8", title:"Behind the Scenes", type:"Story", date:"2025-11-11", status:"approved", tags:["BTS","Content"], imageUrl:"https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=600&fit=crop", caption:"🎬 Behind the scenes of our latest shoot! See how the magic happens. #BehindTheScenes #BTS #ContentCreation", instagramLink:"https://instagram.com/stories/behind-scenes" },
-    { id:"ap9", title:"Product Showcase", type:"Post", date:"2025-11-12", status:"approved", tags:["Product","Showcase"], imageUrl:"https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=600&h=600&fit=crop", caption:"✨ Product Showcase: Discover our featured items with stunning photography. Shop the collection! #ProductShowcase #Featured #ShopNow", instagramLink:"https://instagram.com/p/product-showcase" },
-  ],
-  needs:[
-    { id:"n1", text:"We need 5 short product clips (vertical) for next week reels.", severity:"bad", status:"open" },
-    { id:"n2", text:"Logo in SVG for site header (current PNG is low-res).", severity:"warn", status:"open" },
-  ],
-  requests:[ 
-    { id:"r1", type:"New campaign idea", by:"Client", details:"Holiday combo countdown stories?", link:"", status:"open", createdAt: Date.now()-86400000*2 },
-    { id:"r2", type:"Send photos/videos", by:"Client", details:"Product photos for new collection", link:"", status:"done", createdAt: Date.now()-86400000*5, doneAt: Date.now()-86400000*2 },
-    { id:"r3", type:"Approve content", by:"Client", details:"Review social media posts", link:"", status:"done", createdAt: Date.now()-86400000*8, doneAt: Date.now()-86400000*4 }
-  ],
-  activity:[
-    { when: Date.now()-3600*1000*2, text:"Weekend Promo reel uploaded for approval." },
-    { when: Date.now()-3600*1000*4, text:"Scheduled 8 posts for 11/06–11/12." },
-    { when: Date.now()-3600*1000*6, text:"Uploaded Story Set — New Arrivals for approval." },
-    { when: Date.now()-3600*1000*12, text:"Chef's Special post draft created." },
-    { when: Date.now()-3600*1000*24, text:"Client approved Summer Collection Launch reel." },
-    { when: Date.now()-3600*1000*48, text:"Client viewed the portal." },
-  ],
-  seen:false
+// Logout functionality - define early so it's available for onclick
+window.handleLogout = function(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  console.log("Logout clicked - clearing session");
+  // Clear session from localStorage
+  localStorage.removeItem(LS_SESSION_KEY);
+  console.log("Session cleared, redirecting to login...");
+  // Redirect to login page
+  window.location.href = 'login.html';
 };
+
+function checkAuth() {
+  const session = localStorage.getItem(LS_SESSION_KEY);
+  if (!session) {
+    window.location.href = 'login.html';
+    return null;
+  }
+  
+  try {
+    const sessionData = JSON.parse(session);
+    // Check if session is still valid (24 hours)
+    if (Date.now() - sessionData.loggedInAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(LS_SESSION_KEY);
+      window.location.href = 'login.html';
+      return null;
+    }
+    return sessionData;
+  } catch {
+    localStorage.removeItem(LS_SESSION_KEY);
+    window.location.href = 'login.html';
+    return null;
+  }
+}
+
+// Check authentication on page load
+const session = checkAuth();
+if (!session) {
+  // Redirect will happen, stop execution
+  throw new Error('Not authenticated');
+}
+
+// Debug logging
+console.log("Session loaded:", session);
+console.log("Client ID:", session.clientId);
+console.log("Client Name:", session.clientName);
+
+// Get client ID from session - normalize to lowercase for consistency
+const currentClientId = (session.clientId || "").toLowerCase().trim();
+
+// Immediately update the client name in the DOM if available (before any other code runs)
+if (session.clientName) {
+  const clientNameEl = document.getElementById("clientName");
+  if (clientNameEl) {
+    clientNameEl.textContent = session.clientName;
+    console.log("Client name set immediately to:", session.clientName);
+  }
+}
+
+// Function to load client logo from agency registry
+function loadClientLogo() {
+  try {
+    const session = checkAuth();
+    if (!session || !session.clientId) {
+      // Show initials as fallback
+      const logoInitials = document.getElementById("clientLogoInitials");
+      if (logoInitials) {
+        logoInitials.style.display = "block";
+        logoInitials.textContent = "CN";
+      }
+      return;
+    }
+    
+    // Get client data from agency registry
+    const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
+    const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
+    if (!clientsData) {
+      // Fallback to initials
+      const logoInitials = document.getElementById("clientLogoInitials");
+      if (logoInitials) {
+        logoInitials.style.display = "block";
+        const clientName = session.clientName || "CN";
+        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+        logoInitials.textContent = initials || "CN";
+      }
+      return;
+    }
+    
+    const clients = JSON.parse(clientsData);
+    const clientId = session.clientId.toLowerCase();
+    const client = clients[clientId];
+    
+    const logoImg = document.getElementById("clientLogoImg");
+    const logoInitials = document.getElementById("clientLogoInitials");
+    
+    if (client && client.logoUrl) {
+      // Show logo
+      if (logoImg) {
+        logoImg.src = client.logoUrl;
+        logoImg.style.display = "block";
+      }
+      if (logoInitials) {
+        logoInitials.style.display = "none";
+      }
+    } else {
+      // Show initials
+      if (logoImg) {
+        logoImg.style.display = "none";
+      }
+      if (logoInitials) {
+        logoInitials.style.display = "block";
+        const clientName = session.clientName || (client ? client.name : "CN");
+        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+        logoInitials.textContent = initials || "CN";
+      }
+    }
+  } catch(e) {
+    console.warn("Error loading client logo:", e);
+    // Fallback to initials if error
+    const logoInitials = document.getElementById("clientLogoInitials");
+    if (logoInitials) {
+      logoInitials.style.display = "block";
+      try {
+        const session = checkAuth();
+        const clientName = session ? (session.clientName || "CN") : "CN";
+        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+        logoInitials.textContent = initials || "CN";
+      } catch(e2) {
+        logoInitials.textContent = "CN";
+      }
+    }
+  }
+}
+
+// Load logo on page load
+loadClientLogo();
+
+// Function to load client logo from agency registry
+function loadClientLogo() {
+  try {
+    const session = checkAuth();
+    if (!session || !session.clientId) return;
+    
+    // Get client data from agency registry
+    const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
+    const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
+    if (!clientsData) return;
+    
+    const clients = JSON.parse(clientsData);
+    const clientId = session.clientId.toLowerCase();
+    const client = clients[clientId];
+    
+    if (!client) return;
+    
+    const logoImg = document.getElementById("clientLogoImg");
+    const logoInitials = document.getElementById("clientLogoInitials");
+    
+    if (client.logoUrl) {
+      // Show logo
+      if (logoImg) {
+        logoImg.src = client.logoUrl;
+        logoImg.style.display = "block";
+      }
+      if (logoInitials) {
+        logoInitials.style.display = "none";
+      }
+    } else {
+      // Show initials
+      if (logoImg) {
+        logoImg.style.display = "none";
+      }
+      if (logoInitials) {
+        logoInitials.style.display = "block";
+        const clientName = session.clientName || client.name || "CN";
+        const initials = clientName
+          .split(" ")
+          .map(word => word.charAt(0))
+          .join("")
+          .substring(0, 2)
+          .toUpperCase();
+        logoInitials.textContent = initials || "CN";
+      }
+    }
+  } catch(e) {
+    console.warn("Error loading client logo:", e);
+    // Fallback to initials if error
+    const logoInitials = document.getElementById("clientLogoInitials");
+    if (logoInitials) {
+      logoInitials.style.display = "block";
+      try {
+        const session = checkAuth();
+        const clientName = session ? (session.clientName || "CN") : "CN";
+        const initials = clientName
+          .split(" ")
+          .map(word => word.charAt(0))
+          .join("")
+          .substring(0, 2)
+          .toUpperCase();
+        logoInitials.textContent = initials || "CN";
+      } catch(e2) {
+        logoInitials.textContent = "CN";
+      }
+    }
+  }
+}
+
+// Normalize clientId to lowercase for consistency with agency dashboard
+if (session.clientId) {
+  session.clientId = session.clientId.toLowerCase().trim();
+}
+
+/* ================== State (localStorage) ================== */
+const LS_KEY = `client_portal_${currentClientId}_v1`;
+console.log("Using localStorage key:", LS_KEY);
+
+// Load state from localStorage
+function load() {
+  try {
+    const d = localStorage.getItem(LS_KEY);
+    console.log("Loading from key:", LS_KEY, "Data exists:", !!d);
+    if (!d) {
+      // Initialize with seed data if doesn't exist
+      const seed = getSeed();
+      localStorage.setItem(LS_KEY, JSON.stringify(seed));
+      console.log("Initialized new state for client:", currentClientId);
+      return seed;
+    }
+    const state = JSON.parse(d);
+    console.log("Loaded state, approvals count:", (state.approvals || []).length);
+    // Ensure all required properties exist
+    if (!state.client) state.client = { id: currentClientId, name: session.clientName || "Client", whatsapp: "" };
+    if (!state.approvals) state.approvals = [];
+    if (!state.needs) state.needs = [];
+    if (!state.requests) state.requests = [];
+    if (!state.activity) state.activity = [];
+    if (!state.kpis) state.kpis = { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 };
+    return state;
+  } catch(e) {
+    console.error("Error loading state:", e);
+    // Return seed data on error
+    const seed = getSeed();
+    localStorage.setItem(LS_KEY, JSON.stringify(seed));
+    return seed;
+  }
+}
+
+// Save state to localStorage
+function save(state) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    console.log("State saved to:", LS_KEY);
+  } catch(e) {
+    console.error("Error saving state:", e);
+  }
+}
+
+function getSeed() {
+  // Return empty seed data for new clients - they should start fresh
+  return {
+    client:{ id: currentClientId, name: session.clientName || "Client", whatsapp:"" },
+    kpis:{ scheduled:0, waitingApproval:0, missingAssets:0, frustration:0 },
+    approvals:[],
+    needs:[],
+    requests:[],
+    assets:[],
+    activity:[],
+    seen:false
+  };
+}
 
 /* ---- MIGRATION: ensure approvals exist (if state was wiped) ---- */
 function migrateState(){
   const s = load(); let changed = false;
   
-  // Check if approvals array exists and has items
-  if(!Array.isArray(s.approvals) || s.approvals.length===0){
-    s.approvals = JSON.parse(JSON.stringify(seed.approvals));
-    changed = true;
-  } else {
-    // Ensure we have at least the seed items - check for key IDs
-    const seedIds = seed.approvals.map(a => a.id);
-    const existingIds = s.approvals.map(a => a.id);
-    const missingIds = seedIds.filter(id => !existingIds.includes(id));
-    
-    if (missingIds.length > 0) {
-      // Add missing seed items
-      seed.approvals.forEach(seedItem => {
-        if (!s.approvals.find(a => a.id === seedItem.id)) {
-          s.approvals.push(JSON.parse(JSON.stringify(seedItem)));
-        }
-      });
+  // Always sync client name from session to ensure it's up to date
+  let currentSession = null;
+  try {
+    currentSession = checkAuth();
+  } catch(e) {
+    console.warn("Could not get session in migrateState:", e);
+  }
+  
+  if (currentSession && currentSession.clientName) {
+    if (!s.client) {
+      s.client = { id: currentSession.clientId, name: currentSession.clientName, whatsapp: "" };
       changed = true;
+    } else {
+      if (s.client.name !== currentSession.clientName) {
+        s.client.name = currentSession.clientName;
+        changed = true;
+      }
+      // Also update client ID if it doesn't match
+      if (s.client.id !== currentSession.clientId) {
+        s.client.id = currentSession.clientId;
+        changed = true;
+      }
     }
+  } else if (typeof session !== 'undefined' && session && session.clientName) {
+    // Fallback to global session variable
+    if (!s.client) {
+      s.client = { id: session.clientId, name: session.clientName, whatsapp: "" };
+      changed = true;
+    } else {
+      if (s.client.name !== session.clientName) {
+        s.client.name = session.clientName;
+        changed = true;
+      }
+      if (s.client.id !== session.clientId) {
+        s.client.id = session.clientId;
+        changed = true;
+      }
+    }
+  }
+  
+  // Ensure approvals array exists (start empty for new clients)
+  if(!Array.isArray(s.approvals)){
+    s.approvals = [];
+    changed = true;
   }
   
   // Update pending count
@@ -804,9 +1084,19 @@ function migrateState(){
     }
   }
   
-  // Ensure requests array exists
+  // Ensure client name is always synced from session (important for client name display)
+  if (session && session.clientName) {
+    if (!s.client) s.client = { id: session.clientId, name: session.clientName, whatsapp: "" };
+    if (s.client.name !== session.clientName || s.client.id !== session.clientId) {
+      s.client.name = session.clientName;
+      s.client.id = session.clientId;
+      changed = true;
+    }
+  }
+  
+  // Ensure requests array exists (start empty for new clients)
   if(!Array.isArray(s.requests)){
-    s.requests = seed.requests ? JSON.parse(JSON.stringify(seed.requests)) : [];
+    s.requests = [];
     changed = true;
   } else {
     // Migrate completedAt to doneAt for backward compatibility
@@ -823,8 +1113,12 @@ function migrateState(){
       }
     });
   }
-  // Ensure needs have status field (migrate old needs to have status: 'open')
-  if (Array.isArray(s.needs)) {
+  // Ensure needs array exists (start empty for new clients)
+  if (!Array.isArray(s.needs)) {
+    s.needs = [];
+    changed = true;
+  } else {
+    // Migrate old needs to have status field
     s.needs.forEach(n => {
       if (!n.status) {
         n.status = 'open';
@@ -832,9 +1126,16 @@ function migrateState(){
       }
     });
   }
-  // Ensure activity array exists
+  
+  // Ensure activity array exists (start empty for new clients)
   if(!Array.isArray(s.activity)){
-    s.activity = seed.activity ? JSON.parse(JSON.stringify(seed.activity)) : [];
+    s.activity = [];
+    changed = true;
+  }
+  
+  // Ensure assets array exists (start empty for new clients)
+  if(!Array.isArray(s.assets)){
+    s.assets = [];
     changed = true;
   }
   if(changed) save(s);
@@ -874,8 +1175,42 @@ async function notifyTeam(payload){
 function render(){
   const state = load();
   
+  // Always use session clientName as source of truth, fallback to state
   const clientNameEl = $("#clientName");
-  if (clientNameEl) clientNameEl.textContent = state.client.name;
+  if (clientNameEl) {
+    // Get current session fresh (it might have been refreshed)
+    let currentSession = null;
+    try {
+      currentSession = checkAuth();
+    } catch(e) {
+      console.warn("Could not get session in render:", e);
+    }
+    
+    // Try to get display name from multiple sources
+    let displayName = "Client";
+    if (currentSession && currentSession.clientName) {
+      displayName = currentSession.clientName;
+    } else if (typeof session !== 'undefined' && session && session.clientName) {
+      displayName = session.clientName;
+    } else if (state && state.client && state.client.name) {
+      displayName = state.client.name;
+    }
+    
+    clientNameEl.textContent = displayName;
+    console.log("Client name set to:", displayName);
+    
+    // Update state if it's different (for consistency)
+    if (currentSession && currentSession.clientName && state.client.name !== currentSession.clientName) {
+      state.client.name = currentSession.clientName;
+      save(state);
+    } else if (typeof session !== 'undefined' && session && session.clientName && state.client.name !== session.clientName) {
+      state.client.name = session.clientName;
+      save(state);
+    }
+  }
+  
+  // Load and display client logo
+  loadClientLogo();
   
   const lastSyncEl = $("#lastSync");
   if (lastSyncEl) lastSyncEl.textContent = "updated " + fmtDate(Date.now());
@@ -1957,7 +2292,51 @@ function initializeApp() {
     lanePending.style.display = 'block';
   }
   
-  // Render everything
+  // Update client name immediately from session before rendering (fixes "Loading..." issue)
+  const clientNameEl = document.getElementById("clientName");
+  if (clientNameEl) {
+    let displayName = "Client";
+    try {
+      // Try to get fresh session
+      const freshSession = checkAuth();
+      if (freshSession && freshSession.clientName) {
+        displayName = freshSession.clientName;
+      } else if (typeof session !== 'undefined' && session && session.clientName) {
+        displayName = session.clientName;
+      } else {
+        // Fallback to state if session doesn't have name
+        const state = load();
+        if (state && state.client && state.client.name) {
+          displayName = state.client.name;
+        }
+      }
+    } catch(e) {
+      console.warn("Error getting session for client name:", e);
+      // Try state as fallback
+      try {
+        const state = load();
+        if (state && state.client && state.client.name) {
+          displayName = state.client.name;
+        }
+      } catch(e2) {
+        console.error("Could not load state:", e2);
+      }
+    }
+    clientNameEl.textContent = displayName;
+    console.log("Initial client name set to:", displayName);
+  }
+  
+  // Load logo after name is set
+  loadClientLogo();
+  
+  // Set up logout button as backup (onclick should already work, but this ensures it's attached)
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", window.handleLogout);
+    console.log("Logout button event listener attached");
+  }
+  
+  // Render everything (this will also update the name again if needed)
   render(); 
   renderReports();
   
