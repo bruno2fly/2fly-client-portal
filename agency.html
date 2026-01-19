@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2Fly Agency Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: #F3F6FF;
+      color: #0f172a;
+      line-height: 1.6;
+    }
+    
+    /* Header */
+    .header {
+      background: #0052CC;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header__logo {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    
+    .header__user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .header__avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    /* Layout */
+    .layout {
+      display: flex;
+      height: calc(100vh - 68px);
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: #0B1437;
+      color: white;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    
+    .sidebar__title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      color: rgba(255,255,255,0.7);
+    }
+    
+    .client-tile {
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .client-tile:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    
+    .client-tile.active {
+      background: rgba(255,255,255,0.2);
+      border: 2px solid #0052CC;
+    }
+    
+    .client-tile__name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .client-tile__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.2);
+      font-weight: 500;
+    }
+    
+    /* Main Content */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0;
+    }
+    
+    .tab {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: #64748b;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+    
+    .tab:hover {
+      color: #0052CC;
+    }
+    
+    .tab.active {
+      color: #0052CC;
+      border-bottom-color: #0052CC;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* Cards */
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    
+    .card__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .card__value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #0052CC;
+      margin-bottom: 4px;
+    }
+    
+    .card__sub {
+      font-size: 13px;
+      color: #64748b;
+    }
+    
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    
+    /* Approvals Layout */
+    .approvals-layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 24px;
+    }
+    
+    .approvals-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .approvals-section {
+      margin-bottom: 32px;
+    }
+    
+    .approvals-section__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    
+    .approval-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    
+    .approval-item:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .approval-item.selected {
+      border-color: #0052CC;
+    }
+    
+    .approval-item__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    
+    .approval-item__title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    
+    .approval-item__meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    
+    .chip {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+    
+    .chip--type {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    
+    .chip--status-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .chip--status-changes {
+      background: #fed7aa;
+      color: #9a3412;
+    }
+    
+    .chip--status-approved {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .approval-item__date {
+      font-size: 13px;
+      color: #64748b;
+    }
+    
+    /* Edit Panel */
+    .edit-panel {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+    
+    .edit-panel__title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #0052CC;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0042a8;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+    
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+    
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    
+    /* Requests List */
+    .request-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .request-item__info {
+      flex: 1;
+    }
+    
+    .request-item__type {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    
+    .request-item__details {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    
+    .request-item__meta {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .request-item__status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+    
+    .request-item__status--open {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .request-item__status--done {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    /* Needs List */
+    .need-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .need-item__text {
+      flex: 1;
+      font-size: 14px;
+      color: #0f172a;
+    }
+    
+    .need-item__severity {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+      margin-right: 12px;
+    }
+    
+    .need-item__severity--bad {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .need-item__severity--warn {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    /* Asset Item */
+    .asset-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    
+    .asset-item__thumbnail {
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #f1f5f9;
+      flex-shrink: 0;
+    }
+    
+    .asset-item__thumbnail-placeholder {
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    
+    .asset-item__content {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .asset-item__title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    
+    .asset-item__meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    
+    .asset-item__tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    
+    .tag-small {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    
+    .asset-item__actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    
+    .asset-item__date {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    
+    /* Reports Cards */
+    .report-card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    
+    .report-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .report-card__title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    
+    /* Activity line */
+    .activity-line {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #64748b;
+    }
+    
+    .empty-state__text {
+      font-size: 14px;
+    }
+    
+    /* Filter toggle */
+    .filter-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .filter-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    
+    .filter-toggle label {
+      font-size: 14px;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    
+    /* Preview Modal */
+    .preview-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .preview-modal.show {
+      display: flex;
+    }
+    
+    .preview-modal__panel {
+      background: white;
+      border-radius: 16px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .preview-modal__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .preview-modal__title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1e40af;
+    }
+    
+    .preview-modal__close {
+      background: transparent;
+      border: none;
+      font-size: 28px;
+      color: #64748b;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .preview-modal__body {
+      padding: 24px;
+    }
+    
+    .preview-modal__image-container {
+      width: 100%;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f1f5f9;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .preview-modal__image {
+      width: 100%;
+      height: auto;
+      display: block;
+      max-height: 500px;
+      object-fit: contain;
+    }
+    
+    .preview-modal__instagram-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #1e40af;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    
+    .preview-modal__caption-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+    
+    .preview-modal__caption {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+    
+    @media (max-width: 1024px) {
+      .approvals-layout {
+        grid-template-columns: 1fr;
+      }
+      
+      .edit-panel {
+        position: static;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+      }
+      
+      .sidebar {
+        width: 100%;
+        max-height: 200px;
+      }
+      
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header__logo">2Fly Agency Dashboard</div>
+    <div class="header__user">
+      <div class="header__avatar">TM</div>
+      <span>Team Member</span>
+    </div>
+  </header>
+
+  <!-- Layout -->
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar__title">Clients</div>
+      <div id="clientsList"></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="approvals">Approvals</button>
+        <button class="tab" data-tab="requests">Requests</button>
+        <button class="tab" data-tab="needs">Needs from client</button>
+        <button class="tab" data-tab="contentlibrary">Content Library</button>
+        <button class="tab" data-tab="reports">Reports</button>
+      </div>
+
+      <!-- Tab Contents -->
+      <div id="tabOverview" class="tab-content active">
+        <div class="cards-grid">
+          <div class="card">
+            <div class="card__title">Scheduled Posts</div>
+            <div class="card__value" id="kpiScheduled">0</div>
+            <div class="card__sub">Next 15 days</div>
+          </div>
+          <div class="card">
+            <div class="card__title">Post for approval</div>
+            <div class="card__value" id="kpiWaiting">0</div>
+            <div class="card__sub">On client review</div>
+          </div>
+          <div class="card">
+            <div class="card__title">Missing Assets</div>
+            <div class="card__value" id="kpiMissing">0</div>
+            <div class="card__sub">From client</div>
+          </div>
+        </div>
+        <div class="activity-line" id="lastActivity">Last portal activity: None</div>
+      </div>
+
+      <div id="tabApprovals" class="tab-content">
+        <div class="approvals-layout">
+          <div>
+            <div id="approvalsList"></div>
+          </div>
+          <div class="edit-panel">
+            <div class="edit-panel__title" id="editPanelTitle">Create Approval</div>
+            <form id="approvalForm">
+              <input type="hidden" id="approvalId" />
+              <div class="form-group">
+                <label class="form-label" for="approvalTitle">Title</label>
+                <input type="text" class="form-input" id="approvalTitle" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalType">Type</label>
+                <select class="form-select" id="approvalType" required>
+                  <option value="Post">Post</option>
+                  <option value="Reel">Reel</option>
+                  <option value="Story">Story</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalDate">Due Date</label>
+                <input type="date" class="form-input" id="approvalDate" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalPostDate">Post Date</label>
+                <input type="date" class="form-input" id="approvalPostDate" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalDescription">Description</label>
+                <textarea class="form-textarea" id="approvalDescription"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalImageUrl">Image URL (optional)</label>
+                <input type="url" class="form-input" id="approvalImageUrl" placeholder="https://..." />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalCaption">Caption (optional)</label>
+                <textarea class="form-textarea" id="approvalCaption" placeholder="Instagram caption..."></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalInstagramLink">Instagram Link (optional)</label>
+                <input type="url" class="form-input" id="approvalInstagramLink" placeholder="https://instagram.com/..." />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalStatus">Status</label>
+                <select class="form-select" id="approvalStatus" required>
+                  <option value="pending">Pending</option>
+                  <option value="changes">Changes Requested</option>
+                  <option value="approved">Approved</option>
+                </select>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="approvalPreview">Preview</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" id="approvalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="approvalDelete" style="display:none;">Delete</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div id="tabRequests" class="tab-content">
+        <div class="filter-toggle">
+          <input type="checkbox" id="showClosedRequests" />
+          <label for="showClosedRequests">Show closed requests</label>
+        </div>
+        <div id="requestsList"></div>
+      </div>
+
+      <div id="tabNeeds" class="tab-content">
+        <div id="needsList"></div>
+        <div class="card" style="margin-top: 24px;">
+          <div class="edit-panel__title">Add Need</div>
+          <form id="needForm">
+            <div class="form-group">
+              <label class="form-label" for="needText">Text</label>
+              <textarea class="form-textarea" id="needText" required></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="needSeverity">Severity</label>
+              <select class="form-select" id="needSeverity" required>
+                <option value="warn">Warning</option>
+                <option value="bad">Bad</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Add Need</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="tabContentlibrary" class="tab-content">
+        <!-- Create Asset Form -->
+        <div class="card">
+          <div class="edit-panel__title">Upload Asset</div>
+          <form id="assetForm">
+            <div class="form-group">
+              <label class="form-label" for="assetTitle">Title</label>
+              <input type="text" class="form-input" id="assetTitle" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetUrl">URL</label>
+              <input type="url" class="form-input" id="assetUrl" required placeholder="https://..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetType">Type</label>
+              <select class="form-select" id="assetType" required>
+                <option value="photo">Photo</option>
+                <option value="video">Video</option>
+                <option value="logo">Logo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetTags">Tags (comma separated)</label>
+              <input type="text" class="form-input" id="assetTags" placeholder="product, campaign, social" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetStatus">Status</label>
+              <select class="form-select" id="assetStatus" required>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Asset</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Filters -->
+        <div style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="filterStatus" style="font-size: 13px;">Filter by Status:</label>
+            <select class="form-select" id="filterStatus" style="min-width: 150px;">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="filterType" style="font-size: 13px;">Filter by Type:</label>
+            <select class="form-select" id="filterType" style="min-width: 150px;">
+              <option value="all">All</option>
+              <option value="photo">Photo</option>
+              <option value="video">Video</option>
+              <option value="logo">Logo</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Assets List -->
+        <div id="assetsList"></div>
+      </div>
+
+      <div id="tabReports" class="tab-content">
+        <div id="reportsContent"></div>
+        <div class="card" style="margin-top: 24px;">
+          <button class="btn btn-primary" id="openReportsAdmin">Edit Report</button>
+        </div>
+        <div id="reportsAdmin" class="card" style="display:none; margin-top: 24px;">
+          <div class="edit-panel__title">Update Report (Team)</div>
+          <form id="reportsForm">
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="password" class="form-input" id="repPin" placeholder="Team PIN" />
+                <input type="text" class="form-input" id="repPeriod" placeholder="Period (e.g., Nov 2025)" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repAdsRunning" placeholder="Ads running" />
+                <input type="number" class="form-input" id="repImpressions" placeholder="Impressions" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repClicks" placeholder="Clicks" />
+                <input type="number" class="form-input" id="repLeads" placeholder="Leads" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repGmbViews" placeholder="GMB views" />
+                <input type="number" class="form-input" id="repProfileSearches" placeholder="Profile searches" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repWebsiteClicks" placeholder="Website clicks" />
+                <input type="number" class="form-input" id="repIgFollowers" placeholder="IG followers change" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repPosts" placeholder="Posts published" />
+                <input type="number" class="form-input" id="repReels" placeholder="Reels edited" />
+              </div>
+            </div>
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <input type="number" class="form-input" id="repCampaigns" placeholder="Campaigns launched" />
+                <input type="number" class="form-input" id="repRequests" placeholder="Requests resolved" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" id="cancelReports">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Report</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Preview Modal -->
+  <div id="previewModal" class="preview-modal">
+    <div class="preview-modal__panel">
+      <div class="preview-modal__head">
+        <h4 id="previewModalTitle" class="preview-modal__title">Preview</h4>
+        <button type="button" class="preview-modal__close" id="closePreviewModal">&times;</button>
+      </div>
+      <div class="preview-modal__body">
+        <!-- Image Preview -->
+        <div id="previewImageContainer" class="preview-modal__image-container">
+          <img id="previewImage" src="" alt="Content preview" class="preview-modal__image" />
+        </div>
+        
+        <!-- Instagram Link -->
+        <div id="previewInstagramContainer" style="margin-bottom: 20px; display: none;">
+          <a id="previewInstagramLink" href="#" target="_blank" rel="noopener" class="preview-modal__instagram-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+            </svg>
+            <span>View on Instagram</span>
+          </a>
+        </div>
+        
+        <!-- Caption -->
+        <div style="margin-bottom: 20px;">
+          <h5 class="preview-modal__caption-label">Caption:</h5>
+          <div id="previewCaption" class="preview-modal__caption">No caption provided.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="agency.js"></script>
+</body>
+</html>
+

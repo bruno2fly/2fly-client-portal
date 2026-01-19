@@ -1,0 +1,33 @@
+:root{
+  --bg: #0b0c10;
+  --surface: #151821;
+  --surface-2:#0f1117;
+  --text:#e8ecf1;
+  --muted:#9aa3b2;
+  --stroke:#242a36;
+  --accent:#7c5cff;
+  --accent-2:#58e1ff;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --bad:#ef4444;
+  --radius: 14px;
+  --shadow: 0 6px 24px rgba(0,0,0,.25);
+  
+  /* Status backgrounds */
+  --pending-bg: rgba(59,130,246,.10);
+  --approved-bg: rgba(34,197,94,.10);
+  --changes-bg: rgba(234,179,8,.12);
+}
+
+body[data-theme="light"] {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f5;
+  --text: #0d1222;
+  --muted: #5b6475;
+  --stroke: #e7e9f2;
+  --pending-bg: rgba(59,130,246,.08);
+  --approved-bg: rgba(34,197,94,.08);
+  --changes-bg: rgba(234,179,8,.10);
+}
+
