@@ -768,9 +768,23 @@ window.handleLogout = function(e) {
 };
 
 function checkAuth() {
+  // Don't redirect if we're already on the login page or if pathname includes login
+  const pathname = window.location.pathname;
+  const isLoginPage = pathname.includes('login.html') || 
+                      pathname === '/login' || 
+                      pathname.endsWith('/login.html') ||
+                      window.location.href.includes('login.html');
+  
+  if (isLoginPage) {
+    return null; // Don't redirect, just return null
+  }
+  
   const session = localStorage.getItem(LS_SESSION_KEY);
   if (!session) {
-    window.location.href = 'login.html';
+    // Only redirect if we're NOT already on login page
+    if (!isLoginPage) {
+      window.location.href = 'login.html';
+    }
     return null;
   }
   
@@ -779,196 +793,141 @@ function checkAuth() {
     // Check if session is still valid (24 hours)
     if (Date.now() - sessionData.loggedInAt > 24 * 60 * 60 * 1000) {
       localStorage.removeItem(LS_SESSION_KEY);
-      window.location.href = 'login.html';
+      if (!isLoginPage) {
+        window.location.href = 'login.html';
+      }
       return null;
     }
     return sessionData;
   } catch {
     localStorage.removeItem(LS_SESSION_KEY);
-    window.location.href = 'login.html';
+    if (!isLoginPage) {
+      window.location.href = 'login.html';
+    }
     return null;
   }
 }
 
 // Check authentication on page load
-const session = checkAuth();
+// Only check if we're not already on login page
+let session = null;
+if (!window.location.pathname.includes('login.html') && window.location.pathname !== '/login') {
+  session = checkAuth();
+  if (!session) {
+    // Redirect is happening, stop execution of this script
+    // The redirect will navigate away, but wrap rest of code in session check
+    // to prevent errors during redirect transition
+  }
+}
+
+// Only proceed if we have a valid session
 if (!session) {
-  // Redirect will happen, stop execution
-  throw new Error('Not authenticated');
-}
+  // No session - either redirecting or on login page
+  // Don't execute the rest of the code to prevent errors
+  console.log("No session - redirecting to login or on login page");
+  // Early return - wrap everything else in else block
+} else {
+  // Debug logging
+  console.log("Session loaded:", session);
+  console.log("Client ID:", session.clientId);
+  console.log("Client Name:", session.clientName);
 
-// Debug logging
-console.log("Session loaded:", session);
-console.log("Client ID:", session.clientId);
-console.log("Client Name:", session.clientName);
+  // Get client ID from session - normalize to lowercase for consistency
+  const currentClientId = (session.clientId || "").toLowerCase().trim();
 
-// Get client ID from session - normalize to lowercase for consistency
-const currentClientId = (session.clientId || "").toLowerCase().trim();
-
-// Immediately update the client name in the DOM if available (before any other code runs)
-if (session.clientName) {
-  const clientNameEl = document.getElementById("clientName");
-  if (clientNameEl) {
-    clientNameEl.textContent = session.clientName;
-    console.log("Client name set immediately to:", session.clientName);
+  // Immediately update the client name in the DOM if available (before any other code runs)
+  if (session.clientName) {
+    const clientNameEl = document.getElementById("clientName");
+    if (clientNameEl) {
+      clientNameEl.textContent = session.clientName;
+      console.log("Client name set immediately to:", session.clientName);
+    }
   }
-}
 
-// Function to load client logo from agency registry
-function loadClientLogo() {
-  try {
-    const session = checkAuth();
-    if (!session || !session.clientId) {
-      // Show initials as fallback
+  // Function to load client logo from agency registry
+  function loadClientLogo() {
+    try {
+      const session = checkAuth();
+      if (!session || !session.clientId) {
+        // Show initials as fallback
+        const logoInitials = document.getElementById("clientLogoInitials");
+        if (logoInitials) {
+          logoInitials.style.display = "block";
+          logoInitials.textContent = "CN";
+        }
+        return;
+      }
+      
+      // Get client data from agency registry
+      const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
+      const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
+      if (!clientsData) {
+        // Fallback to initials
+        const logoInitials = document.getElementById("clientLogoInitials");
+        if (logoInitials) {
+          logoInitials.style.display = "block";
+          const clientName = session.clientName || "CN";
+          const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+          logoInitials.textContent = initials || "CN";
+        }
+        return;
+      }
+      
+      const clients = JSON.parse(clientsData);
+      const clientId = session.clientId.toLowerCase();
+      const client = clients[clientId];
+      
+      const logoImg = document.getElementById("clientLogoImg");
+      const logoInitials = document.getElementById("clientLogoInitials");
+      
+      if (client && client.logoUrl) {
+        // Show logo
+        if (logoImg) {
+          logoImg.src = client.logoUrl;
+          logoImg.style.display = "block";
+        }
+        if (logoInitials) {
+          logoInitials.style.display = "none";
+        }
+      } else {
+        // Show initials
+        if (logoImg) {
+          logoImg.style.display = "none";
+        }
+        if (logoInitials) {
+          logoInitials.style.display = "block";
+          const clientName = session.clientName || (client ? client.name : "CN");
+          const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+          logoInitials.textContent = initials || "CN";
+        }
+      }
+    } catch(e) {
+      console.warn("Error loading client logo:", e);
+      // Fallback to initials if error
       const logoInitials = document.getElementById("clientLogoInitials");
       if (logoInitials) {
         logoInitials.style.display = "block";
-        logoInitials.textContent = "CN";
-      }
-      return;
-    }
-    
-    // Get client data from agency registry
-    const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
-    const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
-    if (!clientsData) {
-      // Fallback to initials
-      const logoInitials = document.getElementById("clientLogoInitials");
-      if (logoInitials) {
-        logoInitials.style.display = "block";
-        const clientName = session.clientName || "CN";
-        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-        logoInitials.textContent = initials || "CN";
-      }
-      return;
-    }
-    
-    const clients = JSON.parse(clientsData);
-    const clientId = session.clientId.toLowerCase();
-    const client = clients[clientId];
-    
-    const logoImg = document.getElementById("clientLogoImg");
-    const logoInitials = document.getElementById("clientLogoInitials");
-    
-    if (client && client.logoUrl) {
-      // Show logo
-      if (logoImg) {
-        logoImg.src = client.logoUrl;
-        logoImg.style.display = "block";
-      }
-      if (logoInitials) {
-        logoInitials.style.display = "none";
-      }
-    } else {
-      // Show initials
-      if (logoImg) {
-        logoImg.style.display = "none";
-      }
-      if (logoInitials) {
-        logoInitials.style.display = "block";
-        const clientName = session.clientName || (client ? client.name : "CN");
-        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-        logoInitials.textContent = initials || "CN";
-      }
-    }
-  } catch(e) {
-    console.warn("Error loading client logo:", e);
-    // Fallback to initials if error
-    const logoInitials = document.getElementById("clientLogoInitials");
-    if (logoInitials) {
-      logoInitials.style.display = "block";
-      try {
-        const session = checkAuth();
-        const clientName = session ? (session.clientName || "CN") : "CN";
-        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-        logoInitials.textContent = initials || "CN";
-      } catch(e2) {
-        logoInitials.textContent = "CN";
+        try {
+          const session = checkAuth();
+          const clientName = session ? (session.clientName || "CN") : "CN";
+          const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+          logoInitials.textContent = initials || "CN";
+        } catch(e2) {
+          logoInitials.textContent = "CN";
+        }
       }
     }
   }
-}
 
-// Load logo on page load
-loadClientLogo();
+  // Load logo on page load
+  loadClientLogo();
 
-// Function to load client logo from agency registry
-function loadClientLogo() {
-  try {
-    const session = checkAuth();
-    if (!session || !session.clientId) return;
-    
-    // Get client data from agency registry
-    const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
-    const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
-    if (!clientsData) return;
-    
-    const clients = JSON.parse(clientsData);
-    const clientId = session.clientId.toLowerCase();
-    const client = clients[clientId];
-    
-    if (!client) return;
-    
-    const logoImg = document.getElementById("clientLogoImg");
-    const logoInitials = document.getElementById("clientLogoInitials");
-    
-    if (client.logoUrl) {
-      // Show logo
-      if (logoImg) {
-        logoImg.src = client.logoUrl;
-        logoImg.style.display = "block";
-      }
-      if (logoInitials) {
-        logoInitials.style.display = "none";
-      }
-    } else {
-      // Show initials
-      if (logoImg) {
-        logoImg.style.display = "none";
-      }
-      if (logoInitials) {
-        logoInitials.style.display = "block";
-        const clientName = session.clientName || client.name || "CN";
-        const initials = clientName
-          .split(" ")
-          .map(word => word.charAt(0))
-          .join("")
-          .substring(0, 2)
-          .toUpperCase();
-        logoInitials.textContent = initials || "CN";
-      }
-    }
-  } catch(e) {
-    console.warn("Error loading client logo:", e);
-    // Fallback to initials if error
-    const logoInitials = document.getElementById("clientLogoInitials");
-    if (logoInitials) {
-      logoInitials.style.display = "block";
-      try {
-        const session = checkAuth();
-        const clientName = session ? (session.clientName || "CN") : "CN";
-        const initials = clientName
-          .split(" ")
-          .map(word => word.charAt(0))
-          .join("")
-          .substring(0, 2)
-          .toUpperCase();
-        logoInitials.textContent = initials || "CN";
-      } catch(e2) {
-        logoInitials.textContent = "CN";
-      }
-    }
+  // Normalize clientId to lowercase for consistency with agency dashboard
+  if (session.clientId) {
+    session.clientId = session.clientId.toLowerCase().trim();
   }
-}
 
-// Normalize clientId to lowercase for consistency with agency dashboard
-if (session.clientId) {
-  session.clientId = session.clientId.toLowerCase().trim();
-}
-
-/* ================== State (localStorage) ================== */
-const LS_KEY = `client_portal_${currentClientId}_v1`;
-console.log("Using localStorage key:", LS_KEY);
+  console.log("Using localStorage key:", LS_KEY);
 
 // Load state from localStorage
 function load() {
@@ -2352,15 +2311,16 @@ function initializeApp() {
       console.error("Error in delayed render:", e);
     }
   }, 100);
-}
+  }
 
-// Run when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-  // DOM is already ready
-  initializeApp();
-}
+  // Run when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+  } else {
+    // DOM is already ready
+    initializeApp();
+  }
+} // End of session check else block
 </script>
 </body>
 </html>
