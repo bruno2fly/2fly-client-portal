@@ -55,6 +55,11 @@
       font-weight: 600;
     }
     
+    #logoutBtn:hover {
+      background: rgba(255,255,255,0.3) !important;
+      border-color: rgba(255,255,255,0.5) !important;
+    }
+    
     /* Layout */
     .layout {
       display: flex;
@@ -358,6 +363,21 @@
       color: #1e40af;
     }
     
+    .chip--status-copy_pending {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    
+    .chip--status-copy_approved {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    
+    .chip--status-copy_changes {
+      background: #fed7aa;
+      color: #9a3412;
+    }
+    
     .chip--status-pending {
       background: #fef3c7;
       color: #92400e;
@@ -466,6 +486,44 @@
     
     .btn-secondary:hover {
       background: #e2e8f0;
+    }
+    
+    /* Image Preview Styles */
+    .uploaded-image-preview {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #e2e8f0;
+    }
+    
+    .uploaded-image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .uploaded-image-preview .remove-image {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .uploaded-image-preview .remove-image:hover {
+      background: #dc2626;
     }
     
     /* Requests List */
@@ -889,8 +947,9 @@
   <header class="header">
     <div class="header__logo">2Fly Agency Dashboard</div>
     <div class="header__user">
-      <div class="header__avatar">TM</div>
-      <span>Team Member</span>
+      <div class="header__avatar" id="staffAvatar">TM</div>
+      <span id="staffName">Team Member</span>
+      <button id="logoutBtn" class="btn btn-secondary" style="margin-left: 12px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">Logout</button>
     </div>
   </header>
 
@@ -994,34 +1053,46 @@
               <div class="form-group">
                 <label class="form-label" for="approvalDate">Due Date</label>
                 <input type="date" class="form-input" id="approvalDate" required />
+                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Auto-set to 2 days from today</small>
               </div>
               <div class="form-group">
                 <label class="form-label" for="approvalPostDate">Post Date</label>
                 <input type="date" class="form-input" id="approvalPostDate" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="approvalDescription">Description</label>
-                <textarea class="form-textarea" id="approvalDescription"></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="approvalImageUrl">Image URL (optional)</label>
-                <input type="url" class="form-input" id="approvalImageUrl" placeholder="https://..." />
+                <label class="form-label" for="approvalCopyText">Copy Text (for Copy Approval)</label>
+                <textarea class="form-textarea" id="approvalCopyText" placeholder="Enter the copy/text for the post..."></textarea>
+                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">This will be sent for copy approval first</small>
               </div>
               <div class="form-group">
                 <label class="form-label" for="approvalCaption">Caption (optional)</label>
                 <textarea class="form-textarea" id="approvalCaption" placeholder="Instagram caption..."></textarea>
               </div>
               <div class="form-group">
-                <label class="form-label" for="approvalInstagramLink">Instagram Link (optional)</label>
-                <input type="url" class="form-input" id="approvalInstagramLink" placeholder="https://instagram.com/..." />
+                <label class="form-label" for="approvalImageUrl">Image URL</label>
+                <input type="url" class="form-input" id="approvalImageUrl" placeholder="https://example.com/image.jpg" />
+                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Enter a direct link to an image</small>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="approvalImageUpload">Upload Image from Computer</label>
+                <input type="file" class="form-input" id="approvalImageUpload" accept="image/*" multiple />
+                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Select one or more image files to upload</small>
+                <div id="uploadedImagesPreview" style="margin-top: 12px; display: none;">
+                  <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">Uploaded Images:</div>
+                  <div id="uploadedImagesList" style="display: flex; flex-wrap: wrap; gap: 12px;"></div>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="approvalStatus">Status</label>
                 <select class="form-select" id="approvalStatus" required>
-                  <option value="pending">Pending</option>
+                  <option value="copy_pending">Copy Pending</option>
+                  <option value="copy_approved">Copy Approved</option>
+                  <option value="copy_changes">Copy Changes</option>
+                  <option value="pending">Content Pending</option>
                   <option value="changes">Changes Requested</option>
                   <option value="approved">Approved</option>
                 </select>
+                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Select "Copy Pending" to send for copy approval first</small>
               </div>
               <div class="form-actions">
                 <button type="button" class="btn btn-secondary" id="approvalPreview">Preview</button>

@@ -1,3 +1,37 @@
+/* ================== Authentication ================== */
+const LS_STAFF_SESSION_KEY = "2fly_staff_session";
+
+function checkStaffAuth() {
+  const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+  if (!session) {
+    window.location.href = 'staff-login.html';
+    return null;
+  }
+  
+  try {
+    const sessionData = JSON.parse(session);
+    // Check if session is still valid (24 hours)
+    if (Date.now() - sessionData.loggedInAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(LS_STAFF_SESSION_KEY);
+      window.location.href = 'staff-login.html';
+      return null;
+    }
+    return sessionData;
+  } catch {
+    localStorage.removeItem(LS_STAFF_SESSION_KEY);
+    window.location.href = 'staff-login.html';
+    return null;
+  }
+}
+
+function logout() {
+  localStorage.removeItem(LS_STAFF_SESSION_KEY);
+  window.location.href = 'staff-login.html';
+}
+
+// Check authentication on page load
+let currentStaff = checkStaffAuth();
+
 /* ================== State Management ================== */
 const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
 const LS_REPORTS_KEY = "client_portal_reports_v1";
@@ -156,7 +190,42 @@ function load() {
 function save(x) {
   if (!currentClientId) return;
   const key = getClientPortalKey(currentClientId);
-  localStorage.setItem(key, JSON.stringify(x));
+  
+  try {
+    // Check size before saving
+    const dataString = JSON.stringify(x);
+    const sizeInMB = new Blob([dataString]).size / (1024 * 1024);
+    
+    // Warn if approaching limit (5MB is typical localStorage limit)
+    if (sizeInMB > 4.5) {
+      console.warn('Warning: Data size is', sizeInMB.toFixed(2), 'MB. Approaching localStorage limit.');
+      showToast('Warning: Data size is large. Some images may not be saved.', 'error');
+    }
+    
+    localStorage.setItem(key, dataString);
+  } catch (error) {
+    if (error.name === 'QuotaExceededError') {
+      console.error('localStorage quota exceeded. Data size:', new Blob([JSON.stringify(x)]).size / (1024 * 1024), 'MB');
+      showToast('Error: Cannot save - storage limit exceeded. Please remove some images or clear old data.', 'error');
+      
+      // Try to save without uploadedImages as fallback
+      if (x.approvals) {
+        const approvalsWithoutImages = x.approvals.map(approval => {
+          const { uploadedImages, ...rest } = approval;
+          return rest;
+        });
+        const fallbackData = { ...x, approvals: approvalsWithoutImages };
+        try {
+          localStorage.setItem(key, JSON.stringify(fallbackData));
+          showToast('Saved without images. Please use image URLs instead of uploads.', 'error');
+        } catch (e) {
+          console.error('Even fallback save failed:', e);
+        }
+      }
+    } else {
+      throw error;
+    }
+  }
 }
 
 function loadReports() {
@@ -480,6 +549,13 @@ function switchTab(tabName) {
       break;
     case 'approvals':
       renderApprovalsTab();
+      // Set auto due date when switching to approvals tab (if form is empty)
+      setTimeout(() => {
+        const approvalId = $('#approvalId');
+        if (!approvalId || !approvalId.value) {
+          setAutoDueDate();
+        }
+      }, 100);
       break;
     case 'requests':
       renderRequestsTab();
@@ -665,7 +741,7 @@ function deleteCurrentClient() {
   saveClientsRegistry(clients);
   
   // Re-render sidebar and switch to first available client
-  renderClientsList();
+  renderClientsSidebar();
   const remainingClients = Object.keys(clients).filter(k => k !== '_lastSelected');
   if (remainingClients.length > 0) {
     selectClient(remainingClients[0]);
@@ -715,14 +791,20 @@ function renderApprovalsTab() {
   
   container.addEventListener('click', container._deselectHandler);
   
-  // Group by status
-  const pending = (state.approvals || []).filter(a => !a.status || a.status === 'pending');
+  // Group by status - copy sections first, then content sections
+  const copyPending = (state.approvals || []).filter(a => a.status === 'copy_pending');
+  const copyApproved = (state.approvals || []).filter(a => a.status === 'copy_approved');
+  const copyChanges = (state.approvals || []).filter(a => a.status === 'copy_changes');
+  const pending = (state.approvals || []).filter(a => (!a.status || a.status === 'pending') && a.status !== 'copy_pending' && a.status !== 'copy_approved' && a.status !== 'copy_changes');
   const changes = (state.approvals || []).filter(a => a.status === 'changes');
   const approved = (state.approvals || []).filter(a => a.status === 'approved');
   
   // Store collapsed state for each section (default: all expanded)
   if (!window.approvalsSectionState) {
     window.approvalsSectionState = {
+      copyPending: false,
+      copyApproved: false,
+      copyChanges: false,
       pending: false,
       changes: false,
       approved: false
@@ -802,16 +884,27 @@ function renderApprovalsTab() {
         
         const meta = el('div', { class: 'approval-item__meta' });
         meta.appendChild(el('span', { class: 'chip chip--type' }, item.type || 'Post'));
+        // Format status display
+        let statusDisplay = (item.status || 'pending');
+        if (statusDisplay === 'copy_pending') {
+          statusDisplay = 'Copy Pending';
+        } else if (statusDisplay === 'copy_approved') {
+          statusDisplay = 'Copy Approved';
+        } else if (statusDisplay === 'copy_changes') {
+          statusDisplay = 'Copy Changes';
+        } else {
+          statusDisplay = statusDisplay.charAt(0).toUpperCase() + statusDisplay.slice(1);
+        }
         meta.appendChild(el('span', {
           class: `chip chip--status-${item.status || 'pending'}`
-        }, (item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)));
+        }, statusDisplay));
         meta.appendChild(el('span', { class: 'approval-item__date' }, `Due ${item.date || 'N/A'}`));
         
         itemEl.appendChild(header);
         itemEl.appendChild(meta);
         
-        // Show change request notes if status is "changes" and notes exist
-        if (item.status === 'changes' && item.change_notes && item.change_notes.length > 0) {
+        // Show change request notes if status is "changes" or "copy_changes" and notes exist
+        if ((item.status === 'changes' || item.status === 'copy_changes') && item.change_notes && item.change_notes.length > 0) {
           const latestNote = item.change_notes[item.change_notes.length - 1];
           const changeRequestBox = el('div', { 
             class: 'approval-item__change-request',
@@ -847,14 +940,37 @@ function renderApprovalsTab() {
     containerEl.appendChild(section);
   }
   
-  renderSection('Pending', pending, container, 'pending');
-  renderSection('Changes Requested', changes, container, 'changes');
-  renderSection('Approved', approved, container, 'approved');
+    // Render copy sections first (on top), then content sections
+    renderSection('Copy Pending', copyPending, container, 'copyPending');
+    renderSection('Copy Changes', copyChanges, container, 'copyChanges');
+    renderSection('Copy Approved', copyApproved, container, 'copyApproved');
+    renderSection('Pending', pending, container, 'pending');
+    renderSection('Changes Requested', changes, container, 'changes');
+    renderSection('Approved', approved, container, 'approved');
   
   if ((state.approvals || []).length === 0) {
     container.appendChild(el('div', { class: 'empty-state' },
       el('div', { class: 'empty-state__text' }, 'No approvals yet. Create one using the form on the right.')
     ));
+  }
+}
+
+// Auto-set due date to 2 days from today
+function setAutoDueDate() {
+  const dueDateInput = $('#approvalDate');
+  if (!dueDateInput) return;
+  
+  // Only auto-set if the field is empty (new approval)
+  if (!dueDateInput.value) {
+    const today = new Date();
+    const twoDaysLater = new Date(today);
+    twoDaysLater.setDate(today.getDate() + 2);
+    
+    // Format as YYYY-MM-DD for date input
+    const year = twoDaysLater.getFullYear();
+    const month = String(twoDaysLater.getMonth() + 1).padStart(2, '0');
+    const day = String(twoDaysLater.getDate()).padStart(2, '0');
+    dueDateInput.value = `${year}-${month}-${day}`;
   }
 }
 
@@ -869,6 +985,7 @@ function loadApprovalForEdit(id) {
     $('#editPanelTitle').textContent = 'Create Approval';
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
+    setAutoDueDate();
     return;
   }
   
@@ -877,11 +994,22 @@ function loadApprovalForEdit(id) {
   $('#approvalType').value = item.type || 'Post';
   $('#approvalDate').value = item.date || '';
   $('#approvalPostDate').value = item.postDate || '';
-  $('#approvalDescription').value = item.description || '';
-  $('#approvalImageUrl').value = item.imageUrl || '';
+  $('#approvalCopyText').value = item.copyText || '';
   $('#approvalCaption').value = item.caption || '';
-  $('#approvalInstagramLink').value = item.instagramLink || '';
   $('#approvalStatus').value = item.status || 'pending';
+  
+  // Load image URL if exists
+  $('#approvalImageUrl').value = item.imageUrl || '';
+  
+  // Load uploaded images if they exist
+  if (item.uploadedImages && item.uploadedImages.length > 0) {
+    uploadedImages = item.uploadedImages;
+    displayUploadedImages();
+  } else {
+    uploadedImages = [];
+    displayUploadedImages();
+  }
+  
   $('#editPanelTitle').textContent = 'Edit Approval';
   $('#approvalDelete').style.display = 'block';
 }
@@ -897,16 +1025,18 @@ function setupApprovalHandlers() {
     const id = $('#approvalId').value;
     
     const postDateValue = $('#approvalPostDate').value.trim();
+    const imageUrl = $('#approvalImageUrl').value.trim();
+    
     const approvalData = {
       id: id || `ap${Date.now()}`,
       title: $('#approvalTitle').value.trim(),
       type: $('#approvalType').value,
       date: $('#approvalDate').value,
       postDate: postDateValue || null,
-      description: $('#approvalDescription').value.trim(),
-      imageUrl: $('#approvalImageUrl').value.trim() || undefined,
+      copyText: $('#approvalCopyText').value.trim() || undefined,
       caption: $('#approvalCaption').value.trim() || undefined,
-      instagramLink: $('#approvalInstagramLink').value.trim() || undefined,
+      imageUrl: imageUrl || undefined,
+      uploadedImages: uploadedImages.length > 0 ? uploadedImages : undefined,
       status: $('#approvalStatus').value,
       tags: []
     };
@@ -949,6 +1079,9 @@ function setupApprovalHandlers() {
     $('#editPanelTitle').textContent = 'Create Approval';
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
+    uploadedImages = [];
+    displayUploadedImages();
+    setAutoDueDate();
   });
   }
 
@@ -960,9 +1093,18 @@ function setupApprovalHandlers() {
     $('#editPanelTitle').textContent = 'Create Approval';
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
+    uploadedImages = [];
+    displayUploadedImages();
     $$('.approval-item').forEach(i => i.classList.remove('selected'));
+    setAutoDueDate();
     });
   }
+  
+  // Auto-set due date to 2 days from today
+  setAutoDueDate();
+  
+  // Setup image upload handlers
+  setupImageUpload();
 
   // Preview button handler
   const approvalPreview = $('#approvalPreview');
@@ -975,39 +1117,44 @@ function setupApprovalHandlers() {
 // Preview Modal functions
 function openPreviewModal() {
   const title = $('#approvalTitle').value.trim() || 'Untitled';
-  const imageUrl = $('#approvalImageUrl').value.trim();
+  const copyText = $('#approvalCopyText').value.trim();
   const caption = $('#approvalCaption').value.trim() || 'No caption provided.';
-  const instagramLink = $('#approvalInstagramLink').value.trim();
+  const imageUrl = $('#approvalImageUrl').value.trim();
   
   // Set title
   const previewTitle = $('#previewModalTitle');
   if (previewTitle) previewTitle.textContent = title;
   
-  // Set image
-  const previewImage = $('#previewImage');
+  // Set content (images or copy text)
   const previewImageContainer = $('#previewImageContainer');
-  if (previewImage && previewImageContainer) {
-    if (imageUrl) {
-      previewImage.src = imageUrl;
-      previewImage.alt = title;
-      previewImage.onerror = function() {
-        previewImageContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image not available</div>';
-      };
+  if (previewImageContainer) {
+    let contentHTML = '';
+    
+    // Priority: uploadedImages > imageUrl > copyText > "No content"
+    if (uploadedImages && uploadedImages.length > 0) {
+      // Show uploaded images
+      contentHTML = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">';
+      uploadedImages.forEach((image) => {
+        contentHTML += `<img src="${image.dataUrl}" alt="${image.name}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;" />`;
+      });
+      contentHTML += '</div>';
+    } else if (imageUrl) {
+      // Show image from URL
+      contentHTML = `<img src="${imageUrl}" alt="${title}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding: 40px; text-align: center; color: #94a3b8;\\'>Image could not be loaded</div>';">`;
+    } else if (copyText) {
+      // Show copy text
+      contentHTML = `<div style="padding: 24px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"><div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">Copy Text:</div><div style="color: #0f172a; line-height: 1.6; white-space: pre-wrap;">${copyText}</div></div>`;
     } else {
-      previewImageContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">No image provided</div>';
+      contentHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">No content provided</div>';
     }
+    
+    previewImageContainer.innerHTML = contentHTML;
   }
   
-  // Set Instagram link
+  // Hide Instagram link section (removed)
   const previewInstagramContainer = $('#previewInstagramContainer');
-  const previewInstagramLink = $('#previewInstagramLink');
-  if (previewInstagramContainer && previewInstagramLink) {
-    if (instagramLink) {
-      previewInstagramLink.href = instagramLink;
-      previewInstagramContainer.style.display = 'block';
-    } else {
-      previewInstagramContainer.style.display = 'none';
-    }
+  if (previewInstagramContainer) {
+    previewInstagramContainer.style.display = 'none';
   }
   
   // Set caption
@@ -1098,6 +1245,7 @@ function closePreviewModal() {
     });
   }
 }
+
 
 /* ================== Requests Tab ================== */
 let showClosedRequests = false;
@@ -1987,10 +2135,14 @@ function createNewClient() {
   return true;
 }
 
-function showToast(message) {
-  // Simple toast notification
+function showToast(message, type = 'success') {
+  // Simple toast notification with different types
+  let bgColor = '#22c55e'; // success (green)
+  if (type === 'error') bgColor = '#ef4444'; // error (red)
+  if (type === 'info') bgColor = '#3b82f6'; // info (blue)
+  
   const toast = el('div', {
-    style: 'position: fixed; top: 20px; right: 20px; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; font-weight: 600;'
+    style: `position: fixed; top: 20px; right: 20px; background: ${bgColor}; color: white; padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; font-weight: 600; font-size: 14px;`
   }, message);
   document.body.appendChild(toast);
   setTimeout(() => {
@@ -2273,8 +2425,202 @@ function renderAll() {
   switchTab(currentTab);
 }
 
+/* ================== Staff Header ================== */
+function updateStaffHeader() {
+  if (!currentStaff) return;
+  
+  const staffNameEl = $('#staffName');
+  const staffAvatarEl = $('#staffAvatar');
+  
+  if (staffNameEl) {
+    staffNameEl.textContent = currentStaff.fullName || currentStaff.username || 'Team Member';
+  }
+  
+  if (staffAvatarEl) {
+    // Get initials from full name or username
+    const name = currentStaff.fullName || currentStaff.username || 'TM';
+    const initials = name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+    staffAvatarEl.textContent = initials || 'TM';
+  }
+  
+  // Setup logout button
+  const logoutBtn = $('#logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to logout?')) {
+        logout();
+      }
+    });
+  }
+}
+
+/* ================== Image Upload ================== */
+let uploadedImages = []; // Array of { name, dataUrl, size }
+
+// Compress image to reduce localStorage size
+function compressImage(file, maxWidth = 1920, maxHeight = 1920, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          } else {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        // Create canvas and compress
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to JPEG (smaller than PNG) with compression
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        
+        resolve({
+          name: file.name,
+          dataUrl: compressedDataUrl,
+          size: compressedDataUrl.length, // Approximate size
+          type: 'image/jpeg',
+          originalSize: file.size
+        });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Setup image upload handlers
+function setupImageUpload() {
+  const fileInput = $('#approvalImageUpload');
+  if (!fileInput) return;
+  
+  fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    // Limit to 3 images max to prevent quota issues
+    if (uploadedImages.length + files.length > 3) {
+      showToast('Maximum 3 images allowed. Please remove some images first.', 'error');
+      fileInput.value = '';
+      return;
+    }
+    
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        showToast(`${file.name} is not an image file`, 'error');
+        continue;
+      }
+      
+      // Check file size (max 10MB before compression)
+      if (file.size > 10 * 1024 * 1024) {
+        showToast(`${file.name} is too large. Maximum size is 10MB.`, 'error');
+        continue;
+      }
+      
+      try {
+        showToast(`Compressing ${file.name}...`, 'info');
+        const compressed = await compressImage(file);
+        
+        // Check if compressed image is still too large (max 2MB per image)
+        if (compressed.size > 2 * 1024 * 1024) {
+          // Try with lower quality
+          const moreCompressed = await compressImage(file, 1600, 1600, 0.6);
+          if (moreCompressed.size > 2 * 1024 * 1024) {
+            showToast(`${file.name} is still too large after compression. Please use a smaller image.`, 'error');
+            continue;
+          }
+          uploadedImages.push(moreCompressed);
+        } else {
+          uploadedImages.push(compressed);
+        }
+        
+        displayUploadedImages();
+        showToast(`${file.name} uploaded successfully`, 'success');
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        showToast(`Error processing ${file.name}`, 'error');
+      }
+    }
+    
+    // Reset input to allow selecting the same file again
+    fileInput.value = '';
+  });
+}
+
+// Display uploaded images
+function displayUploadedImages() {
+  const previewContainer = $('#uploadedImagesPreview');
+  const imagesList = $('#uploadedImagesList');
+  
+  if (!previewContainer || !imagesList) return;
+  
+  if (uploadedImages.length === 0) {
+    previewContainer.style.display = 'none';
+    return;
+  }
+  
+  previewContainer.style.display = 'block';
+  imagesList.innerHTML = '';
+  
+  uploadedImages.forEach((image, index) => {
+    const imageWrapper = el('div', {
+      class: 'uploaded-image-preview'
+    });
+    
+    const img = el('img', {
+      src: image.dataUrl,
+      alt: image.name,
+      style: 'width: 100%; height: 100%; object-fit: cover;'
+    });
+    
+    const removeBtn = el('button', {
+      class: 'remove-image',
+      type: 'button',
+      'aria-label': 'Remove image'
+    });
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      uploadedImages = uploadedImages.filter((_, i) => i !== index);
+      displayUploadedImages();
+    });
+    
+    imageWrapper.appendChild(img);
+    imageWrapper.appendChild(removeBtn);
+    imagesList.appendChild(imageWrapper);
+  });
+}
+
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', () => {
+  // Check authentication first
+  if (!currentStaff) {
+    return; // Will redirect to login
+  }
+  
+  // Update staff header
+  updateStaffHeader();
+  
   // Initialize clients registry and set current client
   const clients = loadClientsRegistry();
   if (!currentClientId && Object.keys(clients).length > 0) {

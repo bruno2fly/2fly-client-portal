@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2Fly Agency - Staff Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #0052CC 0%, #003d99 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .login-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      width: 100%;
+      max-width: 450px;
+    }
+    
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: #0052CC;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    
+    .login-subtitle {
+      font-size: 14px;
+      color: #64748b;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #0052CC;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #0052CC;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0042a8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+    }
+    
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+    
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #64748b;
+      margin-top: 12px;
+    }
+    
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    
+    .error-message {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .error-message.show {
+      display: block;
+    }
+    
+    .success-message {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .success-message.show {
+      display: block;
+    }
+    
+    .login-footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    
+    .login-footer a {
+      color: #0052CC;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    
+    .login-footer a:hover {
+      text-decoration: underline;
+    }
+    
+    .divider {
+      text-align: center;
+      margin: 24px 0;
+      position: relative;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    
+    .divider::before,
+    .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 45%;
+      height: 1px;
+      background: #e2e8f0;
+    }
+    
+    .divider::before {
+      left: 0;
+    }
+    
+    .divider::after {
+      right: 0;
+    }
+    
+    .register-section {
+      display: none;
+    }
+    
+    .register-section.show {
+      display: block;
+    }
+    
+    .login-section.hide {
+      display: none;
+    }
+    
+    .password-requirements {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-header">
+      <div class="login-logo">2F</div>
+      <h1 class="login-title">Agency Staff Portal</h1>
+      <p class="login-subtitle" id="subtitle">Sign in to access the dashboard</p>
+    </div>
+    
+    <div id="errorMessage" class="error-message"></div>
+    <div id="successMessage" class="success-message"></div>
+    
+    <!-- Login Section -->
+    <div id="loginSection" class="login-section">
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            id="username" 
+            placeholder="Enter your username"
+            required
+            autocomplete="username"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input 
+            type="password" 
+            class="form-input" 
+            id="password" 
+            placeholder="Enter your password"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Sign In</button>
+      </form>
+      
+      <div class="divider">or</div>
+      
+      <button type="button" class="btn btn-secondary" id="showRegisterBtn">Register New Staff</button>
+      
+      <div class="login-footer">
+        <p>Need help? Contact your administrator.</p>
+      </div>
+    </div>
+    
+    <!-- Register Section -->
+    <div id="registerSection" class="register-section">
+      <form id="registerForm">
+        <div class="form-group">
+          <label class="form-label" for="regUsername">Username <span style="color: #ef4444;">*</span></label>
+          <input 
+            type="text" 
+            class="form-input" 
+            id="regUsername" 
+            placeholder="Choose a username"
+            required
+            pattern="[a-zA-Z0-9_]{3,20}"
+            autocomplete="username"
+          />
+          <div class="password-requirements">3-20 characters, letters, numbers, and underscores only</div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="regFullName">Full Name <span style="color: #ef4444;">*</span></label>
+          <input 
+            type="text" 
+            class="form-input" 
+            id="regFullName" 
+            placeholder="Enter your full name"
+            required
+          />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="regEmail">Email <span style="color: #ef4444;">*</span></label>
+          <input 
+            type="email" 
+            class="form-input" 
+            id="regEmail" 
+            placeholder="Enter your email"
+            required
+            autocomplete="email"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="regPassword">Password <span style="color: #ef4444;">*</span></label>
+          <input 
+            type="password" 
+            class="form-input" 
+            id="regPassword" 
+            placeholder="Create a password"
+            required
+            minlength="6"
+            autocomplete="new-password"
+          />
+          <div class="password-requirements">Minimum 6 characters</div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="regConfirmPassword">Confirm Password <span style="color: #ef4444;">*</span></label>
+          <input 
+            type="password" 
+            class="form-input" 
+            id="regConfirmPassword" 
+            placeholder="Confirm your password"
+            required
+            minlength="6"
+            autocomplete="new-password"
+          />
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Register</button>
+      </form>
+      
+      <div class="divider">or</div>
+      
+      <button type="button" class="btn btn-secondary" id="showLoginBtn">Back to Login</button>
+    </div>
+  </div>
+
+  <script>
+    const LS_STAFF_KEY = "2fly_staff_v1";
+    const LS_STAFF_SESSION_KEY = "2fly_staff_session";
+    
+    function loadStaff() {
+      const data = localStorage.getItem(LS_STAFF_KEY);
+      if (!data) return {};
+      try {
+        return JSON.parse(data);
+      } catch {
+        return {};
+      }
+    }
+    
+    function saveStaff(staff) {
+      localStorage.setItem(LS_STAFF_KEY, JSON.stringify(staff));
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      const successEl = document.getElementById('successMessage');
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+      successEl.classList.remove('show');
+      setTimeout(() => {
+        errorEl.classList.remove('show');
+      }, 5000);
+    }
+    
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      const errorEl = document.getElementById('errorMessage');
+      successEl.textContent = message;
+      successEl.classList.add('show');
+      errorEl.classList.remove('show');
+      setTimeout(() => {
+        successEl.classList.remove('show');
+      }, 5000);
+    }
+    
+    function login(username, password) {
+      const staff = loadStaff();
+      
+      if (!staff[username]) {
+        showError('Invalid username or password');
+        return false;
+      }
+      
+      const staffMember = staff[username];
+      
+      // Simple password check (in production, use proper hashing)
+      if (staffMember.password !== password) {
+        showError('Invalid username or password');
+        return false;
+      }
+      
+      // Create session
+      const session = {
+        id: staffMember.id, // Include staff ID for API calls
+        username: username,
+        fullName: staffMember.fullName,
+        email: staffMember.email,
+        workspaceId: staffMember.workspaceId, // Include workspace ID
+        loggedInAt: Date.now()
+      };
+      
+      localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify(session));
+      
+      // Redirect to agency dashboard
+      window.location.href = 'agency.html';
+      return true;
+    }
+    
+    function register(username, fullName, email, password) {
+      const staff = loadStaff();
+      
+      // Check if username already exists
+      if (staff[username]) {
+        showError('Username already exists. Please choose a different one.');
+        return false;
+      }
+      
+      // Validate username format
+      if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+        showError('Username must be 3-20 characters and contain only letters, numbers, and underscores.');
+        return false;
+      }
+      
+      // Validate password
+      if (password.length < 6) {
+        showError('Password must be at least 6 characters long.');
+        return false;
+      }
+      
+      // Create new staff member with ID and workspace
+      const staffId = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      staff[username] = {
+        id: staffId,
+        username: username,
+        fullName: fullName,
+        email: email,
+        password: password,
+        workspaceId: 'default-workspace', // MVP: Use default workspace
+        createdAt: Date.now()
+      };
+      
+      saveStaff(staff);
+      
+      showSuccess('Registration successful! You can now log in.');
+      
+      // Switch back to login after 2 seconds
+      setTimeout(() => {
+        showLogin();
+        document.getElementById('username').value = username;
+      }, 2000);
+      
+      return true;
+    }
+    
+    function showLogin() {
+      document.getElementById('loginSection').classList.remove('hide');
+      document.getElementById('registerSection').classList.remove('show');
+      document.getElementById('subtitle').textContent = 'Sign in to access the dashboard';
+    }
+    
+    function showRegister() {
+      document.getElementById('loginSection').classList.add('hide');
+      document.getElementById('registerSection').classList.add('show');
+      document.getElementById('subtitle').textContent = 'Create a new staff account';
+    }
+    
+    // Check if already logged in
+    const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+    if (session) {
+      try {
+        const sessionData = JSON.parse(session);
+        // Check if session is still valid (24 hours)
+        if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
+          window.location.href = 'agency.html';
+        }
+      } catch {
+        // Invalid session, continue to login
+      }
+    }
+    
+    // Handle login form submission
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        showError('Please enter both username and password');
+        return;
+      }
+      
+      login(username, password);
+    });
+    
+    // Handle register form submission
+    document.getElementById('registerForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('regUsername').value.trim();
+      const fullName = document.getElementById('regFullName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const confirmPassword = document.getElementById('regConfirmPassword').value;
+      
+      if (!username || !fullName || !email || !password || !confirmPassword) {
+        showError('Please fill in all fields');
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        showError('Passwords do not match');
+        return;
+      }
+      
+      register(username, fullName, email, password);
+    });
+    
+    // Toggle between login and register
+    document.getElementById('showRegisterBtn').addEventListener('click', () => {
+      showRegister();
+    });
+    
+    document.getElementById('showLoginBtn').addEventListener('click', () => {
+      showLogin();
+    });
+  </script>
+</body>
+</html>
+

@@ -552,13 +552,17 @@ body[data-theme="dark"] .kpi-card.motivation{
 
     <!-- Approvals -->
     <section class="panel section-approvals" id="approvalsPanel" style="margin-top:24px">
-      <h3 style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 20px 0;">Approvals Queue</h3>
+      <h3 style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 20px 0;">Contents Approval</h3>
       <div class="approval-tabs" id="approvalTabs">
-        <button class="approval-tab active" data-tab="pending">Pending</button>
-        <button class="approval-tab" data-tab="changes">Changes</button>
-        <button class="approval-tab" data-tab="approved">Approved</button>
+        <button class="approval-tab active" data-tab="copy">Copy</button>
+        <button class="approval-tab" data-tab="pending">Content Pending</button>
+        <button class="approval-tab" data-tab="changes">Changes Requested</button>
+        <button class="approval-tab" data-tab="approved">Content Approved</button>
       </div>
-      <div class="lane lane-pending" id="lanePending" style="display:block;">
+      <div class="lane lane-copy" id="laneCopy" style="display:block;">
+        <div id="approvalsCopy" class="list"></div>
+      </div>
+      <div class="lane lane-pending" id="lanePending" style="display:none;">
         <div id="approvalsPending" class="list"></div>
       </div>
       <div class="lane lane-changes" id="laneChanges" style="display:none">
@@ -705,6 +709,17 @@ body[data-theme="dark"] .kpi-card.motivation{
         <button type="button" id="closeModalBtn" class="btn small" data-close-modal style="background:transparent;border:none;font-size:28px;color:#64748b;cursor:pointer;line-height:1;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">&times;</button>
       </div>
       <div class="modal__body approval-modal-body">
+        <!-- Copy Text (for copy approvals) -->
+        <div id="approvalCopyTextContainer" style="display:none;margin-bottom:20px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+          <h5 style="font-size:14px;font-weight:600;color:#1e40af;margin-bottom:8px;">Copy Text:</h5>
+          <div id="approvalCopyText" style="color:#0f172a;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
+        </div>
+        
+        <!-- Copy Image Preview (for copy approvals) -->
+        <div id="approvalCopyImageContainer" style="display:none;width:100%;margin-bottom:20px;border-radius:12px;overflow:hidden;background:#f1f5f9;min-height:300px;display:flex;align-items:center;justify-content:center;">
+          <img id="approvalCopyImage" src="" alt="Copy image preview" style="width:100%;height:auto;display:block;max-height:500px;object-fit:contain;">
+        </div>
+        
         <!-- Image Preview -->
         <div id="approvalImageContainer" style="width:100%;margin-bottom:20px;border-radius:12px;overflow:hidden;background:#f1f5f9;min-height:300px;display:flex;align-items:center;justify-content:center;">
           <img id="approvalImage" src="" alt="Content preview" style="width:100%;height:auto;display:block;max-height:500px;object-fit:contain;">
@@ -726,7 +741,7 @@ body[data-theme="dark"] .kpi-card.motivation{
           <div id="approvalCaption" style="background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;color:#0f172a;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
         </div>
         
-        <!-- Change Request Notes (shown only for items with status "changes") -->
+        <!-- Change Request Notes (shown only for items with status "changes" or "copy_changes") -->
         <div id="changeRequestContainer" style="display:none;margin-bottom:20px;">
           <h5 style="font-size:14px;font-weight:600;color:#ea580c;margin-bottom:8px;">Change Request:</h5>
           <div id="changeRequestNotes" style="background:#fff7ed;padding:16px;border-radius:8px;border:1px solid #fed7aa;color:#9a3412;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
@@ -1303,30 +1318,38 @@ function renderApprovalsSectioned(){
   const s = load(); 
   const items = s.approvals || [];
   
-  // Filter items - pending includes items with no status or status === 'pending'
+  // Filter items - copy section shows copy_pending, copy_approved, and copy_changes
+  const copyItems = items.filter(i => {
+    const status = (i.status || '').toLowerCase().trim();
+    return status === 'copy_pending' || status === 'copy_approved' || status === 'copy_changes';
+  });
+  // Pending includes items with no status or status === 'pending' (but not copy statuses)
   const pending = items.filter(i => {
     const status = (i.status || '').toLowerCase().trim();
-    return status === '' || status === 'pending';
+    return (status === '' || status === 'pending') && status !== 'copy_pending' && status !== 'copy_approved';
   });
   const changes = items.filter(i => i.status === 'changes');
   const approved = items.filter(i => i.status === 'approved');
 
   // Note: Tab counts are now shown in the tab buttons themselves via badge indicators
-  const $p=$("#approvalsPending"), $c=$("#approvalsChanges"), $a=$("#approvalsApproved"); 
-  if(!$p||!$c||!$a) {
+  const $copy=$("#approvalsCopy"), $p=$("#approvalsPending"), $c=$("#approvalsChanges"), $a=$("#approvalsApproved"); 
+  if(!$copy||!$p||!$c||!$a) {
     console.error("Approval containers not found");
     return;
   }
   
   // Update tab badges if they exist
+  const copyTab = document.querySelector('[data-tab="copy"]');
   const pendingTab = document.querySelector('[data-tab="pending"]');
   const changesTab = document.querySelector('[data-tab="changes"]');
   const approvedTab = document.querySelector('[data-tab="approved"]');
-  if (pendingTab) pendingTab.textContent = `Pending${pending.length > 0 ? ` (${pending.length})` : ''}`;
-  if (changesTab) changesTab.textContent = `Changes${changes.length > 0 ? ` (${changes.length})` : ''}`;
-  if (approvedTab) approvedTab.textContent = `Approved${approved.length > 0 ? ` (${approved.length})` : ''}`;
+  if (copyTab) copyTab.textContent = `Copy${copyItems.length > 0 ? ` (${copyItems.length})` : ''}`;
+  if (pendingTab) pendingTab.textContent = `Content Pending${pending.length > 0 ? ` (${pending.length})` : ''}`;
+  if (changesTab) changesTab.textContent = `Changes Requested${changes.length > 0 ? ` (${changes.length})` : ''}`;
+  if (approvedTab) approvedTab.textContent = `Content Approved${approved.length > 0 ? ` (${approved.length})` : ''}`;
   
   // Clear all lists
+  $copy.innerHTML="";
   $p.innerHTML="";
   $c.innerHTML="";
   $a.innerHTML="";
@@ -1362,6 +1385,30 @@ function renderApprovalsSectioned(){
     typeTag.textContent = item.type || "Post";
     titleRow.appendChild(typeTag);
     
+    // Status badge for copy approvals
+    if (item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes') {
+      let statusClass, statusStyle, statusText;
+      if (item.status === 'copy_approved') {
+        statusClass = "tag approved";
+        statusStyle = "background:#d1fae5;color:#047857;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
+        statusText = 'Approved';
+      } else if (item.status === 'copy_changes') {
+        statusClass = "tag changes";
+        statusStyle = "background:#fed7aa;color:#ea580c;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
+        statusText = 'Changes Requested';
+      } else {
+        statusClass = "tag pending";
+        statusStyle = "background:#dbeafe;color:#1e40af;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
+        statusText = 'Pending';
+      }
+      const statusTag = el("span", {
+        class: statusClass,
+        style: statusStyle
+      });
+      statusTag.textContent = statusText;
+      titleRow.appendChild(statusTag);
+    }
+    
     // Due date below title
     const dueDate = el("div",{style:"font-size:13px;color:#64748b;margin-top:2px;"});
     dueDate.textContent = `Due ${item.date || "N/A"}`;
@@ -1371,8 +1418,8 @@ function renderApprovalsSectioned(){
     left.appendChild(titleRow);
     left.appendChild(dueDate);
     
-    // Show change notes if present
-    if (item.status==='changes' && item.change_notes?.length) {
+    // Show change notes if present (for changes or copy_changes)
+    if ((item.status==='changes' || item.status==='copy_changes') && item.change_notes?.length) {
       const noteDiv = el("div",{style:"font-size:12px;color:#64748b;margin-top:4px;"});
       noteDiv.textContent = `Note: "${item.change_notes.at(-1).note || ""}"`;
       left.appendChild(noteDiv);
@@ -1435,7 +1482,32 @@ function renderApprovalsSectioned(){
     return row;
   };
 
-  // Render items
+  // Render copy items first
+  let renderedCopyCount = 0;
+  if (copyItems.length > 0) {
+    copyItems.forEach(i=>{
+      try {
+        const row = rowFor(i);
+        if (row) {
+          $copy.append(row);
+          renderedCopyCount++;
+        }
+      } catch(e) {
+        console.error("Error rendering copy item:", i, e);
+      }
+    });
+  }
+  
+  // Show empty state for copy section
+  if (renderedCopyCount === 0) {
+    if (copyItems.length === 0) {
+      $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No copy approvals</div>';
+    } else {
+      $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ff6b6b;font-size:14px;">Error rendering items. Please refresh the page.</div>';
+    }
+  }
+  
+  // Render pending items
   let renderedPendingCount = 0;
   if (pending.length > 0) {
     pending.forEach(i=>{
@@ -1483,6 +1555,12 @@ function renderApprovalsSectioned(){
     });
   }
   
+  // Ensure copy lane is visible by default (when copy tab is active)
+  const laneCopy = document.getElementById('laneCopy');
+  if (laneCopy && copyTab && copyTab.classList.contains('active')) {
+    laneCopy.style.display = 'block';
+  }
+  
   // Ensure pending lane is visible by default (when pending tab is active)
   const lanePending = document.getElementById('lanePending');
   if (lanePending && pendingTab && pendingTab.classList.contains('active')) {
@@ -1502,6 +1580,7 @@ document.addEventListener("click", (e)=>{
     e.target.classList.add('active');
     
     // Show/hide lanes
+    $("#laneCopy").style.display = tab === 'copy' ? 'block' : 'none';
     $("#lanePending").style.display = tab === 'pending' ? 'block' : 'none';
     $("#laneChanges").style.display = tab === 'changes' ? 'block' : 'none';
     $("#laneApproved").style.display = tab === 'approved' ? 'block' : 'none';
@@ -1518,12 +1597,22 @@ function approveItem(id){
     return;
   }
   
-  item.status = "approved";
+  // If it's a copy approval, set status to copy_approved (stays in copy section)
+  if (item.status === 'copy_pending') {
+    item.status = 'copy_approved';
+  } else if (item.status === 'copy_changes') {
+    // If approving after changes, move to copy_approved
+    item.status = 'copy_approved';
+  } else {
+    // Regular approval moves to approved status
+    item.status = "approved";
+  }
+  
   if(s.kpis && typeof s.kpis.waitingApproval === 'number'){ 
     s.kpis.waitingApproval = Math.max(0, s.kpis.waitingApproval - 1); 
   }
   save(s);
-  notifyTeam({ type:"approval", itemId:id, title:item.title, status:"approved", activityText:`Approved: ${item.title}` });
+  notifyTeam({ type:"approval", itemId:id, title:item.title, status:item.status, activityText:`Approved: ${item.title}` });
   
   // Close modal
   closeApprovalModal();
@@ -1586,14 +1675,84 @@ window.openApprovalModal = function(id){
   const approvalTitle = $("#approvalTitle");
   if (approvalTitle) approvalTitle.textContent = item.title;
   
-  // Set image
+  // Show/hide copy approval sections
+  const copyTextContainer = $("#approvalCopyTextContainer");
+  const copyImageContainer = $("#approvalCopyImageContainer");
+  const approvalCopyText = $("#approvalCopyText");
+  const approvalCopyImage = $("#approvalCopyImage");
+  const imageContainer = $("#approvalImageContainer");
   const approvalImage = $("#approvalImage");
-  if (approvalImage && item.imageUrl) {
-    approvalImage.src = item.imageUrl;
-    approvalImage.alt = item.title;
-    approvalImage.onerror = function() {
-      this.src = `https://via.placeholder.com/600x400/2563eb/ffffff?text=${encodeURIComponent(item.title)}`;
-    };
+  
+  // Check if this is a copy approval
+  const isCopyApproval = item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes' || item.copyText;
+  
+  if (isCopyApproval) {
+    // Show copy text
+    if (copyTextContainer) copyTextContainer.style.display = "block";
+    if (approvalCopyText) {
+      approvalCopyText.textContent = item.copyText || "No copy text provided.";
+    }
+    
+    // Show copy image if available
+    if (item.copyImageUrl) {
+      if (copyImageContainer) copyImageContainer.style.display = "flex";
+      if (approvalCopyImage) {
+        approvalCopyImage.src = item.copyImageUrl;
+        approvalCopyImage.alt = "Copy image preview";
+        approvalCopyImage.onerror = function() {
+          this.style.display = "none";
+          if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Copy image not available</div>';
+        };
+      }
+    } else {
+      if (copyImageContainer) copyImageContainer.style.display = "none";
+    }
+    
+    // Hide content image for copy approvals
+    if (imageContainer) imageContainer.style.display = "none";
+  } else {
+    // Hide copy sections, show content image
+    if (copyTextContainer) copyTextContainer.style.display = "none";
+    if (copyImageContainer) copyImageContainer.style.display = "none";
+    
+    // Display content images (uploadedImages or imageUrl)
+    if (imageContainer) {
+      // Clear previous content
+      imageContainer.innerHTML = '';
+      
+      // Priority: uploadedImages > imageUrl
+      if (item.uploadedImages && item.uploadedImages.length > 0) {
+        // Display all uploaded images
+        item.uploadedImages.forEach((image, index) => {
+          const img = document.createElement('img');
+          img.src = image.dataUrl;
+          img.alt = image.name || item.title;
+          img.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; margin-bottom: 12px; border: 1px solid #e2e8f0;';
+          img.onerror = function() {
+            this.style.display = 'none';
+          };
+          imageContainer.appendChild(img);
+        });
+        imageContainer.style.display = 'flex';
+        imageContainer.style.flexDirection = 'column';
+        imageContainer.style.alignItems = 'center';
+      } else if (item.imageUrl) {
+        // Display image from URL
+        const img = approvalImage || document.createElement('img');
+        img.src = item.imageUrl;
+        img.alt = item.title;
+        img.id = 'approvalImage';
+        img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+        img.onerror = function() {
+          this.src = `https://via.placeholder.com/600x400/2563eb/ffffff?text=${encodeURIComponent(item.title)}`;
+        };
+        imageContainer.appendChild(img);
+        imageContainer.style.display = 'flex';
+      } else {
+        // No image available
+        imageContainer.style.display = 'none';
+      }
+    }
   }
   
   // Set Instagram link
@@ -1618,7 +1777,7 @@ window.openApprovalModal = function(id){
   const changeRequestContainer = $("#changeRequestContainer");
   const changeRequestNotes = $("#changeRequestNotes");
   if (changeRequestContainer && changeRequestNotes) {
-    if (item.status === "changes" && item.change_notes && item.change_notes.length > 0) {
+    if ((item.status === "changes" || item.status === "copy_changes") && item.change_notes && item.change_notes.length > 0) {
       // Show the most recent change request note
       const latestNote = item.change_notes[item.change_notes.length - 1];
       changeRequestNotes.textContent = latestNote.note || "Change requested.";
@@ -1637,9 +1796,20 @@ window.openApprovalModal = function(id){
   // Show/hide buttons based on status
   const approveBtn = $("#approveBtn");
   const requestChangesBtn = $("#requestChangesBtn");
-  if (item.status === "approved") {
-    if (approveBtn) approveBtn.style.display = "none";
-    if (requestChangesBtn) requestChangesBtn.style.display = "none";
+  if (item.status === "approved" || item.status === "copy_approved") {
+    // For copy_approved, still show buttons so client can request changes if needed
+    if (item.status === "approved") {
+      if (approveBtn) approveBtn.style.display = "none";
+      if (requestChangesBtn) requestChangesBtn.style.display = "none";
+    } else {
+      // copy_approved - hide approve, show request changes
+      if (approveBtn) approveBtn.style.display = "none";
+      if (requestChangesBtn) requestChangesBtn.style.display = "block";
+    }
+  } else if (item.status === "copy_changes") {
+    // For copy_changes, show approve button to approve after changes
+    if (approveBtn) approveBtn.style.display = "block";
+    if (requestChangesBtn) requestChangesBtn.style.display = "block";
   } else {
     if (approveBtn) approveBtn.style.display = "block";
     if (requestChangesBtn) requestChangesBtn.style.display = "block";
@@ -1788,7 +1958,12 @@ function setupModalEventDelegation() {
         return;
       }
       
-      item.status = "changes"; 
+      // If it's a copy approval, set status to copy_changes, otherwise changes
+      if (item.status === 'copy_pending' || item.status === 'copy_approved') {
+        item.status = "copy_changes";
+      } else {
+        item.status = "changes";
+      }
       item.change_notes = item.change_notes || []; 
       item.change_notes.push({ when: Date.now(), note });
       
@@ -2254,12 +2429,20 @@ if (toggleModeBtn) {
 /* ================== Boot ================== */
 // Initialize on page load
 function initializeApp() {
-  // Ensure pending tab is active and visible on initial load
+  // Ensure copy tab is active and visible on initial load
+  const copyTab = document.querySelector('[data-tab="copy"]');
+  const laneCopy = document.getElementById('laneCopy');
+  if (copyTab && laneCopy) {
+    copyTab.classList.add('active');
+    laneCopy.style.display = 'block';
+  }
+  
+  // Ensure pending tab is not active initially
   const pendingTab = document.querySelector('[data-tab="pending"]');
   const lanePending = document.getElementById('lanePending');
   if (pendingTab && lanePending) {
-    pendingTab.classList.add('active');
-    lanePending.style.display = 'block';
+    pendingTab.classList.remove('active');
+    lanePending.style.display = 'none';
   }
   
   // Update client name immediately from session before rendering (fixes "Loading..." issue)
@@ -2314,9 +2497,9 @@ function initializeApp() {
   setTimeout(() => {
     try {
       renderApprovalsSectioned();
-      const lanePending2 = document.getElementById('lanePending');
-      if (lanePending2) {
-        lanePending2.style.display = 'block';
+      const laneCopy2 = document.getElementById('laneCopy');
+      if (laneCopy2) {
+        laneCopy2.style.display = 'block';
       }
     } catch(e) {
       console.error("Error in delayed render:", e);
