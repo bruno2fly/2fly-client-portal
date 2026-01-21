@@ -1534,8 +1534,17 @@
     }
   </style>
 
-  <script type="module">
-    import './agency.js'
+  <script src="./agency.js"></script>
+  <script>
+    // Fallback if script fails to load
+    window.addEventListener('error', function(e) {
+      if (e.target && e.target.src && e.target.src.includes('agency.js')) {
+        console.error('Failed to load agency.js from relative path, trying absolute');
+        const script = document.createElement('script');
+        script.src = '/agency.js';
+        document.body.appendChild(script);
+      }
+    }, true);
   </script>
 </body>
 </html>

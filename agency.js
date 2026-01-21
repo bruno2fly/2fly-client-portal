@@ -27,6 +27,7 @@ function checkStaffAuth() {
 function logout() {
   localStorage.removeItem(LS_STAFF_SESSION_KEY);
   // Use absolute path to ensure it works when deployed at /agency
+  console.log('Logging out, redirecting to /staff-login');
   window.location.href = '/staff-login';
 }
 
@@ -2614,10 +2615,13 @@ function displayUploadedImages() {
 
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Agency dashboard loaded');
   // Check authentication first
   if (!currentStaff) {
+    console.log('No staff session, redirecting to /staff-login');
     return; // Will redirect to login
   }
+  console.log('Staff authenticated:', currentStaff.username || currentStaff.fullName);
   
   // Update staff header
   updateStaffHeader();
