@@ -4,7 +4,7 @@ const LS_STAFF_SESSION_KEY = "2fly_staff_session";
 function checkStaffAuth() {
   const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
   if (!session) {
-    window.location.href = 'staff-login.html';
+    window.location.href = '/staff-login';
     return null;
   }
   
@@ -13,20 +13,21 @@ function checkStaffAuth() {
     // Check if session is still valid (24 hours)
     if (Date.now() - sessionData.loggedInAt > 24 * 60 * 60 * 1000) {
       localStorage.removeItem(LS_STAFF_SESSION_KEY);
-      window.location.href = 'staff-login.html';
+      window.location.href = '/staff-login';
       return null;
     }
     return sessionData;
   } catch {
     localStorage.removeItem(LS_STAFF_SESSION_KEY);
-    window.location.href = 'staff-login.html';
+    window.location.href = '/staff-login';
     return null;
   }
 }
 
 function logout() {
   localStorage.removeItem(LS_STAFF_SESSION_KEY);
-  window.location.href = 'staff-login.html';
+  // Use absolute path to ensure it works when deployed at /agency
+  window.location.href = '/staff-login';
 }
 
 // Check authentication on page load
