@@ -21,7 +21,7 @@
       "destination": "/agency.html"
     },
     {
-      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot))",
+      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot|html))",
       "destination": "/$1"
     },
     {
