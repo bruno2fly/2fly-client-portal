@@ -62,10 +62,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with error handling
+const server = app.listen(PORT, () => {
   console.log(`🚀 2Fly Server running on http://localhost:${PORT}`);
   console.log(`📁 Uploads directory: ${join(process.cwd(), 'uploads')}`);
   console.log(`💾 Data directory: ${join(process.cwd(), 'data')}`);
+});
+
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use.`);
+    console.error('💡 To fix this, run: lsof -ti:3001 | xargs kill -9');
+    console.error('   Or use a different port by setting PORT environment variable.');
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    throw err;
+  }
 });
 
