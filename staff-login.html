@@ -413,7 +413,7 @@
       localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify(session));
       
       // Redirect to agency dashboard
-      window.location.href = 'agency.html';
+      window.location.href = '/agency';
       return true;
     }
     
@@ -475,17 +475,23 @@
       document.getElementById('subtitle').textContent = 'Create a new staff account';
     }
     
-    // Check if already logged in
+    // Check if already logged in - redirect to agency dashboard
     const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
     if (session) {
       try {
         const sessionData = JSON.parse(session);
         // Check if session is still valid (24 hours)
         if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
-          window.location.href = 'agency.html';
+          console.log('Already logged in, redirecting to /agency');
+          window.location.href = '/agency';
+          return; // Stop execution
+        } else {
+          // Session expired, clear it
+          localStorage.removeItem(LS_STAFF_SESSION_KEY);
         }
       } catch {
-        // Invalid session, continue to login
+        // Invalid session, clear it and continue to login
+        localStorage.removeItem(LS_STAFF_SESSION_KEY);
       }
     }
     
