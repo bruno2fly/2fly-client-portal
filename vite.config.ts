@@ -12,13 +12,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: {
-        main: './index.html',
-        login: './login.html',
-        agency: './agency.html'
-      }
+      // Dummy entry point - all HTML files are in public/ and will be copied as-is
+      // This prevents Vite from processing the standalone HTML files
+      main: './dummy-entry.js'
     },
-    // Ensure agency.js is copied to dist
+    // Ensure public folder (including all standalone HTML files) is copied to dist
     copyPublicDir: true
   }
 })
