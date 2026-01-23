@@ -1,0 +1,44 @@
+{
+  "rewrites": [
+    {
+      "source": "/agency",
+      "destination": "/agency.html"
+    },
+    {
+      "source": "/staff-login",
+      "destination": "/staff-login.html"
+    },
+    {
+      "source": "/staff-login.html",
+      "destination": "/staff-login.html"
+    },
+    {
+      "source": "/login.html",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/agency.html",
+      "destination": "/agency.html"
+    },
+    {
+      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot|html))",
+      "destination": "/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/agency.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    }
+  ]
+}
+
