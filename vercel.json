@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/agency.js",
+      "destination": "/agency.js"
+    },
+    {
       "source": "/agency",
       "destination": "/agency.html"
     },
