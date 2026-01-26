@@ -233,12 +233,12 @@
     <div id="loginSection" class="login-section">
       <form id="loginForm">
         <div class="form-group">
-          <label class="form-label" for="username">Username</label>
+          <label class="form-label" for="username">Email or Username</label>
           <input 
             type="text" 
             class="form-input" 
             id="username" 
-            placeholder="Enter your username"
+            placeholder="Enter your email or username"
             required
             autocomplete="username"
           />
@@ -259,89 +259,19 @@
         <button type="submit" class="btn btn-primary">Sign In</button>
       </form>
       
+      <div style="margin-top: 16px; text-align: center;">
+        <a href="#" id="forgotPasswordLink" style="color: #0052CC; text-decoration: none; font-size: 14px;">Forgot password?</a>
+      </div>
+      
       <div class="divider">or</div>
       
-      <button type="button" class="btn btn-secondary" id="showRegisterBtn" onclick="if(typeof showRegister === 'function') showRegister(); else console.error('showRegister function not found'); return false;">Register New Staff</button>
+      <a href="#" id="haveInviteLink" style="display: block; text-align: center; color: #0052CC; text-decoration: none; font-size: 14px; margin-top: 8px;">Have an invite link?</a>
       
       <div class="login-footer">
         <p>Need help? Contact your administrator.</p>
       </div>
     </div>
     
-    <!-- Register Section -->
-    <div id="registerSection" class="register-section">
-      <form id="registerForm">
-        <div class="form-group">
-          <label class="form-label" for="regUsername">Username <span style="color: #ef4444;">*</span></label>
-          <input 
-            type="text" 
-            class="form-input" 
-            id="regUsername" 
-            placeholder="Choose a username"
-            required
-            pattern="[a-zA-Z0-9_]{3,20}"
-            autocomplete="username"
-          />
-          <div class="password-requirements">3-20 characters, letters, numbers, and underscores only</div>
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label" for="regFullName">Full Name <span style="color: #ef4444;">*</span></label>
-          <input 
-            type="text" 
-            class="form-input" 
-            id="regFullName" 
-            placeholder="Enter your full name"
-            required
-          />
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label" for="regEmail">Email <span style="color: #ef4444;">*</span></label>
-          <input 
-            type="email" 
-            class="form-input" 
-            id="regEmail" 
-            placeholder="Enter your email"
-            required
-            autocomplete="email"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label" for="regPassword">Password <span style="color: #ef4444;">*</span></label>
-          <input 
-            type="password" 
-            class="form-input" 
-            id="regPassword" 
-            placeholder="Create a password"
-            required
-            minlength="6"
-            autocomplete="new-password"
-          />
-          <div class="password-requirements">Minimum 6 characters</div>
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label" for="regConfirmPassword">Confirm Password <span style="color: #ef4444;">*</span></label>
-          <input 
-            type="password" 
-            class="form-input" 
-            id="regConfirmPassword" 
-            placeholder="Confirm your password"
-            required
-            minlength="6"
-            autocomplete="new-password"
-          />
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Register</button>
-      </form>
-      
-      <div class="divider">or</div>
-      
-      <button type="button" class="btn btn-secondary" id="showLoginBtn" onclick="if(typeof showLogin === 'function') showLogin(); else console.error('showLogin function not found'); return false;">Back to Login</button>
-    </div>
   </div>
 
   <script>
@@ -397,108 +327,61 @@
       return isLocalHost() ? '/agency.html' : '/agency';
     }
     
-    function login(username, password) {
-      const staff = loadStaff();
-      
-      if (!staff[username]) {
-        showError('Invalid username or password');
-        return false;
-      }
-      
-      const staffMember = staff[username];
-      
-      // Simple password check (in production, use proper hashing)
-      if (staffMember.password !== password) {
-        showError('Invalid username or password');
-        return false;
-      }
-      
-      // Create session
-      const session = {
-        id: staffMember.id, // Include staff ID for API calls
-        username: username,
-        fullName: staffMember.fullName,
-        email: staffMember.email,
-        workspaceId: staffMember.workspaceId, // Include workspace ID
-        loggedInAt: Date.now()
-      };
-      
-      localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify(session));
-      
-      // Redirect to agency dashboard (use .html for localhost/file so it works offline)
-      window.location.href = agencyUrl();
-      return true;
+    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+      ? 'http://localhost:3001' 
+      : 'https://api.2flyflow.com'; // Update with your production API URL
+    
+    const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
+    // Get agencyId from URL or use default (for MVP)
+    function getAgencyId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let agencyId = urlParams.get('agencyId') || localStorage.getItem('2fly_agency_id') || DEFAULT_AGENCY_ID;
+      if (agencyId === 'default-agency') agencyId = DEFAULT_AGENCY_ID;
+      localStorage.setItem('2fly_agency_id', agencyId);
+      return agencyId;
     }
     
-    function register(username, fullName, email, password) {
-      const staff = loadStaff();
-      
-      // Check if username already exists
-      if (staff[username]) {
-        showError('Username already exists. Please choose a different one.');
+    async function login(identifier, password) {
+      try {
+        const agencyId = getAgencyId();
+        
+        // Determine if identifier is email or username
+        const isEmail = identifier.includes('@');
+        const payload = isEmail 
+          ? { email: identifier, password, agencyId }
+          : { username: identifier, password, agencyId };
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // Important for cookies
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          showError(data.error || 'Login failed');
+          return false;
+        }
+        
+        // Store user info in localStorage for frontend use
+        localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify({
+          ...data.user,
+          loggedInAt: Date.now()
+        }));
+        
+        // Redirect to agency dashboard
+        window.location.href = agencyUrl();
+        return true;
+      } catch (error) {
+        console.error('Login error:', error);
+        showError('Network error. Please try again.');
         return false;
       }
-      
-      // Validate username format
-      if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-        showError('Username must be 3-20 characters and contain only letters, numbers, and underscores.');
-        return false;
-      }
-      
-      // Validate password
-      if (password.length < 6) {
-        showError('Password must be at least 6 characters long.');
-        return false;
-      }
-      
-      // Create new staff member with ID and workspace
-      const staffId = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      staff[username] = {
-        id: staffId,
-        username: username,
-        fullName: fullName,
-        email: email,
-        password: password,
-        workspaceId: 'default-workspace', // MVP: Use default workspace
-        createdAt: Date.now()
-      };
-      
-      saveStaff(staff);
-      
-      showSuccess('Registration successful! You can now log in.');
-      
-      // Switch back to login after 2 seconds
-      setTimeout(() => {
-        showLogin();
-        document.getElementById('username').value = username;
-      }, 2000);
-      
-      return true;
     }
-    
-    function showLogin() {
-      const loginSection = document.getElementById('loginSection');
-      const registerSection = document.getElementById('registerSection');
-      const subtitle = document.getElementById('subtitle');
-      if (loginSection) loginSection.classList.remove('hide');
-      if (registerSection) registerSection.classList.remove('show');
-      if (subtitle) subtitle.textContent = 'Sign in to access the dashboard';
-      console.log('showLogin called');
-    }
-    
-    function showRegister() {
-      const loginSection = document.getElementById('loginSection');
-      const registerSection = document.getElementById('registerSection');
-      const subtitle = document.getElementById('subtitle');
-      if (loginSection) loginSection.classList.add('hide');
-      if (registerSection) registerSection.classList.add('show');
-      if (subtitle) subtitle.textContent = 'Create a new staff account';
-      console.log('showRegister called');
-    }
-    
-    // Make functions globally available for inline handlers
-    window.showLogin = showLogin;
-    window.showRegister = showRegister;
     
     // Wait for DOM to be ready before setting up event listeners
     document.addEventListener('DOMContentLoaded', () => {
@@ -527,79 +410,51 @@
       // Handle login form submission
       const loginForm = document.getElementById('loginForm');
       if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        // Keep type="text": we accept both email and username (see label "Email or Username")
+        loginForm.addEventListener('submit', async (e) => {
           e.preventDefault();
           
-          const username = document.getElementById('username').value.trim();
+          const identifier = document.getElementById('username').value.trim();
           const password = document.getElementById('password').value;
           
-          if (!username || !password) {
-            showError('Please enter both username and password');
+          if (!identifier || !password) {
+            showError('Please enter both email/username and password');
             return;
           }
           
-          login(username, password);
+          await login(identifier, password);
         });
       }
       
-      // Handle register form submission
-      const registerForm = document.getElementById('registerForm');
-      if (registerForm) {
-        registerForm.addEventListener('submit', (e) => {
+      // Handle "Forgot password?" link
+      const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+      if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
           e.preventDefault();
-          
-          const username = document.getElementById('regUsername').value.trim();
-          const fullName = document.getElementById('regFullName').value.trim();
-          const email = document.getElementById('regEmail').value.trim();
-          const password = document.getElementById('regPassword').value;
-          const confirmPassword = document.getElementById('regConfirmPassword').value;
-          
-          if (!username || !fullName || !email || !password || !confirmPassword) {
-            showError('Please fill in all fields');
-            return;
-          }
-          
-          if (password !== confirmPassword) {
-            showError('Passwords do not match');
-            return;
-          }
-          
-          register(username, fullName, email, password);
+          const agencyId = getAgencyId();
+          const forgotUrl = isLocalHost() 
+            ? `/forgot-password.html?agencyId=${agencyId}`
+            : `/forgot-password?agencyId=${agencyId}`;
+          window.location.href = forgotUrl;
         });
       }
       
-      // Toggle between login and register
-      const showRegisterBtn = document.getElementById('showRegisterBtn');
-      if (showRegisterBtn) {
-        console.log('Setting up Register button click handler');
-        // Remove any existing onclick to avoid conflicts
-        showRegisterBtn.onclick = null;
-        showRegisterBtn.addEventListener('click', (e) => {
+      // Handle "Have an invite link?" link
+      const haveInviteLink = document.getElementById('haveInviteLink');
+      if (haveInviteLink) {
+        haveInviteLink.addEventListener('click', (e) => {
           e.preventDefault();
-          e.stopPropagation();
-          console.log('Register button clicked via addEventListener');
-          showRegister();
-        });
-        // Also set onclick as fallback
-        showRegisterBtn.onclick = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('Register button clicked via onclick');
-          showRegister();
-          return false;
-        };
-        console.log('Register button handlers attached');
-      } else {
-        console.error('showRegisterBtn not found!');
-      }
-      
-      const showLoginBtn = document.getElementById('showLoginBtn');
-      if (showLoginBtn) {
-        showLoginBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('Login button clicked');
-          showLogin();
+          // Show helpful message about invite links
+          const message = 'If you received an invite link, please use the complete link from your email. ' +
+            'The link should include a token parameter. ' +
+            'If you\'re waiting for account access, your administrator will send you login credentials via email.';
+          alert(message);
+          // Optionally navigate to accept-invite page with helpful error
+          const agencyId = getAgencyId();
+          const inviteUrl = isLocalHost()
+            ? `/accept-invite.html?agencyId=${agencyId}`
+            : `/accept-invite?agencyId=${agencyId}`;
+          window.location.href = inviteUrl;
         });
       }
       

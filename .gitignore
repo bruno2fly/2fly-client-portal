@@ -9,6 +9,10 @@ node_modules/
 # Environment
 .env
 .env.local
+.env.*
+
+# Server data (user DB, tokens – use setup scripts to create)
+server/data/
 
 # IDE
 .DS_Store

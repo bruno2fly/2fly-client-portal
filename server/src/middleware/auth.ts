@@ -1,16 +1,22 @@
 /**
  * Authentication middleware
  * 
- * MVP: Simple session-based auth using localStorage data
- * Production: Use JWT tokens, refresh tokens, etc.
+ * Supports both legacy header-based auth (for backward compatibility)
+ * and new JWT cookie-based auth
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { getStaffById, getStaffByUsername } from '../db.js';
+import jwt from 'jsonwebtoken';
+import { getStaffById, getStaffByUsername, getUser } from '../db.js';
+import type { UserRole } from '../types.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production-use-strong-secret';
+const COOKIE_NAME = '2fly_session';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
   workspaceId?: string;
+  agencyId?: string;
   staff?: {
     id: string;
     username: string;
@@ -18,57 +24,137 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     workspaceId: string;
   };
+  user?: {
+    id: string;
+    agencyId: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    clientId?: string | null;
+  };
 }
 
 /**
- * Extract user info from session header
- * In production, validate JWT token
+ * Extract user info from JWT cookie or legacy headers
+ * Supports both new credentials system and legacy staff system
  */
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // MVP: Get user info from X-User-Id and X-Workspace-Id headers
-  // In production, validate JWT token from Authorization header
-  const userId = req.headers['x-user-id'] as string;
-  const workspaceId = req.headers['x-workspace-id'] as string;
-  
-  if (!userId || !workspaceId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  
-  // For MVP: Allow access with any userId/workspaceId combination
-  // In production, validate against database
-  // Try to find staff by ID first, then by username
-  let staff = getStaffById(userId);
-  if (!staff) {
-    // If not found by ID, try by username
-    staff = getStaffByUsername(userId);
-  }
-  
-  // For MVP: If staff doesn't exist, allow access anyway with provided credentials
-  // This allows testing without creating staff records in the database
-  if (!staff) {
-    req.userId = userId;
-    req.workspaceId = workspaceId;
+  try {
+    // Try JWT cookie first (new credentials system)
+    const token = req.cookies?.[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        
+        // Get user from database
+        const user = getUser(decoded.userId);
+        if (!user || user.agencyId !== decoded.agencyId) {
+          return res.status(401).json({ error: 'Invalid session' });
+        }
+
+        // Check if user is active
+        if (user.status !== 'ACTIVE') {
+          return res.status(403).json({ error: 'Account is not active' });
+        }
+
+        // Set user info on request
+        req.userId = user.id;
+        req.agencyId = user.agencyId;
+        req.user = {
+          id: user.id,
+          agencyId: user.agencyId,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          clientId: user.clientId || null
+        };
+
+        // For backward compatibility, also set workspaceId (use agencyId)
+        req.workspaceId = user.agencyId;
+
+        return next();
+      } catch (jwtError) {
+        // JWT invalid, fall through to legacy auth
+      }
+    }
+
+    // Legacy: Get user info from X-User-Id and X-Workspace-Id headers
+    const userId = req.headers['x-user-id'] as string;
+    const workspaceId = req.headers['x-workspace-id'] as string;
+    
+    if (!userId || !workspaceId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Try to find staff by ID first, then by username
+    let staff = getStaffById(userId);
+    if (!staff) {
+      staff = getStaffByUsername(userId);
+    }
+    
+    // For MVP: If staff doesn't exist, allow access anyway with provided credentials
+    // This allows testing without creating staff records in the database
+    if (!staff) {
+      req.userId = userId;
+      req.workspaceId = workspaceId;
+      req.agencyId = workspaceId; // Use workspaceId as agencyId for legacy
+      req.staff = {
+        id: userId,
+        username: userId,
+        fullName: 'User',
+        email: '',
+        workspaceId: workspaceId
+      };
+      return next();
+    }
+    
+    // If staff exists, use their actual data
+    req.userId = staff.id;
+    req.workspaceId = workspaceId || staff.workspaceId || 'default-workspace';
+    req.agencyId = req.workspaceId; // Use workspaceId as agencyId for legacy
     req.staff = {
-      id: userId,
-      username: userId,
-      fullName: 'User',
-      email: '',
-      workspaceId: workspaceId
+      id: staff.id,
+      username: staff.username,
+      fullName: staff.fullName,
+      email: staff.email,
+      workspaceId: req.workspaceId
     };
-    return next();
+    
+    next();
+  } catch (error: any) {
+    console.error('Authentication error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
   }
-  
-  // If staff exists, use their actual data
-  req.userId = staff.id;
-  req.workspaceId = workspaceId || staff.workspaceId || 'default-workspace';
-  req.staff = {
-    id: staff.id,
-    username: staff.username,
-    fullName: staff.fullName,
-    email: staff.email,
-    workspaceId: req.workspaceId
-  };
-  
-  next();
 }
 
+/**
+ * Require specific role(s) - must be used after authenticate()
+ */
+export function requireRole(roles: UserRole[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Require OWNER role
+ */
+export function requireOwner(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER'])(req, res, next);
+}
+
+/**
+ * Require OWNER or ADMIN role
+ */
+export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER', 'ADMIN'])(req, res, next);
+}

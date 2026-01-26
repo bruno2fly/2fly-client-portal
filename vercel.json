@@ -6,7 +6,10 @@
     { "src": "/staff-login", "dest": "/staff-login.html" },
     { "src": "/agency", "dest": "/agency.html" },
     { "src": "/login", "dest": "/login.html" },
-    { "src": "/", "dest": "/login.html" },
+    { "src": "/accept-invite", "dest": "/accept-invite.html" },
+    { "src": "/forgot-password", "dest": "/forgot-password.html" },
+    { "src": "/reset-password", "dest": "/reset-password.html" },
+    { "src": "/", "dest": "/index.html" },
     { "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot|html))", "dest": "/$1" }
   ]
 }

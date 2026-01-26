@@ -949,7 +949,13 @@
     <div class="header__user">
       <div class="header__avatar" id="staffAvatar">TM</div>
       <span id="staffName">Team Member</span>
-      <button id="logoutBtn" class="btn btn-secondary" style="margin-left: 12px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">Logout</button>
+      <button id="settingsBtn" class="btn btn-icon" style="margin-left: 8px; padding: 8px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+        </svg>
+      </button>
+      <button id="logoutBtn" class="btn btn-secondary" style="margin-left: 8px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">Logout</button>
     </div>
   </header>
 
@@ -1519,6 +1525,93 @@
     </div>
   </div>
 
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="settings-modal" style="display: none;">
+    <div class="settings-modal-overlay" id="settingsModalOverlay"></div>
+    <div class="settings-modal-content">
+      <div class="settings-modal-header">
+        <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #0f172a;">Settings</h2>
+        <button id="closeSettingsBtn" class="settings-close-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">&times;</button>
+      </div>
+      
+      <div class="settings-modal-body">
+        <!-- Register New Staff Section -->
+        <div class="settings-section" style="margin-bottom: 32px;">
+          <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Register New Staff</h3>
+          
+          <form id="settingsPinInviteForm" style="max-width: 100%;">
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                Name <span style="color: #ef4444;">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="settingsInviteName" 
+                class="form-input" 
+                placeholder="Full Name"
+                required
+                style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;"
+              />
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                Email Address <span style="color: #ef4444;">*</span>
+              </label>
+              <input 
+                type="email" 
+                id="settingsInviteEmail" 
+                class="form-input" 
+                placeholder="staff@example.com"
+                required
+                style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;"
+              />
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                PIN <span style="color: #ef4444;">*</span>
+              </label>
+              <input 
+                type="password" 
+                id="settingsInvitePin" 
+                class="form-input" 
+                placeholder="Enter PIN"
+                required
+                style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;"
+              />
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">PIN: 747800</div>
+            </div>
+            
+            <button 
+              type="submit" 
+              id="settingsSubmitInviteBtn"
+              class="btn btn-primary" 
+              style="width: 100%; padding: 12px 24px; background: #0052CC; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;"
+            >
+              Send Login Credentials
+            </button>
+          </form>
+          
+          <div id="settingsInviteSuccessMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #d1fae5; color: #059669; border-radius: 8px; font-size: 14px; white-space: pre-line;"></div>
+          <div id="settingsInviteErrorMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #fee2e2; color: #dc2626; border-radius: 8px; font-size: 14px;"></div>
+        </div>
+        
+        <!-- Users List Section -->
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Users</h3>
+            <button id="refreshUsersBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Refresh</button>
+          </div>
+          
+          <div id="usersListContainer" style="background: #f8fafc; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; padding: 20px; color: #64748b;">Loading users...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <style>
     .error-message {
       color: #ef4444;
@@ -1531,6 +1624,127 @@
     }
     .form-input:invalid, .form-select:invalid {
       border-color: #ef4444;
+    }
+    
+    /* Settings Modal Styles */
+    .settings-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+    }
+    
+    .settings-modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+    }
+    
+    .settings-modal-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      width: 90%;
+      max-width: 800px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .settings-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .settings-modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .settings-section {
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .settings-section:last-child {
+      border-bottom: none;
+    }
+    
+    .user-item {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .user-info {
+      flex: 1;
+    }
+    
+    .user-name {
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    
+    .user-details {
+      font-size: 12px;
+      color: #64748b;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    
+    .user-credentials {
+      margin-top: 8px;
+      padding: 8px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    
+    .user-status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .user-status.ACTIVE {
+      background: #d1fae5;
+      color: #059669;
+    }
+    
+    .user-status.INVITED {
+      background: #fef3c7;
+      color: #d97706;
+    }
+    
+    .user-status.DISABLED {
+      background: #fee2e2;
+      color: #dc2626;
     }
   </style>
 

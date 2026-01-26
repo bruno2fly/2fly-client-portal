@@ -585,6 +585,8 @@ function switchTab(tabName) {
     case 'reports':
       renderReportsTab();
       break;
+    default:
+      break;
   }
 }
 
@@ -2338,6 +2340,348 @@ function renderReportsTab() {
   container.appendChild(highlightsCard);
 }
 
+// Setup PIN-based invite handlers
+function setupPinInviteHandlers() {
+  const pinInviteForm = $('#pinInviteForm');
+  const submitBtn = $('#submitInviteBtn');
+  const successMsg = $('#inviteSuccessMessage');
+  const errorMsg = $('#inviteErrorMessage');
+  
+  if (!pinInviteForm) return;
+  
+  const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:3001' 
+    : 'https://api.2flyflow.com';
+  
+  // Get agencyId from session or use default
+  function getAgencyId() {
+    const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+    if (session) {
+      try {
+        const sessionData = JSON.parse(session);
+        return sessionData.agencyId || 'agency_1737676800000_abc123';
+      } catch {
+        return 'agency_1737676800000_abc123';
+      }
+    }
+    return 'agency_1737676800000_abc123';
+  }
+  
+  pinInviteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    // Hide previous messages
+    if (successMsg) successMsg.style.display = 'none';
+    if (errorMsg) errorMsg.style.display = 'none';
+    
+    const email = $('#inviteEmail')?.value.trim();
+    const pin = $('#invitePin')?.value.trim();
+    
+    if (!email || !pin) {
+      if (errorMsg) {
+        errorMsg.textContent = 'Please fill in all fields';
+        errorMsg.style.display = 'block';
+      }
+      return;
+    }
+    
+    // Disable submit button
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+    }
+    
+    try {
+      const agencyId = getAgencyId();
+      const response = await fetch(`${API_BASE_URL}/api/users/invite-with-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, pin, agencyId })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send invite');
+      }
+      
+      // Show success message
+      if (successMsg) {
+        let message = `✅ Login credentials sent to ${email}`;
+        if (data.credentials) {
+          message += `\n\n📧 Credentials (DEV MODE):\nUsername: ${data.credentials.username}\nPassword: ${data.credentials.password}`;
+        }
+        successMsg.textContent = message;
+        successMsg.style.display = 'block';
+      }
+      
+      // Reset form
+      pinInviteForm.reset();
+      
+      // Hide success message after 10 seconds
+      setTimeout(() => {
+        if (successMsg) successMsg.style.display = 'none';
+      }, 10000);
+      
+    } catch (error) {
+      console.error('PIN invite error:', error);
+      if (errorMsg) {
+        errorMsg.textContent = error.message || 'Failed to send invite. Please try again.';
+        errorMsg.style.display = 'block';
+      }
+    } finally {
+      // Re-enable submit button
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Login Credentials';
+      }
+    }
+  });
+}
+
+// Setup settings modal
+function setupSettingsModal() {
+  const settingsBtn = $('#settingsBtn');
+  const settingsModal = $('#settingsModal');
+  const closeSettingsBtn = $('#closeSettingsBtn');
+  const settingsModalOverlay = $('#settingsModalOverlay');
+  const refreshUsersBtn = $('#refreshUsersBtn');
+  
+  // Open settings modal
+  if (settingsBtn && settingsModal) {
+    settingsBtn.addEventListener('click', () => {
+      settingsModal.style.display = 'block';
+      loadUsersList();
+    });
+  }
+  
+  // Close settings modal
+  if (closeSettingsBtn && settingsModal) {
+    closeSettingsBtn.addEventListener('click', () => {
+      settingsModal.style.display = 'none';
+    });
+  }
+  
+  if (settingsModalOverlay && settingsModal) {
+    settingsModalOverlay.addEventListener('click', () => {
+      settingsModal.style.display = 'none';
+    });
+  }
+  
+  // Refresh users list
+  if (refreshUsersBtn) {
+    refreshUsersBtn.addEventListener('click', () => {
+      loadUsersList();
+    });
+  }
+  
+  // Setup settings PIN invite form
+  const settingsForm = $('#settingsPinInviteForm');
+  const settingsSubmitBtn = $('#settingsSubmitInviteBtn');
+  const settingsSuccessMsg = $('#settingsInviteSuccessMessage');
+  const settingsErrorMsg = $('#settingsInviteErrorMessage');
+  
+  if (settingsForm) {
+    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+      ? 'http://localhost:3001' 
+      : 'https://api.2flyflow.com';
+    
+    function getAgencyId() {
+      const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+      if (session) {
+        try {
+          const sessionData = JSON.parse(session);
+          return sessionData.agencyId || 'agency_1737676800000_abc123';
+        } catch {
+          return 'agency_1737676800000_abc123';
+        }
+      }
+      return 'agency_1737676800000_abc123';
+    }
+    
+    settingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (settingsSuccessMsg) settingsSuccessMsg.style.display = 'none';
+      if (settingsErrorMsg) settingsErrorMsg.style.display = 'none';
+      
+      const name = $('#settingsInviteName')?.value.trim();
+      const email = $('#settingsInviteEmail')?.value.trim();
+      const pin = $('#settingsInvitePin')?.value.trim();
+      
+      if (!name || !email || !pin) {
+        if (settingsErrorMsg) {
+          settingsErrorMsg.textContent = 'Please fill in all fields';
+          settingsErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      
+      if (settingsSubmitBtn) {
+        settingsSubmitBtn.disabled = true;
+        settingsSubmitBtn.textContent = 'Sending...';
+      }
+      
+      try {
+        const agencyId = getAgencyId();
+        const response = await fetch(`${API_BASE_URL}/api/users/invite-with-pin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ name, email, pin, agencyId })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to send invite');
+        }
+        
+        if (settingsSuccessMsg) {
+          let message = `✅ Login credentials sent to ${email}`;
+          if (data.credentials) {
+            message += `\n\n📧 Credentials (DEV MODE):\nUsername: ${data.credentials.username}\nPassword: ${data.credentials.password}`;
+          }
+          settingsSuccessMsg.textContent = message;
+          settingsSuccessMsg.style.display = 'block';
+        }
+        
+        settingsForm.reset();
+        loadUsersList(); // Refresh users list
+        
+        setTimeout(() => {
+          if (settingsSuccessMsg) settingsSuccessMsg.style.display = 'none';
+        }, 10000);
+        
+      } catch (error) {
+        console.error('Settings PIN invite error:', error);
+        if (settingsErrorMsg) {
+          settingsErrorMsg.textContent = error.message || 'Failed to send invite. Please try again.';
+          settingsErrorMsg.style.display = 'block';
+        }
+      } finally {
+        if (settingsSubmitBtn) {
+          settingsSubmitBtn.disabled = false;
+          settingsSubmitBtn.textContent = 'Send Login Credentials';
+        }
+      }
+    });
+  }
+  
+  // Load users list
+  async function loadUsersList() {
+    const usersListContainer = $('#usersListContainer');
+    if (!usersListContainer) return;
+    
+    usersListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">Loading users...</div>';
+    
+    try {
+      const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? 'http://localhost:3001' 
+        : 'https://api.2flyflow.com';
+      
+      function getAgencyId() {
+        const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+        if (session) {
+          try {
+            const sessionData = JSON.parse(session);
+            return sessionData.agencyId || 'agency_1737676800000_abc123';
+          } catch {
+            return 'agency_1737676800000_abc123';
+          }
+        }
+        return 'agency_1737676800000_abc123';
+      }
+      
+      // Get auth token from cookie or session
+      const response = await fetch(`${API_BASE_URL}/api/users?role=STAFF`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load users');
+      }
+      
+      if (data.users && data.users.length > 0) {
+        usersListContainer.innerHTML = '';
+        data.users.forEach(user => {
+          const userItem = document.createElement('div');
+          userItem.className = 'user-item';
+          
+          const userInfo = document.createElement('div');
+          userInfo.className = 'user-info';
+          
+          const userName = document.createElement('div');
+          userName.className = 'user-name';
+          userName.textContent = user.name || user.email;
+          
+          const userDetails = document.createElement('div');
+          userDetails.className = 'user-details';
+          
+          const emailSpan = document.createElement('span');
+          emailSpan.textContent = `Email: ${user.email}`;
+          
+          const usernameSpan = document.createElement('span');
+          usernameSpan.textContent = `Username: ${user.username || user.email.split('@')[0]}`;
+          
+          const roleSpan = document.createElement('span');
+          roleSpan.textContent = `Role: ${user.role}`;
+          
+          const statusSpan = document.createElement('span');
+          statusSpan.className = `user-status ${user.status}`;
+          statusSpan.textContent = user.status;
+          
+          userDetails.appendChild(emailSpan);
+          userDetails.appendChild(usernameSpan);
+          userDetails.appendChild(roleSpan);
+          userDetails.appendChild(statusSpan);
+          
+          // Add credentials display
+          const credentialsNote = document.createElement('div');
+          credentialsNote.className = 'user-credentials';
+          credentialsNote.style.marginTop = '8px';
+          credentialsNote.style.padding = '8px';
+          credentialsNote.style.background = '#f1f5f9';
+          credentialsNote.style.borderRadius = '4px';
+          credentialsNote.style.fontSize = '12px';
+          credentialsNote.style.fontFamily = 'monospace';
+          if (user.password) {
+            credentialsNote.textContent = `Password: ${user.password}`;
+          } else {
+            credentialsNote.textContent = `Password: [Set - not shown for security]`;
+          }
+          
+          userInfo.appendChild(userName);
+          userInfo.appendChild(userDetails);
+          userInfo.appendChild(credentialsNote);
+          
+          userItem.appendChild(userInfo);
+          usersListContainer.appendChild(userItem);
+        });
+      } else {
+        usersListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">No users found</div>';
+      }
+    } catch (error) {
+      console.error('Load users error:', error);
+      usersListContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc2626;">Error loading users: ${error.message}</div>`;
+    }
+  }
+  
+  // Expose loadUsersList for refresh button
+  window.loadUsersList = loadUsersList;
+}
+
 // Setup reports handlers
 function setupReportsHandlers() {
   const openReportsAdmin = $('#openReportsAdmin');
@@ -2449,12 +2793,12 @@ function updateStaffHeader() {
   const staffAvatarEl = $('#staffAvatar');
   
   if (staffNameEl) {
-    staffNameEl.textContent = currentStaff.fullName || currentStaff.username || 'Team Member';
+    staffNameEl.textContent = currentStaff.name || currentStaff.fullName || currentStaff.username || 'Team Member';
   }
   
   if (staffAvatarEl) {
-    // Get initials from full name or username
-    const name = currentStaff.fullName || currentStaff.username || 'TM';
+    // Get initials from name (from Register form / API), fullName, or username
+    const name = currentStaff.name || currentStaff.fullName || currentStaff.username || 'TM';
     const initials = name
       .split(' ')
       .map(word => word.charAt(0))
@@ -2641,7 +2985,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 100);
       return;
     }
-    console.log('Staff authenticated:', currentStaff.username || currentStaff.fullName);
+    console.log('Staff authenticated:', currentStaff.name || currentStaff.username || currentStaff.fullName);
     
     // Update staff header
     try {
@@ -2717,6 +3061,20 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Reports handlers set up');
     } catch (e) {
       console.error('Error setting up reports handlers:', e);
+    }
+    
+    try {
+      setupPinInviteHandlers();
+      console.log('PIN invite handlers set up');
+    } catch (e) {
+      console.error('Error setting up PIN invite handlers:', e);
+    }
+    
+    try {
+      setupSettingsModal();
+      console.log('Settings modal handlers set up');
+    } catch (e) {
+      console.error('Error setting up settings modal:', e);
     }
     
     try {

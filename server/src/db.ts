@@ -11,7 +11,13 @@ import type {
   Workspace, 
   Staff, 
   WorkspaceIntegrationGoogle, 
-  Asset 
+  Asset,
+  Agency,
+  User,
+  Client,
+  InviteToken,
+  PasswordResetToken,
+  AuditLog
 } from './types.js';
 
 const DB_DIR = join(process.cwd(), 'data');
@@ -19,6 +25,13 @@ const WORKSPACES_FILE = join(DB_DIR, 'workspaces.json');
 const STAFF_FILE = join(DB_DIR, 'staff.json');
 const INTEGRATIONS_FILE = join(DB_DIR, 'integrations.json');
 const ASSETS_FILE = join(DB_DIR, 'assets.json');
+// New credentials system files
+const AGENCIES_FILE = join(DB_DIR, 'agencies.json');
+const USERS_FILE = join(DB_DIR, 'users.json');
+const CLIENTS_FILE = join(DB_DIR, 'clients.json');
+const INVITE_TOKENS_FILE = join(DB_DIR, 'invite-tokens.json');
+const PASSWORD_RESET_TOKENS_FILE = join(DB_DIR, 'password-reset-tokens.json');
+const AUDIT_LOGS_FILE = join(DB_DIR, 'audit-logs.json');
 
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
@@ -153,5 +166,178 @@ export function saveAssets(newAssets: Asset[]): void {
   });
   
   writeJSON(ASSETS_FILE, Array.from(assetMap.values()));
+}
+
+// ==================== NEW CREDENTIALS SYSTEM DATABASE FUNCTIONS ====================
+
+// Agencies
+export function getAgencies(): Record<string, Agency> {
+  return readJSON<Record<string, Agency>>(AGENCIES_FILE, {});
+}
+
+export function getAgency(id: string): Agency | null {
+  const agencies = getAgencies();
+  return agencies[id] || null;
+}
+
+export function saveAgency(agency: Agency): void {
+  const agencies = getAgencies();
+  agencies[agency.id] = agency;
+  writeJSON(AGENCIES_FILE, agencies);
+}
+
+// Users
+export function getUsers(): Record<string, User> {
+  return readJSON<Record<string, User>>(USERS_FILE, {});
+}
+
+export function getUser(id: string): User | null {
+  const users = getUsers();
+  return users[id] || null;
+}
+
+export function getUserByEmail(agencyId: string, email: string): User | null {
+  const users = getUsers();
+  return Object.values(users).find(
+    u => u.agencyId === agencyId && u.email.toLowerCase() === email.toLowerCase()
+  ) || null;
+}
+
+export function getUserByUsername(agencyId: string, username: string): User | null {
+  const users = getUsers();
+  return Object.values(users).find(
+    u => u.agencyId === agencyId && u.username && u.username.toLowerCase() === username.toLowerCase()
+  ) || null;
+}
+
+export function getUsersByAgency(agencyId: string): User[] {
+  const users = getUsers();
+  return Object.values(users).filter(u => u.agencyId === agencyId);
+}
+
+export function getUsersByClient(clientId: string): User[] {
+  const users = getUsers();
+  return Object.values(users).filter(u => u.clientId === clientId && u.role === 'CLIENT');
+}
+
+export function saveUser(user: User): void {
+  const users = getUsers();
+  users[user.id] = user;
+  writeJSON(USERS_FILE, users);
+}
+
+export function deleteUser(userId: string): void {
+  const users = getUsers();
+  delete users[userId];
+  writeJSON(USERS_FILE, users);
+}
+
+// Clients
+export function getClients(): Record<string, Client> {
+  return readJSON<Record<string, Client>>(CLIENTS_FILE, {});
+}
+
+export function getClient(id: string): Client | null {
+  const clients = getClients();
+  return clients[id] || null;
+}
+
+export function getClientsByAgency(agencyId: string): Client[] {
+  const clients = getClients();
+  return Object.values(clients).filter(c => c.agencyId === agencyId);
+}
+
+export function saveClient(client: Client): void {
+  const clients = getClients();
+  clients[client.id] = client;
+  writeJSON(CLIENTS_FILE, clients);
+}
+
+export function deleteClient(clientId: string): void {
+  const clients = getClients();
+  delete clients[clientId];
+  writeJSON(CLIENTS_FILE, clients);
+}
+
+// Invite Tokens
+export function getInviteTokens(): Record<string, InviteToken> {
+  return readJSON<Record<string, InviteToken>>(INVITE_TOKENS_FILE, {});
+}
+
+export function getInviteTokenByHash(tokenHash: string): InviteToken | null {
+  const tokens = getInviteTokens();
+  return Object.values(tokens).find(t => t.tokenHash === tokenHash && !t.usedAt && t.expiresAt > Date.now()) || null;
+}
+
+export function getInviteTokensByUser(userId: string): InviteToken[] {
+  const tokens = getInviteTokens();
+  return Object.values(tokens).filter(t => t.userId === userId);
+}
+
+export function saveInviteToken(token: InviteToken): void {
+  const tokens = getInviteTokens();
+  tokens[token.id] = token;
+  writeJSON(INVITE_TOKENS_FILE, tokens);
+}
+
+export function markInviteTokenUsed(tokenId: string): void {
+  const tokens = getInviteTokens();
+  if (tokens[tokenId]) {
+    tokens[tokenId].usedAt = Date.now();
+    writeJSON(INVITE_TOKENS_FILE, tokens);
+  }
+}
+
+// Password Reset Tokens
+export function getPasswordResetTokens(): Record<string, PasswordResetToken> {
+  return readJSON<Record<string, PasswordResetToken>>(PASSWORD_RESET_TOKENS_FILE, {});
+}
+
+export function getPasswordResetTokenByHash(tokenHash: string): PasswordResetToken | null {
+  const tokens = getPasswordResetTokens();
+  return Object.values(tokens).find(t => t.tokenHash === tokenHash && !t.usedAt && t.expiresAt > Date.now()) || null;
+}
+
+export function getPasswordResetTokensByUser(userId: string): PasswordResetToken[] {
+  const tokens = getPasswordResetTokens();
+  return Object.values(tokens).filter(t => t.userId === userId);
+}
+
+export function savePasswordResetToken(token: PasswordResetToken): void {
+  const tokens = getPasswordResetTokens();
+  tokens[token.id] = token;
+  writeJSON(PASSWORD_RESET_TOKENS_FILE, tokens);
+}
+
+export function markPasswordResetTokenUsed(tokenId: string): void {
+  const tokens = getPasswordResetTokens();
+  if (tokens[tokenId]) {
+    tokens[tokenId].usedAt = Date.now();
+    writeJSON(PASSWORD_RESET_TOKENS_FILE, tokens);
+  }
+}
+
+// Audit Logs
+export function getAuditLogs(): AuditLog[] {
+  return readJSON<AuditLog[]>(AUDIT_LOGS_FILE, []);
+}
+
+export function getAuditLogsByAgency(agencyId: string, limit: number = 100): AuditLog[] {
+  const logs = getAuditLogs();
+  return logs
+    .filter(log => log.agencyId === agencyId)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, limit);
+}
+
+export function saveAuditLog(log: AuditLog): void {
+  const logs = getAuditLogs();
+  logs.push(log);
+  // Keep only last 10000 logs to prevent file from growing too large
+  if (logs.length > 10000) {
+    logs.sort((a, b) => b.createdAt - a.createdAt);
+    logs.splice(10000);
+  }
+  writeJSON(AUDIT_LOGS_FILE, logs);
 }
 
