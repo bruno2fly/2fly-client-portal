@@ -4,45 +4,60 @@ console.log('agency.js file loaded successfully');
 /* ================== Authentication ================== */
 const LS_STAFF_SESSION_KEY = "2fly_staff_session";
 
-function isLocal() {
-  return window.location.protocol === 'file:' ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1';
-}
-
-function staffLoginUrl() {
-  if (window.location.protocol === 'file:') {
-    const p = window.location.pathname;
-    const base = p.substring(0, p.lastIndexOf('/'));
-    return base + '/staff-login.html';
-  }
-  return isLocal() ? '/staff-login.html' : '/staff-login';
-}
-
 function checkStaffAuth() {
   const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
   if (!session) {
-    window.location.href = staffLoginUrl();
+    // Check if we're using file:// protocol (opening directly)
+    if (window.location.protocol === 'file:') {
+      // For file://, try to redirect to staff-login.html in same directory
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+      window.location.href = basePath + '/staff-login.html';
+    } else {
+      // For http://, use absolute path
+      window.location.href = '/staff-login';
+    }
     return null;
   }
+  
   try {
     const sessionData = JSON.parse(session);
+    // Check if session is still valid (24 hours)
     if (Date.now() - sessionData.loggedInAt > 24 * 60 * 60 * 1000) {
       localStorage.removeItem(LS_STAFF_SESSION_KEY);
-      window.location.href = staffLoginUrl();
+      if (window.location.protocol === 'file:') {
+        const currentPath = window.location.pathname;
+        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        window.location.href = basePath + '/staff-login.html';
+      } else {
+        window.location.href = '/staff-login';
+      }
       return null;
     }
     return sessionData;
   } catch {
     localStorage.removeItem(LS_STAFF_SESSION_KEY);
-    window.location.href = staffLoginUrl();
+    if (window.location.protocol === 'file:') {
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+      window.location.href = basePath + '/staff-login.html';
+    } else {
+      window.location.href = '/staff-login';
+    }
     return null;
   }
 }
 
 function logout() {
   localStorage.removeItem(LS_STAFF_SESSION_KEY);
-  window.location.href = staffLoginUrl();
+  // Handle both file:// and http:// protocols
+  if (window.location.protocol === 'file:') {
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+    window.location.href = basePath + '/staff-login.html';
+  } else {
+    window.location.href = '/staff-login';
+  }
 }
 
 // Check authentication on page load
@@ -2633,13 +2648,14 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Agency dashboard loaded');
     // Check authentication first
     if (!currentStaff) {
-      console.log('No staff session, redirecting to staff login');
+      console.log('No staff session, redirecting to /staff-login');
+      // Don't return immediately - allow a small delay for redirect
       setTimeout(() => {
         if (!currentStaff) {
-          window.location.href = staffLoginUrl();
+          window.location.href = '/staff-login';
         }
       }, 100);
-      return;
+      return; // Will redirect to login
     }
     console.log('Staff authenticated:', currentStaff.username || currentStaff.fullName);
     

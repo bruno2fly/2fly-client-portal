@@ -384,19 +384,6 @@
       }, 5000);
     }
     
-    function isLocalHost() {
-      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    }
-    
-    function agencyUrl() {
-      if (window.location.protocol === 'file:') {
-        const p = window.location.pathname;
-        const base = p.substring(0, p.lastIndexOf('/'));
-        return base + '/agency.html';
-      }
-      return isLocalHost() ? '/agency.html' : '/agency';
-    }
-    
     function login(username, password) {
       const staff = loadStaff();
       
@@ -425,8 +412,15 @@
       
       localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify(session));
       
-      // Redirect to agency dashboard (use .html for localhost/file so it works offline)
-      window.location.href = agencyUrl();
+      // Redirect to agency dashboard
+      // Handle both file:// and http:// protocols
+      if (window.location.protocol === 'file:') {
+        const currentPath = window.location.pathname;
+        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        window.location.href = basePath + '/agency.html';
+      } else {
+        window.location.href = '/agency';
+      }
       return true;
     }
     
@@ -512,7 +506,14 @@
           // Check if session is still valid (24 hours)
           if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
             console.log('Already logged in, redirecting to agency');
-            window.location.href = agencyUrl();
+            // Handle both file:// and http:// protocols
+            if (window.location.protocol === 'file:') {
+              const currentPath = window.location.pathname;
+              const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+              window.location.href = basePath + '/agency.html';
+            } else {
+              window.location.href = '/agency';
+            }
             return; // Stop execution
           } else {
             // Session expired, clear it

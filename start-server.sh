@@ -1,23 +1,32 @@
 #!/bin/bash
 
-# Simple HTTP server for agency.html
-# This works without npm/node
+# Offline local server – no npm/node needed. Uses Python only.
+# Serves from public/ so /agency.js, /agency.html, etc. work.
 
+cd "$(dirname "$0")/public" || exit 1
 PORT=8000
 
-echo "Starting server on http://localhost:$PORT"
-echo "Open http://localhost:$PORT/agency.html in your browser"
+echo "=========================================="
+echo "  2Fly Client Portal – Local (offline)"
+echo "=========================================="
 echo ""
-echo "Press Ctrl+C to stop the server"
+echo "  Server: http://localhost:$PORT"
+echo ""
+echo "  Pages:"
+echo "    • Client portal:  http://localhost:$PORT/index.html"
+echo "    • Client login:   http://localhost:$PORT/login.html"
+echo "    • Staff login:    http://localhost:$PORT/staff-login.html"
+echo "    • Agency:         http://localhost:$PORT/agency.html"
+echo ""
+echo "  Stop: Ctrl+C"
+echo "=========================================="
 echo ""
 
-# Try Python 3 first, then Python 2
 if command -v python3 &> /dev/null; then
     python3 -m http.server $PORT
 elif command -v python &> /dev/null; then
     python -m SimpleHTTPServer $PORT
 else
-    echo "Error: Python is not installed."
-    echo "Please install Python or use a different method to serve the files."
+    echo "Error: Python not found. Install Python to run locally."
     exit 1
 fi
