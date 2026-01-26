@@ -1,56 +1,12 @@
 {
+  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "cleanUrls": false,
-  "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/agency.js",
-      "destination": "/agency.js"
-    },
-    {
-      "source": "/staff-login.html",
-      "destination": "/staff-login.html"
-    },
-    {
-      "source": "/staff-login",
-      "destination": "/staff-login.html"
-    },
-    {
-      "source": "/agency.html",
-      "destination": "/agency.html"
-    },
-    {
-      "source": "/agency",
-      "destination": "/agency.html"
-    },
-    {
-      "source": "/login.html",
-      "destination": "/login.html"
-    },
-    {
-      "source": "/index.html",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot))",
-      "destination": "/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/agency.js",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/javascript"
-        }
-      ]
-    }
+  "routes": [
+    { "src": "/staff-login", "dest": "/staff-login.html" },
+    { "src": "/agency", "dest": "/agency.html" },
+    { "src": "/login", "dest": "/login.html" },
+    { "src": "/", "dest": "/login.html" },
+    { "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf|eot|html))", "dest": "/$1" }
   ]
 }
-
