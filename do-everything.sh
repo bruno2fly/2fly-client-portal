@@ -46,7 +46,7 @@ git add public/ server/package.json server/package-lock.json server/tsconfig.jso
 git add server/create-owner-credentials.ts server/generate-invite.js server/get-token-from-hash.py
 git add server/set-owner-password.js server/fix-and-run.sh server/start-auth-server.sh server/setup.sh server/update-env.sh
 git add server/src/ start-all.sh start-all.command deploy.sh do-everything.sh
-git add GET-STARTED.md RUN-LOCAL.md START-BACKEND.md START-FRONTEND.md README.md server/README.md server/SETUP.md server/START-SERVER.md 2>/dev/null || true
+git add GET-STARTED.md RUN-LOCAL.md RUN-EVERYTHING.md START-BACKEND.md START-FRONTEND.md README.md server/README.md server/SETUP.md server/START-SERVER.md 2>/dev/null || true
 
 if ! git diff --cached --quiet 2>/dev/null; then
   git commit -m "Run local + deploy fixes" || true
@@ -63,7 +63,7 @@ echo ""
 
 echo "=========================================="
 echo "  ✅ Local:  http://localhost:8000 (logs: /tmp/2fly-*.log)"
-echo "  Stop:     kill $PY_PID $NODE_PID  OR  lsof -ti:8000,3001 | xargs kill -9"
+echo "  Stop:     kill $PY_PID $NODE_PID  OR  lsof -ti:8000 | xargs kill -9; lsof -ti:3001 | xargs kill -9"
 [ "$PUSH_OK" = "1" ] && echo "  ✅ Git:    pushed" || echo "  ⚠️  Git:    push failed"
 [ "$VERCEL_OK" = "1" ] && echo "  ✅ Vercel: deployed" || echo "  ⚠️  Vercel: deploy failed"
 echo "=========================================="

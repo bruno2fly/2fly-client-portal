@@ -19,7 +19,7 @@ git add server/create-owner-credentials.ts server/generate-invite.js server/get-
 git add server/set-owner-password.js server/fix-and-run.sh server/start-auth-server.sh server/setup.sh server/update-env.sh
 git add server/src/
 git add start-all.sh start-all.command deploy.sh
-git add GET-STARTED.md RUN-LOCAL.md START-BACKEND.md START-FRONTEND.md README.md 2>/dev/null || true
+git add GET-STARTED.md RUN-LOCAL.md RUN-EVERYTHING.md START-BACKEND.md START-FRONTEND.md README.md 2>/dev/null || true
 git add server/README.md server/SETUP.md server/START-SERVER.md 2>/dev/null || true
 
 if ! git diff --cached --quiet 2>/dev/null; then
