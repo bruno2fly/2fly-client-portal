@@ -764,6 +764,22 @@ body[data-theme="dark"] .kpi-card.motivation{
   </div>
 
 <script type="module">
+/* ================== Safety Check - Redirect if index.html loaded on staff/agency pages ================== */
+(function() {
+  const path = window.location.pathname || '';
+  const href = window.location.href || '';
+  if (path.includes('staff-login') || path.includes('agency') || 
+      href.includes('staff-login') || href.includes('agency')) {
+    console.error('Client portal (index.html) loaded on staff/agency page - redirecting!');
+    if (path.includes('staff-login') || href.includes('staff-login')) {
+      window.location.replace('/staff-login.html');
+    } else if (path.includes('agency') || href.includes('agency')) {
+      window.location.replace('/agency.html');
+    }
+    return;
+  }
+})();
+
 /* ================== Authentication ================== */
 const LS_SESSION_KEY = "2fly_client_session";
 const LS_CLIENTS_KEY = "2fly_clients_v1";
@@ -832,6 +848,17 @@ const isLoginPage = pathname.includes('login.html') ||
                     pathname === '/login' || 
                     pathname.endsWith('/login.html') ||
                     href.includes('login.html');
+const isStaffPage = pathname.includes('staff-login') || 
+                    pathname.includes('agency') ||
+                    href.includes('staff-login') ||
+                    href.includes('agency');
+
+// Don't run client portal code on staff/agency pages
+if (isStaffPage) {
+  console.log('Staff/agency page detected, skipping client portal initialization');
+  // Stop execution - this is not the client portal
+  throw new Error('Not a client portal page');
+}
 
 if (!isLoginPage) {
   session = checkAuth();
