@@ -54,6 +54,21 @@ if [ ! -d "node_modules" ]; then
   echo "Installing backend dependencies..."
   npm install
 fi
+if [ ! -f .env ]; then
+  echo "Creating server/.env..."
+  secret=$(openssl rand -hex 32 2>/dev/null || echo "change-me-in-production-$(date +%s)")
+  cat > .env << EOF
+JWT_SECRET=$secret
+FRONTEND_URL=http://localhost:8000
+NODE_ENV=development
+PORT=3001
+EOF
+  echo "✅ Created .env"
+fi
+if [ ! -d "data" ] || [ ! -f "data/users.json" ]; then
+  echo "⚠️  No server/data found. Run: cd server && npm run setup"
+  echo "   Or copy server/data from a working install."
+fi
 echo "Building backend..."
 npm run build
 npm start
