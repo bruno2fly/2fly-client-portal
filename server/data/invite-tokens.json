@@ -1,0 +1,38 @@
+{
+  "invite_1737676800000_token1": {
+    "id": "invite_1737676800000_token1",
+    "agencyId": "agency_1737676800000_abc123",
+    "userId": "user_1737676800000_xyz789",
+    "tokenHash": "PLACEHOLDER_TOKEN_HASH",
+    "expiresAt": 1737921600000,
+    "usedAt": 1769447709540,
+    "createdAt": 1737676800000
+  },
+  "invite_1769447709540_aceajzv": {
+    "id": "invite_1769447709540_aceajzv",
+    "agencyId": "agency_1737676800000_abc123",
+    "userId": "user_1737676800000_xyz789",
+    "tokenHash": "6053bf269ed5552caef3fb9fbe9a8034e79c5f3777f147b07ee1a04e90f40e15",
+    "expiresAt": 1769706909540,
+    "usedAt": 1769447939925,
+    "createdAt": 1769447709540
+  },
+  "invite_1769447939925_qIUHyYCZ": {
+    "id": "invite_1769447939925_qIUHyYCZ",
+    "agencyId": "agency_1737676800000_abc123",
+    "userId": "user_1737676800000_xyz789",
+    "tokenHash": "fab627b7e36ff929453510b509a9c205703ecb6cdc66df6268e224e34b4c4393",
+    "expiresAt": 1769707139925,
+    "usedAt": 1769452196241,
+    "createdAt": 1769447939925
+  },
+  "invite_1769452196255_xnk7zru": {
+    "id": "invite_1769452196255_xnk7zru",
+    "agencyId": "agency_1737676800000_abc123",
+    "userId": "user_1737676800000_xyz789",
+    "tokenHash": "8ccd056507ee4aaaab0904171d9e8899a1603e0574f5e7acc8c0a73aa6afa8ae",
+    "expiresAt": 1769711396255,
+    "usedAt": null,
+    "createdAt": 1769452196255
+  }
+}

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "audit_1769455309568_v8if98q",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769455309568
+  },
+  {
+    "id": "audit_1769455345028_33pvjvh",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "system",
+    "action": "user.invite-with-pin",
+    "targetUserId": "user_1769455345023_yan3dpd",
+    "metaJson": "{\"method\":\"pin\",\"email\":\"2flydigitalmarketing@gmail.com\"}",
+    "createdAt": 1769455345028
+  },
+  {
+    "id": "audit_1769455375703_fgk0n1l",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1769455345023_yan3dpd",
+    "action": "auth.login",
+    "targetUserId": "user_1769455345023_yan3dpd",
+    "createdAt": 1769455375703
+  },
+  {
+    "id": "audit_1769461441828_oyopx2q",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769461441828
+  },
+  {
+    "id": "audit_1769461488159_xfrjly4",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "system",
+    "action": "user.invite-with-pin",
+    "targetUserId": "user_1769461488158_7z7uk3c",
+    "metaJson": "{\"method\":\"pin\",\"email\":\"djbrunolimma@gmail.com\"}",
+    "createdAt": 1769461488160
+  },
+  {
+    "id": "audit_1769463882590_trstvuu",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769463882590
+  },
+  {
+    "id": "audit_1769489414731_s4sp64v",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769489414731
+  },
+  {
+    "id": "audit_1769489620215_yx7w3a1",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769489620215
+  }
+]
