@@ -1600,12 +1600,24 @@
         <!-- Users List Section -->
         <div class="settings-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Users</h3>
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Users (staff credentials)</h3>
             <button id="refreshUsersBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Refresh</button>
           </div>
           
           <div id="usersListContainer" style="background: #f8fafc; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto;">
             <div style="text-align: center; padding: 20px; color: #64748b;">Loading users...</div>
+          </div>
+        </div>
+
+        <!-- Clients List Section (saved credentials) -->
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Clients (saved credentials)</h3>
+            <button id="refreshClientsBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Refresh</button>
+          </div>
+          
+          <div id="clientsListContainer" style="background: #f8fafc; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; padding: 20px; color: #64748b;">Loading clients...</div>
           </div>
         </div>
       </div>

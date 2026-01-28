@@ -2455,6 +2455,7 @@ function setupSettingsModal() {
     settingsBtn.addEventListener('click', () => {
       settingsModal.style.display = 'block';
       loadUsersList();
+      loadClientsList();
     });
   }
   
@@ -2473,9 +2474,11 @@ function setupSettingsModal() {
   
   // Refresh users list
   if (refreshUsersBtn) {
-    refreshUsersBtn.addEventListener('click', () => {
-      loadUsersList();
-    });
+    refreshUsersBtn.addEventListener('click', () => loadUsersList());
+  }
+  const refreshClientsBtn = $('#refreshClientsBtn');
+  if (refreshClientsBtn) {
+    refreshClientsBtn.addEventListener('click', () => loadClientsList());
   }
   
   // Setup settings PIN invite form
@@ -2550,9 +2553,13 @@ function setupSettingsModal() {
           settingsSuccessMsg.textContent = message;
           settingsSuccessMsg.style.display = 'block';
         }
-        
+        if (data.user && data.credentials) {
+          const stored = JSON.parse(localStorage.getItem('2fly_staff_credentials_v1') || '{}');
+          stored[data.user.id] = { username: data.credentials.username, password: data.credentials.password, email: data.user.email, name: data.user.name };
+          localStorage.setItem('2fly_staff_credentials_v1', JSON.stringify(stored));
+        }
         settingsForm.reset();
-        loadUsersList(); // Refresh users list
+        loadUsersList();
         
         setTimeout(() => {
           if (settingsSuccessMsg) settingsSuccessMsg.style.display = 'none';
@@ -2613,6 +2620,7 @@ function setupSettingsModal() {
         throw new Error(data.error || 'Failed to load users');
       }
       
+      const storedCreds = JSON.parse(localStorage.getItem('2fly_staff_credentials_v1') || '{}');
       if (data.users && data.users.length > 0) {
         usersListContainer.innerHTML = '';
         data.users.forEach(user => {
@@ -2647,7 +2655,7 @@ function setupSettingsModal() {
           userDetails.appendChild(roleSpan);
           userDetails.appendChild(statusSpan);
           
-          // Add credentials display
+          const cred = storedCreds[user.id] || (user.password ? { password: user.password } : null);
           const credentialsNote = document.createElement('div');
           credentialsNote.className = 'user-credentials';
           credentialsNote.style.marginTop = '8px';
@@ -2656,8 +2664,8 @@ function setupSettingsModal() {
           credentialsNote.style.borderRadius = '4px';
           credentialsNote.style.fontSize = '12px';
           credentialsNote.style.fontFamily = 'monospace';
-          if (user.password) {
-            credentialsNote.textContent = `Password: ${user.password}`;
+          if (cred && cred.password) {
+            credentialsNote.textContent = `Password: ${cred.password}`;
           } else {
             credentialsNote.textContent = `Password: [Set - not shown for security]`;
           }
@@ -2667,6 +2675,43 @@ function setupSettingsModal() {
           userInfo.appendChild(credentialsNote);
           
           userItem.appendChild(userInfo);
+          
+          const actions = document.createElement('div');
+          actions.className = 'user-item-actions';
+          actions.style.display = 'flex';
+          actions.style.alignItems = 'center';
+          actions.style.gap = '8px';
+          actions.style.flexShrink = '0';
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'btn btn-secondary';
+          delBtn.style.padding = '6px 12px';
+          delBtn.style.fontSize = '12px';
+          delBtn.style.background = '#fee2e2';
+          delBtn.style.color = '#dc2626';
+          delBtn.style.border = '1px solid #fecaca';
+          delBtn.textContent = 'Delete';
+          delBtn.addEventListener('click', async () => {
+            if (!confirm(`Delete user "${user.name || user.email}"? They will no longer be able to log in.`)) return;
+            try {
+              const delRes = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              const delData = await delRes.json();
+              if (!delRes.ok) throw new Error(delData.error || 'Delete failed');
+              const s = JSON.parse(localStorage.getItem('2fly_staff_credentials_v1') || '{}');
+              delete s[user.id];
+              localStorage.setItem('2fly_staff_credentials_v1', JSON.stringify(s));
+              loadUsersList();
+            } catch (e) {
+              alert('Failed to delete user: ' + (e.message || 'Unknown error'));
+            }
+          });
+          actions.appendChild(delBtn);
+          userItem.appendChild(actions);
+          
           usersListContainer.appendChild(userItem);
         });
       } else {
@@ -2678,8 +2723,45 @@ function setupSettingsModal() {
     }
   }
   
-  // Expose loadUsersList for refresh button
+  function loadClientsList() {
+    const container = $('#clientsListContainer');
+    if (!container) return;
+    const loginClients = JSON.parse(localStorage.getItem('2fly_clients_v1') || '{}');
+    const registry = loadClientsRegistry();
+    const list = Object.keys(registry).filter(k => k !== '_lastSelected').map(id => {
+      const c = registry[id];
+      const login = loginClients[id] || {};
+      return { id, name: c.name || id, password: login.password || null };
+    });
+    if (list.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">No clients yet. Create clients from the sidebar.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    list.forEach(({ id, name, password }) => {
+      const card = document.createElement('div');
+      card.className = 'user-item';
+      card.style.marginBottom = '12px';
+      card.innerHTML = `
+        <div class="user-info">
+          <div class="user-name">${escapeHtml(name)}</div>
+          <div class="user-details" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 13px; color: #64748b;">
+            <span>Client ID: <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${escapeHtml(id)}</code></span>
+            <span>Password: ${password ? `<code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${escapeHtml(password)}</code>` : '[not set]'}</span>
+          </div>
+        </div>`;
+      container.appendChild(card);
+    });
+  }
+  
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+  
   window.loadUsersList = loadUsersList;
+  window.loadClientsList = loadClientsList;
 }
 
 // Setup reports handlers
