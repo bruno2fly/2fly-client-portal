@@ -2375,10 +2375,18 @@ function setupSettingsModal() {
       const name = $('#settingsInviteName')?.value.trim();
       const email = $('#settingsInviteEmail')?.value.trim();
       const pin = $('#settingsInvitePin')?.value.trim();
+      const password = $('#settingsInvitePassword')?.value.trim() || null;
       
       if (!name || !email || !pin) {
         if (settingsErrorMsg) {
-          settingsErrorMsg.textContent = 'Please fill in all fields';
+          settingsErrorMsg.textContent = 'Please fill in all required fields';
+          settingsErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      if (password && password.length < 8) {
+        if (settingsErrorMsg) {
+          settingsErrorMsg.textContent = 'Custom password must be at least 8 characters';
           settingsErrorMsg.style.display = 'block';
         }
         return;
@@ -2390,11 +2398,13 @@ function setupSettingsModal() {
       }
       
       try {
+        const payload = { name, email, pin, agencyId: getAgencyIdFromSession() };
+        if (password) payload.password = password;
         const response = await fetch(`${getApiBaseUrl()}/api/users/invite-with-pin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ name, email, pin, agencyId: getAgencyIdFromSession() })
+          body: JSON.stringify(payload)
         });
         
         const data = await response.json();
@@ -2404,7 +2414,9 @@ function setupSettingsModal() {
         }
         
         if (settingsSuccessMsg) {
-          let message = `✅ Login credentials sent to ${email}`;
+          let message = password
+            ? `✅ User created with your custom password. Credentials sent to ${email}.`
+            : `✅ Login credentials sent to ${email}`;
           if (data.credentials) {
             message += `\n\n📧 Credentials (DEV MODE):\nUsername: ${data.credentials.username}\nPassword: ${data.credentials.password}`;
           }

@@ -179,7 +179,7 @@ app.get('/api/dev/generate-owner-invite', (req, res) => {
 // PIN: 747800
 app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, async (req: any, res) => {
   try {
-    const { email, pin, name } = req.body;
+    const { email, pin, name, password: customPassword } = req.body;
     const REQUIRED_PIN = '747800';
 
     if (!email || !pin) {
@@ -188,6 +188,11 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
 
     if (pin !== REQUIRED_PIN) {
       return res.status(403).json({ error: 'Invalid PIN' });
+    }
+
+    const raw = (customPassword != null && typeof customPassword === 'string') ? customPassword.trim() : '';
+    if (raw.length > 0 && raw.length < 8) {
+      return res.status(400).json({ error: 'Custom password must be at least 8 characters' });
     }
 
     const targetAgencyId = req.user!.agencyId;
@@ -200,14 +205,10 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
-    // Generate username from email (for display/email purposes)
-    // The system uses email for login, so username is just for display
     let username = generateUsernameFromEmail(email);
-    // Make username unique if needed (for display purposes only)
     let counter = 1;
     let finalUsername = username;
     const existingUsernames = getUsersByAgency(targetAgencyId).map(u => {
-      // Extract username from email for comparison
       return u.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     });
     while (existingUsernames.includes(finalUsername)) {
@@ -215,8 +216,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
       counter++;
     }
 
-    // Generate random password
-    const password = generateRandomPassword(12);
+    const password = raw.length >= 8 ? raw : generateRandomPassword(12);
     const passwordHash = await hashPassword(password);
 
     // Create user
