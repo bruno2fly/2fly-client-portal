@@ -189,85 +189,63 @@
   </div>
 
   <script>
-    const LS_CLIENTS_KEY = "2fly_clients_v1";
     const LS_SESSION_KEY = "2fly_client_session";
-    
-    function loadClients() {
-      const data = localStorage.getItem(LS_CLIENTS_KEY);
-      if (!data) return {};
-      try {
-        return JSON.parse(data);
-      } catch {
-        return {};
-      }
-    }
-    
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3001'
+      : 'https://api.2flyflow.com';
+
     function showError(message) {
       const errorEl = document.getElementById('errorMessage');
       errorEl.textContent = message;
       errorEl.classList.add('show');
-      setTimeout(() => {
-        errorEl.classList.remove('show');
-      }, 5000);
+      setTimeout(() => errorEl.classList.remove('show'), 5000);
     }
-    
-    function login(clientId, password) {
-      const clients = loadClients();
-      
-      if (!clients[clientId]) {
-        showError('Invalid client ID or password');
+
+    async function login(clientId, password) {
+      try {
+        const r = await fetch(API_BASE + '/api/auth/client-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId, password })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          showError(data.error || 'Invalid client ID or password');
+          return false;
+        }
+        const session = {
+          clientId: data.client.id,
+          clientName: data.client.name,
+          loggedInAt: Date.now()
+        };
+        localStorage.setItem(LS_SESSION_KEY, JSON.stringify(session));
+        window.location.href = 'index.html';
+        return true;
+      } catch (err) {
+        showError('Unable to reach server. Please try again.');
         return false;
       }
-      
-      const client = clients[clientId];
-      
-      // Simple password check (in production, use proper hashing)
-      if (client.password !== password) {
-        showError('Invalid client ID or password');
-        return false;
-      }
-      
-      // Create session
-      const session = {
-        clientId: clientId,
-        clientName: client.name,
-        loggedInAt: Date.now()
-      };
-      
-      localStorage.setItem(LS_SESSION_KEY, JSON.stringify(session));
-      
-      // Redirect to main portal
-      window.location.href = 'index.html';
-      return true;
     }
-    
-    // Check if already logged in
+
     const session = localStorage.getItem(LS_SESSION_KEY);
     if (session) {
       try {
-        const sessionData = JSON.parse(session);
-        // Check if session is still valid (24 hours)
-        if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
+        const d = JSON.parse(session);
+        if (Date.now() - d.loggedInAt < 24 * 60 * 60 * 1000) {
           window.location.href = 'index.html';
         }
-      } catch {
-        // Invalid session, continue to login
-      }
+      } catch { /* continue to login */ }
     }
-    
-    // Handle form submission
-    document.getElementById('loginForm').addEventListener('submit', (e) => {
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
       const clientId = document.getElementById('clientId').value.trim();
       const password = document.getElementById('password').value;
-      
       if (!clientId || !password) {
         showError('Please enter both client ID and password');
         return;
       }
-      
-      login(clientId, password);
+      await login(clientId, password);
     });
   </script>
 </body>

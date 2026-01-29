@@ -9,7 +9,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
-import { getUserByEmail, getUserByUsername, getUser, saveUser, getPasswordResetTokenByHash, markPasswordResetTokenUsed, savePasswordResetToken, saveAuditLog } from '../db.js';
+import { getUserByEmail, getUserByUsername, getUser, saveUser, getPasswordResetTokenByHash, markPasswordResetTokenUsed, savePasswordResetToken, saveAuditLog, getClient, getClientCredentials } from '../db.js';
 import { verifyPassword, hashPassword, generateToken, hashToken, generateId } from '../utils/auth.js';
 import { sendPasswordResetEmail } from '../utils/email.js';
 import { checkRateLimit } from '../utils/rateLimit.js';
@@ -147,6 +147,40 @@ router.post('/login', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/client-login
+ * Client portal login (clientId + password). Validates against backend client credentials.
+ */
+router.post('/client-login', async (req, res) => {
+  try {
+    const { clientId: raw, password } = req.body;
+    const clientId = (raw != null && typeof raw === 'string') ? raw.trim().toLowerCase() : '';
+    const pwd = typeof password === 'string' ? password : '';
+
+    if (!clientId || !pwd) {
+      return res.status(400).json({ error: 'Client ID and password are required' });
+    }
+
+    const client = getClient(clientId);
+    if (!client) {
+      return res.status(401).json({ error: 'Invalid client ID or password' });
+    }
+
+    const stored = getClientCredentials(client.agencyId, client.id);
+    if (!stored || stored !== pwd) {
+      return res.status(401).json({ error: 'Invalid client ID or password' });
+    }
+
+    res.json({
+      success: true,
+      client: { id: client.id, name: client.name || client.id }
+    });
+  } catch (e: any) {
+    console.error('Client login error:', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

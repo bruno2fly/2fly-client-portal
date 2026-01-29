@@ -59,6 +59,7 @@ app.get('/', (req, res) => {
         health: '/health',
         auth: {
           login: '/api/auth/login',
+          clientLogin: '/api/auth/client-login',
           logout: '/api/auth/logout',
           forgotPassword: '/api/auth/forgot-password',
           resetPassword: '/api/auth/reset-password'
