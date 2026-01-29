@@ -14,6 +14,8 @@ import { join } from 'path';
 import googleDriveRoutes from './routes/googleDrive.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import agencyRoutes from './routes/agency.js';
+import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, markInviteTokenUsed, getUserByEmail, saveUser, saveAuditLog } from './db.js';
 import { generateToken, generateId, generateUsernameFromEmail, generateRandomPassword, hashPassword } from './utils/auth.js';
 import { sendCredentialsEmail } from './utils/email.js';
@@ -173,11 +175,11 @@ app.get('/api/dev/generate-owner-invite', (req, res) => {
   }
 });
 
-// PIN-based invite endpoint (for agency staff creation)
+// PIN-based invite endpoint (for agency staff creation). OWNER/ADMIN only; staff share actor's agencyId.
 // PIN: 747800
-app.post('/api/users/invite-with-pin', async (req, res) => {
+app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, async (req: any, res) => {
   try {
-    const { email, pin, agencyId, name } = req.body;
+    const { email, pin, name } = req.body;
     const REQUIRED_PIN = '747800';
 
     if (!email || !pin) {
@@ -188,18 +190,11 @@ app.post('/api/users/invite-with-pin', async (req, res) => {
       return res.status(403).json({ error: 'Invalid PIN' });
     }
 
-    // Get or use default agency
-    let targetAgencyId = agencyId;
+    const targetAgencyId = req.user!.agencyId;
     if (!targetAgencyId) {
-      const agencies = getAgencies();
-      const agencyList = Object.values(agencies);
-      if (agencyList.length === 0) {
-        return res.status(404).json({ error: 'No agency found. Run setup first.' });
-      }
-      targetAgencyId = agencyList[0].id;
+      return res.status(400).json({ error: 'Agency ID is required. Staff must belong to your agency.' });
     }
 
-    // Check if user already exists
     const existingUser = getUserByEmail(targetAgencyId, email);
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists' });
@@ -256,7 +251,7 @@ app.post('/api/users/invite-with-pin', async (req, res) => {
     saveAuditLog({
       id: generateId('audit'),
       agencyId: targetAgencyId,
-      actorUserId: 'system', // System-generated
+      actorUserId: req.user!.id,
       action: 'user.invite-with-pin',
       targetUserId: userId,
       metaJson: JSON.stringify({ method: 'pin', email }),
@@ -290,6 +285,7 @@ app.post('/api/users/invite-with-pin', async (req, res) => {
 app.use('/api/integrations/google-drive', googleDriveRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/agency', agencyRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

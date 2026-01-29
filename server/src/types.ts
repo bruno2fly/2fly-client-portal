@@ -117,14 +117,16 @@ export interface WorkspaceIntegrationGoogle {
 export interface Asset {
   id: string;
   workspaceId: string;
+  /** Dashboard scope: same as workspaceId (agencyId). */
+  agencyId?: string;
   clientId: string;
   source: 'upload' | 'google_drive';
-  originalFileId?: string; // Google Drive file ID if source is google_drive
+  originalFileId?: string;
   originalName: string;
   filename: string;
   mimeType: string;
   size: number;
-  storageUrl: string; // URL to file in our storage
+  storageUrl: string;
   thumbnailUrl?: string;
   type: 'photo' | 'video' | 'logo' | 'doc';
   status: 'pending' | 'approved' | 'changes';
@@ -150,7 +152,6 @@ export interface Session {
   loggedInAt: number;
 }
 
-// New session structure for credentials system
 export interface AuthSession {
   userId: string;
   agencyId: string;
@@ -160,5 +161,17 @@ export interface AuthSession {
   clientId?: string | null;
   loggedInAt: number;
   expiresAt: number;
+}
+
+/** Agency dashboard portal state per client (tasks, requests, assets, etc.). Scoped by agencyId. */
+export interface PortalStateData {
+  client: { id: string; name: string; whatsapp?: string };
+  kpis: { scheduled: number; waitingApproval: number; missingAssets: number; frustration: number };
+  approvals: unknown[];
+  needs: unknown[];
+  requests: unknown[];
+  assets: unknown[];
+  activity: unknown[];
+  seen: boolean;
 }
 

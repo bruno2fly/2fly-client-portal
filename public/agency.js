@@ -51,197 +51,120 @@ let currentStaff = checkStaffAuth();
 /* ================== State Management ================== */
 const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
 const LS_REPORTS_KEY = "client_portal_reports_v1";
+const LS_LAST_CLIENT_KEY = "2fly_agency_last_client";
 const TEAM_PIN = "2468";
+const DEFAULT_AGENCY_ID = "agency_1737676800000_abc123";
 
 // Current selected client
 let currentClientId = null;
 
-// Load clients registry
-function loadClientsRegistry() {
-  const data = localStorage.getItem(LS_CLIENTS_KEY);
-  if (!data) {
-    // Create default client if none exist
-    const defaultClient = {
-      id: "casa-nova",
-      name: "CASA NOVA",
-      category: "Restaurant",
-      primaryContactName: "Client",
-      primaryContactWhatsApp: "",
-      primaryContactEmail: "",
-      preferredChannel: "portal",
-      platformsManaged: ["instagram", "facebook"],
-      postingFrequency: "4x_week",
-      approvalRequired: true,
-      language: "bilingual",
-      assetsLink: "",
-      brandGuidelinesLink: "",
-      primaryGoal: "visibility",
-      secondaryGoal: "",
-      internalBehaviorType: "fast",
-      riskLevel: "low",
-      internalNotes: "",
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    const clients = { [defaultClient.id]: defaultClient };
-    localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(clients));
-    if (!currentClientId) {
-      currentClientId = defaultClient.id;
-    }
-    return clients;
-  }
+// Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
+let clientsRegistryCache = {};
+let portalStateCache = {};
+
+function getApiBaseUrl() {
+  return (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3001'
+    : 'https://api.2flyflow.com';
+}
+
+function getAgencyIdFromSession() {
   try {
-    const clients = JSON.parse(data);
-    // Remove _lastSelected from clients object (it's metadata, not a client)
-    if (clients._lastSelected) {
-      currentClientId = clients._lastSelected;
-      delete clients._lastSelected;
-    }
-    // Set current client if not set
-    if (!currentClientId && Object.keys(clients).length > 0) {
-      currentClientId = Object.keys(clients)[0];
-    }
-    return clients;
+    const s = localStorage.getItem(LS_STAFF_SESSION_KEY);
+    if (!s) return DEFAULT_AGENCY_ID;
+    const d = JSON.parse(s);
+    return d.agencyId || DEFAULT_AGENCY_ID;
   } catch {
-    return {};
+    return DEFAULT_AGENCY_ID;
   }
+}
+
+async function fetchClientsFromAPI() {
+  const r = await fetch(`${getApiBaseUrl()}/api/agency/clients`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Failed to fetch clients');
+  const list = j.clients || [];
+  const map = {};
+  list.forEach(c => { map[c.id] = c; });
+  clientsRegistryCache = map;
+  return map;
+}
+
+async function fetchPortalStateFromAPI(clientId) {
+  const r = await fetch(`${getApiBaseUrl()}/api/agency/portal-state?clientId=${encodeURIComponent(clientId)}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Failed to fetch portal state');
+  const data = j.data;
+  if (data) portalStateCache[clientId] = data;
+  return data;
+}
+
+async function savePortalStateToAPI(clientId, data) {
+  const r = await fetch(`${getApiBaseUrl()}/api/agency/portal-state`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId, data })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Failed to save portal state');
+}
+
+function loadClientsRegistry() {
+  return clientsRegistryCache;
 }
 
 function saveClientsRegistry(clients) {
-  // Preserve _lastSelected if it exists
-  const data = localStorage.getItem(LS_CLIENTS_KEY);
-  if (data) {
-    try {
-      const existing = JSON.parse(data);
-      if (existing._lastSelected) {
-        clients._lastSelected = existing._lastSelected;
-      }
-    } catch {}
-  }
-  localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(clients));
+  clientsRegistryCache = typeof clients === 'object' ? clients : {};
 }
 
-// Get current client data
 function getCurrentClient() {
-  const clients = loadClientsRegistry();
-  return clients[currentClientId] || null;
+  return clientsRegistryCache[currentClientId] || null;
 }
 
-// Legacy support - get portal data key for a client
 function getClientPortalKey(clientId) {
   return `client_portal_${clientId}_v1`;
 }
 
 function load() {
-  if (!currentClientId) {
-    loadClientsRegistry();
+  if (!currentClientId) return _emptyState();
+  const cached = portalStateCache[currentClientId];
+  if (cached) {
+    if (!Array.isArray(cached.assets)) cached.assets = [];
+    return cached;
   }
-  const key = getClientPortalKey(currentClientId);
-  const d = localStorage.getItem(key);
-  if (!d) {
-    // Initialize with empty state if doesn't exist
-    const client = getCurrentClient();
-    const empty = {
-      client: { id: currentClientId, name: client?.name || "Client", whatsapp: client?.primaryContactWhatsApp || "" },
-      kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
-      approvals: [],
-      needs: [],
-      requests: [],
-      assets: [],
-      activity: [],
-      seen: false
-    };
-    localStorage.setItem(key, JSON.stringify(empty));
-    return empty;
-  }
-  try {
-    const state = JSON.parse(d);
-    // Ensure assets array exists
-    if (!Array.isArray(state.assets)) {
-      state.assets = [];
-      save(state);
-    }
-    // Migrate completedAt to doneAt for backward compatibility
-    let changed = false;
-    if (Array.isArray(state.requests)) {
-      state.requests.forEach(r => {
-        if (r.completedAt && !r.doneAt) {
-          r.doneAt = r.completedAt;
-          delete r.completedAt;
-          changed = true;
-        }
-        // Ensure createdAt exists for all requests
-        if (!r.createdAt) {
-          r.createdAt = Date.now();
-          changed = true;
-        }
-      });
-    }
-    // Ensure needs have status field (migrate old needs to have status: 'open')
-    if (Array.isArray(state.needs)) {
-      state.needs.forEach(n => {
-        if (!n.status) {
-          n.status = 'open';
-          changed = true;
-        }
-      });
-    }
-    if (changed) save(state);
-    return state;
-  } catch {
-    const client = getCurrentClient();
-    return {
-      client: { id: currentClientId, name: client?.name || "Client", whatsapp: client?.primaryContactWhatsApp || "" },
-      kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
-      approvals: [],
-      needs: [],
-      requests: [],
-      assets: [],
-      activity: [],
-      seen: false
-    };
-  }
+  const client = getCurrentClient();
+  return _emptyState(client?.name, client?.primaryContactWhatsApp);
+}
+
+function _emptyState(name, whatsapp) {
+  return {
+    client: { id: currentClientId, name: name || 'Client', whatsapp: whatsapp || '' },
+    kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
+    approvals: [],
+    needs: [],
+    requests: [],
+    assets: [],
+    activity: [],
+    seen: false
+  };
 }
 
 function save(x) {
   if (!currentClientId) return;
-  const key = getClientPortalKey(currentClientId);
-  
-  try {
-    // Check size before saving
-    const dataString = JSON.stringify(x);
-    const sizeInMB = new Blob([dataString]).size / (1024 * 1024);
-    
-    // Warn if approaching limit (5MB is typical localStorage limit)
-    if (sizeInMB > 4.5) {
-      console.warn('Warning: Data size is', sizeInMB.toFixed(2), 'MB. Approaching localStorage limit.');
-      showToast('Warning: Data size is large. Some images may not be saved.', 'error');
-    }
-    
-    localStorage.setItem(key, dataString);
-  } catch (error) {
-    if (error.name === 'QuotaExceededError') {
-      console.error('localStorage quota exceeded. Data size:', new Blob([JSON.stringify(x)]).size / (1024 * 1024), 'MB');
-      showToast('Error: Cannot save - storage limit exceeded. Please remove some images or clear old data.', 'error');
-      
-      // Try to save without uploadedImages as fallback
-      if (x.approvals) {
-        const approvalsWithoutImages = x.approvals.map(approval => {
-          const { uploadedImages, ...rest } = approval;
-          return rest;
-        });
-        const fallbackData = { ...x, approvals: approvalsWithoutImages };
-        try {
-          localStorage.setItem(key, JSON.stringify(fallbackData));
-          showToast('Saved without images. Please use image URLs instead of uploads.', 'error');
-        } catch (e) {
-          console.error('Even fallback save failed:', e);
-        }
-      }
-    } else {
-      throw error;
-    }
-  }
+  portalStateCache[currentClientId] = x;
+  savePortalStateToAPI(currentClientId, x).catch(err => {
+    console.error('Save portal state failed:', err);
+    showToast('Failed to save. ' + (err.message || ''), 'error');
+  });
 }
 
 function loadReports() {
@@ -335,23 +258,15 @@ function renderClientsSidebar() {
     
     const badges = el('div', { class: 'client-tile__badges' });
     
-    // Load client's portal data to get counts
-    const portalKey = getClientPortalKey(client.id);
-    const portalData = localStorage.getItem(portalKey);
-    if (portalData) {
-      try {
-        const state = JSON.parse(portalData);
-        const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
-        const openRequests = (state.requests || []).filter(r => r.status === 'open').length;
-        
-        if (state.kpis && state.kpis.scheduled) {
-          badges.appendChild(el('div', { class: 'badge' }, `${state.kpis.scheduled} scheduled`));
-        }
-        badges.appendChild(el('div', { class: 'badge' }, `${pendingCount} pending`));
-        badges.appendChild(el('div', { class: 'badge' }, `${openRequests} requests`));
-      } catch (e) {
-        console.warn('Error loading client data:', e);
+    const state = portalStateCache[client.id];
+    if (state) {
+      const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
+      const openRequests = (state.requests || []).filter(r => r.status === 'open').length;
+      if (state.kpis && state.kpis.scheduled) {
+        badges.appendChild(el('div', { class: 'badge' }, `${state.kpis.scheduled} scheduled`));
       }
+      badges.appendChild(el('div', { class: 'badge' }, `${pendingCount} pending`));
+      badges.appendChild(el('div', { class: 'badge' }, `${openRequests} requests`));
     }
     
     clientTile.appendChild(name);
@@ -365,18 +280,20 @@ function renderClientsSidebar() {
   });
 }
 
-function selectClient(clientId) {
-  currentClientId = clientId;
+async function selectClient(clientId) {
   const clients = loadClientsRegistry();
   const client = clients[clientId];
-  
   if (!client) return;
-  
-  // Update client registry with last selected (preserve existing clients)
-  const allClients = { ...clients, _lastSelected: clientId };
-  localStorage.setItem(LS_CLIENTS_KEY, JSON.stringify(allClients));
-  
-  // Re-render sidebar and main view
+  currentClientId = clientId;
+  try {
+    localStorage.setItem(LS_LAST_CLIENT_KEY, clientId);
+  } catch (_) {}
+  try {
+    await fetchPortalStateFromAPI(clientId);
+  } catch (e) {
+    console.error('Fetch portal state:', e);
+    portalStateCache[clientId] = _emptyState(client.name, client.primaryContactWhatsApp);
+  }
   renderClientsSidebar();
   renderClientHeader();
   renderAll();
@@ -510,24 +427,25 @@ function setupLogoUpload() {
   }
 }
 
-function saveClientLogo(logoUrl) {
+async function saveClientLogo(logoUrl) {
   if (!currentClientId) return;
-  
-  const clients = loadClientsRegistry();
-  const client = clients[currentClientId];
-  
+  const client = getCurrentClient();
   if (!client) return;
-  
-  // Save logo URL to client data
-  client.logoUrl = logoUrl;
-  client.updatedAt = Date.now();
-  clients[currentClientId] = client;
-  saveClientsRegistry(clients);
-  
-  // Update display
-  renderClientHeader();
-  
-  showToast('Logo uploaded successfully!');
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/agency/clients/${currentClientId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logoUrl })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Update failed');
+    await fetchClientsFromAPI();
+    renderClientHeader();
+    showToast('Logo uploaded successfully!');
+  } catch (e) {
+    showToast('Failed to save logo. ' + (e.message || ''), 'error');
+  }
 }
 
 /* ================== Tab Management ================== */
@@ -718,57 +636,45 @@ function editCurrentClient() {
   showNewClientModal();
 }
 
-// Delete current client
-function deleteCurrentClient() {
+async function deleteCurrentClient() {
   if (!currentClientId) {
     showToast('Please select a client first');
     return;
   }
-  
-  const clients = loadClientsRegistry();
-  const client = clients[currentClientId];
-  
+  const client = getCurrentClient();
   if (!client) {
     showToast('Client not found');
     return;
   }
-  
-  const confirmMessage = `Are you sure you want to delete "${client.name}"?\n\nThis will permanently delete:\n- Client information\n- All approvals\n- All requests\n- All portal data\n\nThis action cannot be undone!`;
-  
-  if (!confirm(confirmMessage)) {
+  if (!confirm(`Are you sure you want to delete "${client.name}"? This will permanently delete client info, approvals, requests, and portal data. This cannot be undone!`)) {
     return;
   }
-  
-  // Delete client from registry
-  delete clients[currentClientId];
-  saveClientsRegistry(clients);
-  
-  // Delete client login credentials
-  const LS_CLIENTS_LOGIN_KEY = "2fly_clients_v1";
-  const loginClients = JSON.parse(localStorage.getItem(LS_CLIENTS_LOGIN_KEY) || '{}');
-  delete loginClients[currentClientId];
-  localStorage.setItem(LS_CLIENTS_LOGIN_KEY, JSON.stringify(loginClients));
-  
-  // Delete client portal data
-  const portalKey = getClientPortalKey(currentClientId);
-  localStorage.removeItem(portalKey);
-  
-  // Clear current client selection
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/agency/clients/${currentClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Delete failed');
+  } catch (e) {
+    showToast('Failed to delete client. ' + (e.message || ''), 'error');
+    return;
+  }
+  const name = client.name;
+  const cid = currentClientId;
   currentClientId = null;
-  clients._lastSelected = null;
-  saveClientsRegistry(clients);
-  
-  // Re-render sidebar and switch to first available client
+  try { localStorage.removeItem(LS_LAST_CLIENT_KEY); } catch (_) {}
+  delete portalStateCache[cid];
+  await fetchClientsFromAPI();
   renderClientsSidebar();
-  const remainingClients = Object.keys(clients).filter(k => k !== '_lastSelected');
-  if (remainingClients.length > 0) {
-    selectClient(remainingClients[0]);
+  const remaining = Object.keys(loadClientsRegistry());
+  if (remaining.length > 0) {
+    await selectClient(remaining[0]);
   } else {
-    // No clients left, render empty state
     switchTab('overview');
   }
-  
-  showToast(`Client "${client.name}" has been deleted`);
+  showToast(`Client "${name}" has been deleted`);
 }
 
 /* ================== Approvals Tab ================== */
@@ -1987,8 +1893,7 @@ function generateClientId(name) {
     .substring(0, 50);
 }
 
-function createNewClient() {
-  // Check if we're editing or creating
+async function createNewClient() {
   const isEditing = window.editingClientId;
   
   if (!validateNewClientForm(isEditing)) {
@@ -2073,84 +1978,70 @@ function createNewClient() {
     updatedAt: Date.now()
   };
   
-  // Save to clients registry
-  clients[clientId] = clientData;
-  saveClientsRegistry(clients);
-  
-  // Update login credentials (only if password was provided)
-  const LS_CLIENTS_LOGIN_KEY = "2fly_clients_v1";
-  const loginClients = JSON.parse(localStorage.getItem(LS_CLIENTS_LOGIN_KEY) || '{}');
-  
-  if (isEditing) {
-    // Update existing login credentials (only update password if provided)
-    if (password && password.length >= 6) {
-      loginClients[clientId].password = password;
+  const base = getApiBaseUrl();
+  const body = {
+    id: clientData.id,
+    name: clientData.name,
+    category: clientData.category,
+    primaryContactName: clientData.primaryContactName,
+    primaryContactWhatsApp: clientData.primaryContactWhatsApp,
+    primaryContactEmail: clientData.primaryContactEmail,
+    preferredChannel: clientData.preferredChannel,
+    platformsManaged: clientData.platformsManaged,
+    postingFrequency: clientData.postingFrequency,
+    postingFrequencyNote: clientData.postingFrequencyNote,
+    approvalRequired: clientData.approvalRequired,
+    language: clientData.language,
+    assetsLink: clientData.assetsLink,
+    brandGuidelinesLink: clientData.brandGuidelinesLink,
+    primaryGoal: clientData.primaryGoal,
+    secondaryGoal: clientData.secondaryGoal,
+    internalBehaviorType: clientData.internalBehaviorType,
+    riskLevel: clientData.riskLevel,
+    internalNotes: clientData.internalNotes,
+    logoUrl: clientData.logoUrl
+  };
+  if (!isEditing && password && password.length >= 6) body.password = password;
+  if (isEditing && password && password.length >= 6) body.password = password;
+
+  const submitBtn = $('#newClientForm button[type="submit"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+  try {
+    if (isEditing) {
+      const r = await fetch(`${base}/api/agency/clients/${clientId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Update failed');
+    } else {
+      const r = await fetch(`${base}/api/agency/clients`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Create failed');
     }
-    loginClients[clientId].name = clientData.name;
-    loginClients[clientId].whatsapp = clientData.primaryContactWhatsApp;
-  } else {
-    // Create new login credentials
-    loginClients[clientId] = {
-      name: clientData.name,
-      password: password,
-      whatsapp: clientData.primaryContactWhatsApp,
-      createdAt: Date.now()
-    };
-  }
-  localStorage.setItem(LS_CLIENTS_LOGIN_KEY, JSON.stringify(loginClients));
-  
-  // Initialize/update client portal data (only create if new)
-  if (!isEditing) {
-    const portalKey = getClientPortalKey(clientId);
-    const portalData = {
-      client: { 
-        id: clientId, 
-        name: clientData.name, 
-        whatsapp: clientData.primaryContactWhatsApp 
-      },
-      kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
-      approvals: [],
-      needs: [],
-      requests: [],
-      assets: [],
-      activity: [],
-      seen: false
-    };
-    localStorage.setItem(portalKey, JSON.stringify(portalData));
-  } else {
-    // Update client name in portal data if it changed
-    const portalKey = getClientPortalKey(clientId);
-    const portalData = localStorage.getItem(portalKey);
-    if (portalData) {
-      try {
-        const data = JSON.parse(portalData);
-        if (data.client) {
-          data.client.name = clientData.name;
-          data.client.whatsapp = clientData.primaryContactWhatsApp;
-          localStorage.setItem(portalKey, JSON.stringify(data));
-        }
-      } catch(e) {
-        console.error('Error updating portal data:', e);
-      }
+    await fetchClientsFromAPI();
+    await selectClient(clientId);
+    hideNewClientModal();
+    if (isEditing) {
+      showToast(`Client "${clientData.name}" updated successfully!`);
+    } else {
+      showToast(`Client "${clientData.name}" created successfully!`);
+      alert(`Client "${clientData.name}" created successfully!\n\nClient ID: ${clientId}\nPassword: ${password}\n\nShare these credentials with the client for login.`);
     }
+    return true;
+  } catch (err) {
+    showToast((err.message || 'Failed to save client'), 'error');
+    return false;
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = isEditing ? 'Update Client' : 'Create Client'; }
   }
-  
-  // Select the client
-  selectClient(clientId);
-  
-  // Show success message
-  if (isEditing) {
-    showToast(`Client "${clientData.name}" updated successfully!`);
-  } else {
-    showToast(`Client "${clientData.name}" created successfully!\n\nClient ID: ${clientId}\nPassword: ${password.substring(0, 3)}***`);
-    // Also show alert with full credentials for easy copying
-    alert(`Client "${clientData.name}" created successfully!\n\nClient ID: ${clientId}\nPassword: ${password}\n\nShare these credentials with the client for login.`);
-  }
-  
-  // Close modal
-  hideNewClientModal();
-  
-  return true;
 }
 
 function showToast(message, type = 'success') {
@@ -2242,12 +2133,11 @@ function setupNewClientHandlers() {
     });
   }
 
-  // New client form submission
   const newClientForm = $('#newClientForm');
   if (newClientForm) {
-    newClientForm.addEventListener('submit', (e) => {
+    newClientForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      createNewClient();
+      await createNewClient();
     });
   }
 }
@@ -2348,25 +2238,7 @@ function setupPinInviteHandlers() {
   const errorMsg = $('#inviteErrorMessage');
   
   if (!pinInviteForm) return;
-  
-  const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? 'http://localhost:3001' 
-    : 'https://api.2flyflow.com';
-  
-  // Get agencyId from session or use default
-  function getAgencyId() {
-    const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
-    if (session) {
-      try {
-        const sessionData = JSON.parse(session);
-        return sessionData.agencyId || 'agency_1737676800000_abc123';
-      } catch {
-        return 'agency_1737676800000_abc123';
-      }
-    }
-    return 'agency_1737676800000_abc123';
-  }
-  
+
   pinInviteForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -2392,14 +2264,11 @@ function setupPinInviteHandlers() {
     }
     
     try {
-      const agencyId = getAgencyId();
-      const response = await fetch(`${API_BASE_URL}/api/users/invite-with-pin`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/users/invite-with-pin`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, pin, agencyId })
+        body: JSON.stringify({ email, pin, agencyId: getAgencyIdFromSession() })
       });
       
       const data = await response.json();
@@ -2450,10 +2319,12 @@ function setupSettingsModal() {
   const settingsModalOverlay = $('#settingsModalOverlay');
   const refreshUsersBtn = $('#refreshUsersBtn');
   
-  // Open settings modal
   if (settingsBtn && settingsModal) {
     settingsBtn.addEventListener('click', () => {
       settingsModal.style.display = 'block';
+      const role = (currentStaff && currentStaff.role) ? currentStaff.role : '';
+      const inviteSection = $('#settingsInviteSection');
+      if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
     });
@@ -2478,7 +2349,14 @@ function setupSettingsModal() {
   }
   const refreshClientsBtn = $('#refreshClientsBtn');
   if (refreshClientsBtn) {
-    refreshClientsBtn.addEventListener('click', () => loadClientsList());
+    refreshClientsBtn.addEventListener('click', async () => {
+      try {
+        await fetchClientsFromAPI();
+        loadClientsList();
+      } catch (e) {
+        console.error('Refresh clients:', e);
+      }
+    });
   }
   
   // Setup settings PIN invite form
@@ -2488,23 +2366,6 @@ function setupSettingsModal() {
   const settingsErrorMsg = $('#settingsInviteErrorMessage');
   
   if (settingsForm) {
-    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-      ? 'http://localhost:3001' 
-      : 'https://api.2flyflow.com';
-    
-    function getAgencyId() {
-      const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
-      if (session) {
-        try {
-          const sessionData = JSON.parse(session);
-          return sessionData.agencyId || 'agency_1737676800000_abc123';
-        } catch {
-          return 'agency_1737676800000_abc123';
-        }
-      }
-      return 'agency_1737676800000_abc123';
-    }
-    
     settingsForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -2529,14 +2390,11 @@ function setupSettingsModal() {
       }
       
       try {
-        const agencyId = getAgencyId();
-        const response = await fetch(`${API_BASE_URL}/api/users/invite-with-pin`, {
+        const response = await fetch(`${getApiBaseUrl()}/api/users/invite-with-pin`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ name, email, pin, agencyId })
+          body: JSON.stringify({ name, email, pin, agencyId: getAgencyIdFromSession() })
         });
         
         const data = await response.json();
@@ -2588,25 +2446,8 @@ function setupSettingsModal() {
     usersListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">Loading users...</div>';
     
     try {
-      const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:3001' 
-        : 'https://api.2flyflow.com';
-      
-      function getAgencyId() {
-        const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
-        if (session) {
-          try {
-            const sessionData = JSON.parse(session);
-            return sessionData.agencyId || 'agency_1737676800000_abc123';
-          } catch {
-            return 'agency_1737676800000_abc123';
-          }
-        }
-        return 'agency_1737676800000_abc123';
-      }
-      
-      // Get auth token from cookie or session
-      const response = await fetch(`${API_BASE_URL}/api/users?role=STAFF`, {
+      const base = getApiBaseUrl();
+      const response = await fetch(`${base}/api/users?role=STAFF`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -2682,36 +2523,38 @@ function setupSettingsModal() {
           actions.style.alignItems = 'center';
           actions.style.gap = '8px';
           actions.style.flexShrink = '0';
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'btn btn-secondary';
-          delBtn.style.padding = '6px 12px';
-          delBtn.style.fontSize = '12px';
-          delBtn.style.background = '#fee2e2';
-          delBtn.style.color = '#dc2626';
-          delBtn.style.border = '1px solid #fecaca';
-          delBtn.textContent = 'Delete';
-          delBtn.addEventListener('click', async () => {
-            if (!confirm(`Delete user "${user.name || user.email}"? They will no longer be able to log in.`)) return;
-            try {
-              const delRes = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
-                method: 'DELETE',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' }
-              });
-              const delData = await delRes.json();
-              if (!delRes.ok) throw new Error(delData.error || 'Delete failed');
-              const s = JSON.parse(localStorage.getItem('2fly_staff_credentials_v1') || '{}');
-              delete s[user.id];
-              localStorage.setItem('2fly_staff_credentials_v1', JSON.stringify(s));
-              loadUsersList();
-            } catch (e) {
-              alert('Failed to delete user: ' + (e.message || 'Unknown error'));
-            }
-          });
-          actions.appendChild(delBtn);
-          userItem.appendChild(actions);
-          
+          const canManage = (currentStaff && (currentStaff.role === 'OWNER' || currentStaff.role === 'ADMIN'));
+          if (canManage) {
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn btn-secondary';
+            delBtn.style.padding = '6px 12px';
+            delBtn.style.fontSize = '12px';
+            delBtn.style.background = '#fee2e2';
+            delBtn.style.color = '#dc2626';
+            delBtn.style.border = '1px solid #fecaca';
+            delBtn.textContent = 'Delete';
+            delBtn.addEventListener('click', async () => {
+              if (!confirm(`Delete user "${user.name || user.email}"? They will no longer be able to log in.`)) return;
+              try {
+                const delRes = await fetch(`${getApiBaseUrl()}/api/users/${user.id}`, {
+                  method: 'DELETE',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const delData = await delRes.json();
+                if (!delRes.ok) throw new Error(delData.error || 'Delete failed');
+                const s = JSON.parse(localStorage.getItem('2fly_staff_credentials_v1') || '{}');
+                delete s[user.id];
+                localStorage.setItem('2fly_staff_credentials_v1', JSON.stringify(s));
+                loadUsersList();
+              } catch (e) {
+                alert('Failed to delete user: ' + (e.message || 'Unknown error'));
+              }
+            });
+            actions.appendChild(delBtn);
+            userItem.appendChild(actions);
+          }
           usersListContainer.appendChild(userItem);
         });
       } else {
@@ -2726,12 +2569,10 @@ function setupSettingsModal() {
   function loadClientsList() {
     const container = $('#clientsListContainer');
     if (!container) return;
-    const loginClients = JSON.parse(localStorage.getItem('2fly_clients_v1') || '{}');
     const registry = loadClientsRegistry();
-    const list = Object.keys(registry).filter(k => k !== '_lastSelected').map(id => {
+    const list = Object.keys(registry).map(id => {
       const c = registry[id];
-      const login = loginClients[id] || {};
-      return { id, name: c.name || id, password: login.password || null };
+      return { id, name: c.name || id, password: c.password || null };
     });
     if (list.length === 0) {
       container.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">No clients yet. Create clients from the sidebar.</div>';
@@ -3054,42 +2895,40 @@ function displayUploadedImages() {
 }
 
 /* ================== Initialize ================== */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   try {
     console.log('Agency dashboard loaded');
-    // Check authentication first
     if (!currentStaff) {
       console.log('No staff session, redirecting to staff login');
       setTimeout(() => {
-        if (!currentStaff) {
-          window.location.href = staffLoginUrl();
-        }
+        if (!currentStaff) window.location.href = staffLoginUrl();
       }, 100);
       return;
     }
     console.log('Staff authenticated:', currentStaff.name || currentStaff.username || currentStaff.fullName);
-    
-    // Update staff header
+    try { updateStaffHeader(); } catch (e) { console.error('Error updating staff header:', e); }
+
+    let clients = {};
     try {
-      updateStaffHeader();
-    } catch (e) {
-      console.error('Error updating staff header:', e);
-    }
-    
-    // Initialize clients registry and set current client
-    let clients;
-    try {
-      clients = loadClientsRegistry();
+      clients = await fetchClientsFromAPI();
+      const last = localStorage.getItem(LS_LAST_CLIENT_KEY);
       if (!currentClientId && Object.keys(clients).length > 0) {
-        // Use last selected or first client
-        currentClientId = clients._lastSelected || Object.keys(clients)[0];
+        currentClientId = (last && clients[last]) ? last : Object.keys(clients)[0];
+      }
+      if (currentClientId && clients[currentClientId]) {
+        await fetchPortalStateFromAPI(currentClientId);
+      } else {
+        const firstId = Object.keys(clients)[0];
+        if (firstId) {
+          currentClientId = firstId;
+          await fetchPortalStateFromAPI(currentClientId);
+        }
       }
     } catch (e) {
-      console.error('Error loading clients registry:', e);
-      clients = {};
+      console.error('Error loading clients/portal:', e);
+      showToast('Failed to load dashboard data. ' + (e.message || ''), 'error');
     }
-    
-    // Restore saved tab from localStorage
+
     const savedTab = localStorage.getItem('2fly_agency_current_tab');
     if (savedTab) {
       currentTab = savedTab;

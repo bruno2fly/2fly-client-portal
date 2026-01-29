@@ -134,11 +134,11 @@ router.post('/login', async (req, res) => {
       createdAt: Date.now()
     });
 
-    // Return user info (without sensitive data)
     res.json({
       success: true,
       user: {
         id: user.id,
+        agencyId: user.agencyId,
         email: user.email,
         name: user.name,
         role: user.role,

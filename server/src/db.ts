@@ -17,7 +17,8 @@ import type {
   Client,
   InviteToken,
   PasswordResetToken,
-  AuditLog
+  AuditLog,
+  PortalStateData
 } from './types.js';
 
 const DB_DIR = join(process.cwd(), 'data');
@@ -32,6 +33,8 @@ const CLIENTS_FILE = join(DB_DIR, 'clients.json');
 const INVITE_TOKENS_FILE = join(DB_DIR, 'invite-tokens.json');
 const PASSWORD_RESET_TOKENS_FILE = join(DB_DIR, 'password-reset-tokens.json');
 const AUDIT_LOGS_FILE = join(DB_DIR, 'audit-logs.json');
+const PORTAL_STATE_FILE = join(DB_DIR, 'portal-state.json');
+const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
@@ -138,6 +141,11 @@ export function getAssetsByWorkspace(workspaceId: string): Asset[] {
 export function getAssetsByClient(workspaceId: string, clientId: string): Asset[] {
   const assets = getAssets();
   return assets.filter(a => a.workspaceId === workspaceId && a.clientId === clientId);
+}
+
+export function getAssetsByAgency(agencyId: string): Asset[] {
+  const assets = getAssets();
+  return assets.filter(a => (a.agencyId || a.workspaceId) === agencyId);
 }
 
 export function getAssetById(id: string): Asset | null {
@@ -333,11 +341,55 @@ export function getAuditLogsByAgency(agencyId: string, limit: number = 100): Aud
 export function saveAuditLog(log: AuditLog): void {
   const logs = getAuditLogs();
   logs.push(log);
-  // Keep only last 10000 logs to prevent file from growing too large
   if (logs.length > 10000) {
     logs.sort((a, b) => b.createdAt - a.createdAt);
     logs.splice(10000);
   }
   writeJSON(AUDIT_LOGS_FILE, logs);
+}
+
+// Portal state (per client, scoped by agencyId). Dashboard is agencyId-scoped.
+type PortalStateMap = Record<string, PortalStateData>;
+
+function portalKey(agencyId: string, clientId: string): string {
+  return `${agencyId}:${clientId}`;
+}
+
+export function getPortalState(agencyId: string, clientId: string): PortalStateData | null {
+  const map = readJSON<PortalStateMap>(PORTAL_STATE_FILE, {});
+  return map[portalKey(agencyId, clientId)] ?? null;
+}
+
+export function savePortalState(agencyId: string, clientId: string, data: PortalStateData): void {
+  const map = readJSON<PortalStateMap>(PORTAL_STATE_FILE, {});
+  map[portalKey(agencyId, clientId)] = data;
+  writeJSON(PORTAL_STATE_FILE, map);
+}
+
+// Client login credentials (agency-scoped). Keys: agencyId:clientId.
+type ClientCredentialsMap = Record<string, { password: string }>;
+
+export function getClientCredentials(agencyId: string, clientId: string): string | null {
+  const map = readJSON<ClientCredentialsMap>(CLIENT_CREDENTIALS_FILE, {});
+  const ent = map[portalKey(agencyId, clientId)];
+  return ent?.password ?? null;
+}
+
+export function saveClientCredentials(agencyId: string, clientId: string, password: string): void {
+  const map = readJSON<ClientCredentialsMap>(CLIENT_CREDENTIALS_FILE, {});
+  map[portalKey(agencyId, clientId)] = { password };
+  writeJSON(CLIENT_CREDENTIALS_FILE, map);
+}
+
+export function deletePortalState(agencyId: string, clientId: string): void {
+  const map = readJSON<PortalStateMap>(PORTAL_STATE_FILE, {});
+  delete map[portalKey(agencyId, clientId)];
+  writeJSON(PORTAL_STATE_FILE, map);
+}
+
+export function deleteClientCredentials(agencyId: string, clientId: string): void {
+  const map = readJSON<ClientCredentialsMap>(CLIENT_CREDENTIALS_FILE, {});
+  delete map[portalKey(agencyId, clientId)];
+  writeJSON(CLIENT_CREDENTIALS_FILE, map);
 }
 

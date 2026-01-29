@@ -367,7 +367,6 @@
           return false;
         }
         
-        // Store user info in localStorage for frontend use
         localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify({
           ...data.user,
           loggedInAt: Date.now()

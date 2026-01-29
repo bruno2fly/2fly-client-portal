@@ -13,10 +13,18 @@ import type { UserRole } from '../types.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production-use-strong-secret';
 const COOKIE_NAME = '2fly_session';
 
+export interface AuthScope {
+  userId: string;
+  agencyId: string;
+  role: UserRole;
+}
+
 export interface AuthenticatedRequest extends Request {
   userId?: string;
   workspaceId?: string;
   agencyId?: string;
+  /** Dev Notes: Dashboard is agencyId-scoped; only personal preferences use userId. */
+  auth?: AuthScope;
   staff?: {
     id: string;
     username: string;
@@ -32,6 +40,13 @@ export interface AuthenticatedRequest extends Request {
     role: UserRole;
     clientId?: string | null;
   };
+}
+
+/** Use in every service/repo: scope dashboard data by agencyId, not userId. */
+export function getAgencyScope(req: AuthenticatedRequest): { agencyId: string } {
+  const aid = req.auth?.agencyId ?? req.user?.agencyId ?? req.agencyId;
+  if (!aid) throw new Error('Missing agencyId');
+  return { agencyId: aid };
 }
 
 /**
@@ -58,7 +73,6 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
           return res.status(403).json({ error: 'Account is not active' });
         }
 
-        // Set user info on request
         req.userId = user.id;
         req.agencyId = user.agencyId;
         req.user = {
@@ -69,9 +83,8 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
           role: user.role,
           clientId: user.clientId || null
         };
-
-        // For backward compatibility, also set workspaceId (use agencyId)
         req.workspaceId = user.agencyId;
+        req.auth = { userId: user.id, agencyId: user.agencyId, role: user.role };
 
         return next();
       } catch (jwtError) {
@@ -98,7 +111,8 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
     if (!staff) {
       req.userId = userId;
       req.workspaceId = workspaceId;
-      req.agencyId = workspaceId; // Use workspaceId as agencyId for legacy
+      req.agencyId = workspaceId;
+      req.auth = { userId, agencyId: workspaceId, role: 'STAFF' as UserRole };
       req.staff = {
         id: userId,
         username: userId,
@@ -108,11 +122,10 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
       };
       return next();
     }
-    
-    // If staff exists, use their actual data
     req.userId = staff.id;
     req.workspaceId = workspaceId || staff.workspaceId || 'default-workspace';
-    req.agencyId = req.workspaceId; // Use workspaceId as agencyId for legacy
+    req.agencyId = req.workspaceId;
+    req.auth = { userId: staff.id, agencyId: req.workspaceId, role: 'STAFF' as UserRole };
     req.staff = {
       id: staff.id,
       username: staff.username,
@@ -120,7 +133,6 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
       email: staff.email,
       workspaceId: req.workspaceId
     };
-    
     next();
   } catch (error: any) {
     console.error('Authentication error:', error);
@@ -145,16 +157,20 @@ export function requireRole(roles: UserRole[]) {
   };
 }
 
-/**
- * Require OWNER role
- */
 export function requireOwner(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   return requireRole(['OWNER'])(req, res, next);
 }
 
-/**
- * Require OWNER or ADMIN role
- */
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   return requireRole(['OWNER', 'ADMIN'])(req, res, next);
+}
+
+/** Can invite/delete/update users. Dashboard user-management only. */
+export function requireCanManageUsers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER', 'ADMIN'])(req, res, next);
+}
+
+/** Can view agency dashboard (clients, tasks, etc.). All staff share same view. */
+export function requireCanViewDashboard(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER', 'ADMIN', 'STAFF'])(req, res, next);
 }

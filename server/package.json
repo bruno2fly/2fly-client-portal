@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "setup": "tsx src/scripts/setup.ts",
     "setup:cli": "node setup-cli.js",
-    "generate-invite": "node generate-invite.js"
+    "generate-invite": "node generate-invite.js",
+    "migrate:agency-scope": "npm run build && node dist/scripts/migrate-agency-scope.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

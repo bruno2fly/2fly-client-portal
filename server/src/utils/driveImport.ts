@@ -133,6 +133,7 @@ export async function importDriveFiles(
       const asset: Asset = {
         id: `asset_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
         workspaceId,
+        agencyId: workspaceId,
         clientId,
         source: 'google_drive',
         originalFileId: file.fileId,
