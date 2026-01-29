@@ -175,9 +175,16 @@ router.post('/client-login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid client ID or password' });
     }
 
+    const clientToken = jwt.sign(
+      { clientId: client.id, agencyId: client.agencyId, purpose: 'client-portal' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
     res.json({
       success: true,
-      client: { id: client.id, name: client.name || client.id }
+      client: { id: client.id, name: client.name || client.id },
+      token: clientToken
     });
   } catch (e: any) {
     console.error('Client login error:', e);

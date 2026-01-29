@@ -15,6 +15,7 @@ import googleDriveRoutes from './routes/googleDrive.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import agencyRoutes from './routes/agency.js';
+import clientPortalRoutes from './routes/clientPortal.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, markInviteTokenUsed, getUserByEmail, saveUser, saveAuditLog } from './db.js';
 import { generateToken, generateId, generateUsernameFromEmail, generateRandomPassword, hashPassword } from './utils/auth.js';
@@ -63,6 +64,9 @@ app.get('/', (req, res) => {
           logout: '/api/auth/logout',
           forgotPassword: '/api/auth/forgot-password',
           resetPassword: '/api/auth/reset-password'
+        },
+        client: {
+          portalState: 'GET/PUT /api/client/portal-state (Bearer token)'
         },
         users: {
           invite: '/api/users/invite',
@@ -287,6 +291,7 @@ app.use('/api/integrations/google-drive', googleDriveRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/agency', agencyRoutes);
+app.use('/api/client', clientPortalRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

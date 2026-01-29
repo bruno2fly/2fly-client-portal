@@ -216,7 +216,8 @@
         const session = {
           clientId: data.client.id,
           clientName: data.client.name,
-          loggedInAt: Date.now()
+          loggedInAt: Date.now(),
+          token: data.token || null
         };
         localStorage.setItem(LS_SESSION_KEY, JSON.stringify(session));
         window.location.href = 'index.html';

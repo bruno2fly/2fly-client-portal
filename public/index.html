@@ -978,66 +978,43 @@ if (!session) {
     session.clientId = session.clientId.toLowerCase().trim();
   }
 
-  /* ================== State (localStorage) ================== */
-  const LS_KEY = `client_portal_${currentClientId}_v1`;
-  console.log("Using localStorage key:", LS_KEY);
+  /* ================== State (API-backed, same as agency) ================== */
+  const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3001' : 'https://api.2flyflow.com';
+  let portalStateCache = null;
 
-// Load state from localStorage
-function load() {
-  try {
-    const d = localStorage.getItem(LS_KEY);
-    console.log("Loading from key:", LS_KEY, "Data exists:", !!d);
-    if (!d) {
-      // Initialize with seed data if doesn't exist
-      const seed = getSeed();
-      localStorage.setItem(LS_KEY, JSON.stringify(seed));
-      console.log("Initialized new state for client:", currentClientId);
-      return seed;
+  function getSeed() {
+    return {
+      client: { id: currentClientId, name: session.clientName || "Client", whatsapp: "" },
+      kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
+      approvals: [], needs: [], requests: [], assets: [], activity: [], seen: false
+    };
+  }
+
+  function load() {
+    if (portalStateCache) {
+      if (!portalStateCache.approvals) portalStateCache.approvals = [];
+      if (!portalStateCache.needs) portalStateCache.needs = [];
+      if (!portalStateCache.requests) portalStateCache.requests = [];
+      if (!portalStateCache.activity) portalStateCache.activity = [];
+      if (!portalStateCache.kpis) portalStateCache.kpis = { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 };
+      return portalStateCache;
     }
-    const state = JSON.parse(d);
-    console.log("Loaded state, approvals count:", (state.approvals || []).length);
-    // Ensure all required properties exist
-    if (!state.client) state.client = { id: currentClientId, name: session.clientName || "Client", whatsapp: "" };
-    if (!state.approvals) state.approvals = [];
-    if (!state.needs) state.needs = [];
-    if (!state.requests) state.requests = [];
-    if (!state.activity) state.activity = [];
-    if (!state.kpis) state.kpis = { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 };
-    return state;
-  } catch(e) {
-    console.error("Error loading state:", e);
-    // Return seed data on error
-    const seed = getSeed();
-    localStorage.setItem(LS_KEY, JSON.stringify(seed));
-    return seed;
+    return getSeed();
   }
-}
 
-// Save state to localStorage
-function save(state) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
-    console.log("State saved to:", LS_KEY);
-  } catch(e) {
-    console.error("Error saving state:", e);
+  function save(state) {
+    portalStateCache = state;
+    const token = (session && session.token) || null;
+    if (!token) return;
+    fetch(API_BASE + '/api/client/portal-state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ data: state })
+    }).then(r => { if (!r.ok) console.warn('Portal state save failed'); }).catch(e => console.warn('Portal state save error:', e));
   }
-}
 
-function getSeed() {
-  // Return empty seed data for new clients - they should start fresh
-  return {
-    client:{ id: currentClientId, name: session.clientName || "Client", whatsapp:"" },
-    kpis:{ scheduled:0, waitingApproval:0, missingAssets:0, frustration:0 },
-    approvals:[],
-    needs:[],
-    requests:[],
-    assets:[],
-    activity:[],
-    seen:false
-  };
-}
-
-/* ---- MIGRATION: ensure approvals exist (if state was wiped) ---- */
+  /* ---- MIGRATION: ensure approvals exist (if state was wiped) ---- */
 function migrateState(){
   const s = load(); let changed = false;
   
@@ -1152,7 +1129,6 @@ function migrateState(){
   }
   if(changed) save(s);
 }
-migrateState();
 
 /* ================== Helpers ================== */
 const $ = sel => document.querySelector(sel);
@@ -2454,25 +2430,41 @@ if (toggleModeBtn) {
 }
 
 /* ================== Boot ================== */
-// Initialize on page load
-function initializeApp() {
-  // Ensure copy tab is active and visible on initial load
+async function initializeApp() {
+  const token = (session && session.token) || null;
+  if (token) {
+    try {
+      const r = await fetch(API_BASE + '/api/client/portal-state', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (r.status === 401) {
+        localStorage.removeItem(LS_SESSION_KEY);
+        window.location.href = 'login.html';
+        return;
+      }
+      const j = await r.json();
+      if (r.ok && j.data) portalStateCache = j.data;
+    } catch (e) {
+      console.warn('Failed to load portal state:', e);
+    }
+  }
+  if (!portalStateCache) portalStateCache = getSeed();
+  migrateState();
+
   const copyTab = document.querySelector('[data-tab="copy"]');
   const laneCopy = document.getElementById('laneCopy');
   if (copyTab && laneCopy) {
     copyTab.classList.add('active');
     laneCopy.style.display = 'block';
   }
-  
-  // Ensure pending tab is not active initially
   const pendingTab = document.querySelector('[data-tab="pending"]');
   const lanePending = document.getElementById('lanePending');
   if (pendingTab && lanePending) {
     pendingTab.classList.remove('active');
     lanePending.style.display = 'none';
   }
-  
-  // Update client name immediately from session before rendering (fixes "Loading..." issue)
+
+  /* Update client name immediately from session before rendering */
   const clientNameEl = document.getElementById("clientName");
   if (clientNameEl) {
     let displayName = "Client";
