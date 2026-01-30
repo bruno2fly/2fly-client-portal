@@ -8,7 +8,7 @@
     "status": "ACTIVE",
     "passwordHash": "$2b$12$3cMNBGgEF5APqgdUPpiA/.nAyvtjwQUtE0gNNpNFKMOhyZ5QkXaO6",
     "clientId": null,
-    "lastLoginAt": 1769489620195,
+    "lastLoginAt": 1769627808412,
     "createdAt": 1737676800000,
     "updatedAt": 1769460030522,
     "username": "owner"
@@ -38,7 +38,7 @@
     "passwordHash": "$2b$12$VROJOiFdT7FqvTm7BCQjLuAKX3BSBlUjccWlF3LxzuQ9yWszcj19.",
     "tempPassword": "OZl5N$6lLWBC",
     "clientId": null,
-    "lastLoginAt": null,
+    "lastLoginAt": 1769789576925,
     "createdAt": 1769461488158,
     "updatedAt": 1769461488158
   }

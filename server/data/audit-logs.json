@@ -64,5 +64,21 @@
     "action": "auth.login",
     "targetUserId": "user_1737676800000_xyz789",
     "createdAt": 1769489620215
+  },
+  {
+    "id": "audit_1769627808444_f6gb8jz",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1737676800000_xyz789",
+    "action": "auth.login",
+    "targetUserId": "user_1737676800000_xyz789",
+    "createdAt": 1769627808445
+  },
+  {
+    "id": "audit_1769789576974_k0s6m18",
+    "agencyId": "agency_1737676800000_abc123",
+    "actorUserId": "user_1769461488158_7z7uk3c",
+    "action": "auth.login",
+    "targetUserId": "user_1769461488158_7z7uk3c",
+    "createdAt": 1769789576974
   }
 ]
