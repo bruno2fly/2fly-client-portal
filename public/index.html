@@ -53,9 +53,66 @@
     background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;transition:background 0.2s;
+    position:relative;
   }
   .notification-icon:hover{background:rgba(255,255,255,.15);}
   .notification-icon svg{width:20px;height:20px;stroke:white;fill:none;stroke-width:2;}
+  .client-notif-badge{
+    position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;
+    background:#ef4444;color:#fff;font-size:11px;font-weight:700;border-radius:999px;
+    display:flex;align-items:center;justify-content:center;border:2px solid var(--header-bg);
+  }
+  .client-notif-badge.hidden{display:none;}
+  .client-notif-dropdown{
+    position:absolute;top:100%;right:0;margin-top:8px;width:320px;max-height:360px;
+    background:var(--panel);border:1px solid var(--stroke);border-radius:12px;
+    box-shadow:0 10px 40px rgba(0,0,0,.15);z-index:50;display:none;flex-direction:column;
+    overflow:hidden;
+  }
+  body[data-theme="dark"] .client-notif-dropdown{background:#1e293b;border-color:#334155;}
+  .client-notif-dropdown.show{display:flex;}
+  .client-notif-dropdown__head{
+    padding:12px 14px;border-bottom:1px solid var(--stroke);font-size:13px;font-weight:600;color:var(--text);
+  }
+  .client-notif-dropdown__list{overflow-y:auto;max-height:280px;}
+  .client-notif-item{
+    padding:12px 14px;border-bottom:1px solid var(--stroke);cursor:pointer;transition:background 0.15s;
+    font-size:13px;
+  }
+  .client-notif-item:hover{background:var(--surface);}
+  body[data-theme="dark"] .client-notif-item:hover{background:#334155;}
+  .client-notif-item.unread{background:rgba(59,130,246,.08);font-weight:500;}
+  body[data-theme="dark"] .client-notif-item.unread{background:rgba(59,130,246,.15);}
+  .client-notif-item__title{font-weight:600;color:var(--text);margin-bottom:2px;}
+  .client-notif-item__message{color:var(--muted);font-size:12px;}
+  .client-notif-item__time{font-size:11px;color:var(--muted);margin-top:4px;}
+  .client-notif-dropdown__foot{
+    padding:8px 14px;border-top:1px solid var(--stroke);text-align:center;
+  }
+  .client-notif-mark-all{font-size:12px;color:var(--muted);cursor:pointer;text-decoration:none;}
+  .client-notif-mark-all:hover{color:var(--text);text-decoration:underline;}
+  .client-notif-empty{padding:24px;text-align:center;color:var(--muted);font-size:13px;}
+  .action-required-card{
+    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #93c5fd;
+    border-radius:14px;padding:20px;margin-bottom:24px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  }
+  body[data-theme="dark"] .action-required-card{
+    background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);border-color:#3b82f6;
+  }
+  .action-required-card.all-clear{
+    background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border-color:#6ee7b7;
+  }
+  body[data-theme="dark"] .action-required-card.all-clear{
+    background:linear-gradient(135deg,#064e3b 0%,#047857 100%);border-color:#34d399;
+  }
+  .action-required-card__text{font-size:16px;font-weight:600;color:#1e40af;}
+  body[data-theme="dark"] .action-required-card__text{color:#93c5fd;}
+  .action-required-card.all-clear .action-required-card__text{color:#047857;}
+  body[data-theme="dark"] .action-required-card.all-clear .action-required-card__text{color:#6ee7b7;}
+  .action-required-card .btn.primary{flex-shrink:0;}
+  /* Mobile header brand (2Fly logo + text) - hidden on desktop */
+  .header-brand-mobile{display:none;}
   .logout-link{
     color:rgba(255,255,255,.9);
     font-size:13px;
@@ -97,8 +154,6 @@
   body[data-theme="dark"] .panel{box-shadow:0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04)}
   
   /* Section-specific backgrounds */
-  .section-overview{background:#ffffff !important;border-radius:16px;padding:24px !important;}
-  body[data-theme="dark"] .section-overview{background:#1e293b !important;}
   .panel h3{font-size:18px;font-weight:700;color:#1e40af;margin:0 0 20px 0;}
   body[data-theme="dark"] .panel h3{color:#60a5fa;}
   
@@ -120,6 +175,22 @@
   
   .section-reports{background:#E8F7FE !important;}
   body[data-theme="dark"] .section-reports{background:#0E171C !important;}
+  .progress-hero{background:#ffffff;border:1px solid #bae6fd;border-radius:14px;padding:24px;margin-bottom:24px;}
+  body[data-theme="dark"] .progress-hero{background:#0f172a;border-color:#334155;}
+  .progress-hero h4{margin:0 0 6px;font-size:20px;font-weight:700;color:#0f172a;}
+  body[data-theme="dark"] .progress-hero h4{color:#f1f5f9;}
+  .progress-hero .progress-hero-sub{font-size:14px;color:#64748b;margin-bottom:16px;}
+  body[data-theme="dark"] .progress-hero .progress-hero-sub{color:#94a3b8;}
+  .progress-hero ul{margin:0;padding-left:20px;}
+  .progress-hero li{margin:6px 0;font-size:15px;color:#334155;}
+  body[data-theme="dark"] .progress-hero li{color:#cbd5e1;}
+  .progress-reassurance{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:14px;padding:20px;margin-top:24px;}
+  body[data-theme="dark"] .progress-reassurance{background:#064e3b;border-color:#047857;}
+  .progress-reassurance h4{margin:0 0 8px;font-size:17px;font-weight:600;color:#047857;}
+  body[data-theme="dark"] .progress-reassurance h4{color:#6ee7b7;}
+  .progress-reassurance p{margin:0;font-size:14px;color:#065f46;line-height:1.5;}
+  body[data-theme="dark"] .progress-reassurance p{color:#a7f3d0;}
+  .progress-reassurance .progress-check{font-size:18px;margin-right:8px;}
   
   /* Approval Tabs */
   .approval-tabs{
@@ -133,9 +204,7 @@
     color:rgba(255,255,255,.7);font-size:14px;font-weight:500;
     cursor:pointer;transition:all 0.2s;
   }
-  .approval-tab:hover{
-    color:rgba(255,255,255,.9);
-  }
+  .approval-tab:hover{color:rgba(255,255,255,.9);}
   .approval-tab.active{
     background:#ffffff;color:#1e40af;box-shadow:0 2px 4px rgba(0,0,0,.1);
     font-weight:600;
@@ -143,10 +212,8 @@
   body[data-theme="dark"] .approval-tab.active{
     background:#3b82f6;color:#ffffff;
   }
-  
-  .lane-pending{background:transparent;padding:0;border-radius:0;margin-top:0;}
-  .lane-changes{background:transparent;padding:0;border-radius:0;margin-top:0;}
-  .lane-approved{background:transparent;padding:0;border-radius:0;margin-top:0;}
+  .lane-copy,.lane-pending,.lane-changes,.lane-approved{background:transparent;padding:0;border-radius:0;margin-top:0;}
+  .section-approvals-inner{background:transparent;}
   
   .form-quick-request{background:#ffffff;padding:20px;border-radius:12px;margin-top:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);}
   body[data-theme="dark"] .form-quick-request{background:#334155;}
@@ -344,109 +411,318 @@ body[data-theme="dark"]{
   --surface:#151821; --surface-2:#0f1117;
 }
 
-/* --- OVERVIEW GRID --- */
+/* --- OVERVIEW SECTION (Reference A) --- */
+.section-overview{
+  background: #f1f5f9 !important;
+  border-radius: 16px;
+  padding: 24px !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+body[data-theme="dark"] .section-overview{
+  background: #0f172a !important;
+}
+.section-overview h3{
+  font-size: 24px;
+  font-weight: 700;
+  color: #112950;
+  margin: 0 0 20px 0;
+}
+body[data-theme="dark"] .section-overview h3{
+  color: #93c5fd;
+}
 .overview{
-  display:grid; gap:16px;
+  display: grid;
+  gap: 20px;
   grid-template-columns: repeat(12, 1fr);
 }
-  .kpi-card{
-  grid-column: span 4; /* 3 cards per row on desktop */
+.kpi-card{
+  grid-column: span 4;
   background: #ffffff;
-  border:none;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.08);
-  padding:20px;
-  position:relative; overflow:hidden;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.05);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
 }
 body[data-theme="dark"] .kpi-card{
   background: #1e293b;
-  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  border-color: #334155;
+  box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
-.kpi-card .label{ 
-  font-size:14px; 
-  color:#64748b; 
-  margin-bottom:8px; 
-  display:flex; 
-  align-items:center; 
-  gap:8px;
-  font-weight:500;
+.kpi-card .label{
+  font-size: 16px;
+  color: #112950;
+  margin-bottom: 16px;
+  display: block;
+  font-weight: 400;
+  line-height: 1.4;
 }
-.kpi-card .value{ 
-  font-size:36px; 
-  font-weight:800; 
-  letter-spacing:-.5px; 
-  margin:8px 0 12px;
-  color:#0f172a;
+body[data-theme="dark"] .kpi-card .label{
+  color: #e2e8f0;
 }
-body[data-theme="dark"] .kpi-card .value{color:#f1f5f9;}
-.kpi-card .sub{ 
-  font-size:13px; 
-  color:#64748b; 
-  display:flex;
-  align-items:center;
-  gap:8px;
+.kpi-card .value{
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  margin: 0 0 12px;
+  color: #112950;
+}
+body[data-theme="dark"] .kpi-card .value{
+  color: #f1f5f9;
+}
+.kpi-card .sub{
+  margin-top: 0;
 }
 .kpi-card .pill{
-  display:inline-flex; 
-  align-items:center; 
-  gap:4px;
-  padding:6px 12px; 
-  border-radius:999px; 
-  font-size:12px;
-  font-weight:600;
-  border:none;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 400;
+  border: none;
 }
-.kpi-card.success .pill{ 
-  background: #dbeafe; 
-  color: #1e40af;
+.kpi-card.success .pill{
+  background: #e8f0fe;
+  color: #5170b1;
 }
 body[data-theme="dark"] .kpi-card.success .pill{
-  background: rgba(59,130,246,.2);
+  background: rgba(81,112,177,.25);
   color: #93c5fd;
 }
-.kpi-card.warning .pill{ 
-  background: #fed7aa; 
-  color: #ea580c;
+.kpi-card.warning .pill{
+  background: #faeed0;
+  color: #c88e07;
 }
 body[data-theme="dark"] .kpi-card.warning .pill{
-  background: rgba(249,115,22,.2);
-  color: #fb923c;
+  background: rgba(200,142,7,.2);
+  color: #fcd34d;
 }
-.kpi-card.danger  .pill{ 
-  background: #fecdd3; 
-  color: #be123c;
+.kpi-card.approved .pill{
+  background: #e0f2f1;
+  color: #0d9488;
 }
-body[data-theme="dark"] .kpi-card.danger .pill{
-  background: rgba(236,72,153,.2);
-  color: #f9a8d4;
+body[data-theme="dark"] .kpi-card.approved .pill{
+  background: rgba(13,148,136,.2);
+  color: #5eead4;
 }
-
 .kpi-card .icon{
-  width:36px; height:36px; border-radius:12px; display:grid; place-items:center;
-  background:var(--surface-2); border:1px solid var(--stroke); color:var(--text);
+  display: none;
 }
-.kpi-card.success .icon{ box-shadow: 0 0 0 2px rgba(34,197,94,.25) inset }
-.kpi-card.warning .icon{ box-shadow: 0 0 0 2px rgba(250,204,21,.25) inset }
-.kpi-card.danger  .icon{ box-shadow: 0 0 0 2px rgba(248,113,113,.25) inset }
-
-  .kpi-card.motivation{
-  background: linear-gradient(180deg, rgba(139,92,246,.08), rgba(96,165,250,.04));
-}
-body[data-theme="dark"] .kpi-card.motivation{
-  background:
-    linear-gradient(180deg, rgba(139,92,246,.10), rgba(96,165,250,.06)),
-    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-}
-.motivation .quote{ font-size:15px; line-height:1.5; }
-.motivation .small{ font-size:12px; color:var(--muted); margin-top:8px }
 
 @media (max-width: 1024px){
-  .kpi-card{ grid-column: span 6; } /* 2 per row on tablet */
+  .kpi-card{ grid-column: span 6; }
 }
-@media (max-width: 640px){
-  .kpi-card{ grid-column: span 12; } /* stack on mobile */
+@media (max-width: 768px){
+  .section-overview{ background: #f1f5f9 !important; }
+  body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
+  .overview{
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 20px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+    margin: 0 -24px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .overview::-webkit-scrollbar{ height: 6px; }
+  .overview::-webkit-scrollbar-track{ background: rgba(0,0,0,.05); border-radius: 3px; }
+  .overview::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.15); border-radius: 3px; }
+  .kpi-card{
+    flex: 0 0 auto;
+    min-width: 260px;
+    max-width: 85vw;
+    grid-column: unset;
+    scroll-snap-align: start;
+  }
 }
 
+/* --- MOBILE HEADER (pill style, 2Fly branding) --- */
+@media (max-width: 768px){
+  header{
+    margin: 12px 12px 0;
+    padding: 12px 20px;
+    border-radius: 9999px;
+  }
+  header .brand{ display: none; }
+  .header-brand-mobile{
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+  .header-logo-circle{
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(0,41,102,.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .header-logo-img{
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+  .header-logo-initials{
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffffff;
+    text-transform: uppercase;
+  }
+  .header-2fly-text{
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  header .actions .logout-link{ display: none; }
+  header .notification-icon{
+    width: 36px;
+    height: 36px;
+    background: #ffffff;
+    border: none;
+  }
+  header .notification-icon svg{
+    stroke: #1e40af;
+    stroke-width: 2;
+  }
+
+  /* Approvals section - mobile layout (screenshot reference) */
+  #approvalsPanel.section-approvals{
+    background: var(--bg) !important;
+    border: none;
+    box-shadow: none;
+    padding: 0 !important;
+  }
+  body[data-theme="dark"] #approvalsPanel.section-approvals{
+    background: var(--bg) !important;
+  }
+  #approvalsPanel .approvals-section-title{
+    font-size: 24px;
+    font-weight: 700;
+    color: #112950;
+    margin: 0 0 16px 0;
+  }
+  body[data-theme="dark"] #approvalsPanel .approvals-section-title{
+    color: #f1f5f9;
+  }
+  #approvalsPanel .section-approvals-inner{
+    background: #1e40af !important;
+    border-radius: 20px;
+    padding: 24px !important;
+  }
+  body[data-theme="dark"] #approvalsPanel .section-approvals-inner{
+    background: #1e3a8a !important;
+  }
+  #approvalsPanel .approval-tabs{
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    background: #ffffff;
+    border-radius: 9999px;
+    padding: 6px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #approvalsPanel .approval-tabs::-webkit-scrollbar{ height: 4px; }
+  #approvalsPanel .approval-tab{
+    flex: 0 0 auto;
+    font-size: 12px;
+    padding: 8px 14px;
+    white-space: nowrap;
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-tabs{
+    background: rgba(255,255,255,.12);
+  }
+  #approvalsPanel .approval-tab{
+    color: #64748b;
+    font-weight: 400;
+  }
+  #approvalsPanel .approval-tab:hover{
+    color: #334155;
+  }
+  #approvalsPanel .approval-tab.active{
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-tab{
+    color: rgba(255,255,255,.7);
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-tab:hover{
+    color: rgba(255,255,255,.9);
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-tab.active{
+    background: #3b82f6;
+    color: #ffffff;
+  }
+  #approvalsPanel .list{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #approvalsPanel .approval-item-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #approvalsPanel .approval-item-row:hover{
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-item-row{
+    background: #1e293b;
+  }
+  #approvalsPanel .approval-item-row .title-text{
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+  }
+  body[data-theme="dark"] #approvalsPanel .approval-item-row .title-text{
+    color: #f1f5f9;
+  }
+  #approvalsPanel .approval-item-row .tag.type-tag{
+    background: #e8f0fe;
+    color: #1e40af;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 9999px;
+  }
+  #approvalsPanel .approval-item-row .approval-due{
+    font-size: 13px !important;
+    color: #64748b !important;
+  }
+  #approvalsPanel .approval-item-row .approval-chevron{
+    color: #64748b;
+  }
+  #approvalsPanel .lane > div:empty,
+  #approvalsPanel .list:empty{
+    display: block !important;
+  }
+  #approvalsPanel .lane .list > div:first-child[style*="text-align:center"]{
+    padding: 24px;
+    color: rgba(255,255,255,.7);
+    font-size: 14px;
+    text-align: left;
+  }
+}
 
 </style>
 </head>
@@ -463,87 +739,62 @@ body[data-theme="dark"] .kpi-card.motivation{
           <div class="sub">Real-time status • Approvals • Requests</div>
         </div>
       </div>
+      <div class="header-brand-mobile">
+        <div class="header-logo-circle" id="clientLogoMobile">
+          <img id="clientLogoImgMobile" src="" alt="" class="header-logo-img" style="display:none">
+          <span id="clientLogoInitialsMobile" class="header-logo-initials">CN</span>
+        </div>
+        <span class="header-2fly-text" id="clientNameMobile">Loading...</span>
+      </div>
       <div class="actions">
-        <div class="notification-icon" id="notificationBtn" aria-label="Notifications">
-          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
+        <div id="clientNotifWrap" style="position:relative;">
+          <div class="notification-icon" id="notificationBtn" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span class="client-notif-badge hidden" id="clientNotifBadge">0</span>
+          </div>
+          <div class="client-notif-dropdown" id="clientNotifDropdown">
+            <div class="client-notif-dropdown__head">Notifications</div>
+            <div class="client-notif-dropdown__list" id="clientNotifList"></div>
+            <div class="client-notif-empty" id="clientNotifEmpty" style="display:none;">No notifications</div>
+            <div class="client-notif-dropdown__foot">
+              <a href="#" class="client-notif-mark-all" id="clientNotifMarkAll">Mark all as read</a>
+            </div>
+          </div>
         </div>
         <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;">Logout</a>
         <button class="btn small" id="toggleMode" style="display:none">☀️</button>
       </div>
     </header>
 
-    <section class="panel section-overview" style="margin-top:24px;background:#ffffff;border-radius:16px;padding:24px;box-shadow:none;border:none;">
-      <h3 style="font-size:18px;font-weight:700;color:#1e40af;margin:0 0 20px 0;">Overview</h3>
+    <section class="panel section-overview" style="margin-top:24px;">
+      <h3>Overview</h3>
+
+      <div class="action-required-card" id="actionRequiredCard">
+        <span class="action-required-card__text" id="actionRequiredText">Nothing needed right now ✅</span>
+        <button type="button" class="btn primary" id="actionRequiredBtn" style="display:none;">Review now</button>
+      </div>
 
       <div class="overview" id="overviewRow">
 
-        <!-- Posts scheduled -->
-
         <div class="kpi-card success" id="cardScheduled">
-
-          <div class="label">
-
-            <span class="icon">📅</span>
-
-            <span>Posts scheduled (next 15 days)</span>
-
-          </div>
-
+          <div class="label">Posts scheduled<br>(next 15 days)</div>
           <div class="value" id="kpiValScheduled">0</div>
-
-          <div class="sub">
-
-            <span class="pill" id="kpiSubScheduled">On track</span>
-
-          </div>
-
+          <div class="sub"><span class="pill" id="kpiSubScheduled">On track</span></div>
         </div>
-
-        <!-- Waiting for your approval -->
 
         <div class="kpi-card warning" id="cardApproval">
-
-          <div class="label">
-
-            <span class="icon">📝</span>
-
-            <span>Waiting for your approval</span>
-
-          </div>
-
+          <div class="label">Waiting for your<br>approval</div>
           <div class="value" id="kpiValApproval">0</div>
-
-          <div class="sub">
-
-            <span class="pill" id="kpiSubApproval">Needs review</span>
-
-          </div>
-
+          <div class="sub"><span class="pill" id="kpiSubApproval">Needs review</span></div>
         </div>
 
-        <!-- Approved for... -->
-
-        <div class="kpi-card" id="cardMissing" style="background:linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);">
-
-          <div class="label">
-
-            <span class="icon">✅</span>
-
-            <span>Approved for publication</span>
-
-          </div>
-
+        <div class="kpi-card approved" id="cardMissing">
+          <div class="label">Approved for publication</div>
           <div class="value" id="kpiValMissing">0</div>
-
-          <div class="sub">
-
-            <span class="pill" id="kpiSubMissing" style="background:#fbcfe8;color:#be185d;">Ready</span>
-
-          </div>
-
+          <div class="sub"><span class="pill" id="kpiSubMissing">Ready</span></div>
         </div>
 
       </div>
@@ -552,7 +803,8 @@ body[data-theme="dark"] .kpi-card.motivation{
 
     <!-- Approvals -->
     <section class="panel section-approvals" id="approvalsPanel" style="margin-top:24px">
-      <h3 style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 20px 0;">Contents Approval</h3>
+      <h3 class="approvals-section-title" style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 20px 0;">Contents Approval</h3>
+      <div class="section-approvals-inner">
       <div class="approval-tabs" id="approvalTabs">
         <button class="approval-tab active" data-tab="copy">Copy</button>
         <button class="approval-tab" data-tab="pending">Content Pending</button>
@@ -570,6 +822,7 @@ body[data-theme="dark"] .kpi-card.motivation{
       </div>
       <div class="lane lane-approved" id="laneApproved" style="display:none">
         <div id="approvalsApproved" class="list"></div>
+      </div>
       </div>
     </section>
 
@@ -651,24 +904,30 @@ body[data-theme="dark"] .kpi-card.motivation{
         <div id="calendarView"></div>
       </section>
 
-      <!-- Reports -->
+      <!-- Progress (formerly Reports) -->
       <section class="panel section-reports" id="reports" style="grid-column: span 12;">
-        <h3>📈 Marketing Performance Report</h3>
+        <h3 style="display:flex;align-items:center;gap:10px;">Progress <span class="chip" id="progressSampleBadge" style="font-size:11px;padding:2px 8px;display:none;">Sample data</span></h3>
+
+        <div class="progress-hero" id="progressHero">
+          <h4>This month at a glance</h4>
+          <p class="progress-hero-sub">Here’s what we moved forward for your business.</p>
+          <ul id="progressHeroList"></ul>
+        </div>
+
         <div class="cards">
           <div class="card">
-            <div class="label">Ads Overview</div>
+            <div class="label">Your ads are active</div>
             <div class="metric" id="r-ads-running">—</div>
             <small class="muted" id="r-ads-sub">—</small>
-            <div class="chip ok" id="r-ads-chip">Performing well</div>
           </div>
           <div class="card">
-            <div class="label">Google & Social Growth</div>
+            <div class="label">Your online visibility is growing</div>
             <div class="metric" id="r-growth-score">—</div>
             <small class="muted" id="r-growth-sub">—</small>
-            <div class="chip ok" id="r-growth-chip">Visibility up</div>
           </div>
           <div class="card">
-            <div class="label">This Month’s Work</div>
+            <div class="label">What we handled for you</div>
+            <p class="muted" style="margin:0 0 8px;font-size:13px;">Here’s what our team completed this period:</p>
             <ul id="r-work-list" style="margin:8px 0 0 16px"></ul>
             <small class="muted" id="r-work-sub">—</small>
           </div>
@@ -678,9 +937,14 @@ body[data-theme="dark"] .kpi-card.motivation{
           </div>
         </div>
 
+        <div class="progress-reassurance" id="progressReassurance">
+          <h4><span class="progress-check" aria-hidden="true">✓</span>Everything is on track</h4>
+          <p>We’re actively managing your content and campaigns. If we need anything from you, we’ll notify you here.</p>
+        </div>
+
         <!-- Admin mini form -->
         <div id="reportsAdmin" class="panel" style="margin-top:12px; display:none">
-          <h3>Update Report (Team)</h3>
+          <h3>Update Progress (Team)</h3>
           <form id="reportsForm" class="form">
             <div class="cols-2"><input type="password" id="repPin" placeholder="Team PIN" /><input type="text" id="repPeriod" placeholder="Period (e.g., Nov 2025)" /></div>
             <div class="cols-2"><input type="number" id="repAdsRunning" placeholder="Ads running" /><input type="number" id="repImpressions" placeholder="Impressions" /></div>
@@ -886,75 +1150,70 @@ if (!session) {
   // Get client ID from session - normalize to lowercase for consistency
   const currentClientId = (session.clientId || "").toLowerCase().trim();
 
-  // Immediately update the client name in the DOM if available (before any other code runs)
+  function setClientNameDisplay(name) {
+    const n = name || "Client";
+    const el = document.getElementById("clientName");
+    if (el) el.textContent = n;
+    const mobileEl = document.getElementById("clientNameMobile");
+    if (mobileEl) mobileEl.textContent = n;
+  }
   if (session.clientName) {
-    const clientNameEl = document.getElementById("clientName");
-    if (clientNameEl) {
-      clientNameEl.textContent = session.clientName;
-      console.log("Client name set immediately to:", session.clientName);
-    }
+    setClientNameDisplay(session.clientName);
+    console.log("Client name set immediately to:", session.clientName);
   }
 
-  // Function to load client logo from agency registry
+  function syncMobileLogo(showImg, src, initials) {
+    const imgM = document.getElementById("clientLogoImgMobile");
+    const initM = document.getElementById("clientLogoInitialsMobile");
+    if (imgM && initM) {
+      if (showImg && src) {
+        imgM.src = src;
+        imgM.style.display = "block";
+        initM.style.display = "none";
+      } else {
+        imgM.style.display = "none";
+        initM.style.display = "block";
+        initM.textContent = initials || "CN";
+      }
+    }
+  }
   function loadClientLogo() {
     try {
       const session = checkAuth();
       if (!session || !session.clientId) {
-        // Show initials as fallback
         const logoInitials = document.getElementById("clientLogoInitials");
-        if (logoInitials) {
-          logoInitials.style.display = "block";
-          logoInitials.textContent = "CN";
-        }
+        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = "CN"; }
+        syncMobileLogo(false, null, "CN");
         return;
       }
-      
-      // Get client data from agency registry
       const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
       const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
       if (!clientsData) {
-        // Fallback to initials
         const logoInitials = document.getElementById("clientLogoInitials");
-        if (logoInitials) {
-          logoInitials.style.display = "block";
-          const clientName = session.clientName || "CN";
-          const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-          logoInitials.textContent = initials || "CN";
-        }
+        const clientName = session.clientName || "CN";
+        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = initials || "CN"; }
+        syncMobileLogo(false, null, initials || "CN");
         return;
       }
-      
       const clients = JSON.parse(clientsData);
       const clientId = session.clientId.toLowerCase();
       const client = clients[clientId];
-      
       const logoImg = document.getElementById("clientLogoImg");
       const logoInitials = document.getElementById("clientLogoInitials");
-      
       if (client && client.logoUrl) {
-        // Show logo
-        if (logoImg) {
-          logoImg.src = client.logoUrl;
-          logoImg.style.display = "block";
-        }
-        if (logoInitials) {
-          logoInitials.style.display = "none";
-        }
+        if (logoImg) { logoImg.src = client.logoUrl; logoImg.style.display = "block"; }
+        if (logoInitials) logoInitials.style.display = "none";
+        syncMobileLogo(true, client.logoUrl, null);
       } else {
-        // Show initials
-        if (logoImg) {
-          logoImg.style.display = "none";
-        }
-        if (logoInitials) {
-          logoInitials.style.display = "block";
-          const clientName = session.clientName || (client ? client.name : "CN");
-          const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-          logoInitials.textContent = initials || "CN";
-        }
+        if (logoImg) logoImg.style.display = "none";
+        const clientName = session.clientName || (client ? client.name : "CN");
+        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
+        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = initials || "CN"; }
+        syncMobileLogo(false, null, initials || "CN");
       }
     } catch(e) {
       console.warn("Error loading client logo:", e);
-      // Fallback to initials if error
       const logoInitials = document.getElementById("clientLogoInitials");
       if (logoInitials) {
         logoInitials.style.display = "block";
@@ -963,8 +1222,10 @@ if (!session) {
           const clientName = session ? (session.clientName || "CN") : "CN";
           const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
           logoInitials.textContent = initials || "CN";
+          syncMobileLogo(false, null, initials || "CN");
         } catch(e2) {
           logoInitials.textContent = "CN";
+          syncMobileLogo(false, null, "CN");
         }
       }
     }
@@ -1130,6 +1391,237 @@ function migrateState(){
   if(changed) save(s);
 }
 
+/* ================== Client notifications (Action Required) ================== */
+function getClientIdForNotifications() {
+  try {
+    const s = checkAuth();
+    if (s && s.clientId) return (s.clientId || '').toLowerCase().trim();
+  } catch (e) {}
+  const state = load();
+  if (state && state.client && state.client.id) return (state.client.id || '').toLowerCase().trim();
+  return 'client';
+}
+
+const CLIENT_READ_NOTIF_PREFIX = 'client_readNotifications_';
+function getReadNotifKey() { return CLIENT_READ_NOTIF_PREFIX + getClientIdForNotifications(); }
+function loadReadNotificationIds() {
+  try {
+    const raw = localStorage.getItem(getReadNotifKey());
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveReadNotificationIds(ids) {
+  try { localStorage.setItem(getReadNotifKey(), JSON.stringify(ids)); } catch (e) {}
+}
+function markNotificationRead(id) {
+  const ids = loadReadNotificationIds();
+  if (ids.includes(id)) return;
+  saveReadNotificationIds(ids.concat(id));
+}
+function markAllNotificationsRead() {
+  const notifications = computeNotifications(load());
+  const ids = notifications.map(n => n.id);
+  if (ids.length === 0) return;
+  const read = loadReadNotificationIds();
+  const merged = [...new Set(read.concat(ids))];
+  saveReadNotificationIds(merged);
+}
+
+function computeNotifications(state) {
+  const list = [];
+  const now = Date.now();
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+  const approvals = state.approvals || [];
+  const requests = state.requests || [];
+
+  const isCopy = (a) => ['copy_pending','copy_approved','copy_changes'].includes(a.status || '');
+  const isContentPending = (a) => (!a.status || a.status === 'pending') && !isCopy(a);
+  const isOverdue = (a) => {
+    const due = a.postDate || a.date;
+    if (due) {
+      const dueMs = typeof due === 'number' ? due : new Date(due).getTime();
+      if (dueMs < now) return true;
+    }
+    const created = a.createdAt || a.date || 0;
+    if (created && (now - created) > threeDaysMs && (isContentPending(a) || (a.status === 'copy_pending'))) return true;
+    return false;
+  };
+
+  // 1) Content Pending (needs approval)
+  approvals.filter(isContentPending).forEach(a => {
+    list.push({
+      id: 'approval_post_' + (a.id || '') + '_contentPending',
+      type: 'ACTION',
+      title: 'Content Pending',
+      message: (a.title || 'Post') + ' needs your approval.',
+      dueAt: a.postDate || a.date ? (typeof (a.postDate || a.date) === 'number' ? new Date(a.postDate || a.date).toISOString() : String(a.postDate || a.date)) : null,
+      href: '#approvals-pending',
+      createdAt: new Date().toISOString()
+    });
+  });
+  // 2) Copy Pending
+  approvals.filter(a => a.status === 'copy_pending').forEach(a => {
+    list.push({
+      id: 'approval_post_' + (a.id || '') + '_copyPending',
+      type: 'ACTION',
+      title: 'Copy Pending',
+      message: (a.title || 'Copy') + ' needs your approval.',
+      dueAt: a.postDate || a.date ? (typeof (a.postDate || a.date) === 'number' ? new Date(a.postDate || a.date).toISOString() : String(a.postDate || a.date)) : null,
+      href: '#approvals-copy',
+      createdAt: new Date().toISOString()
+    });
+  });
+  // 3) Open Requests
+  requests.filter(r => r.status !== 'done').forEach(r => {
+    list.push({
+      id: 'request_' + (r.id || ''),
+      type: 'ACTION',
+      title: 'Open Request',
+      message: (r.type || 'Request') + (r.details ? ': ' + String(r.details).slice(0, 40) + (r.details.length > 40 ? '…' : '') : ''),
+      dueAt: null,
+      href: '#requests',
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString()
+    });
+  });
+  // 4) Overdue approval (only if not already listed as content/copy pending to avoid duplicate)
+  const alreadyListed = new Set(list.map(n => {
+    const m = n.id.match(/^approval_post_(.+)_(contentPending|copyPending)$/);
+    return m ? m[1] : null;
+  }).filter(Boolean));
+  approvals.filter(a => (isContentPending(a) || a.status === 'copy_pending') && isOverdue(a) && !alreadyListed.has(a.id)).forEach(a => {
+    const uid = 'approval_post_' + (a.id || '') + '_overdue';
+    list.push({
+      id: uid,
+      type: 'ACTION',
+      title: 'Overdue',
+      message: (a.title || 'Post') + ' is overdue or pending for more than 3 days.',
+      dueAt: a.postDate || a.date ? (typeof (a.postDate || a.date) === 'number' ? new Date(a.postDate || a.date).toISOString() : String(a.postDate || a.date)) : null,
+      href: a.status === 'copy_pending' ? '#approvals-copy' : '#approvals-pending',
+      createdAt: new Date().toISOString()
+    });
+  });
+
+  // Dedupe by id (keep first occurrence = priority order)
+  const seen = {};
+  const out = [];
+  list.forEach(n => {
+    if (seen[n.id]) return;
+    seen[n.id] = true;
+    out.push(n);
+  });
+  return out;
+}
+
+function navigateToNotificationHref(href) {
+  const h = (href || '').replace(/^#/, '');
+  if (h === 'approvals-pending') {
+    const panel = document.getElementById('approvalsPanel');
+    const tab = document.querySelector('[data-tab="pending"]');
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (tab) { document.querySelectorAll('.approval-tab').forEach(b => b.classList.remove('active')); tab.classList.add('active'); document.getElementById('laneCopy').style.display = 'none'; document.getElementById('lanePending').style.display = 'block'; document.getElementById('laneChanges').style.display = 'none'; document.getElementById('laneApproved').style.display = 'none'; }
+  } else if (h === 'approvals-copy') {
+    const panel = document.getElementById('approvalsPanel');
+    const tab = document.querySelector('[data-tab="copy"]');
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (tab) { document.querySelectorAll('.approval-tab').forEach(b => b.classList.remove('active')); tab.classList.add('active'); document.getElementById('laneCopy').style.display = 'block'; document.getElementById('lanePending').style.display = 'none'; document.getElementById('laneChanges').style.display = 'none'; document.getElementById('laneApproved').style.display = 'none'; }
+  } else if (h === 'requests') {
+    const el = document.getElementById('requests');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function renderClientNotificationBell() {
+  const state = load();
+  const notifications = computeNotifications(state);
+  const readIds = loadReadNotificationIds();
+  const actionNotifications = notifications.filter(n => n.type === 'ACTION');
+  const unreadActionCount = actionNotifications.filter(n => !readIds.includes(n.id)).length;
+
+  const badge = document.getElementById('clientNotifBadge');
+  if (badge) {
+    badge.textContent = String(unreadActionCount);
+    badge.classList.toggle('hidden', unreadActionCount === 0);
+  }
+
+  const listEl = document.getElementById('clientNotifList');
+  const emptyEl = document.getElementById('clientNotifEmpty');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const sorted = [...notifications].sort((a, b) => (a.type === 'ACTION' ? 0 : 1) - (b.type === 'ACTION' ? 0 : 1));
+  const show = sorted.slice(0, 5);
+  if (show.length === 0) {
+    if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No notifications'; }
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  show.forEach(n => {
+    const read = readIds.includes(n.id);
+    const item = document.createElement('div');
+    item.className = 'client-notif-item' + (read ? '' : ' unread');
+    item.dataset.id = n.id;
+    item.dataset.href = n.href || '#';
+    item.innerHTML = '<div class="client-notif-item__title">' + (n.title || '').replace(/</g, '&lt;') + '</div><div class="client-notif-item__message">' + (n.message || '').replace(/</g, '&lt;') + '</div><div class="client-notif-item__time">' + (n.dueAt ? 'Due ' + n.dueAt.slice(0, 10) : '') + '</div>';
+    item.addEventListener('click', () => {
+      markNotificationRead(n.id);
+      navigateToNotificationHref(n.href);
+      renderClientNotificationBell();
+      renderActionRequiredCard();
+      document.getElementById('clientNotifDropdown').classList.remove('show');
+    });
+    listEl.appendChild(item);
+  });
+}
+
+function renderActionRequiredCard() {
+  const state = load();
+  const notifications = computeNotifications(state);
+  const readIds = loadReadNotificationIds();
+  const unreadAction = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id));
+  const top = unreadAction[0];
+
+  const card = document.getElementById('actionRequiredCard');
+  const textEl = document.getElementById('actionRequiredText');
+  const btn = document.getElementById('actionRequiredBtn');
+  if (!card || !textEl) return;
+  if (top) {
+    card.classList.remove('all-clear');
+    textEl.textContent = top.title + (top.message ? ': ' + top.message.slice(0, 50) + (top.message.length > 50 ? '…' : '') : '');
+    if (btn) { btn.style.display = 'inline-flex'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
+  } else {
+    card.classList.add('all-clear');
+    textEl.textContent = 'Nothing needed right now ✅';
+    if (btn) btn.style.display = 'none';
+  }
+}
+
+function setupClientNotificationBell() {
+  const btn = document.getElementById('notificationBtn');
+  const dropdown = document.getElementById('clientNotifDropdown');
+  if (btn && dropdown) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle('show');
+      renderClientNotificationBell();
+    });
+  }
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('clientNotifWrap');
+    if (dropdown && dropdown.classList.contains('show') && wrap && !wrap.contains(e.target)) dropdown.classList.remove('show');
+  });
+  const markAll = document.getElementById('clientNotifMarkAll');
+  if (markAll) {
+    markAll.addEventListener('click', (e) => {
+      e.preventDefault();
+      markAllNotificationsRead();
+      renderClientNotificationBell();
+      renderActionRequiredCard();
+      if (dropdown) dropdown.classList.remove('show');
+    });
+  }
+}
+
 /* ================== Helpers ================== */
 const $ = sel => document.querySelector(sel);
 const el = (tag, attrs={}, ...kids) => { const node=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>{ if(k==='class') node.className=v; else if(k==='html') node.innerHTML=v; else node.setAttribute(k,v); }); kids.forEach(k=>node.append(k)); return node; };
@@ -1184,7 +1676,7 @@ function render(){
       displayName = state.client.name;
     }
     
-    clientNameEl.textContent = displayName;
+    setClientNameDisplay(displayName);
     console.log("Client name set to:", displayName);
     
     // Update state if it's different (for consistency)
@@ -1314,6 +1806,17 @@ function render(){
   
   // Request Stats
   try { renderRequestStats(); } catch(e){ console.warn("Request stats render skipped:", e); }
+
+  // Client notifications (Action Required)
+  try {
+    renderClientNotificationBell();
+    renderActionRequiredCard();
+    const notifications = computeNotifications(state);
+    const readIds = loadReadNotificationIds();
+    const unreadActionCount = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id)).length;
+    const topAction = notifications.filter(n => n.type === 'ACTION')[0];
+    console.log('Client notifications: computed=' + notifications.length + ', unread ACTION=' + unreadActionCount + ', top priority=' + (topAction ? topAction.title : '—'));
+  } catch (e) { console.warn('Client notification render:', e); }
 }
 
 /* ================== Approvals Sectioned ================== */
@@ -1321,12 +1824,10 @@ function renderApprovalsSectioned(){
   const s = load(); 
   const items = s.approvals || [];
   
-  // Filter items - copy section shows copy_pending, copy_approved, and copy_changes
   const copyItems = items.filter(i => {
     const status = (i.status || '').toLowerCase().trim();
     return status === 'copy_pending' || status === 'copy_approved' || status === 'copy_changes';
   });
-  // Pending includes items with no status or status === 'pending' (but not copy statuses)
   const pending = items.filter(i => {
     const status = (i.status || '').toLowerCase().trim();
     return (status === '' || status === 'pending') && status !== 'copy_pending' && status !== 'copy_approved';
@@ -1334,14 +1835,12 @@ function renderApprovalsSectioned(){
   const changes = items.filter(i => i.status === 'changes');
   const approved = items.filter(i => i.status === 'approved');
 
-  // Note: Tab counts are now shown in the tab buttons themselves via badge indicators
-  const $copy=$("#approvalsCopy"), $p=$("#approvalsPending"), $c=$("#approvalsChanges"), $a=$("#approvalsApproved"); 
-  if(!$copy||!$p||!$c||!$a) {
+  const $copy = $("#approvalsCopy"), $p = $("#approvalsPending"), $c = $("#approvalsChanges"), $a = $("#approvalsApproved"); 
+  if (!$copy || !$p || !$c || !$a) {
     console.error("Approval containers not found");
     return;
   }
   
-  // Update tab badges if they exist
   const copyTab = document.querySelector('[data-tab="copy"]');
   const pendingTab = document.querySelector('[data-tab="pending"]');
   const changesTab = document.querySelector('[data-tab="changes"]');
@@ -1351,238 +1850,81 @@ function renderApprovalsSectioned(){
   if (changesTab) changesTab.textContent = `Changes Requested${changes.length > 0 ? ` (${changes.length})` : ''}`;
   if (approvedTab) approvedTab.textContent = `Content Approved${approved.length > 0 ? ` (${approved.length})` : ''}`;
   
-  // Clear all lists
-  $copy.innerHTML="";
-  $p.innerHTML="";
-  $c.innerHTML="";
-  $a.innerHTML="";
-  if (changes.length === 0 && document.getElementById('laneChanges').style.display !== 'none') {
-    $c.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No changes requested</div>';
-  }
-  if (approved.length === 0 && document.getElementById('laneApproved').style.display !== 'none') {
-    $a.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No approved items</div>';
-  }
-
-  const getTypeIcon = (type) => {
-    const typeLower = (type || '').toLowerCase();
-    if (typeLower.includes('reel')) return '🎥';
-    if (typeLower.includes('story')) return '⭕';
-    if (typeLower.includes('post') || typeLower.includes('feed')) return '📰';
-    return '📄'; // default icon
-  };
+  $copy.innerHTML = "";
+  $p.innerHTML = "";
+  $c.innerHTML = "";
+  $a.innerHTML = "";
 
   const rowFor = (item) => {
-    if (!item || !item.id) {
-      console.warn("Invalid item:", item);
-      return null;
-    }
-    
-    // Title and type tag on same line
-    const titleRow = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px;"});
-    const titleDiv = el("div",{class:"title-text", style:"font-size:16px;font-weight:600;color:#1e40af;"});
+    if (!item || !item.id) return null;
+    const titleRow = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px;" });
+    const titleDiv = el("div", { class: "title-text", style: "font-size:16px;font-weight:600;color:#1e40af;" });
     titleDiv.textContent = item.title || "Untitled";
     titleRow.appendChild(titleDiv);
-    
-    // Type tag next to title
-    const typeTag = el("span",{class:"tag type-tag", style:"background:#dbeafe;color:#1e40af;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:500;"});
+    const typeTag = el("span", { class: "tag type-tag", style: "background:#dbeafe;color:#1e40af;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:500;" });
     typeTag.textContent = item.type || "Post";
     titleRow.appendChild(typeTag);
-    
-    // Status badge for copy approvals
     if (item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes') {
-      let statusClass, statusStyle, statusText;
+      let statusStyle, statusText;
       if (item.status === 'copy_approved') {
-        statusClass = "tag approved";
         statusStyle = "background:#d1fae5;color:#047857;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
         statusText = 'Approved';
       } else if (item.status === 'copy_changes') {
-        statusClass = "tag changes";
         statusStyle = "background:#fed7aa;color:#ea580c;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
         statusText = 'Changes Requested';
       } else {
-        statusClass = "tag pending";
         statusStyle = "background:#dbeafe;color:#1e40af;font-size:12px;padding:4px 10px;border-radius:12px;font-weight:600;";
         statusText = 'Pending';
       }
-      const statusTag = el("span", {
-        class: statusClass,
-        style: statusStyle
-      });
+      const statusTag = el("span", { style: statusStyle });
       statusTag.textContent = statusText;
       titleRow.appendChild(statusTag);
     }
-    
-    // Due date below title
-    const dueDate = el("div",{style:"font-size:13px;color:#64748b;margin-top:2px;"});
-    dueDate.textContent = `Due ${item.date || "N/A"}`;
-    
-    // Left content container
-    const left = el("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;"});
+    const dueDate = el("div", { class: "approval-due", style: "font-size:13px;color:#64748b;margin-top:2px;" });
+    const d = item.postDate || item.date;
+    const dStr = d ? (typeof d === 'number' ? new Date(d).toISOString().slice(0,10) : String(d).slice(0,10)) : "N/A";
+    dueDate.textContent = "Due " + dStr;
+    const left = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;" });
     left.appendChild(titleRow);
     left.appendChild(dueDate);
-    
-    // Show change notes if present (for changes or copy_changes)
-    if ((item.status==='changes' || item.status==='copy_changes') && item.change_notes?.length) {
-      const noteDiv = el("div",{style:"font-size:12px;color:#64748b;margin-top:4px;"});
+    if ((item.status === 'changes' || item.status === 'copy_changes') && item.change_notes?.length) {
+      const noteDiv = el("div", { style: "font-size:12px;color:#64748b;margin-top:4px;" });
       noteDiv.textContent = `Note: "${item.change_notes.at(-1).note || ""}"`;
       left.appendChild(noteDiv);
     }
-
-    // Right side - arrow icon only
-    const right = el("div",{style:"display:flex;align-items:center;flex-shrink:0;margin-left:16px;"});
-    
-    // Arrow icon for navigation (always visible)
-    const arrowIcon = el("div",{
-      style:"width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1e40af;flex-shrink:0;"
-    });
+    const right = el("div", { style: "display:flex;align-items:center;flex-shrink:0;margin-left:16px;" });
+    const arrowIcon = el("div", { class: "approval-chevron", style: "width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1e40af;flex-shrink:0;" });
     arrowIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-    arrowIcon.addEventListener('click', function(e) {
-      e.stopPropagation();
-      console.log("Arrow clicked, opening modal for:", item.id);
-      const itemId = item.id;
-      if (typeof window.openApprovalModal === 'function') {
-        window.openApprovalModal(itemId);
-      } else if (typeof openApprovalModal === 'function') {
-        openApprovalModal(itemId);
-      } else {
-        console.error("openApprovalModal function not found!");
-      }
-    });
+    arrowIcon.addEventListener('click', function(e) { e.stopPropagation(); (window.openApprovalModal || openApprovalModal)(item.id); });
     right.appendChild(arrowIcon);
-
-    // Row container
-    const row = el("div",{
-      class:"approval-item-row", 
-      style:"display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border-radius:12px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer;transition:all 0.2s ease;"
-    });
-    
-    // Add click handler
-    row.addEventListener('click', function(e) {
-      e.stopPropagation();
-      console.log("Row clicked, opening modal for:", item.id);
-      const itemId = item.id;
-      if (typeof window.openApprovalModal === 'function') {
-        window.openApprovalModal(itemId);
-      } else if (typeof openApprovalModal === 'function') {
-        openApprovalModal(itemId);
-      } else {
-        console.error("openApprovalModal function not found!");
-        alert("Error: Cannot open approval modal. Please refresh the page.");
-      }
-    });
-    
-    row.addEventListener('mouseenter', function() {
-      this.style.boxShadow = '0 4px 8px rgba(0,0,0,.15)';
-      this.style.transform = 'translateY(-1px)';
-    });
-    row.addEventListener('mouseleave', function() {
-      this.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
-      this.style.transform = 'translateY(0)';
-    });
+    const row = el("div", { class: "approval-item-row", style: "display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border-radius:12px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer;transition:all 0.2s ease;" });
+    row.addEventListener('click', function(e) { e.stopPropagation(); (window.openApprovalModal || openApprovalModal)(item.id); });
+    row.addEventListener('mouseenter', function() { this.style.boxShadow = '0 4px 8px rgba(0,0,0,.15)'; this.style.transform = 'translateY(-1px)'; });
+    row.addEventListener('mouseleave', function() { this.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)'; this.style.transform = 'translateY(0)'; });
     row.appendChild(left);
     row.appendChild(right);
-    
     return row;
   };
 
-  // Render copy items first
-  let renderedCopyCount = 0;
-  if (copyItems.length > 0) {
-    copyItems.forEach(i=>{
-      try {
-        const row = rowFor(i);
-        if (row) {
-          $copy.append(row);
-          renderedCopyCount++;
-        }
-      } catch(e) {
-        console.error("Error rendering copy item:", i, e);
-      }
-    });
-  }
-  
-  // Show empty state for copy section
-  if (renderedCopyCount === 0) {
-    if (copyItems.length === 0) {
-      $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No copy approvals</div>';
-    } else {
-      $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ff6b6b;font-size:14px;">Error rendering items. Please refresh the page.</div>';
-    }
-  }
-  
-  // Render pending items
-  let renderedPendingCount = 0;
-  if (pending.length > 0) {
-    pending.forEach(i=>{
-      try {
-        const row = rowFor(i);
-        if (row) {
-          $p.append(row);
-          renderedPendingCount++;
-        }
-      } catch(e) {
-        console.error("Error rendering pending item:", i, e);
-      }
-    });
-  }
-  
-  // Show empty state only if no items were rendered
-  if (renderedPendingCount === 0) {
-    if (pending.length === 0) {
-      $p.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No pending approvals</div>';
-    } else {
-      // Items exist but failed to render - show error
-      $p.innerHTML = '<div style="text-align:center;padding:40px;color:#ff6b6b;font-size:14px;">Error rendering items. Please refresh the page.</div>';
-    }
-  }
-  
-  if (changes.length > 0) {
-    changes.forEach(i=>{
-      try {
-        const row = rowFor(i);
-        if (row) $c.append(row);
-      } catch(e) {
-        console.error("Error rendering changes item:", i, e);
-      }
-    });
-  }
-  
-  if (approved.length > 0) {
-    approved.forEach(i=>{
-      try {
-        const row = rowFor(i);
-        if (row) $a.append(row);
-      } catch(e) {
-        console.error("Error rendering approved item:", i, e);
-      }
-    });
-  }
-  
-  // Ensure copy lane is visible by default (when copy tab is active)
-  const laneCopy = document.getElementById('laneCopy');
-  if (laneCopy && copyTab && copyTab.classList.contains('active')) {
-    laneCopy.style.display = 'block';
-  }
-  
-  // Ensure pending lane is visible by default (when pending tab is active)
-  const lanePending = document.getElementById('lanePending');
-  if (lanePending && pendingTab && pendingTab.classList.contains('active')) {
-    lanePending.style.display = 'block';
-  }
-  
+  copyItems.forEach(i => { const row = rowFor(i); if (row) $copy.append(row); });
+  if (copyItems.length === 0) $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No copy approvals</div>';
+
+  pending.forEach(i => { const row = rowFor(i); if (row) $p.append(row); });
+  if (pending.length === 0) $p.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No pending approvals</div>';
+
+  changes.forEach(i => { const row = rowFor(i); if (row) $c.append(row); });
+  if (changes.length === 0) $c.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,.8);font-size:14px;">No changes requested</div>';
+
+  approved.forEach(i => { const row = rowFor(i); if (row) $a.append(row); });
+  if (approved.length === 0) $a.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,.8);font-size:14px;">No approved items</div>';
 }
 
-// Tab switching for Approvals Queue
+// Tab switching for Approvals
 document.addEventListener("click", (e)=>{
   if(e.target && e.target.dataset.tab){
     const tab = e.target.dataset.tab;
-    // Update active tab
-    document.querySelectorAll('.approval-tab').forEach(btn => {
-      btn.classList.remove('active');
-    });
+    document.querySelectorAll('.approval-tab').forEach(btn => btn.classList.remove('active'));
     e.target.classList.add('active');
-    
-    // Show/hide lanes
     $("#laneCopy").style.display = tab === 'copy' ? 'block' : 'none';
     $("#lanePending").style.display = tab === 'pending' ? 'block' : 'none';
     $("#laneChanges").style.display = tab === 'changes' ? 'block' : 'none';
@@ -1718,41 +2060,49 @@ window.openApprovalModal = function(id){
     if (copyTextContainer) copyTextContainer.style.display = "none";
     if (copyImageContainer) copyImageContainer.style.display = "none";
     
-    // Display content images (uploadedImages or imageUrl)
+    // Display content images (same priority as agency preview: previewImageUrl > uploadedImages > imageUrl)
     if (imageContainer) {
-      // Clear previous content
       imageContainer.innerHTML = '';
-      
-      // Priority: uploadedImages > imageUrl
+      function driveThumbnailUrl(url) {
+        if (!url || typeof url !== 'string') return null;
+        var u = url.trim();
+        if (u.indexOf('drive.google.com') === -1) return null;
+        var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        return m ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(m[1]) + '&sz=w800' : null;
+      }
+      var displayUrl = item.previewImageUrl || null;
+      if (!displayUrl && item.imageUrl) {
+        var thumb = driveThumbnailUrl(item.imageUrl);
+        displayUrl = thumb || item.imageUrl;
+      }
       if (item.uploadedImages && item.uploadedImages.length > 0) {
-        // Display all uploaded images
         item.uploadedImages.forEach((image, index) => {
           const img = document.createElement('img');
           img.src = image.dataUrl;
           img.alt = image.name || item.title;
           img.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; margin-bottom: 12px; border: 1px solid #e2e8f0;';
-          img.onerror = function() {
-            this.style.display = 'none';
-          };
+          img.onerror = function() { this.style.display = 'none'; };
           imageContainer.appendChild(img);
         });
         imageContainer.style.display = 'flex';
         imageContainer.style.flexDirection = 'column';
         imageContainer.style.alignItems = 'center';
-      } else if (item.imageUrl) {
-        // Display image from URL
+      } else if (displayUrl) {
         const img = approvalImage || document.createElement('img');
-        img.src = item.imageUrl;
-        img.alt = item.title;
+        img.src = displayUrl;
+        img.alt = item.title || 'Content preview';
         img.id = 'approvalImage';
         img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
         img.onerror = function() {
-          this.src = `https://via.placeholder.com/600x400/2563eb/ffffff?text=${encodeURIComponent(item.title)}`;
+          if (displayUrl === item.imageUrl && item.imageUrl) {
+            var fallback = driveThumbnailUrl(item.imageUrl);
+            if (fallback && this.src !== fallback) { this.src = fallback; return; }
+          }
+          this.src = 'https://via.placeholder.com/600x400/2563eb/ffffff?text=' + encodeURIComponent(item.title || 'Image');
         };
         imageContainer.appendChild(img);
         imageContainer.style.display = 'flex';
       } else {
-        // No image available
         imageContainer.style.display = 'none';
       }
     }
@@ -2331,7 +2681,8 @@ const reportSeed = {
   ads:{ running:4, impressions:48000, clicks:1200, leads:35 },
   visibility:{ gmbViews:3800, profileSearches:1200, websiteClicks:220, igFollowersDelta:75 },
   work:{ posts:16, reels:8, campaigns:2, requestsResolved:3 },
-  prev:{ period:"Oct 2025", ads:{ running:3, impressions:42000, clicks:1100, leads:31 }, visibility:{ gmbViews:3220, profileSearches:1090, websiteClicks:208, igFollowersDelta:54 }, work:{ posts:15, reels:6, campaigns:1, requestsResolved:2 } }
+  prev:{ period:"Oct 2025", ads:{ running:3, impressions:42000, clicks:1100, leads:31 }, visibility:{ gmbViews:3220, profileSearches:1090, websiteClicks:208, igFollowersDelta:54 }, work:{ posts:15, reels:6, campaigns:1, requestsResolved:2 } },
+  _sample: true
 };
 function loadReports(){ const raw = localStorage.getItem(LS_REPORTS_KEY); if(!raw){ localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(reportSeed)); return reportSeed; } try{ return JSON.parse(raw);}catch{return reportSeed;} }
 function saveReports(r){ localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(r)); }
@@ -2345,46 +2696,81 @@ function summarizePositive(r, prev){
   } else { parts.push(`Ads delivering consistent reach and visibility.`); }
   parts.push(`Content engine on track: ${r.work.posts} posts, ${r.work.reels} reels.`); return parts.join(" ");
 }
+function getProgressHeroHighlights(r, prev) {
+  const highlights = [];
+  const w = r.work || {};
+  const ads = r.ads || {};
+  const vis = r.visibility || {};
+  const hasWork = (w.posts > 0) || (w.reels > 0) || (w.campaigns > 0) || (w.requestsResolved > 0);
+  const hasAds = ads.running > 0;
+  const hasVisibility = (vis.gmbViews > 0) || (vis.profileSearches > 0);
+
+  if (hasWork && (w.posts > 0)) highlights.push(w.posts + " posts published across social channels");
+  if (hasVisibility) highlights.push("Visibility increased on Google & Social");
+  if (hasAds) highlights.push("Ads are active and generating reach");
+  if (hasWork && w.requestsResolved > 0) highlights.push("Client requests handled promptly");
+  if (hasWork && w.reels > 0 && !highlights.some(h => h.includes("posts"))) highlights.push(w.reels + " reels edited and published");
+  if (hasWork && w.campaigns > 0) highlights.push(w.campaigns + " campaign(s) launched this period");
+
+  return highlights.slice(0, 5);
+}
+
 function renderReports(){
   const r = loadReports(); const prev = r.prev;
   const adsRunning = r.ads.running;
-  const impText = prev ? positivePhrase("Impressions", pctChange(r.ads.impressions, prev.ads.impressions)) : "Impressions trending positively";
   const growthScore = prev ? Math.max(0, pctChange(r.visibility.gmbViews + r.visibility.profileSearches + r.visibility.websiteClicks, prev.visibility.gmbViews + prev.visibility.profileSearches + prev.visibility.websiteClicks)) : 0;
 
+  var fallbackUsed = false;
+  const heroList = $("#progressHeroList");
+  if (heroList) {
+    const highlights = getProgressHeroHighlights(r, prev);
+    heroList.innerHTML = "";
+    if (highlights.length === 0) {
+      fallbackUsed = true;
+      const li = document.createElement("li");
+      li.textContent = "Content engine active and consistent.";
+      heroList.appendChild(li);
+    } else {
+      highlights.forEach(function(text) {
+        const li = document.createElement("li");
+        li.textContent = text;
+        heroList.appendChild(li);
+      });
+    }
+    console.log("Progress: highlights rendered =", fallbackUsed ? ["Content engine active and consistent."] : highlights, fallbackUsed ? "(fallback copy used)" : "(data-driven)");
+  }
+
   const rAdsRunning = $("#r-ads-running");
-  if (rAdsRunning) rAdsRunning.textContent = `${adsRunning} Running`;
-  
+  if (rAdsRunning) rAdsRunning.textContent = adsRunning > 0 ? adsRunning + " Running" : "—";
+
   const rAdsSub = $("#r-ads-sub");
-  if (rAdsSub) rAdsSub.textContent = `${r.ads.impressions.toLocaleString()} impressions • ${impText}`;
-  
-  const rAdsChip = $("#r-ads-chip");
-  if (rAdsChip) rAdsChip.textContent = (prev && pctChange(r.ads.leads, prev.ads.leads) > 0) ? "More leads this period" : "Performing well";
+  if (rAdsSub) rAdsSub.textContent = "Ads are driving visibility and awareness this period.";
 
   const rGrowthScore = $("#r-growth-score");
-  if (rGrowthScore) rGrowthScore.textContent = prev ? `+${growthScore}%` : "Growing";
-  
+  if (rGrowthScore) rGrowthScore.textContent = prev && growthScore >= 0 ? "+" + growthScore + "%" : "Growing";
+
   const rGrowthSub = $("#r-growth-sub");
-  if (rGrowthSub) rGrowthSub.textContent = `${r.visibility.gmbViews.toLocaleString()} Google views • ${r.visibility.profileSearches.toLocaleString()} profile searches`;
-  
-  const rGrowthChip = $("#r-growth-chip");
-  if (rGrowthChip) rGrowthChip.textContent = (growthScore > 0) ? "Visibility up" : "Visibility steady";
+  if (rGrowthSub) rGrowthSub.textContent = "More people are finding and viewing your business.";
 
   const workList = $("#r-work-list");
   if (workList) {
-    workList.innerHTML="";
-  const w=r.work, labelMap={posts:"posts published", reels:"reels edited", campaigns:"campaigns launched", requestsResolved:"client requests resolved"};
-    ["posts","reels","campaigns","requestsResolved"].forEach(k=>{ 
-      const li=document.createElement("li"); 
-      li.textContent=`${w[k]} ${labelMap[k]}`; 
-      workList.appendChild(li); 
+    workList.innerHTML = "";
+    const w = r.work, labelMap = { posts: "posts published", reels: "reels edited", campaigns: "campaigns launched", requestsResolved: "client requests resolved" };
+    ["posts", "reels", "campaigns", "requestsResolved"].forEach(function(k) {
+      const li = document.createElement("li");
+      li.textContent = (w[k] || 0) + " " + labelMap[k];
+      workList.appendChild(li);
     });
   }
-  
+
   const rWorkSub = $("#r-work-sub");
-  if (rWorkSub) rWorkSub.textContent = `Period: ${r.period}`;
-  
+  if (rWorkSub) rWorkSub.textContent = "Period: " + (r.period || "—");
+
   const rSummary = $("#r-summary");
   if (rSummary) rSummary.textContent = summarizePositive(r, prev);
+
+  const sampleBadge = $("#progressSampleBadge");
+  if (sampleBadge) sampleBadge.style.display = r._sample === true ? "inline-flex" : "none";
 }
 // Admin form
 (function setupReportsAdmin(){
@@ -2402,7 +2788,8 @@ function renderReports(){
       ads:{ running:val("repAdsRunning",cur.ads.running), impressions:val("repImpressions",cur.ads.impressions), clicks:val("repClicks",cur.ads.clicks), leads:val("repLeads",cur.ads.leads) },
       visibility:{ gmbViews:val("repGmbViews",cur.visibility.gmbViews), profileSearches:val("repProfileSearches",cur.visibility.profileSearches), websiteClicks:val("repWebsiteClicks",cur.visibility.websiteClicks), igFollowersDelta:val("repIgFollowers",cur.visibility.igFollowersDelta) },
       work:{ posts:val("repPosts",cur.work.posts), reels:val("repReels",cur.work.reels), campaigns:val("repCampaigns",cur.work.campaigns), requestsResolved:val("repRequests",cur.work.requestsResolved) },
-      prev
+      prev,
+      _sample: false
     };
     localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(next)); admin.style.display="none"; renderReports();
     const s=load(); s.activity.push({ when:Date.now(), text:`Report updated: ${next.period}` }); save(s); render();
@@ -2457,12 +2844,6 @@ async function initializeApp() {
     copyTab.classList.add('active');
     laneCopy.style.display = 'block';
   }
-  const pendingTab = document.querySelector('[data-tab="pending"]');
-  const lanePending = document.getElementById('lanePending');
-  if (pendingTab && lanePending) {
-    pendingTab.classList.remove('active');
-    lanePending.style.display = 'none';
-  }
 
   /* Update client name immediately from session before rendering */
   const clientNameEl = document.getElementById("clientName");
@@ -2494,7 +2875,7 @@ async function initializeApp() {
         console.error("Could not load state:", e2);
       }
     }
-    clientNameEl.textContent = displayName;
+    setClientNameDisplay(displayName);
     console.log("Initial client name set to:", displayName);
   }
   
@@ -2507,7 +2888,9 @@ async function initializeApp() {
     logoutBtn.addEventListener("click", window.handleLogout);
     console.log("Logout button event listener attached");
   }
-  
+
+  try { setupClientNotificationBell(); } catch (e) { console.warn('Client notification bell setup:', e); }
+
   // Render everything (this will also update the name again if needed)
   render(); 
   renderReports();
@@ -2516,10 +2899,6 @@ async function initializeApp() {
   setTimeout(() => {
     try {
       renderApprovalsSectioned();
-      const laneCopy2 = document.getElementById('laneCopy');
-      if (laneCopy2) {
-        laneCopy2.style.display = 'block';
-      }
     } catch(e) {
       console.error("Error in delayed render:", e);
     }

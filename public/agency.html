@@ -59,7 +59,36 @@
       background: rgba(255,255,255,0.3) !important;
       border-color: rgba(255,255,255,0.5) !important;
     }
-    
+
+    .notif-bell-wrap { position: relative; }
+    .notif-bell { position: relative; padding: 8px !important; background: rgba(255,255,255,0.2) !important; color: white !important; border: 1px solid rgba(255,255,255,0.3) !important; border-radius: 8px; cursor: pointer; }
+    .notif-bell:hover { background: rgba(255,255,255,0.3) !important; }
+    .notif-badge { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; border-radius: 9px; background: #94a3b8; color: white; }
+    .notif-badge.notif-badge--action { background: #dc2626; }
+    .notif-dropdown { position: absolute; top: 100%; right: 0; margin-top: 8px; width: 360px; max-height: 400px; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; z-index: 1000; overflow: hidden; display: flex; flex-direction: column; }
+    .notif-dropdown__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; font-size: 14px; font-weight: 600; color: #0f172a; }
+    .notif-mark-all { font-size: 11px; color: #64748b; background: none; border: none; cursor: pointer; padding: 4px 8px; }
+    .notif-mark-all:hover { color: #0052CC; text-decoration: underline; }
+    .notif-list { overflow-y: auto; max-height: 320px; }
+    .notif-group { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+    .notif-group:last-child { border-bottom: none; }
+    .notif-group__title { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 14px; }
+    .notif-item { display: flex; gap: 10px; padding: 10px 14px; cursor: pointer; align-items: flex-start; border-left: 3px solid transparent; transition: background 0.15s; }
+    .notif-item:hover { background: #f8fafc; }
+    .notif-item.unread { background: #fffbeb; border-left-color: #f59e0b; }
+    .notif-item.unread.notif-item--action { border-left-color: #dc2626; }
+    .notif-item__icon { font-size: 18px; flex-shrink: 0; }
+    .notif-item__body { flex: 1; min-width: 0; }
+    .notif-item__title { font-size: 13px; font-weight: 600; color: #0f172a; }
+    .notif-item__message { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .notif-item__time { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .notif-empty { padding: 24px 14px; text-align: center; font-size: 13px; color: #64748b; }
+    .header-clear-today { font-size: 13px; color: rgba(255,255,255,0.95); margin-right: 4px; }
+    .inline-cue { font-size: 11px; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
+    .inline-cue--action { background: #fef3c7; color: #92400e; }
+    .inline-cue--progress { background: #dbeafe; color: #1e40af; }
+    .inline-cue--reward { background: #d1fae5; color: #065f46; }
+
     /* Layout */
     .layout {
       display: flex;
@@ -102,12 +131,30 @@
       border: 2px solid #0052CC;
     }
     
+    .client-tile__name-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .client-tile__health-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .client-tile__health-dot--ok { background: #22c55e; }
+    .client-tile__health-dot--warning { background: #f97316; }
+    .client-tile__health-dot--critical { background: #ef4444; }
     .client-tile__name {
       font-size: 16px;
       font-weight: 600;
-      margin-bottom: 12px;
     }
-    
+    .client-tile__health-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      margin-top: 6px;
+    }
     .client-tile__badges {
       display: flex;
       flex-wrap: wrap;
@@ -133,7 +180,6 @@
     .client-header {
       animation: fadeIn 0.3s ease;
     }
-    
     #addLogoBtn:hover {
       background: rgba(255,255,255,0.3) !important;
       border-color: rgba(255,255,255,0.5) !important;
@@ -226,11 +272,136 @@
       margin-bottom: 24px;
     }
     
+    /* Section description micro-copy */
+    .section-desc {
+      color: #64748b;
+      font-size: 14px;
+      margin: 0 0 16px 0;
+      line-height: 1.5;
+    }
+    .section-desc--approvals { margin-bottom: 12px; }
+
+    /* Approvals: CTA and pipeline */
+    .approvals-actions { margin-bottom: 20px; }
+    .approval-pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 0;
+      padding: 12px 0;
+    }
+    .pipeline-stage {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .pipeline-stage:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .pipeline-stage__count {
+      background: #e2e8f0;
+      color: #475569;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      min-width: 24px;
+      text-align: center;
+    }
+    .approval-pipeline-wrap { margin-bottom: 20px; }
+    .approval-pipeline-phase {
+      margin-bottom: 20px;
+      padding: 16px;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+    .approval-pipeline-phase--content { background: #f1f5f9; }
+    .approval-pipeline-phase__header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .pipeline-stage {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      text-align: left;
+      min-width: 100px;
+    }
+    .pipeline-stage__head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pipeline-stage__desc {
+      font-size: 10px;
+      font-weight: 400;
+      color: #64748b;
+      line-height: 1.3;
+      max-width: 140px;
+    }
+    .pipeline-stage--copy-pending { border-color: #fde047; background: #fefce8; }
+    .pipeline-stage--copy-pending .pipeline-stage__count { background: #fde047; color: #713f12; }
+    .pipeline-stage--copy-approved { border-color: #86efac; background: #ecfdf5; }
+    .pipeline-stage--copy-approved .pipeline-stage__count { background: #86efac; color: #065f46; }
+    .pipeline-stage--copy-changes { border-color: #fca5a5; background: #fef2f2; }
+    .pipeline-stage--copy-changes .pipeline-stage__count { background: #fca5a5; color: #991b1b; }
+    .pipeline-stage--awaiting { border-color: #93c5fd; background: #eff6ff; }
+    .pipeline-stage--awaiting .pipeline-stage__count { background: #93c5fd; color: #1e40af; }
+    .pipeline-stage--changes { border-color: #fdba74; background: #fff7ed; }
+    .pipeline-stage--changes .pipeline-stage__count { background: #fdba74; color: #9a3412; }
+    .pipeline-stage--approved { border-color: #86efac; background: #ecfdf5; }
+    .pipeline-stage--approved .pipeline-stage__count { background: #86efac; color: #065f46; }
+    .pipeline-stage--scheduled { border-color: #c4b5fd; background: #f5f3ff; }
+    .pipeline-stage--scheduled .pipeline-stage__count { background: #c4b5fd; color: #5b21b6; }
+    .pipeline-stage.active {
+      box-shadow: 0 0 0 2px #0052CC;
+      z-index: 1;
+    }
+    .pipeline-arrow {
+      color: #94a3b8;
+      font-size: 14px;
+      user-select: none;
+    }
+    .approvals-show-all-wrap { margin-bottom: 16px; }
+
     /* Approvals Layout */
     .approvals-layout {
       display: grid;
       grid-template-columns: 1fr 400px;
       gap: 24px;
+    }
+    .approvals-main {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      min-width: 0;
+    }
+    .approvals-activity-panel {
+      margin-top: 8px;
+    }
+    .approvals-activity-panel .activity-log-list {
+      font-size: 13px;
+      color: #64748b;
+      max-height: 200px;
+      overflow-y: auto;
     }
     
     .approvals-list {
@@ -612,7 +783,54 @@
       color: #92400e;
     }
     
-    /* Asset Item */
+    /* Assets & References panel */
+    .assets-panel { margin-bottom: 24px; }
+    .assets-panel__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .assets-panel__summary { display: flex; gap: 16px; font-size: 14px; color: #475569; }
+    .assets-summary__item { font-weight: 500; }
+    .assets-panel__toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; cursor: pointer; }
+    .assets-panel__filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .form-select--sm { min-width: 120px; font-size: 13px; padding: 6px 10px; }
+    .post-approved-visuals__filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .post-approved-visuals__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 220px; overflow-y: auto; }
+    .post-approved-visual-card { border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; background: #f8fafc; }
+    .post-approved-visual-card:hover { border-color: #94a3b8; }
+    .post-approved-visual-card.selected { border-color: #0052CC; background: #eff6ff; }
+    .post-approved-visual-card__thumb { width: 100%; aspect-ratio: 1; position: relative; overflow: hidden; background: #e2e8f0; }
+    .post-approved-visual-card__thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .post-approved-visual-card__title { font-size: 11px; padding: 4px 6px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .post-selected-visuals .post-selected-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f1f5f9; border-radius: 8px; font-size: 12px; }
+    .post-selected-visuals .post-selected-item img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
+    .assets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .asset-card {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .asset-card__thumb { width: 100%; aspect-ratio: 1; min-height: 200px; border-radius: 10px; background: #e2e8f0; position: relative; overflow: hidden; }
+    .asset-card__thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .asset-card__thumb-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #94a3b8; }
+    .asset-card__thumb-note { font-size: 10px; color: #94a3b8; margin-top: 4px; max-width: 90%; text-align: center; line-height: 1.2; }
+    .asset-card__title { font-size: 14px; font-weight: 600; color: #0f172a; line-height: 1.3; }
+    .asset-card__status { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-bottom: 6px; }
+    .asset-card__status--approved { background: #d1fae5; color: #065f46; }
+    .asset-card__status--pending { background: #fef3c7; color: #92400e; }
+    .asset-card__status--needs-changes { background: #fed7aa; color: #9a3412; }
+    .asset-card__status--rejected { background: #fecaca; color: #991b1b; }
+    .asset-card__meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; }
+    .asset-card__provider, .asset-card__use { font-weight: 500; }
+    .asset-card__pillar { background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 6px; }
+    .asset-card__pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .asset-card__pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+    .asset-card__pill--approved { background: #d1fae5; color: #065f46; }
+    .asset-card__pill--pending { background: #fef3c7; color: #92400e; }
+    .asset-card__pill--needs_changes { background: #fed7aa; color: #9a3412; }
+    .asset-card__pill--rejected { background: #fecaca; color: #991b1b; }
+    .asset-card__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; align-items: center; }
+    .asset-card__actions .btn { padding: 4px 10px; font-size: 12px; }
+    .asset-addby { display: flex; flex-direction: column; gap: 8px; }
+    .asset-addby__opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+    .form-hint { font-size: 12px; color: #64748b; margin-top: 4px; display: block; }
+
+    /* Asset Item (legacy list style, kept for compatibility) */
     .asset-item {
       background: white;
       border-radius: 12px;
@@ -920,7 +1138,14 @@
       .approvals-layout {
         grid-template-columns: 1fr;
       }
-      
+      .approval-pipeline {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .pipeline-stage {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
       .edit-panel {
         position: static;
       }
@@ -940,13 +1165,130 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Header status */
+    .header-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.9); }
+    .header-status__dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+    .header-status__dot--ok { background: #22c55e; }
+    .header-status__dot--warning { background: #f97316; }
+    .header-status__dot--critical { background: #ef4444; }
+    .header-link:hover { text-decoration: underline !important; }
+
+    /* Kebab menu */
+    .client-header__actions { position: relative; }
+    .kebab-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 8px 0; min-width: 180px; z-index: 50; }
+    .kebab-menu button { display: block; width: 100%; padding: 10px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; color: #0f172a; }
+    .kebab-menu button:hover { background: #f1f5f9; }
+    .kebab-menu-item--danger { color: #dc2626 !important; }
+
+    /* Client workspace checklist */
+    .client-workspace-checklist { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+    .client-workspace-checklist__header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; user-select: none; }
+    .client-workspace-checklist__title { font-size: 14px; font-weight: 600; color: #1e40af; margin: 0; }
+    .client-workspace-checklist__badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #22c55e; color: white; font-weight: 600; }
+    .client-workspace-checklist__caret { font-size: 10px; color: #1e40af; transition: transform 0.2s; margin-left: auto; }
+    .client-workspace-checklist.collapsed .client-workspace-checklist__caret { transform: rotate(-90deg); }
+    .client-workspace-checklist.collapsed .client-workspace-checklist__list { display: none; }
+    .client-workspace-checklist__list { list-style: none; padding: 0; margin: 0; }
+    .client-workspace-checklist__list li { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .client-workspace-checklist__list .check { font-size: 14px; }
+    .client-workspace-checklist__list button { background: none; border: none; color: #1e40af; cursor: pointer; font-size: 14px; text-decoration: underline; padding: 0; text-align: left; }
+    .client-workspace-checklist__list button:hover { color: #1d4ed8; }
+    .client-workspace-checklist__list button.done { text-decoration: line-through; color: #64748b; }
+
+    /* Section descriptions */
+    .section-desc { font-size: 14px; color: #64748b; margin-bottom: 16px; }
+    .link-learn { color: #0052CC; text-decoration: none; }
+    .link-learn:hover { text-decoration: underline; }
+    .badge--sample { background: #e2e8f0; color: #475569; font-size: 11px; padding: 4px 8px; border-radius: 12px; }
+
+    /* Empty states */
+    .empty-state--prominent { padding: 64px 24px; }
+    .empty-state--prominent .empty-state__text { font-size: 16px; margin-bottom: 8px; }
+    .empty-state-inline { font-size: 13px; color: #64748b; margin-top: 8px; }
+    .empty-state-inline--cta { margin-top: 12px; }
+    .btn-primary-cta { box-shadow: 0 2px 8px rgba(0,82,204,0.3); }
+    .cards-grid--primary .card--cta .card__value { font-size: 28px; }
+    .btn-small { padding: 6px 12px; font-size: 12px; }
+
+    /* Activity log */
+    .activity-log-list { font-size: 13px; color: #64748b; max-height: 200px; overflow-y: auto; }
+    .activity-log-list .activity-log-item { padding: 6px 0; border-bottom: 1px solid #f1f5f9; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+    .activity-log-list .activity-log-item:last-child { border-bottom: none; }
+    .activity-log-item__icon { color: #0052CC; flex-shrink: 0; }
+    .activity-log-item__time { color: #94a3b8; font-size: 12px; margin-left: auto; flex-shrink: 0; }
+    .activity-log-item--empty { color: #64748b; font-style: normal; }
+
+    /* Onboarding overlay */
+    .onboarding-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.85); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 24px; overflow-y: auto; pointer-events: none; }
+    .onboarding-overlay.onboarding-overlay--show,
+    .onboarding-overlay[style*="display: flex"] { display: flex !important; pointer-events: auto; }
+    .onboarding-overlay__inner { background: white; border-radius: 20px; padding: 48px; max-width: 520px; width: 100%; box-shadow: 0 25px 50px rgba(0,0,0,0.25); }
+    .onboarding-step__title { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+    .onboarding-step__text { font-size: 15px; color: #475569; margin-bottom: 24px; line-height: 1.6; }
+    .onboarding-step__map { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 32px; font-size: 13px; }
+    .onboarding-step__map-item { background: #e0e7ff; color: #3730a3; padding: 8px 12px; border-radius: 8px; font-weight: 600; }
+    .onboarding-step__map-arrow { color: #94a3b8; }
+    .onboarding-form .form-group { margin-bottom: 16px; }
+    .onboarding-checklist { list-style: none; padding: 0; margin: 0 0 24px 0; }
+    .onboarding-checklist-item { background: #f1f5f9; border: none; padding: 12px 16px; border-radius: 8px; width: 100%; text-align: left; cursor: pointer; font-size: 14px; color: #0f172a; margin-bottom: 8px; }
+    .onboarding-checklist-item:hover { background: #e2e8f0; }
+    .onboarding-next-actions { list-style: none; padding: 0; margin: 0 0 24px 0; }
+    .onboarding-next-actions li { margin-bottom: 8px; }
+    .btn-block { width: 100%; }
+    .pipeline-visual { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 24px; font-size: 13px; }
+    .pipeline-stage { background: #dbeafe; color: #1e40af; padding: 6px 10px; border-radius: 6px; font-weight: 500; }
+    .pipeline-arrow { color: #64748b; }
+
+    /* Onboarding sidebar */
+    .onboarding-sidebar { width: 240px; background: #f8fafc; border-right: 1px solid #e2e8f0; padding: 20px; overflow-y: auto; }
+    .onboarding-sidebar__title { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .onboarding-sidebar__list { list-style: none; padding: 0; margin: 0; }
+    .onboarding-sidebar__list li { margin-bottom: 8px; }
+    .onboarding-sidebar__list a, .onboarding-sidebar__list button { background: none; border: none; padding: 0; font-size: 13px; color: #0052CC; cursor: pointer; text-align: left; text-decoration: none; display: block; width: 100%; }
+    .onboarding-sidebar__list a:hover, .onboarding-sidebar__list button:hover { text-decoration: underline; }
+    .onboarding-sidebar__list .done { color: #64748b; text-decoration: line-through; }
+
+    /* View as Client overlay */
+    .view-as-client-overlay { position: fixed; inset: 0; background: #f1f5f9; z-index: 1500; display: flex; flex-direction: column; }
+    .view-as-client-overlay__bar { background: #0f172a; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .view-as-client-overlay__content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Modal small */
+    .modal--small .modal-content { max-width: 440px; }
+
+    /* Tooltip */
+    .tab-tooltip { cursor: help; opacity: 0.8; }
   </style>
 </head>
 <body>
   <!-- Header -->
   <header class="header">
-    <div class="header__logo">2Fly Agency Dashboard</div>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div class="header__logo">2Fly Agency Dashboard</div>
+      <span class="header-status" id="headerSystemStatus" title="All systems operational">
+        <span class="header-status__dot"></span>
+        <span class="header-status__text">All systems operational</span>
+      </span>
+      <a href="#" id="helpGettingStartedLink" class="header-link" style="font-size: 13px; color: rgba(255,255,255,0.9); text-decoration: none;" title="Reopen onboarding guide">Getting Started</a>
+    </div>
     <div class="header__user">
+      <div class="notif-bell-wrap" style="position: relative;">
+        <button type="button" id="notifBellBtn" class="btn btn-icon notif-bell" aria-label="Notifications" title="Notifications">
+          <span class="notif-bell-icon">🔔</span>
+          <span id="notifBadge" class="notif-badge" style="display: none;">0</span>
+        </button>
+        <div id="notifDropdown" class="notif-dropdown" style="display: none;">
+          <div class="notif-dropdown__head">
+            <span>Notifications</span>
+            <button type="button" id="notifMarkAllRead" class="notif-mark-all">Clear all</button>
+          </div>
+          <div id="notifList" class="notif-list"></div>
+          <div id="notifEmpty" class="notif-empty" style="display: none;">You're clear today</div>
+        </div>
+      </div>
+      <span id="headerClearToday" class="header-clear-today" style="display: none;">All clear today ✅</span>
+      <button id="viewAsClientBtn" class="btn btn-icon" style="padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer;" title="Preview client portal view">View as Client</button>
       <div class="header__avatar" id="staffAvatar">TM</div>
       <span id="staffName">Team Member</span>
       <button id="settingsBtn" class="btn btn-icon" style="margin-left: 8px; padding: 8px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Settings">
@@ -965,12 +1307,12 @@
     <aside class="sidebar">
       <div class="sidebar__title">Clients</div>
       <div id="clientsList"></div>
-      <button class="btn btn-primary" id="newClientBtn" style="width: 100%; margin-top: 16px; padding: 12px; background: #0052CC; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">+ New Client</button>
+      <button class="btn btn-primary btn-primary-cta" id="newClientBtn" style="width: 100%; margin-top: 16px; padding: 12px; background: #0052CC; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">+ Add Client</button>
     </aside>
 
     <!-- Main Content -->
     <main class="main">
-      <!-- Client Header with Logo -->
+      <!-- Client Header with Logo and kebab menu -->
       <div id="clientHeader" class="client-header" style="display: none; background: #0052CC; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
         <div style="display: flex; align-items: center; gap: 20px;">
           <div id="clientLogoContainer" class="client-logo-container" style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;">
@@ -978,67 +1320,126 @@
               <img id="clientLogoImg" src="" alt="Client Logo" style="max-width: 80px; max-height: 80px; width: auto; height: auto; object-fit: contain; display: none;">
               <span id="clientLogoInitials" style="font-size: 32px; font-weight: 700; color: white; text-transform: uppercase;">CN</span>
             </div>
-            <button id="addLogoBtn" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
-              Add Logo
-            </button>
             <input type="file" id="clientLogoInput" accept="image/*" style="display: none;">
           </div>
           <div style="flex: 1;">
             <h2 id="clientHeaderName" style="font-size: 28px; font-weight: 700; color: white; margin: 0 0 8px 0;">Client Name</h2>
-            <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin: 0;">Real-time status • Approvals • Request</p>
+            <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin: 0;">Real-time status • Approvals • Requests</p>
+          </div>
+          <div class="client-header__actions">
+            <button id="clientKebabBtn" class="btn btn-icon kebab-btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px;" title="Client options">⋮</button>
+            <div id="clientKebabMenu" class="kebab-menu" style="display: none;">
+              <button type="button" id="kebabAddLogo">Add / Change Logo</button>
+              <button type="button" id="kebabEditClient">Edit Client</button>
+              <button type="button" id="kebabDeleteClient" class="kebab-menu-item--danger">Delete Client</button>
+            </div>
           </div>
         </div>
       </div>
-      
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab active" data-tab="overview">Overview</button>
         <button class="tab" data-tab="approvals">Approvals</button>
         <button class="tab" data-tab="requests">Requests</button>
-        <button class="tab" data-tab="needs">Needs from client</button>
-        <button class="tab" data-tab="contentlibrary">Content Library</button>
+        <button class="tab" data-tab="needs">Agency Needs <span class="tab-tooltip" title="Things your team needs from the client to move work forward.">ⓘ</span></button>
+        <button class="tab" data-tab="contentlibrary">Assets &amp; References</button>
         <button class="tab" data-tab="reports">Reports</button>
       </div>
 
       <!-- Tab Contents -->
       <div id="tabOverview" class="tab-content active">
-        <div class="client-management-section" style="background: white; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-          <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Client Management</h3>
-          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <button id="editClientBtn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
-              <span>✏️</span>
-              <span>Edit Client</span>
-            </button>
-            <button id="deleteClientBtn" class="btn btn-danger" style="display: inline-flex; align-items: center; gap: 8px;">
-              <span>🗑️</span>
-              <span>Delete Client</span>
-            </button>
-          </div>
+        <div id="overviewEmptyNoClient" class="empty-state empty-state--prominent" style="display: none;">
+          <p class="empty-state__text">Welcome to your agency dashboard. Add your first client to get started.</p>
+          <button type="button" class="btn btn-primary btn-primary-cta" id="overviewAddFirstClientBtn" style="margin-top: 16px; padding: 14px 28px; font-size: 16px;">Add your first client</button>
         </div>
-        <div class="cards-grid">
-          <div class="card">
+        <div id="overviewContent" class="overview-content">
+        <div class="cards-grid cards-grid--primary">
+          <div class="card card--cta" id="cardScheduled">
             <div class="card__title">Scheduled Posts</div>
             <div class="card__value" id="kpiScheduled">0</div>
             <div class="card__sub">Next 15 days</div>
+            <div id="emptyScheduled" class="empty-state-inline" style="display: none;">No scheduled posts yet — create one to see it here.</div>
           </div>
-          <div class="card">
-            <div class="card__title">Post for approval</div>
+          <div class="card card--cta" id="cardWaiting">
+            <div class="card__title">Awaiting Approval</div>
             <div class="card__value" id="kpiWaiting">0</div>
             <div class="card__sub">On client review</div>
           </div>
-          <div class="card">
-            <div class="card__title">Missing Assets</div>
+          <div class="card" id="cardMissing">
+            <div class="card__title">Agency Needs (missing)</div>
             <div class="card__value" id="kpiMissing">0</div>
             <div class="card__sub">From client</div>
+            <div id="emptyMissingCta" class="empty-state-inline empty-state-inline--cta" style="display: none;"><button type="button" class="btn btn-primary btn-small" id="requestMissingAssetsBtn">Request missing assets from client</button></div>
           </div>
         </div>
+        <div class="activity-section card" id="activitySection">
+          <div class="card__title">Activity</div>
+          <div id="activityLogList" class="activity-log-list">Last portal activity: None</div>
+        </div>
         <div class="activity-line" id="lastActivity">Last portal activity: None</div>
+        </div>
       </div>
 
       <div id="tabApprovals" class="tab-content">
+        <p class="section-desc section-desc--approvals">Review and manage posts awaiting client approval.</p>
+        <div class="approvals-actions">
+          <button type="button" class="btn btn-primary btn-primary-cta" id="approvalsCreateNewPostBtn">Create New Approval</button>
+        </div>
+        <div class="approval-pipeline-wrap" id="approvalPipeline" role="navigation" aria-label="Approval pipeline">
+          <div class="approval-pipeline-phase approval-pipeline-phase--copy">
+            <div class="approval-pipeline-phase__header">Copy Workflow</div>
+            <div class="approval-pipeline">
+              <button type="button" class="pipeline-stage pipeline-stage--copy-pending" data-pipeline-filter="copyPending">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Copy Pending</span><span class="pipeline-stage__count" id="pipelineCountCopyPending">0</span></span>
+                <span class="pipeline-stage__desc">Awaiting internal copy review.</span>
+              </button>
+              <span class="pipeline-arrow" aria-hidden="true">→</span>
+              <button type="button" class="pipeline-stage pipeline-stage--copy-approved" data-pipeline-filter="copyApproved">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Copy Approved</span><span class="pipeline-stage__count" id="pipelineCountCopyApproved">0</span></span>
+                <span class="pipeline-stage__desc">Copy approved internally and ready for content creation.</span>
+              </button>
+              <span class="pipeline-arrow" aria-hidden="true">→</span>
+              <button type="button" class="pipeline-stage pipeline-stage--copy-changes" data-pipeline-filter="copyChanges">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Copy Changes</span><span class="pipeline-stage__count" id="pipelineCountCopyChanges">0</span></span>
+                <span class="pipeline-stage__desc">Copy revisions requested by your team.</span>
+              </button>
+            </div>
+          </div>
+          <div class="approval-pipeline-phase approval-pipeline-phase--content">
+            <div class="approval-pipeline-phase__header">Content Workflow</div>
+            <div class="approval-pipeline approval-pipeline--content">
+              <button type="button" class="pipeline-stage pipeline-stage--awaiting" data-pipeline-filter="awaiting">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Content Pending</span><span class="pipeline-stage__count" id="pipelineCountAwaiting">0</span></span>
+                <span class="pipeline-stage__desc">Content is being created based on approved copy.</span>
+              </button>
+              <span class="pipeline-arrow" aria-hidden="true">→</span>
+              <button type="button" class="pipeline-stage pipeline-stage--changes" data-pipeline-filter="changes">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Changes Requested</span><span class="pipeline-stage__count" id="pipelineCountChanges">0</span></span>
+                <span class="pipeline-stage__desc">Client requested changes to the content.</span>
+              </button>
+              <span class="pipeline-arrow" aria-hidden="true">→</span>
+              <button type="button" class="pipeline-stage pipeline-stage--approved" data-pipeline-filter="approved">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Approved</span><span class="pipeline-stage__count" id="pipelineCountApproved">0</span></span>
+                <span class="pipeline-stage__desc">Client has approved the content.</span>
+              </button>
+              <span class="pipeline-arrow" aria-hidden="true">→</span>
+              <button type="button" class="pipeline-stage pipeline-stage--scheduled" data-pipeline-filter="scheduled">
+                <span class="pipeline-stage__head"><span class="pipeline-stage__label">Scheduled</span><span class="pipeline-stage__count" id="pipelineCountScheduled">0</span></span>
+                <span class="pipeline-stage__desc">Approved content scheduled for posting.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="approvalsShowAllWrap" class="approvals-show-all-wrap" style="display: none;">
+          <button type="button" class="btn btn-secondary btn-small" id="approvalsShowAllBtn">Show All</button>
+        </div>
         <div class="approvals-layout">
-          <div>
+          <div class="approvals-main">
             <div id="approvalsList"></div>
+            <div id="approvalsActivityPanel" class="approvals-activity-panel card">
+              <div class="card__title">Recent activity</div>
+              <div id="approvalsActivityList" class="activity-log-list">Activity will appear here once you start creating approvals or receiving client feedback.</div>
+            </div>
           </div>
           <div class="edit-panel">
             <div class="edit-panel__title" id="editPanelTitle">Create Approval</div>
@@ -1073,6 +1474,28 @@
               <div class="form-group">
                 <label class="form-label" for="approvalCaption">Caption (optional)</label>
                 <textarea class="form-textarea" id="approvalCaption" placeholder="Instagram caption..."></textarea>
+              </div>
+              <div class="form-group post-approved-visuals">
+                <div class="form-label">Approved Visuals <span id="postApprovedVisualCue" class="inline-cue inline-cue--progress" style="display: none;">Approved visual selected</span></div>
+                <small style="color: #64748b; font-size: 12px; margin-bottom: 8px; display: block;">Select approved visuals from the asset library</small>
+                <div class="post-approved-visuals__filters">
+                  <select id="postAssetFilterFormat" class="form-select form-select--sm">
+                    <option value="ANY">Any format</option>
+                    <option value="POST">Post</option>
+                    <option value="STORY">Story</option>
+                    <option value="REEL">Reel</option>
+                    <option value="AD">Ad</option>
+                  </select>
+                  <select id="postAssetFilterPillar" class="form-select form-select--sm">
+                    <option value="">All pillars</option>
+                  </select>
+                </div>
+                <div id="postApprovedVisualsGrid" class="post-approved-visuals__grid"></div>
+                <div id="postSelectedVisualsWrap" class="post-selected-visuals" style="display: none;">
+                  <div class="form-label" style="margin-top: 12px;">Selected for this post</div>
+                  <div id="postSelectedVisualsList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
+                </div>
+                <div id="postUploadApprovalWarning" class="post-upload-approval-warning" style="display: none; margin-top: 8px; font-size: 12px; color: #b45309; background: #fffbeb; padding: 8px; border-radius: 6px;">Uploaded image requires approval before reuse.</div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="approvalImageUrl">Image URL</label>
@@ -1112,6 +1535,7 @@
       </div>
 
       <div id="tabRequests" class="tab-content">
+        <p class="section-desc">Tasks your client has asked your agency to complete.</p>
         <div class="filter-toggle">
           <input type="checkbox" id="showClosedRequests" />
           <label for="showClosedRequests">Show closed requests</label>
@@ -1120,6 +1544,7 @@
       </div>
 
       <div id="tabNeeds" class="tab-content">
+        <p class="section-desc">Items your team needs from the client to continue work.</p>
         <div id="needsList"></div>
         <div class="card" style="margin-top: 24px;">
           <div class="edit-panel__title">Add Need</div>
@@ -1143,76 +1568,126 @@
       </div>
 
       <div id="tabContentlibrary" class="tab-content">
-        <!-- Create Asset Form -->
+        <p class="section-desc">Add approved visuals, links, and references your team can reuse across posts, stories, reels, and ads. <a href="#" id="contentLibraryLearnMore" class="link-learn">Learn more</a></p>
+
+        <!-- Approved assets ready to use (focal point) -->
+        <div id="assetsApprovedPanel" class="card assets-panel">
+          <div class="assets-panel__header">
+            <div class="assets-panel__summary">
+              <span id="assetsSummaryApproved" class="assets-summary__item">Approved: 0</span>
+              <span id="assetsSummaryPending" class="assets-summary__item">Pending: 0</span>
+              <span id="assetsSummaryNeedsChanges" class="assets-summary__item">Needs changes: 0</span>
+            </div>
+            <label class="assets-panel__toggle">
+              <input type="checkbox" id="assetsShowAllOnly" checked />
+              <span>Show approved only</span>
+            </label>
+          </div>
+          <div class="assets-panel__filters">
+            <select id="assetsFilterFormatUse" class="form-select form-select--sm">
+              <option value="ANY">Any format</option>
+              <option value="POST">Post</option>
+              <option value="STORY">Story</option>
+              <option value="REEL">Reel</option>
+              <option value="AD">Ad</option>
+            </select>
+            <select id="assetsFilterPillar" class="form-select form-select--sm">
+              <option value="">All pillars</option>
+            </select>
+            <select id="assetsFilterMediaType" class="form-select form-select--sm">
+              <option value="">All types</option>
+              <option value="PHOTO">Photo</option>
+              <option value="VIDEO">Video</option>
+              <option value="GRAPHIC">Graphic</option>
+              <option value="DOC">Doc</option>
+            </select>
+          </div>
+          <div id="assetsGrid" class="assets-grid"></div>
+        </div>
+
+        <!-- Add Content Reference form -->
         <div class="card">
-          <div class="edit-panel__title">Upload Asset</div>
+          <div class="edit-panel__title">Add Content Reference</div>
           <form id="assetForm">
             <div class="form-group">
-              <label class="form-label" for="assetTitle">Title</label>
-              <input type="text" class="form-input" id="assetTitle" required />
+              <label class="form-label" for="assetTitle">Title / Description</label>
+              <input type="text" class="form-input" id="assetTitle" required placeholder="e.g. Menu hero image" />
             </div>
             <div class="form-group">
-              <label class="form-label" for="assetUrl">URL</label>
-              <input type="url" class="form-input" id="assetUrl" required placeholder="https://..." />
+              <label class="form-label">Add by</label>
+              <div class="asset-addby">
+                <label class="asset-addby__opt"><input type="radio" name="assetSourceType" value="LINK" checked /> Paste link (Drive/Dropbox/Figma/Canva)</label>
+                <label class="asset-addby__opt"><input type="radio" name="assetSourceType" value="UPLOAD" /> Upload file (optional)</label>
+              </div>
+            </div>
+            <div class="form-group" id="assetLinkGroup">
+              <label class="form-label" for="assetUrl">Link</label>
+              <input type="url" class="form-input" id="assetUrl" placeholder="Paste Google Drive / Dropbox / Figma / Canva link…" />
+            </div>
+            <div class="form-group" id="assetUploadGroup" style="display: none;">
+              <label class="form-label">Upload file</label>
+              <input type="file" class="form-input" id="assetFile" accept="image/*,video/*,.pdf" />
             </div>
             <div class="form-group">
-              <label class="form-label" for="assetType">Type</label>
-              <select class="form-select" id="assetType" required>
-                <option value="photo">Photo</option>
-                <option value="video">Video</option>
-                <option value="logo">Logo</option>
+              <label class="form-label" for="assetMediaType">Media type</label>
+              <select class="form-select" id="assetMediaType">
+                <option value="PHOTO">Photo</option>
+                <option value="VIDEO">Video</option>
+                <option value="GRAPHIC">Graphic</option>
+                <option value="DOC">Doc</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label" for="assetTags">Tags (comma separated)</label>
-              <input type="text" class="form-input" id="assetTags" placeholder="product, campaign, social" />
+              <label class="form-label" for="assetFormatUse">Use for</label>
+              <select class="form-select" id="assetFormatUse">
+                <option value="ANY">Any</option>
+                <option value="POST">Post</option>
+                <option value="STORY">Story</option>
+                <option value="REEL">Reel</option>
+                <option value="AD">Ad</option>
+              </select>
             </div>
             <div class="form-group">
-              <label class="form-label" for="assetStatus">Status</label>
-              <select class="form-select" id="assetStatus" required>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
+              <label class="form-label" for="assetPillars">Pillars (comma separated)</label>
+              <input type="text" class="form-input" id="assetPillars" placeholder="e.g. Promo, Branding, Menu" />
+              <small class="form-hint">Suggested: Promo, Branding, Testimonial, Menu, BTS, Event, Education</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetApprovalStatus">Approval status</label>
+              <select class="form-select" id="assetApprovalStatus">
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="NEEDS_CHANGES">Needs changes</option>
+                <option value="REJECTED">Rejected</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetClientNotes">Client notes (optional)</label>
+              <textarea class="form-textarea" id="assetClientNotes" rows="2" placeholder="Notes from or for the client"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="assetInternalNotes">Internal notes (optional)</label>
+              <textarea class="form-textarea" id="assetInternalNotes" rows="2" placeholder="Team-only notes"></textarea>
             </div>
             <div class="form-actions">
-              <button type="submit" class="btn btn-primary">Save Asset</button>
+              <button type="submit" class="btn btn-primary">Save Reference</button>
             </div>
           </form>
         </div>
-
-        <!-- Filters -->
-        <div style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="filterStatus" style="font-size: 13px;">Filter by Status:</label>
-            <select class="form-select" id="filterStatus" style="min-width: 150px;">
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="filterType" style="font-size: 13px;">Filter by Type:</label>
-            <select class="form-select" id="filterType" style="min-width: 150px;">
-              <option value="all">All</option>
-              <option value="photo">Photo</option>
-              <option value="video">Video</option>
-              <option value="logo">Logo</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Assets List -->
-        <div id="assetsList"></div>
       </div>
 
 
       <div id="tabReports" class="tab-content">
+        <p class="section-desc">Monthly progress summaries and report data that power the client Progress page.</p>
         <div id="reportsContent"></div>
         <div class="card" style="margin-top: 24px;">
-          <button class="btn btn-primary" id="openReportsAdmin">Edit Report</button>
+          <div class="edit-panel__title">Report data</div>
+          <p class="muted" style="margin: 0 0 12px 0; font-size: 14px;">Numbers used for the client Progress page and monthly summary notifications.</p>
+          <p id="reportsDataSummary" class="card__sub" style="margin-bottom: 12px;"></p>
+          <button class="btn btn-primary" id="openReportsAdmin">Edit report data</button>
         </div>
         <div id="reportsAdmin" class="card" style="display:none; margin-top: 24px;">
-          <div class="edit-panel__title">Update Report (Team)</div>
+          <div class="edit-panel__title">Update report (Team)</div>
           <form id="reportsForm">
             <div class="form-group">
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -1296,6 +1771,130 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Onboarding overlay (full-screen, steps 1-6) -->
+  <div id="onboardingOverlay" class="onboarding-overlay" style="display: none;">
+    <div class="onboarding-overlay__inner">
+      <!-- Step 1: Welcome -->
+      <div id="onboardingStep1" class="onboarding-step">
+        <h2 class="onboarding-step__title">Welcome to 2Fly</h2>
+        <p class="onboarding-step__text">2Fly helps you manage clients, request assets, create content, and streamline approvals.</p>
+        <div class="onboarding-step__map">
+          <div class="onboarding-step__map-item">1. Add Client</div>
+          <div class="onboarding-step__map-arrow">→</div>
+          <div class="onboarding-step__map-item">2. Upload Assets</div>
+          <div class="onboarding-step__map-arrow">→</div>
+          <div class="onboarding-step__map-item">3. Create Content</div>
+          <div class="onboarding-step__map-arrow">→</div>
+          <div class="onboarding-step__map-item">4. Send for Approval</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-primary-cta" id="onboardingStartSetup">Start Setup</button>
+      </div>
+      <!-- Step 2: Add first client (simplified form in modal) -->
+      <div id="onboardingStep2" class="onboarding-step" style="display: none;">
+        <h2 class="onboarding-step__title">Add your first client</h2>
+        <form id="onboardingClientForm" class="onboarding-form">
+          <div class="form-group">
+            <label class="form-label" for="onboardingClientName">Client name <span style="color: #ef4444;">*</span></label>
+            <input type="text" class="form-input" id="onboardingClientName" required placeholder="Acme Inc.">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="onboardingClientEmail">Contact email <span style="color: #ef4444;">*</span></label>
+            <input type="email" class="form-input" id="onboardingClientEmail" required placeholder="client@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="onboardingClientPassword">Client password (for portal login) <span style="color: #ef4444;">*</span></label>
+            <input type="password" class="form-input" id="onboardingClientPassword" required minlength="6" placeholder="Min 6 characters">
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="onboardingStep2Back">Back</button>
+            <button type="submit" class="btn btn-primary">Create &amp; continue</button>
+          </div>
+        </form>
+      </div>
+      <!-- Step 3: Set up client workspace (checklist - shown after client created) -->
+      <div id="onboardingStep3" class="onboarding-step" style="display: none;">
+        <h2 class="onboarding-step__title">Set up the client workspace</h2>
+        <p class="onboarding-step__text">Complete these to get the most out of 2Fly for this client.</p>
+        <ul id="onboardingStep3Checklist" class="onboarding-checklist">
+          <li><button type="button" class="onboarding-checklist-item" data-focus="tabContentlibrary">Upload brand assets</button></li>
+          <li><button type="button" class="onboarding-checklist-item" data-focus="tabNeeds">Add “Agency Needs” from client</button></li>
+          <li><button type="button" class="onboarding-checklist-item" data-focus="invite">Invite client to their portal</button></li>
+        </ul>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="onboardingStep3Back">Back</button>
+          <button type="button" class="btn btn-primary" id="onboardingStep3Next">Continue</button>
+        </div>
+      </div>
+      <!-- Step 4: Create first post -->
+      <div id="onboardingStep4" class="onboarding-step" style="display: none;">
+        <h2 class="onboarding-step__title">Create your first post</h2>
+        <p class="onboarding-step__text">Add a post with caption and optional media. You can save as draft or send for approval.</p>
+        <div class="form-actions" style="margin-top: 24px;">
+          <button type="button" class="btn btn-secondary" id="onboardingStep4Back">Back</button>
+          <button type="button" class="btn btn-primary btn-primary-cta" id="onboardingStep4CreatePost">Create first post</button>
+        </div>
+      </div>
+      <!-- Step 5: Send for approval & pipeline (shown when user clicks Send for Approval) -->
+      <div id="onboardingStep5" class="onboarding-step" style="display: none;">
+        <h2 class="onboarding-step__title">Approval pipeline</h2>
+        <p class="onboarding-step__text">When you send for approval, the post moves through these stages. Your client will see it in their portal for review.</p>
+        <div class="pipeline-visual">
+          <span class="pipeline-stage">Copy Pending</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Copy Approved</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Copy Changes</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Content Pending</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Changes Requested</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Approved</span>
+          <span class="pipeline-arrow">→</span>
+          <span class="pipeline-stage">Scheduled</span>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="onboardingStep5Done">Got it</button>
+        </div>
+      </div>
+      <!-- Step 6: Completion -->
+      <div id="onboardingStep6" class="onboarding-step" style="display: none;">
+        <h2 class="onboarding-step__title">Your first client is set up!</h2>
+        <p class="onboarding-step__text">Suggested next steps:</p>
+        <ul class="onboarding-next-actions">
+          <li><button type="button" class="btn btn-secondary btn-block" data-action="addClient">Add another client</button></li>
+          <li><button type="button" class="btn btn-secondary btn-block" data-action="assets">Upload more assets</button></li>
+          <li><button type="button" class="btn btn-secondary btn-block" data-action="contentLibrary">Explore Content Library</button></li>
+          <li><button type="button" class="btn btn-secondary btn-block" data-action="reports">View Reports</button></li>
+        </ul>
+        <button type="button" class="btn btn-primary" id="onboardingStep6Close">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline explanation modal (small, when user clicks Send for Approval first time) -->
+  <div id="pipelineModal" class="modal modal--small">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin: 0;">Approval pipeline</h2>
+        <button type="button" id="closePipelineModal" style="background: transparent; border: none; font-size: 24px; color: #64748b; cursor: pointer;">&times;</button>
+      </div>
+      <div style="padding: 24px;">
+        <p style="margin-bottom: 16px; color: #475569;">Posts move through: <strong>Copy Pending → Copy Approved → Copy Changes → Content Pending → Changes Requested → Approved → Scheduled</strong>. Your client will see items in their portal for review.</p>
+        <button type="button" class="btn btn-primary" id="pipelineModalGotIt">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View as Client preview overlay -->
+  <div id="viewAsClientOverlay" class="view-as-client-overlay" style="display: none;">
+    <div class="view-as-client-overlay__bar">
+      <span>Preview: Client portal view</span>
+      <button type="button" class="btn btn-secondary" id="viewAsClientClose">Exit preview</button>
+    </div>
+    <div id="viewAsClientContent" class="view-as-client-overlay__content"></div>
   </div>
 
   <!-- New Client Modal -->

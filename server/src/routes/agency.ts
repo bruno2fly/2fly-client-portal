@@ -155,6 +155,7 @@ router.patch('/clients/:id', (req: AuthenticatedRequest, res) => {
     if (pwd.length >= 6) saveClientCredentials(agencyId, id, pwd);
     res.json({ success: true, client: updated });
   } catch (e: any) {
+    console.error('PATCH /api/agency/clients/:id error:', e);
     res.status(500).json({ error: e.message || 'Failed to update client' });
   }
 });
@@ -200,6 +201,7 @@ router.get('/portal-state', (req: AuthenticatedRequest, res) => {
       state = defaultPortalState(clientId, client.name, client.primaryContactWhatsApp);
       savePortalState(agencyId, clientId, state);
     }
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({ success: true, data: state });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to get portal state' });
