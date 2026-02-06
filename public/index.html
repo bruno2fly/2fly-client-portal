@@ -2038,22 +2038,68 @@ window.openApprovalModal = function(id){
       approvalCopyText.textContent = item.copyText || "No copy text provided.";
     }
     
-    // Show copy image if available
-    if (item.copyImageUrl) {
-      if (copyImageContainer) copyImageContainer.style.display = "flex";
-      if (approvalCopyImage) {
-        approvalCopyImage.src = item.copyImageUrl;
-        approvalCopyImage.alt = "Copy image preview";
-        approvalCopyImage.onerror = function() {
-          this.style.display = "none";
-          if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Copy image not available</div>';
-        };
+    // Prefer explicit copyImageUrl if present
+    let copyDisplayUrl = item.copyImageUrl || null;
+    
+    // If no explicit copy image, fall back to the same logic as content image:
+    // previewImageUrl > uploadedImages > imageUrl (+ Drive thumbnail)
+    if (!copyDisplayUrl) {
+      if (item.uploadedImages && item.uploadedImages.length > 0) {
+        if (copyImageContainer) {
+          copyImageContainer.innerHTML = '';
+          copyImageContainer.style.display = "flex";
+          copyImageContainer.style.flexDirection = 'column';
+          copyImageContainer.style.alignItems = 'center';
+          item.uploadedImages.forEach(function(image) {
+            const img = document.createElement('img');
+            img.src = image.dataUrl;
+            img.alt = image.name || item.title || 'Copy image';
+            img.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; margin-bottom: 12px; border: 1px solid #e2e8f0;';
+            img.onerror = function() { this.style.display = 'none'; };
+            copyImageContainer.appendChild(img);
+          });
+        }
+      } else {
+        // Try previewImageUrl or imageUrl (with Drive thumbnail)
+        function driveThumbnailUrl(url) {
+          if (!url || typeof url !== 'string') return null;
+          var u = url.trim();
+          if (u.indexOf('drive.google.com') === -1) return null;
+          var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          return m ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(m[1]) + '&sz=w800' : null;
+        }
+        copyDisplayUrl = item.previewImageUrl || null;
+        if (!copyDisplayUrl && item.imageUrl) {
+          var thumb = driveThumbnailUrl(item.imageUrl);
+          copyDisplayUrl = thumb || item.imageUrl;
+        }
       }
-    } else {
-      if (copyImageContainer) copyImageContainer.style.display = "none";
     }
     
-    // Hide content image for copy approvals
+    if (copyDisplayUrl) {
+      if (copyImageContainer) copyImageContainer.style.display = "flex";
+      const img = approvalCopyImage || document.createElement('img');
+      img.src = copyDisplayUrl;
+      img.alt = "Copy image preview";
+      img.id = 'approvalCopyImage';
+      img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+      img.onerror = function() {
+        // If this was just the raw imageUrl, try a Drive thumbnail fallback
+        if (copyDisplayUrl === item.imageUrl && item.imageUrl) {
+          var fallback = (typeof driveThumbnailUrl === 'function') ? driveThumbnailUrl(item.imageUrl) : null;
+          if (fallback && this.src !== fallback) { this.src = fallback; return; }
+        }
+        this.style.display = 'none';
+        if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Copy image not available</div>';
+      };
+      if (!approvalCopyImage && copyImageContainer && !copyImageContainer.contains(img)) {
+        copyImageContainer.appendChild(img);
+      }
+    } else if (copyImageContainer) {
+      copyImageContainer.style.display = "none";
+    }
+    
+    // Hide content image for copy approvals (we show everything in the copy container)
     if (imageContainer) imageContainer.style.display = "none";
   } else {
     // Hide copy sections, show content image

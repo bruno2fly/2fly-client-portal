@@ -99,9 +99,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Update last login
-    user.lastLoginAt = Date.now();
-    saveUser(user);
+    // Update last login (non-blocking - don't let save failures break login)
+    try {
+      user.lastLoginAt = Date.now();
+      saveUser(user);
+    } catch (saveError: any) {
+      console.error('Failed to save user lastLoginAt (non-fatal):', saveError);
+    }
 
     // Create JWT token
     const token = jwt.sign(
@@ -124,17 +128,8 @@ router.post('/login', async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Log audit
-    saveAuditLog({
-      id: generateId('audit'),
-      agencyId: user.agencyId,
-      actorUserId: user.id,
-      action: 'auth.login',
-      targetUserId: user.id,
-      createdAt: Date.now()
-    });
-
-    res.json({
+    // Prepare response
+    const responseData = {
       success: true,
       user: {
         id: user.id,
@@ -144,10 +139,30 @@ router.post('/login', async (req, res) => {
         role: user.role,
         clientId: user.clientId || null
       }
-    });
+    };
+
+    // Send response first (before audit log to ensure client gets response even if audit fails)
+    res.json(responseData);
+
+    // Log audit (non-blocking - don't let audit failures break login)
+    try {
+      saveAuditLog({
+        id: generateId('audit'),
+        agencyId: user.agencyId,
+        actorUserId: user.id,
+        action: 'auth.login',
+        targetUserId: user.id,
+        createdAt: Date.now()
+      });
+    } catch (auditError: any) {
+      console.error('Failed to save audit log (non-fatal):', auditError);
+    }
   } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Login error stack:', error?.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error', message: process.env.NODE_ENV !== 'production' ? (error?.message || String(error)) : undefined });
+    }
   }
 });
 
