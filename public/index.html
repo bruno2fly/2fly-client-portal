@@ -86,11 +86,16 @@
   }
   body[data-theme="dark"] .client-notif-dropdown{background:#1e293b;border-color:#334155;}
   .client-notif-dropdown.show{display:flex;}
+  .client-notif-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:49;display:none;
+  }
+  .client-notif-backdrop.show{ display: block; }
   @media (max-width: 768px){
     .client-notif-dropdown{
       position:fixed;left:0;right:0;bottom:0;top:auto;margin:0;width:100%;max-height:70vh;
       border-radius:20px 20px 0 0;border-bottom:none;box-shadow:0 -10px 40px rgba(0,0,0,.2);
       animation: sheetUp 0.3s ease;
+      padding-bottom: env(safe-area-inset-bottom);
     }
     @keyframes sheetUp{ from{ transform: translateY(100%); } to{ transform: translateY(0); } }
     @media (prefers-reduced-motion: reduce){ .client-notif-dropdown.show{ animation: none; } }
@@ -147,6 +152,8 @@
     transition:all 0.2s;
     white-space:nowrap;
   }
+  .logout-link .logout-link-icon{ display: none; }
+  .logout-link .logout-link-text{ display: inline; }
   .logout-link:hover{
     background:rgba(255,255,255,.1);
     color:#ffffff;
@@ -470,12 +477,18 @@
   .bottom-nav{
     display:none;
     position:fixed;bottom:0;left:0;right:0;z-index:40;
-    height:calc(56px + env(safe-area-inset-bottom));
+    height:calc(56px + max(env(safe-area-inset-bottom, 0px), 0px));
     background:rgba(255,255,255,0.85);backdrop-filter:blur(10px);
     border-top:1px solid #e5e7eb;
-    padding-bottom:env(safe-area-inset-bottom);
+    padding-bottom:max(env(safe-area-inset-bottom, 0px), 0px);
   }
-  body.has-bottom-nav{padding-bottom:calc(56px + env(safe-area-inset-bottom));}
+  body.has-bottom-nav{padding-bottom:calc(56px + env(safe-area-inset-bottom, 0px));}
+  body.has-bottom-nav .wrap{padding-bottom:calc(80px + env(safe-area-inset-bottom, 0px)) !important;}
+  @media (display-mode: standalone){
+    .bottom-nav{padding-bottom:max(env(safe-area-inset-bottom), 20px);height:calc(56px + max(env(safe-area-inset-bottom), 20px));}
+    body.has-bottom-nav{padding-bottom:calc(56px + max(env(safe-area-inset-bottom), 20px));}
+    body.has-bottom-nav .wrap{padding-bottom:calc(80px + max(env(safe-area-inset-bottom), 20px)) !important;}
+  }
   .bottom-nav-inner{display:flex;align-items:stretch;justify-content:space-around;height:56px;max-width:1200px;margin:0 auto;}
   .bottom-nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
@@ -515,11 +528,46 @@
 
   .skeleton-overlay{ position: fixed; inset: 0; z-index: 25; background: var(--bg,#f1f5f9); padding: env(safe-area-inset-top) 16px 0; overflow: hidden; transition: opacity 0.2s ease; }
   .skeleton-overlay.hidden{ pointer-events: none; opacity: 0; }
+  .skeleton-overlay-brand{ display: none; font-size: 28px; font-weight: 700; color: #1e40af; }
   .skeleton-overlay-inner{ max-width: 1200px; margin: 0 auto; padding: 24px 0; }
+  @media (display-mode: standalone){
+    #skeletonOverlay.skeleton-overlay{ min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    #skeletonOverlay .skeleton-overlay-brand{ display: block; margin-bottom: 24px; }
+  }
 
   .main-content-area{ overscroll-behavior-y: contain; }
   .pull-refresh-zone{ text-align: center; padding: 12px; min-height: 44px; transition: opacity 0.2s; }
   .pull-refresh-zone.hidden{ display: none; }
+  @media (display-mode: standalone){
+    .main-content-area{ overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; overflow-y: auto; }
+  }
+  .pwa-refresh-btn{
+    display: none;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 80px);
+    right: 16px;
+    z-index: 30;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .pwa-refresh-btn svg{ width: 20px; height: 20px; stroke: #1e3a8a; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  @media (display-mode: standalone){
+    .pwa-refresh-btn{ display: flex; }
+  }
+  @media (max-width: 768px){
+    .section-requests [data-show-tabs="content"]{ margin-bottom: 32px; }
+    footer{ margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--stroke,#e2e8f0); }
+    .main-content-area [data-show-tabs="requests"]{ margin-bottom: 20px; }
+    .request-stats{ gap: 16px; margin-top: 16px; margin-bottom: 20px !important; }
+  }
 
 /* --- TOKENS --- */
 :root{
@@ -657,10 +705,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   }
   #overviewRow .kpi-card .label{ font-size: 13px; }
   #overviewRow .kpi-card .value{ font-size: 28px; font-weight: 700; }
+  #overviewRow .kpi-card:nth-child(3){ grid-column: 1 / -1; }
 }
 @media (max-width: 400px){
   #overviewRow.overview{ grid-template-columns: 1fr; }
   #overviewRow .kpi-card{ grid-column: span 1; }
+  #overviewRow .kpi-card:nth-child(3){ grid-column: span 1; }
 }
 
 /* --- MOBILE HEADER (pill style, 2Fly branding) --- */
@@ -704,7 +754,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     font-weight: 700;
     color: #ffffff;
   }
-  header .actions .logout-link{ display: none; }
+  header .actions .logout-link{ display: inline-flex !important; font-size: 0; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: none; padding: 0; color: #1e40af; }
+  header .actions .logout-link .logout-link-text{ display: none; }
+  header .actions .logout-link .logout-link-icon{ display: block; }
+  body[data-theme="dark"] header .actions .logout-link{ background: rgba(255,255,255,.15); color: #93c5fd; }
+  #toggleMode{ display: flex !important; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: #ffffff; border: none; padding: 0; font-size: 18px; margin-left: 4px; }
+  body[data-theme="dark"] #toggleMode{ background: rgba(255,255,255,.15); }
   header .notification-icon{
     width: 44px;
     height: 44px;
@@ -728,14 +783,16 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   body[data-theme="dark"] #approvalsPanel.section-approvals{
     background: var(--bg) !important;
   }
-  #approvalsPanel .approvals-section-title{
-    font-size: 24px;
-    font-weight: 700;
-    color: #112950;
+  #approvalsPanel .approvals-section-title,
+  #approvalsPanel > h3{
+    color: #112950 !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
     margin: 0 0 16px 0;
   }
-  body[data-theme="dark"] #approvalsPanel .approvals-section-title{
-    color: #f1f5f9;
+  body[data-theme="dark"] #approvalsPanel .approvals-section-title,
+  body[data-theme="dark"] #approvalsPanel > h3{
+    color: #f1f5f9 !important;
   }
   #approvalsPanel .section-approvals-inner{
     background: #1e40af !important;
@@ -771,27 +828,29 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     background: rgba(255,255,255,.08);
   }
   #approvalsPanel .approval-tab:not(.active){
-    background: rgba(255,255,255,.2);
-    color: rgba(255,255,255,.85);
+    background: rgba(255,255,255,0.85) !important;
+    color: #1e3a8a !important;
+    font-weight: 500;
   }
   #approvalsPanel .approval-tab:hover{
-    color: #ffffff;
+    color: #1e3a8a !important;
   }
   #approvalsPanel .approval-tab.active{
-    background: #1e3a8a;
-    color: #ffffff;
-    font-weight: 600;
+    background: #ffffff !important;
+    color: #1e3a8a !important;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
   }
   body[data-theme="dark"] #approvalsPanel .approval-tab:not(.active){
-    background: rgba(255,255,255,.12);
-    color: rgba(255,255,255,.7);
+    background: rgba(255,255,255,.2) !important;
+    color: rgba(255,255,255,.9) !important;
   }
   body[data-theme="dark"] #approvalsPanel .approval-tab:hover{
-    color: rgba(255,255,255,.95);
+    color: #ffffff !important;
   }
   body[data-theme="dark"] #approvalsPanel .approval-tab.active{
-    background: #3b82f6;
-    color: #ffffff;
+    background: #3b82f6 !important;
+    color: #ffffff !important;
   }
   #approvalsPanel .list{
     display: flex;
@@ -854,8 +913,10 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 </style>
 </head>
 <body>
+  <button type="button" class="pwa-refresh-btn" id="pwaRefreshBtn" aria-label="Refresh content" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
   <div id="toastContainer" class="toast-success" role="alert" aria-live="polite" style="display:none;">Request submitted!</div>
   <div id="skeletonOverlay" class="skeleton-overlay" aria-hidden="true">
+    <div class="skeleton-overlay-brand">2Fly</div>
     <div class="skeleton-overlay-inner">
       <div class="skeleton" style="height:80px;margin-bottom:16px;"></div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;">
@@ -887,6 +948,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       </div>
       <div class="actions">
         <div id="clientNotifWrap" style="position:relative;">
+          <div class="client-notif-backdrop" id="clientNotifBackdrop" aria-hidden="true"></div>
           <div class="notification-icon" id="notificationBtn" aria-label="Notifications">
             <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -903,7 +965,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
             </div>
           </div>
         </div>
-        <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;">Logout</a>
+        <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;"><span class="logout-link-text">Logout</span><svg class="logout-link-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
         <button class="btn small" id="toggleMode" style="display:none">☀️</button>
       </div>
     </header>
@@ -948,7 +1010,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       <h3 class="approvals-section-title" style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 20px 0;">Contents Approval</h3>
       <div class="section-approvals-inner">
       <div class="approval-tabs" id="approvalTabs" role="tablist" aria-label="Content approval status">
-        <button type="button" id="tab-copy" class="approval-tab active" data-tab="copy" role="tab" aria-selected="true" aria-controls="laneCopy">All</button>
+        <button type="button" id="tab-copy" class="approval-tab active" data-tab="copy" role="tab" aria-selected="true" aria-controls="laneCopy">Copy</button>
         <button type="button" id="tab-pending" class="approval-tab" data-tab="pending" role="tab" aria-selected="false" aria-controls="lanePending">Content Pending</button>
         <button type="button" id="tab-changes" class="approval-tab" data-tab="changes" role="tab" aria-selected="false" aria-controls="laneChanges">Changes Requested</button>
         <button type="button" id="tab-approved" class="approval-tab" data-tab="approved" role="tab" aria-selected="false" aria-controls="laneApproved">Content Approved</button>
@@ -1738,7 +1800,10 @@ function renderClientNotificationBell() {
       navigateToNotificationHref(n.href);
       renderClientNotificationBell();
       renderActionRequiredCard();
-      document.getElementById('clientNotifDropdown').classList.remove('show');
+      var dd = document.getElementById('clientNotifDropdown');
+      var bd = document.getElementById('clientNotifBackdrop');
+      if (dd) dd.classList.remove('show');
+      if (bd) bd.classList.remove('show');
     });
     listEl.appendChild(item);
   });
@@ -1769,16 +1834,23 @@ function renderActionRequiredCard() {
 function setupClientNotificationBell() {
   const btn = document.getElementById('notificationBtn');
   const dropdown = document.getElementById('clientNotifDropdown');
+  const backdrop = document.getElementById('clientNotifBackdrop');
+  function closeNotif() {
+    if (dropdown) dropdown.classList.remove('show');
+    if (backdrop) backdrop.classList.remove('show');
+  }
   if (btn && dropdown) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.classList.toggle('show');
+      if (backdrop) backdrop.classList.toggle('show', dropdown.classList.contains('show'));
       renderClientNotificationBell();
     });
   }
+  if (backdrop) backdrop.addEventListener('click', closeNotif);
   document.addEventListener('click', (e) => {
     const wrap = document.getElementById('clientNotifWrap');
-    if (dropdown && dropdown.classList.contains('show') && wrap && !wrap.contains(e.target)) dropdown.classList.remove('show');
+    if (dropdown && dropdown.classList.contains('show') && wrap && !wrap.contains(e.target)) closeNotif();
   });
   const markAll = document.getElementById('clientNotifMarkAll');
   if (markAll) {
@@ -1787,7 +1859,7 @@ function setupClientNotificationBell() {
       markAllNotificationsRead();
       renderClientNotificationBell();
       renderActionRequiredCard();
-      if (dropdown) dropdown.classList.remove('show');
+      closeNotif();
     });
   }
 }
@@ -2015,7 +2087,7 @@ function renderApprovalsSectioned(){
   const pendingTab = document.querySelector('[data-tab="pending"]');
   const changesTab = document.querySelector('[data-tab="changes"]');
   const approvedTab = document.querySelector('[data-tab="approved"]');
-  if (copyTab) copyTab.textContent = copyItems.length > 0 ? `All (${copyItems.length})` : 'All';
+  if (copyTab) copyTab.textContent = copyItems.length > 0 ? `Copy (${copyItems.length})` : 'Copy';
   if (pendingTab) pendingTab.textContent = pending.length > 0 ? `Content Pending (${pending.length})` : 'Content Pending';
   if (changesTab) changesTab.textContent = changes.length > 0 ? `Changes Requested (${changes.length})` : 'Changes Requested';
   if (approvedTab) approvedTab.textContent = approved.length > 0 ? `Content Approved (${approved.length})` : 'Content Approved';
@@ -3212,6 +3284,11 @@ async function initializeApp() {
       startY = currentY = 0;
     }, { passive: true });
   })();
+
+  var pwaRefreshBtn = document.getElementById('pwaRefreshBtn');
+  if (pwaRefreshBtn) {
+    pwaRefreshBtn.addEventListener('click', function(){ render(); renderReports(); });
+  }
 
   // Bottom tab navigation (iOS)
   (function(){
