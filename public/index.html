@@ -398,7 +398,14 @@
   .modal__foot{margin-bottom:0;margin-top:20px;}
   .modal__body textarea{width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;color:#0f172a;padding:12px;font-size:14px;font-family:inherit;resize:vertical;}
   body[data-theme="dark"] .modal__body textarea{background:#1e293b;border-color:#334155;color:#f1f5f9;}
-  @media (max-width: 960px){ .cards{grid-template-columns:1fr 1fr} .grid{grid-template-columns:1fr} }
+  @media (max-width: 960px){
+    .cards{grid-template-columns:1fr 1fr}
+    .grid{grid-template-columns:1fr}
+    .grid > *{grid-column:1 / -1 !important;min-width:0;}
+  }
+  @media (max-width: 640px){
+    .request-stats{grid-template-columns:1fr !important;}
+  }
 
 /* --- TOKENS --- */
 :root{
