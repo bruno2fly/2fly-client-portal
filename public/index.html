@@ -203,13 +203,13 @@
   body[data-theme="dark"] .panel{box-shadow:0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04)}
   
   /* Section-specific backgrounds */
-  .panel h3{font-size:18px;line-height:24px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin:0 0 20px 0;}
+  .panel h3{font-size:18px;line-height:24px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin:0 0 12px 0;}
   body[data-theme="dark"] .panel h3{color:var(--text-primary);}
   
   .section-approvals{
     background:#1e40af !important;
     border-radius:16px;
-    padding:24px !important;
+    padding:16px !important;
   }
   body[data-theme="dark"] .section-approvals{
     background:#1e3a8a !important;
@@ -218,7 +218,7 @@
   .section-requests{
     background:#1e40af !important;
     border-radius:16px;
-    padding:24px !important;
+    padding:16px !important;
   }
   body[data-theme="dark"] .section-requests{background:#1e3a8a !important;}
   
@@ -243,13 +243,13 @@
   
   /* Approval Tabs */
   .approval-tabs{
-    display:flex;flex-wrap:nowrap;gap:8px;padding:8px;margin-bottom:20px;
+    display:flex;flex-wrap:nowrap;gap:6px;padding:6px;margin-bottom:12px;
     background:rgba(255,255,255,.1);border-radius:12px;
     overflow-x:auto;-webkit-overflow-scrolling:touch;
   }
   body[data-theme="dark"] .approval-tabs{background:rgba(255,255,255,.05);}
   .approval-tab{
-    flex:0 0 auto;min-height:44px;padding:8px 16px;border-radius:20px;
+    flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:20px;
     background:#f1f5f9;border:none;color:#64748b;font-size:14px;font-weight:500;
     cursor:pointer;transition:all 0.2s;white-space:nowrap;
   }
@@ -292,15 +292,15 @@
   @media (prefers-reduced-motion: reduce){ .toast-success{ transition: none; } }
   
   /* Request Stats */
-  .request-stats{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;}
+  .request-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
   .stat-circle{
-    display:flex;flex-direction:column;align-items:center;gap:8px;
-    background:#ffffff;border-radius:16px;padding:24px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:#ffffff;border-radius:16px;padding:20px;
     box-shadow:0 1px 3px rgba(0,0,0,.1);
   }
-  .stat-title{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:4px;}
-  .stat-label{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:4px;}
-  .stat-context{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  .stat-title{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:2px;}
+  .stat-label{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  .stat-context{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:0;}
   .circular-progress{position:relative;width:120px;height:120px;}
   .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
   .progress-ring-background{stroke:#e5e7eb;}
@@ -814,7 +814,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     line-height: 24px !important;
     font-weight: 600 !important;
     letter-spacing: 0 !important;
-    margin: 0 0 16px 0;
+    margin: 0 0 10px 0;
   }
   body[data-theme="dark"] #approvalsPanel .approvals-section-title,
   body[data-theme="dark"] #approvalsPanel > h3{
@@ -823,7 +823,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   #approvalsPanel .section-approvals-inner{
     background: #1e40af !important;
     border-radius: 20px;
-    padding: 24px !important;
+    padding: 16px !important;
   }
   body[data-theme="dark"] #approvalsPanel .section-approvals-inner{
     background: #1e3a8a !important;
@@ -831,20 +831,20 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   #approvalsPanel .approval-tabs{
     display: flex;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 6px;
     background: rgba(255,255,255,.15);
     border-radius: 12px;
-    padding: 8px;
-    margin-bottom: 20px;
+    padding: 6px;
+    margin-bottom: 12px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   #approvalsPanel .approval-tabs::-webkit-scrollbar{ height: 4px; }
   #approvalsPanel .approval-tab{
     flex: 0 0 auto;
-    min-height: 44px;
+    min-height: 36px;
     font-size: 14px;
-    padding: 8px 16px;
+    padding: 6px 12px;
     border-radius: 20px;
     white-space: nowrap;
     background: rgba(255,255,255,.2);
@@ -935,7 +935,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     display: block !important;
   }
   #approvalsPanel .lane .list > div:first-child[style*="text-align:center"]{
-    padding: 24px;
+    padding: 16px;
     color: rgba(255,255,255,.7);
     font-size: 14px;
     text-align: left;
@@ -1039,7 +1039,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 
     <!-- Approvals -->
     <section class="panel section-approvals" id="approvalsPanel" style="margin-top:24px" aria-label="Contents Approval" data-show-tabs="content">
-      <h3 class="approvals-section-title" style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 20px 0;">Contents Approval</h3>
+      <h3 class="approvals-section-title" style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 10px 0;">Contents Approval</h3>
       <div class="section-approvals-inner">
       <div class="approval-tabs" id="approvalTabs" role="tablist" aria-label="Content approval status">
         <button type="button" id="tab-copy" class="approval-tab active" data-tab="copy" role="tab" aria-selected="true" aria-controls="laneCopy">Copy</button>
@@ -1066,12 +1066,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       <!-- What we need + Quick Request -->
       <section class="panel section-requests" style="grid-column: span 6;" aria-label="What we need from you and Quick Request">
         <div data-show-tabs="content">
-          <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 20px 0;">What We Need From You</h3>
+          <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">What We Need From You</h3>
           <div id="needs" class="list"></div>
         </div>
         <hr style="border-color:rgba(255,255,255,.2);border-top:1px solid rgba(255,255,255,.2);margin:20px 0;" data-show-tabs="requests">
         <div data-show-tabs="requests">
-        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 20px 0;">Quick Request</h3>
+        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">Quick Request</h3>
         <form id="requestForm" class="form form-quick-request form-quick-request-stacked" autocomplete="off">
           <div class="form-quick-request-fields">
             <select id="reqType" required aria-invalid="false" aria-describedby="reqTypeError">
@@ -1093,7 +1093,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
         
         </div>
         <!-- Request Stats -->
-        <div class="request-stats" style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;" data-show-tabs="requests">
+        <div class="request-stats" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-show-tabs="requests">
           <div class="stat-circle">
             <div class="stat-title">Request From clients</div>
             <div class="circular-progress" id="completedProgress">
@@ -1128,7 +1128,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 
       <!-- Open Requests -->
       <section class="panel section-requests" style="grid-column: span 6;" aria-label="Open Requests" data-show-tabs="requests">
-        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 8px 0;">Open Requests</h3>
+        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">Open Requests</h3>
         <p style="font-size:14px;line-height:18px;font-weight:400;color:var(--text-on-dark);opacity:.85;margin:0 0 20px 0;">Most requests are resolved within 1–3 business days.</p>
         <div id="requests" class="list" aria-live="polite"></div>
       </section>
@@ -2016,7 +2016,7 @@ function render(){
     needs.innerHTML = "";
     const openNeeds = (state.needs || []).filter(n => !n.status || n.status === 'open');
     if (openNeeds.length === 0) {
-      needs.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No open needs</div>';
+      needs.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No open needs</div>';
     } else {
       openNeeds.forEach(n=>{
         const chipClass = n.severity==='bad'?'chip bad': (n.severity==='warn'?'chip warn':'chip');
@@ -2038,7 +2038,7 @@ function render(){
     reqList.innerHTML="";
     const openRequests = (state.requests || []).filter(r=>r.status!=='done').sort((a,b)=>b.createdAt-a.createdAt);
     if (openRequests.length === 0) {
-      reqList.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No open requests</div>';
+      reqList.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No open requests</div>';
     } else {
       openRequests.forEach(r=>{
     const left = el("div",{class:"left"},
@@ -2061,7 +2061,7 @@ function render(){
     tl.innerHTML="";
     const activities = (state.activity || []).sort((a,b)=>b.when-a.when).slice(0,10);
     if (activities.length === 0) {
-      tl.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No recent activity</div>';
+      tl.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No recent activity</div>';
     } else {
       activities.forEach(a=>{
         const item = el("div",{class:"tl-item", role:"listitem"});
@@ -2181,16 +2181,16 @@ function renderApprovalsSectioned(){
   };
 
   copyItems.forEach(i => { const row = rowFor(i); if (row) $copy.append(row); });
-  if (copyItems.length === 0) $copy.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No copy approvals</div>';
+  if (copyItems.length === 0) $copy.innerHTML = '<div style="text-align:center;padding:20px;color:#ffffff;font-size:14px;opacity:0.8;">No copy approvals</div>';
 
   pending.forEach(i => { const row = rowFor(i); if (row) $p.append(row); });
-  if (pending.length === 0) $p.innerHTML = '<div style="text-align:center;padding:40px;color:#ffffff;font-size:14px;opacity:0.8;">No pending approvals</div>';
+  if (pending.length === 0) $p.innerHTML = '<div style="text-align:center;padding:20px;color:#ffffff;font-size:14px;opacity:0.8;">No pending approvals</div>';
 
   changes.forEach(i => { const row = rowFor(i); if (row) $c.append(row); });
-  if (changes.length === 0) $c.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,.8);font-size:14px;">No changes requested</div>';
+  if (changes.length === 0) $c.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.8);font-size:14px;">No changes requested</div>';
 
   approved.forEach(i => { const row = rowFor(i); if (row) $a.append(row); });
-  if (approved.length === 0) $a.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,.8);font-size:14px;">No approved items</div>';
+  if (approved.length === 0) $a.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.8);font-size:14px;">No approved items</div>';
 }
 
 // Tab switching for Approvals
@@ -2367,7 +2367,7 @@ window.openApprovalModal = function(id){
           if (fallback && this.src !== fallback) { this.src = fallback; return; }
         }
         this.style.display = 'none';
-        if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Copy image not available</div>';
+        if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;">Copy image not available</div>';
       };
       if (!approvalCopyImage && copyImageContainer && !copyImageContainer.contains(img)) {
         copyImageContainer.appendChild(img);
@@ -2826,7 +2826,7 @@ function renderCalendar(){
   );
   
   if (itemsWithDate.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">No posts scheduled. Posts with a Post Date will appear here.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No posts scheduled. Posts with a Post Date will appear here.</div>';
     return;
   }
   
