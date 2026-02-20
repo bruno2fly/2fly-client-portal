@@ -1471,7 +1471,18 @@ if (!session) {
       const logoImg = document.getElementById("clientLogoImg");
       const logoInitials = document.getElementById("clientLogoInitials");
       if (logoUrl) {
-        if (logoImg) { logoImg.src = logoUrl; logoImg.style.display = "block"; }
+        if (logoImg) {
+          logoImg.src = logoUrl;
+          logoImg.style.display = "block";
+          logoImg.onerror = function() {
+            logoImg.style.display = "none";
+            if (logoInitials) {
+              logoInitials.style.display = "block";
+              logoInitials.textContent = (clientName.split(" ").map(function(w){ return w.charAt(0); }).join("").substring(0, 2).toUpperCase()) || "CN";
+            }
+            syncMobileLogo(false, null, logoInitials ? logoInitials.textContent : "CN");
+          };
+        }
         if (logoInitials) logoInitials.style.display = "none";
         syncMobileLogo(true, logoUrl, null);
       } else {
@@ -1967,8 +1978,8 @@ function render(){
     }
   }
   
-  // Load and display client logo
-  loadClientLogo();
+  // Load and display client logo (use state.client so API logo is shown, not overwritten by initials)
+  loadClientLogo(state && state.client);
   
   const lastSyncEl = $("#lastSync");
   if (lastSyncEl) lastSyncEl.textContent = "updated " + fmtDate(Date.now());
