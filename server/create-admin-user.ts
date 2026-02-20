@@ -14,7 +14,7 @@ const AGENCIES_FILE = join(DATA_DIR, 'agencies.json');
 const USERS_FILE = join(DATA_DIR, 'users.json');
 
 const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = '2fly2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '2fly2026';
 const ADMIN_EMAIL = 'admin@2flyflow.com';
 const ADMIN_NAME = 'Admin';
 /** Must match DEFAULT_AGENCY_ID in public/staff-login.html so login finds the admin */

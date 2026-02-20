@@ -10,7 +10,14 @@ import jwt from 'jsonwebtoken';
 import { getStaffById, getStaffByUsername, getUser } from '../db.js';
 import type { UserRole } from '../types.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production-use-strong-secret';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production' && !secret) {
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  return secret || 'change-me-in-production-use-strong-secret';
+}
+const JWT_SECRET = getJwtSecret();
 const COOKIE_NAME = '2fly_session';
 
 export interface AuthScope {
