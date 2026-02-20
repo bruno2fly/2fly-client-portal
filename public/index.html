@@ -1441,7 +1441,7 @@ if (!session) {
       }
     }
   }
-  function loadClientLogo() {
+  function loadClientLogo(clientFromApi) {
     try {
       const session = checkAuth();
       if (!session || !session.clientId) {
@@ -1450,31 +1450,35 @@ if (!session) {
         syncMobileLogo(false, null, "CN");
         return;
       }
-      const LS_CLIENTS_KEY = "2fly_agency_clients_v1";
-      const clientsData = localStorage.getItem(LS_CLIENTS_KEY);
-      if (!clientsData) {
-        const logoInitials = document.getElementById("clientLogoInitials");
-        const clientName = session.clientName || "CN";
-        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = initials || "CN"; }
-        syncMobileLogo(false, null, initials || "CN");
-        return;
+      var clientName = session.clientName || "CN";
+      var logoUrl = null;
+      if (clientFromApi && (clientFromApi.logoUrl || clientFromApi.name)) {
+        if (clientFromApi.logoUrl) logoUrl = clientFromApi.logoUrl;
+        if (clientFromApi.name) clientName = clientFromApi.name;
       }
-      const clients = JSON.parse(clientsData);
-      const clientId = session.clientId.toLowerCase();
-      const client = clients[clientId];
+      if (logoUrl == null) {
+        var clientsData = localStorage.getItem("2fly_agency_clients_v1");
+        if (clientsData) {
+          var clients = JSON.parse(clientsData);
+          var clientId = session.clientId.toLowerCase();
+          var client = clients[clientId];
+          if (client) {
+            if (client.logoUrl) logoUrl = client.logoUrl;
+            if (client.name) clientName = client.name;
+          }
+        }
+      }
       const logoImg = document.getElementById("clientLogoImg");
       const logoInitials = document.getElementById("clientLogoInitials");
-      if (client && client.logoUrl) {
-        if (logoImg) { logoImg.src = client.logoUrl; logoImg.style.display = "block"; }
+      if (logoUrl) {
+        if (logoImg) { logoImg.src = logoUrl; logoImg.style.display = "block"; }
         if (logoInitials) logoInitials.style.display = "none";
-        syncMobileLogo(true, client.logoUrl, null);
+        syncMobileLogo(true, logoUrl, null);
       } else {
         if (logoImg) logoImg.style.display = "none";
-        const clientName = session.clientName || (client ? client.name : "CN");
-        const initials = clientName.split(" ").map(word => word.charAt(0)).join("").substring(0, 2).toUpperCase();
-        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = initials || "CN"; }
-        syncMobileLogo(false, null, initials || "CN");
+        var initials = clientName.split(" ").map(function(w){ return w.charAt(0); }).join("").substring(0, 2).toUpperCase() || "CN";
+        if (logoInitials) { logoInitials.style.display = "block"; logoInitials.textContent = initials; }
+        syncMobileLogo(false, null, initials);
       }
     } catch(e) {
       console.warn("Error loading client logo:", e);
@@ -3255,8 +3259,8 @@ async function initializeApp() {
     console.log("Initial client name set to:", displayName);
   }
   
-  // Load logo after name is set
-  loadClientLogo();
+  // Load logo after name is set (pass client from portal-state so logo from agency is shown)
+  loadClientLogo(portalStateCache && portalStateCache.client);
   
   // Set up logout button as backup (onclick should already work, but this ensures it's attached)
   const logoutBtn = document.getElementById('logoutBtn');
