@@ -1,6 +1,7 @@
 /**
- * Create or update admin user (username: admin, password: 2fly2026)
+ * Create or update admin user (username: admin, password: 2fly2026).
  * Run from server directory: npx tsx create-admin-user.ts
+ * On Railway this runs automatically before server start (npm run start) so admin exists after every deploy.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
@@ -16,6 +17,8 @@ const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = '2fly2026';
 const ADMIN_EMAIL = 'admin@2flyflow.com';
 const ADMIN_NAME = 'Admin';
+/** Must match DEFAULT_AGENCY_ID in public/staff-login.html so login finds the admin */
+const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
 
 function readJSON<T>(file: string, defaultValue: T): T {
   if (!existsSync(file)) return defaultValue;
@@ -41,11 +44,14 @@ async function main() {
   const agencyIds = Object.keys(agencies);
   let agencyId: string;
 
-  if (agencyIds.length > 0) {
+  if (agencies[DEFAULT_AGENCY_ID]) {
+    agencyId = DEFAULT_AGENCY_ID;
+    console.log(`Using default agency: ${agencies[agencyId].name} (${agencyId})`);
+  } else if (agencyIds.length > 0) {
     agencyId = agencyIds[0];
     console.log(`Using existing agency: ${agencies[agencyId].name} (${agencyId})`);
   } else {
-    agencyId = generateId('agency');
+    agencyId = DEFAULT_AGENCY_ID;
     agencies[agencyId] = {
       id: agencyId,
       name: '2Fly Agency',
