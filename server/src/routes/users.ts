@@ -9,7 +9,7 @@
  */
 
 import express from 'express';
-import { getUser, getUserByEmail, getUsersByAgency, getUsersByClient, saveUser, deleteUser, getInviteTokensByUser, saveInviteToken, getInviteTokenByHash, markInviteTokenUsed, saveAuditLog, getClientsByAgency } from '../db.js';
+import { getUser, getUserByEmail, getUserByUsername, getUsersByAgency, getUsersByClient, saveUser, deleteUser, getInviteTokensByUser, saveInviteToken, getInviteTokenByHash, markInviteTokenUsed, saveAuditLog, getClientsByAgency, getAgencies, saveAgency } from '../db.js';
 import { hashPassword, generateToken, hashToken, generateId } from '../utils/auth.js';
 import { sendInviteEmail } from '../utils/email.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -130,6 +130,112 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
   } catch (error: any) {
     console.error('Invite user error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/users/create-admin
+ * Create a new admin account (agency + OWNER user). OWNER only.
+ * Body: { agencyName, email, username, password }
+ */
+router.post('/create-admin', authenticate, requireRole(['OWNER']), async (req: any, res) => {
+  try {
+    const { agencyName, email, username, password } = req.body;
+    const actorUser = req.user;
+
+    if (!agencyName || !email || !username || !password) {
+      return res.status(400).json({ error: 'Agency name, email, username, and password are required' });
+    }
+
+    const trimmedAgencyName = String(agencyName).trim();
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const trimmedUsername = String(username).trim();
+    const rawPassword = String(password);
+
+    if (trimmedAgencyName.length < 2) {
+      return res.status(400).json({ error: 'Agency name must be at least 2 characters' });
+    }
+    if (!trimmedEmail.includes('@')) {
+      return res.status(400).json({ error: 'Invalid email' });
+    }
+    if (trimmedUsername.length < 2) {
+      return res.status(400).json({ error: 'Username must be at least 2 characters' });
+    }
+    if (rawPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const agencies = getAgencies();
+    let agencyId: string;
+    let agency = Object.values(agencies).find(a => a.name.trim() === trimmedAgencyName);
+
+    if (agency) {
+      agencyId = agency.id;
+    } else {
+      agencyId = generateId('agency');
+      agency = {
+        id: agencyId,
+        name: trimmedAgencyName,
+        createdAt: Date.now()
+      };
+      agencies[agencyId] = agency;
+      saveAgency(agency);
+    }
+
+    const existingByEmail = getUserByEmail(agencyId, trimmedEmail);
+    if (existingByEmail) {
+      return res.status(400).json({ error: 'A user with this email already exists in that agency' });
+    }
+    const existingByUsername = getUserByUsername(agencyId, trimmedUsername);
+    if (existingByUsername) {
+      return res.status(400).json({ error: 'Username already taken in that agency' });
+    }
+
+    const passwordHash = await hashPassword(rawPassword);
+    const userId = generateId('user');
+    const now = Date.now();
+    const newUser: User = {
+      id: userId,
+      agencyId,
+      email: trimmedEmail,
+      username: trimmedUsername,
+      name: trimmedUsername,
+      role: 'OWNER',
+      status: 'ACTIVE',
+      passwordHash,
+      clientId: null,
+      lastLoginAt: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    saveUser(newUser);
+
+    saveAuditLog({
+      id: generateId('audit'),
+      agencyId: actorUser.agencyId,
+      actorUserId: actorUser.id,
+      action: 'user.create-admin',
+      targetUserId: userId,
+      metaJson: JSON.stringify({ targetAgencyId: agencyId, targetAgencyName: trimmedAgencyName }),
+      createdAt: now
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: userId,
+        agencyId,
+        email: newUser.email,
+        username: newUser.username,
+        name: newUser.name,
+        role: newUser.role,
+        status: newUser.status
+      },
+      agency: { id: agencyId, name: agency.name }
+    });
+  } catch (error: any) {
+    console.error('Create admin error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create admin account' });
   }
 });
 

@@ -3569,6 +3569,8 @@ function setupSettingsModal() {
       const role = (currentStaff && currentStaff.role) ? currentStaff.role : '';
       const inviteSection = $('#settingsInviteSection');
       if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
+      const createAdminSection = $('#settingsCreateAdminSection');
+      if (createAdminSection) createAdminSection.style.display = role === 'OWNER' ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
     });
@@ -3599,6 +3601,67 @@ function setupSettingsModal() {
         loadClientsList();
       } catch (e) {
         console.error('Refresh clients:', e);
+      }
+    });
+  }
+
+  // Create new admin account form (OWNER only)
+  const createAdminForm = $('#settingsCreateAdminForm');
+  const createAdminSubmitBtn = $('#createAdminSubmitBtn');
+  const createAdminSuccessMsg = $('#createAdminSuccessMessage');
+  const createAdminErrorMsg = $('#createAdminErrorMessage');
+  if (createAdminForm) {
+    createAdminForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (createAdminSuccessMsg) createAdminSuccessMsg.style.display = 'none';
+      if (createAdminErrorMsg) createAdminErrorMsg.style.display = 'none';
+      const agencyName = $('#createAdminAgencyName')?.value.trim();
+      const email = $('#createAdminEmail')?.value.trim();
+      const username = $('#createAdminUsername')?.value.trim();
+      const password = $('#createAdminPassword')?.value || '';
+      if (!agencyName || !email || !username || !password) {
+        if (createAdminErrorMsg) {
+          createAdminErrorMsg.textContent = 'Please fill in all fields.';
+          createAdminErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      if (password.length < 6) {
+        if (createAdminErrorMsg) {
+          createAdminErrorMsg.textContent = 'Password must be at least 6 characters.';
+          createAdminErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      if (createAdminSubmitBtn) {
+        createAdminSubmitBtn.disabled = true;
+        createAdminSubmitBtn.textContent = 'Creating...';
+      }
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/users/create-admin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ agencyName, email, username, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to create admin account');
+        if (createAdminSuccessMsg) {
+          createAdminSuccessMsg.textContent = `Admin account created.\n\nAgency: ${data.agency?.name || agencyName}\nEmail: ${data.user?.email || email}\nUsername: ${data.user?.username || username}\n\nThey can log in at staff login with username or email.`;
+          createAdminSuccessMsg.style.display = 'block';
+        }
+        createAdminForm.reset();
+        setTimeout(() => { if (createAdminSuccessMsg) createAdminSuccessMsg.style.display = 'none'; }, 12000);
+      } catch (err) {
+        if (createAdminErrorMsg) {
+          createAdminErrorMsg.textContent = err.message || 'Failed to create admin account.';
+          createAdminErrorMsg.style.display = 'block';
+        }
+      } finally {
+        if (createAdminSubmitBtn) {
+          createAdminSubmitBtn.disabled = false;
+          createAdminSubmitBtn.textContent = 'Create Admin Account';
+        }
       }
     });
   }

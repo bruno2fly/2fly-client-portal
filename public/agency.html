@@ -2134,6 +2134,33 @@
       </div>
       
       <div class="settings-modal-body">
+        <!-- Create New Admin Account (OWNER only) -->
+        <div id="settingsCreateAdminSection" class="settings-section" style="margin-bottom: 32px;">
+          <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Create New Admin Account</h3>
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">Create a new agency and owner, or add an owner to an existing agency.</p>
+          <form id="settingsCreateAdminForm" style="max-width: 100%;">
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Agency Name <span style="color: #ef4444;">*</span></label>
+              <input type="text" id="createAdminAgencyName" class="form-input" placeholder="e.g. 2Fly Agency" required style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" />
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Email <span style="color: #ef4444;">*</span></label>
+              <input type="email" id="createAdminEmail" class="form-input" placeholder="admin@example.com" required style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" />
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Username <span style="color: #ef4444;">*</span></label>
+              <input type="text" id="createAdminUsername" class="form-input" placeholder="e.g. admin" required minlength="2" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" />
+            </div>
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Password <span style="color: #ef4444;">*</span></label>
+              <input type="password" id="createAdminPassword" class="form-input" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" />
+            </div>
+            <button type="submit" id="createAdminSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 12px 24px; background: #0052CC; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">Create Admin Account</button>
+          </form>
+          <div id="createAdminSuccessMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #d1fae5; color: #059669; border-radius: 8px; font-size: 14px; white-space: pre-line;"></div>
+          <div id="createAdminErrorMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #fee2e2; color: #dc2626; border-radius: 8px; font-size: 14px;"></div>
+        </div>
+
         <!-- Register New Staff Section (OWNER/ADMIN only) -->
         <div id="settingsInviteSection" class="settings-section" style="margin-bottom: 32px;">
           <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Register New Staff</h3>
