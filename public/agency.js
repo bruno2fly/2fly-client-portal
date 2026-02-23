@@ -2339,10 +2339,11 @@ function openPreviewModal() {
       if (displayUrls.length === 1) {
         contentHTML = '<img id="previewModalImg" src="' + displayUrls[0] + '" alt="' + (title || 'Preview') + '" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;">';
       } else {
-        contentHTML = '<div class="preview-carousel" style="position:relative;max-width:100%;">';
-        contentHTML += '<div class="preview-carousel__track" style="display:flex;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;">';
+        var slidePct = (100 / displayUrls.length).toFixed(4);
+        contentHTML = '<div class="preview-carousel" style="position:relative;max-width:100%;overflow:hidden;">';
+        contentHTML += '<div class="preview-carousel__track" style="display:flex;flex-wrap:nowrap;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;width:' + (displayUrls.length * 100) + '%;">';
         displayUrls.forEach(function (url, i) {
-          contentHTML += '<div class="preview-carousel__slide" data-index="' + i + '" style="min-width:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;">';
+          contentHTML += '<div class="preview-carousel__slide" data-index="' + i + '" style="flex:0 0 ' + slidePct + '%;min-width:0;display:flex;align-items:center;justify-content:center;background:#f1f5f9;">';
           contentHTML += '<img src="' + url + '" alt="Slide ' + (i + 1) + '" style="max-width:100%;max-height:400px;object-fit:contain;">';
           contentHTML += '</div>';
         });
@@ -2391,7 +2392,7 @@ function openPreviewModal() {
       var curIdx = 0;
       function updateCarousel() {
         if (track && slides.length) {
-          track.style.transform = 'translateX(-' + curIdx * 100 + '%)';
+          track.style.transform = 'translateX(-' + (curIdx * 100 / slides.length) + '%)';
           if (dotsEl) {
             dotsEl.innerHTML = '';
             for (var d = 0; d < slides.length; d++) {
