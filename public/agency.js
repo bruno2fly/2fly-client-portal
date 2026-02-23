@@ -65,6 +65,10 @@ let currentClientId = null;
 // Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
 let clientsRegistryCache = {};
 let portalStateCache = {};
+// Track which clients have been successfully fetched from the API.
+// save() is blocked until the client's state has been loaded at least once,
+// preventing empty/default state from overwriting real server data.
+const portalStateFetched = new Set();
 
 function getApiBaseUrl() {
   return (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -256,6 +260,7 @@ async function fetchPortalStateFromAPI(clientId) {
       });
     }
     portalStateCache[clientId] = data;
+    portalStateFetched.add(clientId);
   }
   return data;
 }
@@ -861,6 +866,10 @@ function _emptyState(name, whatsapp) {
 
 function save(x) {
   if (!currentClientId) return;
+  if (!portalStateFetched.has(currentClientId)) {
+    console.warn('save() blocked — portal state for', currentClientId, 'was never fetched from API');
+    return;
+  }
   portalStateCache[currentClientId] = x;
   savePortalStateToAPI(currentClientId, x).catch(err => {
     console.error('Save portal state failed:', err);
@@ -1120,8 +1129,16 @@ async function selectClient(clientId) {
   try {
     await fetchPortalStateFromAPI(clientId);
   } catch (e) {
-    console.error('Fetch portal state:', e);
-    portalStateCache[clientId] = _emptyState(client.name, client.primaryContactWhatsApp);
+    console.error('Fetch portal state (attempt 1):', e);
+    // Retry once after a short delay instead of caching empty state
+    try {
+      await new Promise(r => setTimeout(r, 1000));
+      await fetchPortalStateFromAPI(clientId);
+    } catch (e2) {
+      console.error('Fetch portal state (attempt 2):', e2);
+      showToast('Could not load client data. Please refresh the page.', 'error');
+      // Do NOT cache _emptyState — leave cache empty so save() is blocked
+    }
   }
   renderClientsSidebar();
   renderClientHeader();
@@ -1322,8 +1339,11 @@ function renderOverviewTab() {
   // Calculate scheduled posts from approvals with postDate within next 15 days
   const scheduledCount = calculateScheduledPosts(state.approvals || []);
   if (state.kpis) {
+    const prevScheduled = state.kpis.scheduled;
     state.kpis.scheduled = scheduledCount;
-    save(state);
+    if (prevScheduled !== scheduledCount && portalStateFetched.has(currentClientId)) {
+      save(state);
+    }
   }
 
   const kpiScheduled = $('#kpiScheduled');
@@ -1631,6 +1651,7 @@ async function deleteCurrentClient() {
   currentClientId = null;
   try { localStorage.removeItem(LS_LAST_CLIENT_KEY); } catch (_) {}
   delete portalStateCache[cid];
+  portalStateFetched.delete(cid);
   await fetchClientsFromAPI();
   renderClientsSidebar();
   const remaining = Object.keys(loadClientsRegistry());

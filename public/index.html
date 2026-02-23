@@ -1522,6 +1522,7 @@ if (!session) {
   const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3001' : 'https://api.2flyflow.com';
   let portalStateCache = null;
+  let portalStateFetchedFromAPI = false;
 
   function getSeed() {
     return {
@@ -1544,6 +1545,10 @@ if (!session) {
   }
 
   function save(state) {
+    if (!portalStateFetchedFromAPI) {
+      console.warn('save() blocked — portal state was never fetched from API');
+      return;
+    }
     portalStateCache = state;
     const token = (session && session.token) || null;
     if (!token) return;
@@ -3221,7 +3226,10 @@ async function initializeApp() {
         return;
       }
       const j = await r.json();
-      if (r.ok && j.data) portalStateCache = j.data;
+      if (r.ok && j.data) {
+        portalStateCache = j.data;
+        portalStateFetchedFromAPI = true;
+      }
     } catch (e) {
       console.warn('Failed to load portal state:', e);
     }
