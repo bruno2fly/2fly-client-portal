@@ -2010,6 +2010,9 @@ function loadApprovalForEdit(id) {
   
   // Load image URL if exists
   $('#approvalImageUrl').value = item.imageUrl || '';
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:loadApprovalForEdit-after-set',message:'Loaded approval into form',data:{id:item.id,imageUrl:item.imageUrl,hasPreviewImageUrl:!!item.previewImageUrl,assetIdsLen:(item.assetIds||[]).length,uploadedImagesLen:(item.uploadedImages||[]).length,imageUrlInputValue:$('#approvalImageUrl')&&$('#approvalImageUrl').value},timestamp:Date.now(),hypothesisId:'H1_H2_H3_H4'})}).catch(function(){});
+  // #endregion
   // Refresh inline preview for the loaded URL
   var urlInput = $('#approvalImageUrl');
   if (urlInput) urlInput.dispatchEvent(new Event('input'));
@@ -2119,6 +2122,7 @@ function renderApprovedVisualsSection() {
 function updatePostFormFromAssets() {
   const input = $('#approvalImageUrl');
   if (!input) return;
+  var beforeVal = input.value;
   if (postSelectedAssetIds.length > 0) {
     const assets = loadAssets(currentClientId);
     const first = assets.find(a => a.id === postSelectedAssetIds[0]);
@@ -2128,6 +2132,9 @@ function updatePostFormFromAssets() {
     input.value = '';
     input.disabled = false;
   }
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:updatePostFormFromAssets',message:'Synced form from assets',data:{assetIdsLen:postSelectedAssetIds.length,beforeVal:beforeVal?beforeVal.slice(0,60)+'...':'',afterVal:input.value?input.value.slice(0,60)+'...':'',cleared:!!beforeVal&&!input.value},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
+  // #endregion
 }
 
 // Setup approval form handler - will be called after DOM loads
@@ -2304,6 +2311,10 @@ function openPreviewModal() {
   const copyText = $('#approvalCopyText').value.trim();
   const caption = $('#approvalCaption').value.trim() || 'No caption provided.';
   const imageUrlInput = $('#approvalImageUrl').value.trim();
+
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:openPreviewModal',message:'Preview modal opened',data:{imageUrlInputLen:imageUrlInput.length,uploadedImagesLen:uploadedImages?uploadedImages.length:0,postSelectedAssetIdsLen:postSelectedAssetIds?postSelectedAssetIds.length:0,copyTextLen:copyText?copyText.length:0},timestamp:Date.now(),hypothesisId:'H1_H5'})}).catch(function(){});
+  // #endregion
 
   // Resolve preview URL: prefer asset thumbnail if assetIds exist, then Image URL, then uploadedImages
   let resolvedPreviewUrl = null;
