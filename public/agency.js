@@ -331,6 +331,14 @@ function getPreviewUrl(asset) {
   return null;
 }
 
+/** Convert any image URL to a displayable src — Google Drive share links become thumbnail URLs. */
+function toDisplayableImageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  var fileId = extractGoogleDriveFileId(url);
+  if (fileId) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w800';
+  return url;
+}
+
 /** Parse comma-separated pillars into trimmed unique array. */
 function normalizePillars(input) {
   if (!input || typeof input !== 'string') return [];
@@ -1668,6 +1676,7 @@ function renderApprovalsTab() {
         renderApprovedVisualsSection();
         updatePostFormFromAssets();
         if ($('#postUploadApprovalWarning')) $('#postUploadApprovalWarning').style.display = 'none';
+        var ipw = $('#imageUrlPreviewWrap'); if (ipw) ipw.style.display = 'none';
       }
     }
   };
@@ -1967,6 +1976,9 @@ function loadApprovalForEdit(id) {
   
   // Load image URL if exists
   $('#approvalImageUrl').value = item.imageUrl || '';
+  // Refresh inline preview for the loaded URL
+  var urlInput = $('#approvalImageUrl');
+  if (urlInput) urlInput.dispatchEvent(new Event('input'));
   
   // Load uploaded images if they exist
   if (item.uploadedImages && item.uploadedImages.length > 0) {
@@ -2130,6 +2142,10 @@ function setupApprovalHandlers() {
       var firstAsset = assets.find(function(a) { return a.id === postSelectedAssetIds[0]; });
       if (firstAsset) previewImageUrl = firstAsset.thumbnailUrl || getPreviewUrl(firstAsset) || firstAsset.url || undefined;
     }
+    if (!previewImageUrl && imageUrl) {
+      var converted = toDisplayableImageUrl(imageUrl);
+      if (converted !== imageUrl) previewImageUrl = converted;
+    }
     const approvalData = {
       id: id || `ap${Date.now()}`,
       title: $('#approvalTitle').value.trim(),
@@ -2203,6 +2219,7 @@ function setupApprovalHandlers() {
     setAutoDueDate();
     const warn = $('#postUploadApprovalWarning');
     if (warn) warn.style.display = 'none';
+    var ipw = $('#imageUrlPreviewWrap'); if (ipw) ipw.style.display = 'none';
   });
   }
 
@@ -2222,6 +2239,7 @@ function setupApprovalHandlers() {
     $$('.approval-item').forEach(i => i.classList.remove('selected'));
     setAutoDueDate();
     if ($('#postUploadApprovalWarning')) $('#postUploadApprovalWarning').style.display = 'none';
+    var ipw = $('#imageUrlPreviewWrap'); if (ipw) ipw.style.display = 'none';
     });
   }
 
@@ -2236,6 +2254,7 @@ function setupApprovalHandlers() {
   
   // Setup image upload handlers
   setupImageUpload();
+  setupImageUrlPreview();
 
   // Preview button handler
   const approvalPreview = $('#approvalPreview');
@@ -2264,7 +2283,7 @@ function openPreviewModal() {
     }
   }
   if (!resolvedPreviewUrl && imageUrlInput) {
-    resolvedPreviewUrl = imageUrlInput;
+    resolvedPreviewUrl = toDisplayableImageUrl(imageUrlInput);
     previewSource = 'imageUrl';
   }
   console.log('Preview: resolved URL', resolvedPreviewUrl ? resolvedPreviewUrl.slice(0, 80) + (resolvedPreviewUrl.length > 80 ? '…' : '') : null, '| source:', previewSource);
@@ -2385,6 +2404,7 @@ function closePreviewModal() {
       $('#editPanelTitle').textContent = 'Create Approval';
       $('#approvalDelete').style.display = 'none';
       selectedApprovalId = null;
+      var ipw = $('#imageUrlPreviewWrap'); if (ipw) ipw.style.display = 'none';
     }
     });
   }
@@ -3569,8 +3589,6 @@ function setupSettingsModal() {
       const role = (currentStaff && currentStaff.role) ? currentStaff.role : '';
       const inviteSection = $('#settingsInviteSection');
       if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
-      const createAdminSection = $('#settingsCreateAdminSection');
-      if (createAdminSection) createAdminSection.style.display = role === 'OWNER' ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
     });
@@ -3601,67 +3619,6 @@ function setupSettingsModal() {
         loadClientsList();
       } catch (e) {
         console.error('Refresh clients:', e);
-      }
-    });
-  }
-
-  // Create new admin account form (OWNER only)
-  const createAdminForm = $('#settingsCreateAdminForm');
-  const createAdminSubmitBtn = $('#createAdminSubmitBtn');
-  const createAdminSuccessMsg = $('#createAdminSuccessMessage');
-  const createAdminErrorMsg = $('#createAdminErrorMessage');
-  if (createAdminForm) {
-    createAdminForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (createAdminSuccessMsg) createAdminSuccessMsg.style.display = 'none';
-      if (createAdminErrorMsg) createAdminErrorMsg.style.display = 'none';
-      const agencyName = $('#createAdminAgencyName')?.value.trim();
-      const email = $('#createAdminEmail')?.value.trim();
-      const username = $('#createAdminUsername')?.value.trim();
-      const password = $('#createAdminPassword')?.value || '';
-      if (!agencyName || !email || !username || !password) {
-        if (createAdminErrorMsg) {
-          createAdminErrorMsg.textContent = 'Please fill in all fields.';
-          createAdminErrorMsg.style.display = 'block';
-        }
-        return;
-      }
-      if (password.length < 6) {
-        if (createAdminErrorMsg) {
-          createAdminErrorMsg.textContent = 'Password must be at least 6 characters.';
-          createAdminErrorMsg.style.display = 'block';
-        }
-        return;
-      }
-      if (createAdminSubmitBtn) {
-        createAdminSubmitBtn.disabled = true;
-        createAdminSubmitBtn.textContent = 'Creating...';
-      }
-      try {
-        const response = await fetch(`${getApiBaseUrl()}/api/users/create-admin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ agencyName, email, username, password })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to create admin account');
-        if (createAdminSuccessMsg) {
-          createAdminSuccessMsg.textContent = `Admin account created.\n\nAgency: ${data.agency?.name || agencyName}\nEmail: ${data.user?.email || email}\nUsername: ${data.user?.username || username}\n\nThey can log in at staff login with username or email.`;
-          createAdminSuccessMsg.style.display = 'block';
-        }
-        createAdminForm.reset();
-        setTimeout(() => { if (createAdminSuccessMsg) createAdminSuccessMsg.style.display = 'none'; }, 12000);
-      } catch (err) {
-        if (createAdminErrorMsg) {
-          createAdminErrorMsg.textContent = err.message || 'Failed to create admin account.';
-          createAdminErrorMsg.style.display = 'block';
-        }
-      } finally {
-        if (createAdminSubmitBtn) {
-          createAdminSubmitBtn.disabled = false;
-          createAdminSubmitBtn.textContent = 'Create Admin Account';
-        }
       }
     });
   }
@@ -4204,6 +4161,26 @@ function setupImageUpload() {
     // Reset input to allow selecting the same file again
     fileInput.value = '';
   });
+}
+
+function setupImageUrlPreview() {
+  var input = $('#approvalImageUrl');
+  if (!input) return;
+  function refresh() {
+    var url = input.value.trim();
+    var wrap = $('#imageUrlPreviewWrap');
+    var img = $('#imageUrlPreviewImg');
+    if (!wrap || !img) return;
+    if (!url) { wrap.style.display = 'none'; return; }
+    var displayUrl = toDisplayableImageUrl(url);
+    img.onload = function () { wrap.style.display = 'block'; };
+    img.onerror = function () { wrap.style.display = 'none'; };
+    img.src = displayUrl;
+  }
+  input.addEventListener('input', refresh);
+  input.addEventListener('paste', function () { setTimeout(refresh, 50); });
+  input.addEventListener('change', refresh);
+  refresh();
 }
 
 // Display uploaded images
