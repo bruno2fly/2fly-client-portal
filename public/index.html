@@ -425,6 +425,9 @@
   @keyframes shake{ 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
   @media (prefers-reduced-motion: reduce){ .form-quick-request-stacked #reqType.shake{ animation:none; } }
   .form-error{ color:#ef4444; font-size:14px; line-height:18px; font-weight:400; margin-top:4px; }
+  .sr-only{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+  }
   .toast-success{
     position:fixed; top:0; left:0; right:0; z-index:100;
     background:#22c55e; color:#fff; text-align:center; padding:14px 16px;
@@ -1075,7 +1078,8 @@ body[data-theme="dark"] .kpi-card.approved .pill{
         <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">Quick Request</h3>
         <form id="requestForm" class="form form-quick-request form-quick-request-stacked" autocomplete="off">
           <div class="form-quick-request-fields">
-            <select id="reqType" required aria-invalid="false" aria-describedby="reqTypeError">
+            <label for="reqType" class="sr-only">Request type</label>
+            <select id="reqType" required aria-describedby="reqTypeError">
               <option value="">Select type…</option>
               <option>Send photos/videos</option>
               <option>Approve content</option>
@@ -1083,12 +1087,15 @@ body[data-theme="dark"] .kpi-card.approved .pill{
               <option>New campaign idea</option>
               <option>Other</option>
             </select>
+            <label for="reqContact" class="sr-only">Your name</label>
             <input id="reqContact" type="text" placeholder="Your name (optional)">
+            <label for="reqDetails" class="sr-only">Request description</label>
             <textarea id="reqDetails" rows="4" placeholder="Describe your request…" style="min-height:100px;"></textarea>
+            <label for="reqLink" class="sr-only">Link to files</label>
             <input id="reqLink" type="text" placeholder="Link to files (Drive/WeTransfer)">
             <button type="submit" class="btn primary submit-request-btn" style="width:100%;height:48px;border-radius:12px;background:var(--brand-blue,#1e3a8a);color:#fff;border:none;font-weight:600;">Submit request</button>
           </div>
-          <span id="reqTypeError" class="form-error" role="alert" aria-live="polite" style="display:none;"></span>
+          <div id="reqTypeError" class="form-error" role="alert" aria-live="polite" style="display:none;"></div>
           <small style="color:var(--text-on-dark);opacity:.85;font-size:14px;line-height:18px;font-weight:400;display:block;margin-top:8px;">Requests appear instantly in "Open Requests" and are saved to your browser (demo).</small>
         </form>
         
@@ -1149,6 +1156,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       <!-- Progress (formerly Reports) -->
       <section class="panel section-reports" id="reports" style="grid-column: span 12;" aria-label="Progress" data-show-tabs="activity">
         <h3 style="display:flex;align-items:center;gap:10px;">Progress <span class="chip" id="progressSampleBadge" style="font-size:14px;line-height:18px;font-weight:500;padding:2px 8px;display:none;">Sample data</span></h3>
+        <div id="progressSampleBanner" role="alert" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px;color:#92400e;font-weight:500;">⚠️ Sample data — These metrics are for demonstration only. Your team will update this with real data.</div>
 
         <div class="progress-hero" id="progressHero">
           <h4>This month at a glance</h4>
@@ -1182,22 +1190,6 @@ body[data-theme="dark"] .kpi-card.approved .pill{
         <div class="progress-reassurance" id="progressReassurance">
           <h4><span class="progress-check" aria-hidden="true">✓</span>Everything is on track</h4>
           <p>We’re actively managing your content and campaigns. If we need anything from you, we’ll notify you here.</p>
-        </div>
-
-        <!-- Admin mini form -->
-        <div id="reportsAdmin" class="panel" style="margin-top:12px; display:none">
-          <h3>Update Progress (Team)</h3>
-          <form id="reportsForm" class="form">
-            <div class="cols-2"><input type="password" id="repPin" placeholder="Team PIN" /><input type="text" id="repPeriod" placeholder="Period (e.g., Nov 2025)" /></div>
-            <div class="cols-2"><input type="number" id="repAdsRunning" placeholder="Ads running" /><input type="number" id="repImpressions" placeholder="Impressions" /></div>
-            <div class="cols-2"><input type="number" id="repClicks" placeholder="Clicks" /><input type="number" id="repLeads" placeholder="Leads" /></div>
-            <div class="cols-2"><input type="number" id="repGmbViews" placeholder="GMB views" /><input type="number" id="repProfileSearches" placeholder="Profile searches" /></div>
-            <div class="cols-2"><input type="number" id="repWebsiteClicks" placeholder="Website clicks" /><input type="number" id="repIgFollowers" placeholder="IG followers change" /></div>
-            <div class="cols-2"><input type="number" id="repPosts" placeholder="Posts published" /><input type="number" id="repReels" placeholder="Reels edited" /></div>
-            <div class="cols-2"><input type="number" id="repCampaigns" placeholder="Campaigns launched" /><input type="number" id="repRequests" placeholder="Requests resolved" /></div>
-            <div class="cols-2"><button class="btn" type="button" id="cancelReports">Cancel</button><button class="btn primary" type="submit">Save Report</button></div>
-            <small class="muted">This MVP saves to your browser (localStorage). APIs later.</small>
-          </form>
         </div>
       </section>
     </div>
@@ -1864,6 +1856,13 @@ function renderClientNotificationBell() {
 
 function renderActionRequiredCard() {
   const state = load();
+  const approvals = state.approvals || [];
+  const requests = state.requests || [];
+  const pendingApprovals = approvals.filter(a => {
+    const s = (a.status || '').trim();
+    return s === 'pending' || s === 'copy_pending' || s === '';
+  });
+  const openRequests = requests.filter(r => (r.status || '').toLowerCase() !== 'done');
   const notifications = computeNotifications(state);
   const readIds = loadReadNotificationIds();
   const unreadAction = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id));
@@ -1873,14 +1872,56 @@ function renderActionRequiredCard() {
   const textEl = document.getElementById('actionRequiredText');
   const btn = document.getElementById('actionRequiredBtn');
   if (!card || !textEl) return;
-  if (top) {
+
+  if (pendingApprovals.length > 0) {
+    card.classList.remove('all-clear');
+    textEl.textContent = pendingApprovals.length === 1
+      ? 'You have 1 item waiting for approval'
+      : 'You have ' + pendingApprovals.length + ' item(s) waiting for approval';
+    if (btn) {
+      btn.style.display = 'inline-flex';
+      btn.onclick = function() {
+        document.body.setAttribute('data-active-tab', 'content');
+        var nav = document.getElementById('bottomNav');
+        if (nav) {
+          nav.querySelectorAll('.bottom-nav-btn').forEach(function(b) { b.classList.remove('active'); b.removeAttribute('aria-current'); });
+          var contentBtn = nav.querySelector('[data-tab="content"]');
+          if (contentBtn) { contentBtn.classList.add('active'); contentBtn.setAttribute('aria-current', 'page'); }
+        }
+        navigateToNotificationHref('#approvals-pending');
+        renderClientNotificationBell();
+        renderActionRequiredCard();
+      };
+    }
+  } else if (openRequests.length > 0) {
+    card.classList.remove('all-clear');
+    textEl.textContent = openRequests.length === 1
+      ? 'You have 1 open request'
+      : 'You have ' + openRequests.length + ' open request(s)';
+    if (btn) {
+      btn.style.display = 'inline-flex';
+      btn.textContent = 'View requests';
+      btn.onclick = function() {
+        document.body.setAttribute('data-active-tab', 'requests');
+        var nav = document.getElementById('bottomNav');
+        if (nav) {
+          nav.querySelectorAll('.bottom-nav-btn').forEach(function(b) { b.classList.remove('active'); b.removeAttribute('aria-current'); });
+          var reqBtn = nav.querySelector('[data-tab="requests"]');
+          if (reqBtn) { reqBtn.classList.add('active'); reqBtn.setAttribute('aria-current', 'page'); }
+        }
+        var el = document.getElementById('requests');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        renderActionRequiredCard();
+      };
+    }
+  } else if (top) {
     card.classList.remove('all-clear');
     textEl.textContent = top.title + (top.message ? ': ' + top.message.slice(0, 50) + (top.message.length > 50 ? '…' : '') : '');
-    if (btn) { btn.style.display = 'inline-flex'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
+    if (btn) { btn.style.display = 'inline-flex'; btn.textContent = 'Review now'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
   } else {
     card.classList.add('all-clear');
     textEl.textContent = 'Nothing needed right now ✅';
-    if (btn) btn.style.display = 'none';
+    if (btn) { btn.style.display = 'none'; btn.textContent = 'Review now'; }
   }
 }
 
@@ -2016,13 +2057,18 @@ function render(){
   if (kpiValMissing) kpiValMissing.textContent = approvedCount;
   
   const kpiSubScheduled = $("#kpiSubScheduled");
-  if (kpiSubScheduled) kpiSubScheduled.textContent = state.kpis.scheduled >= 14 ? "On track" : "Low coverage";
+  if (kpiSubScheduled) {
+    if (state.kpis.scheduled >= 14) kpiSubScheduled.textContent = "On track";
+    else if (state.kpis.scheduled > 0) kpiSubScheduled.textContent = state.kpis.scheduled + " upcoming";
+    else kpiSubScheduled.textContent = "No posts upcoming";
+    kpiSubScheduled.className = "pill " + (state.kpis.scheduled >= 14 ? "chip ok" : state.kpis.scheduled > 0 ? "chip" : "chip warn");
+  }
   
   const kpiSubApproval = $("#kpiSubApproval");
-  if (kpiSubApproval) kpiSubApproval.textContent = pendingCount > 0 ? "Needs review" : "All clear";
+  if (kpiSubApproval) kpiSubApproval.textContent = pendingCount > 0 ? (pendingCount === 1 ? "1 needs review" : pendingCount + " need review") : "All clear";
   
   const kpiSubMissing = $("#kpiSubMissing");
-  if (kpiSubMissing) kpiSubMissing.textContent = approvedCount > 0 ? "Ready" : "None approved";
+  if (kpiSubMissing) kpiSubMissing.textContent = approvedCount > 0 ? "Ready to publish" : "None yet";
 
   // WhatsApp link
   const whatsappLink = $("#whatsappLink");
@@ -2255,7 +2301,8 @@ function approveItem(id){
     s.kpis.waitingApproval = Math.max(0, s.kpis.waitingApproval - 1); 
   }
   save(s);
-  notifyTeam({ type:"approval", itemId:id, title:item.title, status:item.status, activityText:`Approved: ${item.title}` });
+  var approvalActivityText = (item.status === 'copy_approved') ? 'Approved copy for "' + item.title + '"' : '✅ Approved "' + item.title + '" for publication';
+  notifyTeam({ type:"approval", itemId:id, title:item.title, status:item.status, activityText: approvalActivityText });
   
   // Close modal
   closeApprovalModal();
@@ -2289,7 +2336,7 @@ function deleteApprovalItem(id){
   }
   
   save(s);
-  notifyTeam({ type:"delete", itemId:id, title:item.title, activityText:`Deleted: ${item.title}` });
+  notifyTeam({ type:"delete", itemId:id, title:item.title, activityText:'🗑️ Deleted approval item "' + item.title + '"' });
   
   // Close modal
   closeApprovalModal();
@@ -2762,7 +2809,8 @@ function setupModalEventDelegation() {
       item.change_notes.push({ when: Date.now(), note });
       
       save(s); 
-  notifyTeam({ type:"needs_changes", itemId:item.id, title:item.title, note, activityText:`Changes requested: ${item.title}` });
+  var changeNote = (note || '').substring(0, 60) + ((note || '').length > 60 ? '...' : '');
+  notifyTeam({ type:"needs_changes", itemId:item.id, title:item.title, note, activityText:'✏️ Requested changes on "' + item.title + '": "' + changeNote + '"' });
       
       closeApprovalModal();
   render();
@@ -2859,12 +2907,12 @@ if (requestForm) {
   if (!s.requests) s.requests = [];
   s.requests.push(req);
   if (!s.activity) s.activity = [];
-  const activityText = `New request submitted: ${req.type}${req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : ""}`;
+  const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
   s.activity.unshift({when:Date.now(), text:activityText});
   
   save(s);
   e.target.reset();
-  if (reqTypeEl) reqTypeEl.removeAttribute("aria-invalid");
+  if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
   
   var toast = document.getElementById("toastContainer");
   if (toast) {
@@ -2892,7 +2940,7 @@ function closeRequest(id){
     if (!r.createdAt) r.createdAt = Date.now();
     // Add to activity timeline at the beginning
     if (!s.activity) s.activity = [];
-    s.activity.unshift({when:Date.now(), text:`Request completed: ${r.type}${r.details !== "(no details)" ? " - " + r.details.substring(0, 40) + (r.details.length > 40 ? "..." : "") : ""}`}); 
+    s.activity.unshift({when:Date.now(), text:'✅ Request completed: ' + r.type + (r.details !== "(no details)" ? " - " + r.details.substring(0, 40) + (r.details.length > 40 ? "..." : "") : "")}); 
     save(s); 
     render();
     // Recalculate request metrics after marking done
@@ -3165,7 +3213,6 @@ function renderRequestStats(){
 
 /* ================== Reports (manual, positive-only) ================== */
 const LS_REPORTS_KEY = "client_portal_reports_v1";
-const TEAM_PIN = "2468";
 const _nowPeriod = (function(){ var d = new Date(); return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); })();
 const reportSeed = {
   period: _nowPeriod,
@@ -3176,7 +3223,6 @@ const reportSeed = {
   _sample: true
 };
 function loadReports(){ const raw = localStorage.getItem(LS_REPORTS_KEY); if(!raw){ localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(reportSeed)); return reportSeed; } try{ return JSON.parse(raw);}catch{return reportSeed;} }
-function saveReports(r){ localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(r)); }
 function pctChange(cur, prev){ if(prev===0) return 100; return Math.round(((cur - prev) / prev) * 100); }
 function positivePhrase(label, p){ if(p>0) return `${label} up ${p}% vs last period`; if(p===0) return `${label} holding steady`; return `${label} steady with ongoing optimization`; }
 function summarizePositive(r, prev){
@@ -3265,31 +3311,19 @@ function renderReports(){
 
   const sampleBadge = $("#progressSampleBadge");
   if (sampleBadge) sampleBadge.style.display = r._sample === true ? "inline-flex" : "none";
-}
-// Admin form
-(function setupReportsAdmin(){
-  const openBtn=$("#openReportsAdmin"), admin=$("#reportsAdmin"), form=$("#reportsForm"), cancel=$("#cancelReports");
-  if (openBtn) {
-    openBtn.addEventListener("click", ()=>{ admin.style.display = admin.style.display==="none"?"block":"none"; });
+  const sampleBanner = document.getElementById("progressSampleBanner");
+  if (sampleBanner) sampleBanner.style.display = r._sample === true ? "block" : "none";
+  const reportsSection = document.getElementById("reports");
+  if (reportsSection) {
+    const cardsWrap = reportsSection.querySelector(".cards");
+    const progressHero = document.getElementById("progressHero");
+    const progressReassurance = document.getElementById("progressReassurance");
+    const opacity = r._sample === true ? "0.7" : "1";
+    if (cardsWrap) cardsWrap.style.opacity = opacity;
+    if (progressHero) progressHero.style.opacity = opacity;
+    if (progressReassurance) progressReassurance.style.opacity = opacity;
   }
-  cancel.addEventListener("click", ()=> admin.style.display="none");
-  form.addEventListener("submit", (e)=>{
-    e.preventDefault(); const pin=$("#repPin").value.trim(); if(pin!==TEAM_PIN){ alert("Invalid PIN"); return; }
-    const cur=loadReports(); const prev=JSON.parse(JSON.stringify(cur));
-    const val=(id,f=0)=>{ const v=document.getElementById(id).value.replace(/[, ]/g,""); return v?parseInt(v):f; };
-    const next={
-      period: $("#repPeriod").value.trim()||cur.period,
-      ads:{ running:val("repAdsRunning",cur.ads.running), impressions:val("repImpressions",cur.ads.impressions), clicks:val("repClicks",cur.ads.clicks), leads:val("repLeads",cur.ads.leads) },
-      visibility:{ gmbViews:val("repGmbViews",cur.visibility.gmbViews), profileSearches:val("repProfileSearches",cur.visibility.profileSearches), websiteClicks:val("repWebsiteClicks",cur.visibility.websiteClicks), igFollowersDelta:val("repIgFollowers",cur.visibility.igFollowersDelta) },
-      work:{ posts:val("repPosts",cur.work.posts), reels:val("repReels",cur.work.reels), campaigns:val("repCampaigns",cur.work.campaigns), requestsResolved:val("repRequests",cur.work.requestsResolved) },
-      prev,
-      _sample: false
-    };
-    localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(next)); admin.style.display="none"; renderReports();
-    const s=load(); s.activity.push({ when:Date.now(), text:`Report updated: ${next.period}` }); save(s); render();
-  });
-})();
-
+}
 /* ================== Misc events ================== */
 const markAllReadBtn = $("#markAllRead");
 if (markAllReadBtn) {
@@ -3335,12 +3369,25 @@ async function initializeApp() {
   if (!portalStateCache) portalStateCache = getSeed();
   migrateState();
 
-  const copyTab = document.querySelector('[data-tab="copy"]');
-  const laneCopy = document.getElementById('laneCopy');
-  if (copyTab && laneCopy) {
-    copyTab.classList.add('active');
-    laneCopy.style.display = 'block';
-  }
+  var state = load();
+  var approvals = state.approvals || [];
+  var copyCount = approvals.filter(function(a){ return ['copy_pending','copy_approved','copy_changes'].includes((a.status || '')); }).length;
+  var pendingCount = approvals.filter(function(a){ return !a.status || a.status === 'pending'; }).length;
+  var changesCount = approvals.filter(function(a){ return a.status === 'changes'; }).length;
+  var approvedCount = approvals.filter(function(a){ return a.status === 'approved'; }).length;
+  var defaultTab = 'copy';
+  if (pendingCount > 0) defaultTab = 'pending';
+  else if (copyCount > 0) defaultTab = 'copy';
+  else if (changesCount > 0) defaultTab = 'changes';
+  else if (approvedCount > 0) defaultTab = 'approved';
+  var defaultTabEl = document.querySelector('[data-tab="' + defaultTab + '"]');
+  var allLanes = ['laneCopy', 'lanePending', 'laneChanges', 'laneApproved'];
+  var laneMap = { copy: 'laneCopy', pending: 'lanePending', changes: 'laneChanges', approved: 'laneApproved' };
+  document.querySelectorAll('.approval-tab').forEach(function(t){ t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+  allLanes.forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  if (defaultTabEl) { defaultTabEl.classList.add('active'); defaultTabEl.setAttribute('aria-selected', 'true'); }
+  var activeLane = document.getElementById(laneMap[defaultTab]);
+  if (activeLane) activeLane.style.display = 'block';
 
   /* Update client name immediately from session before rendering */
   const clientNameEl = document.getElementById("clientName");
