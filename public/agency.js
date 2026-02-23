@@ -1698,15 +1698,16 @@ function renderApprovalsTab() {
     
     // Only deselect if clicking on container background or section titles (not on items)
     if (!clickedItem) {
-      selectedApprovalId = null;
-      $$('.approval-item').forEach(i => i.classList.remove('selected'));
-      const approvalForm = $('#approvalForm');
-      if (approvalForm) {
-        approvalForm.reset();
+        selectedApprovalId = null;
+        $$('.approval-item').forEach(i => i.classList.remove('selected'));
+        const approvalForm = $('#approvalForm');
+        if (approvalForm) {
+          approvalForm.reset();
         $('#approvalId').value = '';
         $('#editPanelTitle').textContent = 'Create Approval';
         $('#approvalDelete').style.display = 'none';
         postSelectedAssetIds = [];
+        renderApprovalImageUrlRows(['']);
         renderApprovedVisualsSection();
         updatePostFormFromAssets();
         if ($('#postUploadApprovalWarning')) $('#postUploadApprovalWarning').style.display = 'none';
@@ -2008,14 +2009,13 @@ function loadApprovalForEdit(id) {
   $('#approvalCaption').value = item.caption || '';
   $('#approvalStatus').value = item.status || 'pending';
   
-  // Load image URL if exists
-  $('#approvalImageUrl').value = item.imageUrl || '';
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:loadApprovalForEdit-after-set',message:'Loaded approval into form',data:{id:item.id,imageUrl:item.imageUrl,hasPreviewImageUrl:!!item.previewImageUrl,assetIdsLen:(item.assetIds||[]).length,uploadedImagesLen:(item.uploadedImages||[]).length,imageUrlInputValue:$('#approvalImageUrl')&&$('#approvalImageUrl').value},timestamp:Date.now(),hypothesisId:'H1_H2_H3_H4'})}).catch(function(){});
-  // #endregion
-  // Refresh inline preview for the loaded URL
-  var urlInput = $('#approvalImageUrl');
-  if (urlInput) urlInput.dispatchEvent(new Event('input'));
+  // Load image URLs (carousel): imageUrls array or single imageUrl
+  var urls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+    ? item.imageUrls.filter(function (u) { return u && String(u).trim(); })
+    : (item.imageUrl ? [item.imageUrl] : []);
+  renderApprovalImageUrlRows(urls);
+  var firstInput = document.querySelector('.approval-image-url-input');
+  if (firstInput) firstInput.dispatchEvent(new Event('input'));
   
   // Load uploaded images if they exist
   if (item.uploadedImages && item.uploadedImages.length > 0) {
@@ -2118,23 +2118,18 @@ function renderApprovedVisualsSection() {
   } else if (selectedWrap) selectedWrap.style.display = 'none';
 }
 
-/** Sync Image URL and disabled state from postSelectedAssetIds. */
+/** Sync Image URL and disabled state from postSelectedAssetIds. When assets are selected, set first URL input and disable all URL inputs; when none, only re-enable (do not clear existing URL values). */
 function updatePostFormFromAssets() {
-  const input = $('#approvalImageUrl');
-  if (!input) return;
-  var beforeVal = input.value;
+  const inputs = document.querySelectorAll('.approval-image-url-input');
+  if (!inputs.length) return;
   if (postSelectedAssetIds.length > 0) {
     const assets = loadAssets(currentClientId);
     const first = assets.find(a => a.id === postSelectedAssetIds[0]);
-    if (first) input.value = first.url || '';
-    input.disabled = true;
+    if (first && inputs[0]) inputs[0].value = first.url || '';
+    inputs.forEach(function (inp) { inp.disabled = true; });
   } else {
-    input.value = '';
-    input.disabled = false;
+    inputs.forEach(function (inp) { inp.disabled = false; });
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:updatePostFormFromAssets',message:'Synced form from assets',data:{assetIdsLen:postSelectedAssetIds.length,beforeVal:beforeVal?beforeVal.slice(0,60)+'...':'',afterVal:input.value?input.value.slice(0,60)+'...':'',cleared:!!beforeVal&&!input.value},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
-  // #endregion
 }
 
 // Setup approval form handler - will be called after DOM loads
@@ -2157,6 +2152,7 @@ function setupApprovalHandlers() {
         postSelectedAssetIds = [];
         displayUploadedImages();
         setAutoDueDate();
+        renderApprovalImageUrlRows(['']);
         renderApprovedVisualsSection();
         updatePostFormFromAssets();
         const warn = $('#postUploadApprovalWarning');
@@ -2175,17 +2171,19 @@ function setupApprovalHandlers() {
     const id = $('#approvalId').value;
     
     const postDateValue = $('#approvalPostDate').value.trim();
-    const imageUrl = $('#approvalImageUrl').value.trim();
+    var imageUrlsCollected = getApprovalImageUrls();
+    var imageUrl = imageUrlsCollected.length > 0 ? imageUrlsCollected[0] : '';
     
     var previewImageUrl = undefined;
+    var previewImageUrls = [];
     if (postSelectedAssetIds.length > 0 && currentClientId) {
       var assets = loadAssets(currentClientId);
       var firstAsset = assets.find(function(a) { return a.id === postSelectedAssetIds[0]; });
       if (firstAsset) previewImageUrl = firstAsset.thumbnailUrl || getPreviewUrl(firstAsset) || firstAsset.url || undefined;
     }
-    if (!previewImageUrl && imageUrl) {
-      var converted = toDisplayableImageUrl(imageUrl);
-      if (converted !== imageUrl) previewImageUrl = converted;
+    if (!previewImageUrl && imageUrlsCollected.length > 0) {
+      previewImageUrls = imageUrlsCollected.map(function(u) { return toDisplayableImageUrl(u); });
+      previewImageUrl = previewImageUrls[0];
     }
     const approvalData = {
       id: id || `ap${Date.now()}`,
@@ -2196,7 +2194,9 @@ function setupApprovalHandlers() {
       copyText: $('#approvalCopyText').value.trim() || undefined,
       caption: $('#approvalCaption').value.trim() || undefined,
       imageUrl: imageUrl || undefined,
+      imageUrls: imageUrlsCollected.length > 0 ? imageUrlsCollected : undefined,
       previewImageUrl: previewImageUrl,
+      previewImageUrls: previewImageUrls.length > 0 ? previewImageUrls : undefined,
       uploadedImages: uploadedImages.length > 0 ? uploadedImages : undefined,
       assetIds: postSelectedAssetIds.length > 0 ? postSelectedAssetIds.slice() : undefined,
       status: $('#approvalStatus').value,
@@ -2254,6 +2254,7 @@ function setupApprovalHandlers() {
     selectedApprovalId = null;
     uploadedImages = [];
     postSelectedAssetIds = [];
+    renderApprovalImageUrlRows(['']);
     displayUploadedImages();
     renderApprovedVisualsSection();
     updatePostFormFromAssets();
@@ -2310,94 +2311,123 @@ function openPreviewModal() {
   const title = $('#approvalTitle').value.trim() || 'Untitled';
   const copyText = $('#approvalCopyText').value.trim();
   const caption = $('#approvalCaption').value.trim() || 'No caption provided.';
-  const imageUrlInput = $('#approvalImageUrl').value.trim();
+  var imageUrlsFromForm = getApprovalImageUrls();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c54109'},body:JSON.stringify({sessionId:'c54109',location:'agency.js:openPreviewModal',message:'Preview modal opened',data:{imageUrlInputLen:imageUrlInput.length,uploadedImagesLen:uploadedImages?uploadedImages.length:0,postSelectedAssetIdsLen:postSelectedAssetIds?postSelectedAssetIds.length:0,copyTextLen:copyText?copyText.length:0},timestamp:Date.now(),hypothesisId:'H1_H5'})}).catch(function(){});
-  // #endregion
-
-  // Resolve preview URL: prefer asset thumbnail if assetIds exist, then Image URL, then uploadedImages
-  let resolvedPreviewUrl = null;
-  let previewSource = 'none';
-  if (postSelectedAssetIds && postSelectedAssetIds.length > 0 && currentClientId) {
-    const assets = loadAssets(currentClientId);
-    const first = assets.find(a => a.id === postSelectedAssetIds[0]);
-    if (first) {
-      resolvedPreviewUrl = first.thumbnailUrl || getPreviewUrl(first) || first.url || null;
-      if (resolvedPreviewUrl) previewSource = 'asset';
-    }
+  // Resolve preview: prefer uploadedImages, then asset thumbnails, then image URL(s) from form
+  var displayUrls = [];
+  if (uploadedImages && uploadedImages.length > 0) {
+    displayUrls = uploadedImages.map(function (img) { return img.dataUrl; });
+  } else if (postSelectedAssetIds && postSelectedAssetIds.length > 0 && currentClientId) {
+    var assets = loadAssets(currentClientId);
+    postSelectedAssetIds.forEach(function (id) {
+      var a = assets.find(function (x) { return x.id === id; });
+      if (a) displayUrls.push(a.thumbnailUrl || getPreviewUrl(a) || a.url || '');
+    });
+    displayUrls = displayUrls.filter(Boolean);
   }
-  if (!resolvedPreviewUrl && imageUrlInput) {
-    resolvedPreviewUrl = toDisplayableImageUrl(imageUrlInput);
-    previewSource = 'imageUrl';
+  if (displayUrls.length === 0 && imageUrlsFromForm.length > 0) {
+    displayUrls = imageUrlsFromForm.map(function (u) { return toDisplayableImageUrl(u); });
   }
-  console.log('Preview: resolved URL', resolvedPreviewUrl ? resolvedPreviewUrl.slice(0, 80) + (resolvedPreviewUrl.length > 80 ? '…' : '') : null, '| source:', previewSource);
 
-  // Set title
-  const previewTitle = $('#previewModalTitle');
+  var previewTitle = $('#previewModalTitle');
   if (previewTitle) previewTitle.textContent = title;
 
-  // Set content (images or copy text)
-  const previewImageContainer = $('#previewImageContainer');
+  var previewImageContainer = $('#previewImageContainer');
   if (previewImageContainer) {
-    let contentHTML = '';
-
-    if (uploadedImages && uploadedImages.length > 0) {
-      contentHTML = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">';
-      uploadedImages.forEach((image) => {
-        contentHTML += `<img src="${image.dataUrl}" alt="${image.name}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;" />`;
-      });
-      contentHTML += '</div>';
-    } else if (resolvedPreviewUrl) {
-      contentHTML = `<img id="previewModalImg" src="${resolvedPreviewUrl}" alt="${title}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;">`;
+    var contentHTML = '';
+    if (displayUrls.length > 0) {
+      if (displayUrls.length === 1) {
+        contentHTML = '<img id="previewModalImg" src="' + displayUrls[0] + '" alt="' + (title || 'Preview') + '" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;">';
+      } else {
+        contentHTML = '<div class="preview-carousel" style="position:relative;max-width:100%;">';
+        contentHTML += '<div class="preview-carousel__track" style="display:flex;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;">';
+        displayUrls.forEach(function (url, i) {
+          contentHTML += '<div class="preview-carousel__slide" data-index="' + i + '" style="min-width:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;">';
+          contentHTML += '<img src="' + url + '" alt="Slide ' + (i + 1) + '" style="max-width:100%;max-height:400px;object-fit:contain;">';
+          contentHTML += '</div>';
+        });
+        contentHTML += '</div>';
+        contentHTML += '<div class="preview-carousel__nav" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;">';
+        contentHTML += '<button type="button" class="btn btn-secondary btn--sm preview-carousel-prev" aria-label="Previous">‹</button>';
+        contentHTML += '<span class="preview-carousel-dots"></span>';
+        contentHTML += '<button type="button" class="btn btn-secondary btn--sm preview-carousel-next" aria-label="Next">›</button>';
+        contentHTML += '</div></div>';
+      }
     } else if (copyText) {
-      contentHTML = `<div style="padding: 24px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"><div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">Copy Text:</div><div style="color: #0f172a; line-height: 1.6; white-space: pre-wrap;">${copyText}</div></div>`;
+      contentHTML = '<div style="padding: 24px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"><div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">Copy Text:</div><div style="color: #0f172a; line-height: 1.6; white-space: pre-wrap;">' + copyText + '</div></div>';
     } else {
       contentHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">No content provided</div>';
     }
-
     previewImageContainer.innerHTML = contentHTML;
 
-    // Attach Drive fallback chain to the preview image
-    var previewImg = document.getElementById('previewModalImg');
-    if (previewImg && imageUrlInput) {
-      var fallbacks = getDriveFallbackUrls(imageUrlInput);
-      if (fallbacks) {
-        var fbIdx = 1;
-        previewImg.onerror = function () {
-          if (fbIdx < fallbacks.length) {
-            previewImg.src = fallbacks[fbIdx++];
-          } else {
-            previewImg.style.display = 'none';
-            previewImg.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
-          }
-        };
-      } else {
-        previewImg.onerror = function () {
-          this.style.display = 'none';
-          this.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
-        };
+    if (displayUrls.length === 1) {
+      var previewImg = document.getElementById('previewModalImg');
+      var firstUrl = imageUrlsFromForm[0];
+      if (previewImg && firstUrl) {
+        var fallbacks = getDriveFallbackUrls(firstUrl);
+        if (fallbacks) {
+          var fbIdx = 1;
+          previewImg.onerror = function () {
+            if (fbIdx < fallbacks.length) {
+              previewImg.src = fallbacks[fbIdx++];
+            } else {
+              previewImg.style.display = 'none';
+              if (previewImg.parentElement) previewImg.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
+            }
+          };
+        } else {
+          previewImg.onerror = function () {
+            this.style.display = 'none';
+            if (this.parentElement) this.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
+          };
+        }
       }
+    } else if (displayUrls.length > 1) {
+      var track = previewImageContainer.querySelector('.preview-carousel__track');
+      var slides = previewImageContainer.querySelectorAll('.preview-carousel__slide');
+      var dotsEl = previewImageContainer.querySelector('.preview-carousel-dots');
+      var prevBtn = previewImageContainer.querySelector('.preview-carousel-prev');
+      var nextBtn = previewImageContainer.querySelector('.preview-carousel-next');
+      var curIdx = 0;
+      function updateCarousel() {
+        if (track && slides.length) {
+          track.style.transform = 'translateX(-' + curIdx * 100 + '%)';
+          if (dotsEl) {
+            dotsEl.innerHTML = '';
+            for (var d = 0; d < slides.length; d++) {
+              var dot = document.createElement('button');
+              dot.type = 'button';
+              dot.className = 'preview-carousel-dot' + (d === curIdx ? ' active' : '');
+              dot.style.cssText = 'width:8px;height:8px;border-radius:50%;border:none;background:' + (d === curIdx ? '#0052CC' : '#cbd5e1') + ';cursor:pointer;';
+              dot.setAttribute('aria-label', 'Slide ' + (d + 1));
+              (function (idx) {
+                dot.addEventListener('click', function () { curIdx = idx; updateCarousel(); });
+              })(d);
+              dotsEl.appendChild(dot);
+            }
+          }
+        }
+      }
+      if (prevBtn) prevBtn.addEventListener('click', function () {
+        curIdx = curIdx <= 0 ? slides.length - 1 : curIdx - 1;
+        updateCarousel();
+      });
+      if (nextBtn) nextBtn.addEventListener('click', function () {
+        curIdx = curIdx >= slides.length - 1 ? 0 : curIdx + 1;
+        updateCarousel();
+      });
+      updateCarousel();
     }
   }
-  
-  // Hide Instagram link section (removed)
-  const previewInstagramContainer = $('#previewInstagramContainer');
-  if (previewInstagramContainer) {
-    previewInstagramContainer.style.display = 'none';
-  }
-  
-  // Set caption
-  const previewCaption = $('#previewCaption');
-  if (previewCaption) {
-    previewCaption.textContent = caption;
-  }
-  
-  // Show modal
-  const previewModal = $('#previewModal');
-  if (previewModal) {
-    previewModal.classList.add('show');
-  }
+
+  var previewInstagramContainer = $('#previewInstagramContainer');
+  if (previewInstagramContainer) previewInstagramContainer.style.display = 'none';
+
+  var previewCaption = $('#previewCaption');
+  if (previewCaption) previewCaption.textContent = caption;
+
+  var previewModal = $('#previewModal');
+  if (previewModal) previewModal.classList.add('show');
 }
 
 function closePreviewModal() {
@@ -4230,14 +4260,69 @@ function setupImageUpload() {
   });
 }
 
-function setupImageUrlPreview() {
-  var input = $('#approvalImageUrl');
-  if (!input) return;
+const MAX_IMAGE_URLS = 10;
+
+/** Return array of non-empty image URL strings from all .approval-image-url-input inputs. */
+function getApprovalImageUrls() {
+  var inputs = document.querySelectorAll('.approval-image-url-input');
+  var urls = [];
+  for (var i = 0; i < inputs.length; i++) {
+    var v = (inputs[i].value || '').trim();
+    if (v) urls.push(v);
+  }
+  return urls;
+}
+
+/** Render the list of image URL rows from an array of URL strings; keeps first input id="approvalImageUrl". */
+function renderApprovalImageUrlRows(urls) {
+  var container = $('#approvalImageUrlsContainer');
+  if (!container) return;
+  urls = Array.isArray(urls) ? urls : [];
+  if (urls.length === 0) urls = [''];
+  container.innerHTML = '';
+  urls.forEach(function (url, index) {
+    var row = document.createElement('div');
+    row.className = 'approval-image-url-row';
+    row.setAttribute('data-index', String(index));
+    row.style.marginBottom = '12px';
+    var input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'form-input approval-image-url-input';
+    input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
+    input.value = url || '';
+    if (index === 0) input.id = 'approvalImageUrl';
+    var previewWrap = document.createElement('div');
+    previewWrap.className = 'approval-image-url-preview-wrap';
+    previewWrap.style.cssText = 'display: none; margin-top: 8px;';
+    var previewImg = document.createElement('img');
+    previewImg.className = 'approval-image-url-preview-img';
+    previewImg.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
+    previewImg.alt = 'Preview';
+    previewWrap.appendChild(previewImg);
+    row.appendChild(input);
+    row.appendChild(previewWrap);
+    if (index > 0) {
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn btn--sm btn-secondary';
+      removeBtn.style.marginTop = '4px';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', function () {
+        row.remove();
+        setupImageUrlPreviewForAll();
+      });
+      row.appendChild(removeBtn);
+    }
+    container.appendChild(row);
+    bindImageUrlPreviewToInput(input, previewWrap, previewImg);
+  });
+  setupImageUrlPreviewForAll();
+}
+
+function bindImageUrlPreviewToInput(input, wrap, img) {
+  if (!input || !wrap || !img) return;
   function refresh() {
-    var url = input.value.trim();
-    var wrap = $('#imageUrlPreviewWrap');
-    var img = $('#imageUrlPreviewImg');
-    if (!wrap || !img) return;
+    var url = (input.value || '').trim();
     if (!url) { wrap.style.display = 'none'; return; }
     var fallbacks = getDriveFallbackUrls(url);
     var idx = 0;
@@ -4260,6 +4345,61 @@ function setupImageUrlPreview() {
   input.addEventListener('paste', function () { setTimeout(refresh, 50); });
   input.addEventListener('change', refresh);
   refresh();
+}
+
+function setupImageUrlPreviewForAll() {
+  document.querySelectorAll('.approval-image-url-row').forEach(function (row) {
+    var input = row.querySelector('.approval-image-url-input');
+    var wrap = row.querySelector('.approval-image-url-preview-wrap');
+    var img = row.querySelector('.approval-image-url-preview-img');
+    if (input && wrap && img && !input._previewBound) {
+      input._previewBound = true;
+      bindImageUrlPreviewToInput(input, wrap, img);
+    }
+  });
+}
+
+function setupImageUrlPreview() {
+  setupImageUrlPreviewForAll();
+  var addBtn = $('#addApprovalImageUrlBtn');
+  if (addBtn) {
+    addBtn.onclick = function () {
+      var inputs = document.querySelectorAll('.approval-image-url-input');
+      if (inputs.length >= MAX_IMAGE_URLS) return;
+      var container = $('#approvalImageUrlsContainer');
+      if (!container) return;
+      var row = document.createElement('div');
+      row.className = 'approval-image-url-row';
+      row.setAttribute('data-index', String(inputs.length));
+      row.style.marginBottom = '12px';
+      var input = document.createElement('input');
+      input.type = 'url';
+      input.className = 'form-input approval-image-url-input';
+      input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
+      var previewWrap = document.createElement('div');
+      previewWrap.className = 'approval-image-url-preview-wrap';
+      previewWrap.style.cssText = 'display: none; margin-top: 8px;';
+      var previewImg = document.createElement('img');
+      previewImg.className = 'approval-image-url-preview-img';
+      previewImg.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
+      previewImg.alt = 'Preview';
+      previewWrap.appendChild(previewImg);
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn btn--sm btn-secondary';
+      removeBtn.style.marginTop = '4px';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', function () {
+        row.remove();
+        setupImageUrlPreviewForAll();
+      });
+      row.appendChild(input);
+      row.appendChild(previewWrap);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+      bindImageUrlPreviewToInput(input, previewWrap, previewImg);
+    };
+  }
 }
 
 // Display uploaded images
