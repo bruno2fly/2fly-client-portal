@@ -2357,13 +2357,22 @@ window.openApprovalModal = function(id){
           });
         }
       } else {
-        // Try previewImageUrl or imageUrl (with Drive thumbnail)
+        // Try previewImageUrl or imageUrl (with Drive embeddable URL)
         function driveThumbnailUrl(url) {
           if (!url || typeof url !== 'string') return null;
           var u = url.trim();
           if (u.indexOf('drive.google.com') === -1) return null;
           var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-          return m ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(m[1]) + '&sz=w800' : null;
+          return m ? 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(m[1]) : null;
+        }
+        function driveFallbackUrls(url) {
+          if (!url || typeof url !== 'string') return null;
+          var u = url.trim();
+          if (u.indexOf('drive.google.com') === -1) return null;
+          var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          if (!m) return null;
+          var eid = encodeURIComponent(m[1]);
+          return ['https://lh3.googleusercontent.com/d/' + eid, 'https://drive.google.com/thumbnail?id=' + eid + '&sz=w800', 'https://drive.google.com/uc?export=view&id=' + eid];
         }
         copyDisplayUrl = item.previewImageUrl || null;
         if (!copyDisplayUrl && item.imageUrl) {
@@ -2380,11 +2389,12 @@ window.openApprovalModal = function(id){
       img.alt = "Copy image preview";
       img.id = 'approvalCopyImage';
       img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+      var copyFallbacks = (typeof driveFallbackUrls === 'function') ? driveFallbackUrls(item.imageUrl) : null;
+      var copyFbIdx = 1;
       img.onerror = function() {
-        // If this was just the raw imageUrl, try a Drive thumbnail fallback
-        if (copyDisplayUrl === item.imageUrl && item.imageUrl) {
-          var fallback = (typeof driveThumbnailUrl === 'function') ? driveThumbnailUrl(item.imageUrl) : null;
-          if (fallback && this.src !== fallback) { this.src = fallback; return; }
+        if (copyFallbacks && copyFbIdx < copyFallbacks.length) {
+          this.src = copyFallbacks[copyFbIdx++];
+          return;
         }
         this.style.display = 'none';
         if (copyImageContainer) copyImageContainer.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;">Copy image not available</div>';
@@ -2406,16 +2416,25 @@ window.openApprovalModal = function(id){
     // Display content images (same priority as agency preview: previewImageUrl > uploadedImages > imageUrl)
     if (imageContainer) {
       imageContainer.innerHTML = '';
-      function driveThumbnailUrl(url) {
+      function driveThumbnailUrl2(url) {
         if (!url || typeof url !== 'string') return null;
         var u = url.trim();
         if (u.indexOf('drive.google.com') === -1) return null;
         var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-        return m ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(m[1]) + '&sz=w800' : null;
+        return m ? 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(m[1]) : null;
+      }
+      function driveFallbackUrls2(url) {
+        if (!url || typeof url !== 'string') return null;
+        var u = url.trim();
+        if (u.indexOf('drive.google.com') === -1) return null;
+        var m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (!m) return null;
+        var eid = encodeURIComponent(m[1]);
+        return ['https://lh3.googleusercontent.com/d/' + eid, 'https://drive.google.com/thumbnail?id=' + eid + '&sz=w800', 'https://drive.google.com/uc?export=view&id=' + eid];
       }
       var displayUrl = item.previewImageUrl || null;
       if (!displayUrl && item.imageUrl) {
-        var thumb = driveThumbnailUrl(item.imageUrl);
+        var thumb = driveThumbnailUrl2(item.imageUrl);
         displayUrl = thumb || item.imageUrl;
       }
       if (item.uploadedImages && item.uploadedImages.length > 0) {
@@ -2436,10 +2455,12 @@ window.openApprovalModal = function(id){
         img.alt = item.title || 'Content preview';
         img.id = 'approvalImage';
         img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+        var contentFallbacks = driveFallbackUrls2(item.imageUrl);
+        var contentFbIdx = 1;
         img.onerror = function() {
-          if (displayUrl === item.imageUrl && item.imageUrl) {
-            var fallback = driveThumbnailUrl(item.imageUrl);
-            if (fallback && this.src !== fallback) { this.src = fallback; return; }
+          if (contentFallbacks && contentFbIdx < contentFallbacks.length) {
+            this.src = contentFallbacks[contentFbIdx++];
+            return;
           }
           this.src = 'https://via.placeholder.com/600x400/2563eb/ffffff?text=' + encodeURIComponent(item.title || 'Image');
         };

@@ -329,19 +329,32 @@ function getPreviewUrl(asset) {
   if (!isPhotoOrGraphic) return null;
   if (asset.sourceProvider === 'GOOGLE_DRIVE') {
     const id = extractGoogleDriveFileId(asset.url);
-    if (id) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w800';
+    if (id) return 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(id);
   }
   const u = (asset.url || '').trim().toLowerCase();
   if (/\.(jpg|jpeg|png|webp|gif)(\?|$)/.test(u)) return asset.url;
   return null;
 }
 
-/** Convert any image URL to a displayable src — Google Drive share links become thumbnail URLs. */
+/** Convert any image URL to a displayable src — Google Drive share links become embeddable URLs. */
 function toDisplayableImageUrl(url) {
   if (!url || typeof url !== 'string') return url;
   var fileId = extractGoogleDriveFileId(url);
-  if (fileId) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w800';
+  if (fileId) return 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId);
   return url;
+}
+
+/** Ordered fallback URLs for a Google Drive file. Returns array or null. */
+function getDriveFallbackUrls(url) {
+  if (!url || typeof url !== 'string') return null;
+  var fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return null;
+  var eid = encodeURIComponent(fileId);
+  return [
+    'https://lh3.googleusercontent.com/d/' + eid,
+    'https://drive.google.com/thumbnail?id=' + eid + '&sz=w800',
+    'https://drive.google.com/uc?export=view&id=' + eid
+  ];
 }
 
 /** Parse comma-separated pillars into trimmed unique array. */
@@ -2325,7 +2338,7 @@ function openPreviewModal() {
       });
       contentHTML += '</div>';
     } else if (resolvedPreviewUrl) {
-      contentHTML = `<img src="${resolvedPreviewUrl}" alt="${title}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding: 40px; text-align: center; color: #94a3b8;\\'>Image could not be loaded</div>';">`;
+      contentHTML = `<img id="previewModalImg" src="${resolvedPreviewUrl}" alt="${title}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;">`;
     } else if (copyText) {
       contentHTML = `<div style="padding: 24px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"><div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">Copy Text:</div><div style="color: #0f172a; line-height: 1.6; white-space: pre-wrap;">${copyText}</div></div>`;
     } else {
@@ -2333,6 +2346,28 @@ function openPreviewModal() {
     }
 
     previewImageContainer.innerHTML = contentHTML;
+
+    // Attach Drive fallback chain to the preview image
+    var previewImg = document.getElementById('previewModalImg');
+    if (previewImg && imageUrlInput) {
+      var fallbacks = getDriveFallbackUrls(imageUrlInput);
+      if (fallbacks) {
+        var fbIdx = 1;
+        previewImg.onerror = function () {
+          if (fbIdx < fallbacks.length) {
+            previewImg.src = fallbacks[fbIdx++];
+          } else {
+            previewImg.style.display = 'none';
+            previewImg.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
+          }
+        };
+      } else {
+        previewImg.onerror = function () {
+          this.style.display = 'none';
+          this.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #94a3b8;">Image could not be loaded</div>';
+        };
+      }
+    }
   }
   
   // Hide Instagram link section (removed)
@@ -4193,10 +4228,22 @@ function setupImageUrlPreview() {
     var img = $('#imageUrlPreviewImg');
     if (!wrap || !img) return;
     if (!url) { wrap.style.display = 'none'; return; }
-    var displayUrl = toDisplayableImageUrl(url);
+    var fallbacks = getDriveFallbackUrls(url);
+    var idx = 0;
     img.onload = function () { wrap.style.display = 'block'; };
-    img.onerror = function () { wrap.style.display = 'none'; };
-    img.src = displayUrl;
+    img.onerror = function () {
+      if (fallbacks && idx < fallbacks.length) {
+        img.src = fallbacks[idx++];
+      } else {
+        wrap.style.display = 'none';
+      }
+    };
+    if (fallbacks && fallbacks.length > 0) {
+      idx = 1;
+      img.src = fallbacks[0];
+    } else {
+      img.src = url;
+    }
   }
   input.addEventListener('input', refresh);
   input.addEventListener('paste', function () { setTimeout(refresh, 50); });
