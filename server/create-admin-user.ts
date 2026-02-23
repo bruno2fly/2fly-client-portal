@@ -9,7 +9,7 @@ import { join } from 'path';
 import { hashPassword, generateId } from './src/utils/auth.js';
 import type { Agency, User } from './src/types.js';
 
-const DATA_DIR = join(process.cwd(), 'data');
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
 const AGENCIES_FILE = join(DATA_DIR, 'agencies.json');
 const USERS_FILE = join(DATA_DIR, 'users.json');
 
@@ -39,6 +39,7 @@ async function main() {
   if (!existsSync(DATA_DIR)) {
     mkdirSync(DATA_DIR, { recursive: true });
   }
+  console.log(`[seed] Data directory: ${DATA_DIR} (volume: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'yes' : 'no'})`);
 
   const agencies = readJSON<Record<string, Agency>>(AGENCIES_FILE, {});
   const agencyIds = Object.keys(agencies);

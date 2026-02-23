@@ -17,6 +17,17 @@ Set in Railway dashboard for the API service:
 | `JWT_SECRET`   | Strong random secret (e.g. `openssl rand -hex 32`) |
 | `PORT`         | Leave unset so Railway assigns it, or `3001` if you set it |
 
-## Ephemeral filesystem
+## Data Persistence
 
-Railway’s filesystem is ephemeral: **every deploy wipes `data/`**. The start script runs `create-admin-user.ts` before starting the server so the admin user (and default agency) exist after each deploy. All other data (clients, invites, etc.) is lost on redeploy until you move to a persistent database (e.g. Railway PostgreSQL).
+Railway's filesystem is ephemeral: every deploy creates a new container.
+
+**Solution:** A Railway Volume is mounted at `/app/data` for persistent JSON storage.
+
+- The volume is attached via Railway Dashboard (Settings > Volumes)
+- `RAILWAY_VOLUME_MOUNT_PATH` is auto-injected by Railway at runtime
+- `db.ts` and `create-admin-user.ts` use this env var to resolve the data directory
+- Local development falls back to `process.cwd()/data` (no env var set)
+
+**Important:** The `create-admin-user.ts` seed script runs on every deploy (`npm run start`).
+It only creates `agencies.json` and `users.json` if they don't already exist — it does NOT
+overwrite existing data. This is safe with the Volume because files persist across deploys.

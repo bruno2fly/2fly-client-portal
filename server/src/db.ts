@@ -21,7 +21,7 @@ import type {
   PortalStateData
 } from './types.js';
 
-const DB_DIR = join(process.cwd(), 'data');
+const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
 const WORKSPACES_FILE = join(DB_DIR, 'workspaces.json');
 const STAFF_FILE = join(DB_DIR, 'staff.json');
 const INTEGRATIONS_FILE = join(DB_DIR, 'integrations.json');
@@ -40,6 +40,7 @@ const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 if (!existsSync(DB_DIR)) {
   mkdirSync(DB_DIR, { recursive: true });
 }
+console.log(`[db] Data directory: ${DB_DIR} (volume: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'yes' : 'no'})`);
 
 function readJSON<T>(file: string, defaultValue: T): T {
   if (!existsSync(file)) {
