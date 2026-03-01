@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0B0F14" />
+<meta name="theme-color" content="#0b1121" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>2Fly Client Portal — Status & Approvals</title>
@@ -19,19 +19,19 @@
     font-family:'Montserrat',sans-serif;
     -webkit-font-smoothing:antialiased;
     -moz-osx-font-smoothing:grayscale;
-    background: var(--bg);
+    background: #0b1121;
     color: var(--text-primary);
     line-height: 1.125;
   }
   b,strong{ font-weight: 600; }
   :root{
-    --bg:#f1f5f9; --panel:#ffffff; --muted:#8D95A0; --text:#0f172a;
+    --bg:#0b1121; --panel:#ffffff; --muted:#8D95A0; --text:#0f172a;
     --text-primary:#002459;
     --text-secondary:#8D95A0;
     --text-on-dark:#FDFDFD;
     --accent-blue:#0168FF;
     --accent-blue-hover:#013E99;
-    --brand:#7c5cff; --brand-2:#58e1ff; --ok:#22c55e; --warn:#facc15; --bad:#ef4444; --stroke:#e2e8f0;
+    --brand:#2563eb; --brand-2:#58e1ff; --ok:#22c55e; --warn:#facc15; --bad:#ef4444; --stroke:#e2e8f0;
     --header-bg:#2563eb; --header-text:#FDFDFD;
     --blue-50:#eff6ff; --blue-100:#dbeafe; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
     --orange-50:#fff7ed; --orange-100:#ffedd5; --orange-500:#f97316; --orange-600:#ea580c;
@@ -43,9 +43,9 @@
   .text-sm-medium{ font-family:'Montserrat',sans-serif; font-size:14px; line-height:18px; font-weight:500; letter-spacing:0; }
   .text-sm-regular{ font-family:'Montserrat',sans-serif; font-size:14px; line-height:18px; font-weight:400; letter-spacing:0; }
   body[data-theme="dark"]{
-    --bg:#0b0c10; --panel:#121319; --muted:#8D95A0; --text:#e8ecf1;
+    --bg:#0b1121; --panel:#121319; --muted:#8D95A0; --text:#0f172a;
     --text-primary:#f1f5f9; --text-secondary:#8D95A0; --text-on-dark:#FDFDFD;
-    --brand:#7c5cff; --brand-2:#58e1ff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --stroke:#1b1f2a;
+    --brand:#2563eb; --brand-2:#58e1ff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --stroke:#1b1f2a;
     --header-bg:#1e40af; --header-text:#FDFDFD;
   }
   :root{
@@ -70,7 +70,7 @@
   header .title .sub{color:var(--text-on-dark);opacity:.85;font-size:14px;line-height:18px;font-weight:400;margin-top:4px}
   header .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:var(--header-text);}
   header .btn:hover{background:rgba(255,255,255,.15);}
-  header .btn.primary{background:linear-gradient(180deg,#7c5cff,#6246ff);border-color:rgba(255,255,255,.2);color:#ffffff;}
+  header .btn.primary{background:linear-gradient(180deg,#2563eb,#1d4ed8);border-color:rgba(255,255,255,.2);color:#ffffff;}
   body[data-theme="dark"] header{box-shadow:0 4px 12px rgba(0,0,0,.3);}
   body[data-theme="dark"] header .btn{background:linear-gradient(180deg,#191b22,#14161c);border-color:rgba(255,255,255,.1);}
   .wrap > *:not(header){padding:24px}
@@ -187,8 +187,8 @@
   .btn{appearance:none;border:1px solid var(--stroke);background:var(--panel);
        color:var(--text-primary);padding:10px 12px;border-radius:10px;font-weight:600;font-size:14px;line-height:18px;letter-spacing:0;cursor:pointer}
   body[data-theme="dark"] .btn{background:linear-gradient(180deg,#191b22,#14161c)}
-  .btn.primary{background:linear-gradient(180deg,#7c5cff,#6246ff);border-color:rgba(255,255,255,.08);color:#ffffff}
-  body[data-theme="dark"] .btn.primary{background:linear-gradient(180deg,#7c5cff,#6246ff);border-color:rgba(255,255,255,.08)}
+  .btn.primary{background:linear-gradient(180deg,#2563eb,#1d4ed8);border-color:rgba(255,255,255,.08);color:#ffffff}
+  body[data-theme="dark"] .btn.primary{background:linear-gradient(180deg,#2563eb,#1d4ed8);border-color:rgba(255,255,255,.08)}
   .btn.approve{background:#22C55E;border-color:#22C55E;color:#ffffff;font-weight:600}
   .btn.approve:hover{background:#16A34A;border-color:#16A34A}
   .btn.changes{background:#F87171;border-color:#F87171;color:#ffffff;font-weight:600}
@@ -462,7 +462,7 @@
   .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
   .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
   .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-  .card{background:var(--panel);border:1px solid var(--stroke);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .card{background:var(--panel);border:1px solid var(--stroke);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px}
   body[data-theme="dark"] .card{background:#0f1117}
   .metric{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary)}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:14px;line-height:18px;font-weight:500;letter-spacing:0;background:var(--surface);border:1px solid var(--stroke);color:var(--text-secondary)}
@@ -692,7 +692,7 @@
   .client-notif-badge:not(.hidden){ animation: gentle-pulse 2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce){ .client-notif-badge:not(.hidden){ animation: none; } }
 
-  .skeleton-overlay{ position: fixed; inset: 0; z-index: 25; background: var(--bg,#f1f5f9); padding: env(safe-area-inset-top) 16px 0; overflow: hidden; transition: opacity 0.2s ease; }
+  .skeleton-overlay{ position: fixed; inset: 0; z-index: 25; background: var(--bg,#0b1121); padding: env(safe-area-inset-top) 16px 0; overflow: hidden; transition: opacity 0.2s ease; }
   .skeleton-overlay.hidden{ pointer-events: none; opacity: 0; }
   .skeleton-overlay-brand{ display: none; font-size: 32px; line-height: 42px; font-weight: 600; letter-spacing: 0; color: var(--accent-blue); }
   .skeleton-overlay-inner{ max-width: 1200px; margin: 0 auto; padding: 24px 0; }
@@ -748,7 +748,7 @@ body[data-theme="dark"]{
 
 /* --- OVERVIEW SECTION (Reference A) --- */
 .section-overview{
-  background: #f1f5f9 !important;
+  background: #0b1121 !important;
   border-radius: 16px;
   padding: 24px !important;
   box-shadow: none !important;
@@ -789,7 +789,7 @@ body[data-theme="dark"] .kpi-card{
   border-color: #334155;
   box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
-.kpi-card .label{
+.kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
   font-size: 14px;
   line-height: 18px;
   font-weight: 500;
@@ -798,7 +798,7 @@ body[data-theme="dark"] .kpi-card{
   margin-bottom: 16px;
   display: block;
 }
-body[data-theme="dark"] .kpi-card .label{
+body[data-theme="dark"] .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
   color: var(--text-secondary);
 }
 .kpi-card .value{
@@ -858,7 +858,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .kpi-card{ grid-column: span 6; }
 }
 @media (max-width: 768px){
-  .section-overview{ background: #f1f5f9 !important; }
+  .section-overview{ background: #0b1121 !important; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
     display: grid;
@@ -875,7 +875,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     border-radius: 12px;
     min-width: 0;
   }
-  #overviewRow .kpi-card .label{ font-size: 14px; line-height: 18px; font-weight: 500; }
+  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 14px; line-height: 18px; font-weight: 500; }
   #overviewRow .kpi-card .value{ font-size: 32px; line-height: 42px; font-weight: 600; }
   #overviewRow .kpi-card:nth-child(3){ grid-column: 1 / -1; }
 }
@@ -947,6 +947,114 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 }
 
 </style>
+
+  /* === RESTYLE: Dark background adjustments === */
+  /* Page-level text on dark bg */
+  body { background: #0b1121 !important; color: #e8ecf1; }
+  .wrap { color: #e8ecf1; }
+  
+  /* Section titles on dark bg */
+  .section-overview h3,
+  .panel > h3,
+  .calendar-section > h3 { color: #ffffff !important; }
+  
+  /* KPI cards - white bg, 18px radius, proper text */
+  .kpi-card { background: #ffffff !important; border-radius: 18px !important; box-shadow: 0 2px 12px rgba(0,0,0,.08) !important; }
+  .kpi-card .label { color: #64748b !important; word-wrap: break-word; overflow-wrap: break-word; white-space: normal !important; }
+  .kpi-card .value { color: #002459 !important; }
+  .kpi-card .pill { color: #002459; }
+  
+  /* Action required card on dark bg */
+  .action-required-card { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important; border-color: #3b82f6 !important; }
+  .action-required-card__text { color: #ffffff !important; }
+  .action-required-card.all-clear { background: linear-gradient(135deg, #064e3b 0%, #047857 100%) !important; border-color: #34d399 !important; }
+  .action-required-card.all-clear .action-required-card__text { color: #d1fae5 !important; }
+  
+  /* Review now button - BLUE not purple */
+  .action-required-card .btn.primary,
+  .btn.primary { background: #2563eb !important; border-color: #2563eb !important; color: #ffffff !important; }
+  .btn.primary:hover { background: #1d4ed8 !important; }
+  
+  /* Section overview dark bg */
+  .section-overview { background: #0b1121 !important; border: none !important; box-shadow: none !important; }
+  
+  /* Panels on dark bg - white cards */
+  .panel { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 0 2px 12px rgba(0,0,0,.08) !important; }
+  .panel h3 { color: #002459 !important; }
+  
+  /* But section-approvals and section-requests keep their blue bg */
+  .section-approvals { background: #1e40af !important; }
+  .section-approvals h3,
+  .section-approvals .approvals-section-title { color: #ffffff !important; }
+  .section-requests { background: #1e40af !important; }
+  .section-requests h3 { color: #ffffff !important; }
+  
+  /* Section reports */
+  .section-reports { background: #ffffff !important; }
+  .section-reports h3 { color: #002459 !important; }
+  
+  /* Calendar section title */
+  .calendar-section h3 { color: #93c5fd !important; }
+  
+  /* Cards inside panels */
+  .card { background: #ffffff !important; border-radius: 18px !important; box-shadow: 0 2px 12px rgba(0,0,0,.08) !important; }
+  .card .label { color: #64748b !important; }
+  .card .metric { color: #002459 !important; }
+  
+  /* Progress hero */
+  .progress-hero { background: #ffffff !important; border-color: #e2e8f0 !important; }
+  .progress-hero h4 { color: #002459 !important; }
+  
+  /* Stat circles */
+  .stat-circle { background: #ffffff !important; border-radius: 18px !important; box-shadow: 0 2px 12px rgba(0,0,0,.08) !important; }
+  .stat-title { color: #002459 !important; }
+  
+  /* Footer on dark bg */
+  footer { color: #64748b !important; border-top-color: #1e2a3a !important; }
+  
+  /* Header stays blue */
+  header { background: #2563eb !important; }
+  
+  /* Bottom nav on dark bg */
+  .bottom-nav { background: rgba(11,17,33,0.95) !important; backdrop-filter: blur(10px); border-top-color: #1e2a3a !important; }
+  .bottom-nav-btn { color: #64748b !important; }
+  .bottom-nav-btn.active { color: #3b82f6 !important; }
+  
+  /* Row items */
+  .row { background: #ffffff !important; }
+  .row .title-text { color: #002459 !important; }
+  
+  /* Approval item rows */
+  .approval-item-row { background: #ffffff !important; }
+  
+  /* Form inputs on blue section bg */
+  .form-quick-request { background: #ffffff !important; }
+  
+  /* Submit request btn blue */
+  .submit-request-btn { background: #2563eb !important; }
+  
+  /* Toast */
+  .toast-success { background: #22c55e !important; }
+  
+  /* Mobile safe areas */
+  @media (max-width: 768px) {
+    .kpi-card { min-height: 90px !important; padding: 14px !important; }
+    .kpi-card .label { font-size: 13px !important; line-height: 17px !important; }
+    .kpi-card .value { font-size: 28px !important; line-height: 36px !important; }
+    #overviewRow .kpi-card { border-radius: 18px !important; }
+    .panel { border-radius: 18px !important; }
+    .card { border-radius: 18px !important; }
+    body.has-bottom-nav .wrap { 
+      padding-bottom: calc(80px + env(safe-area-inset-bottom, 20px)) !important; 
+    }
+    .wrap {
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+    }
+  }
+  
+  /* Skeleton overlay match dark bg */
+  .skeleton-overlay { background: #0b1121 !important; }
 </head>
 <body>
   <button type="button" class="pwa-refresh-btn" id="pwaRefreshBtn" aria-label="Refresh content" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
