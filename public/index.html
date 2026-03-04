@@ -946,6 +946,65 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   }
 }
 
+/* === MOBILE APPROVAL TABS FIX v2 === */
+@media (max-width: 768px) {
+  #approvalsPanel .approval-tabs,
+  .approval-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    scrollbar-width: none !important;
+    background: #ffffff !important;
+    border-radius: 10px !important;
+  }
+  #approvalsPanel .approval-tabs::-webkit-scrollbar,
+  .approval-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+  #approvalsPanel .approval-tab,
+  .approval-tab {
+    flex: 0 0 auto !important;
+    font-size: 11px !important;
+    padding: 8px 12px !important;
+    white-space: nowrap !important;
+    border-radius: 8px !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    text-align: center !important;
+    color: #0f172a !important;
+    background: transparent !important;
+    font-weight: 500 !important;
+  }
+  #approvalsPanel .approval-tab.active,
+  .approval-tab.active {
+    background: #013E99 !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 6px rgba(1,62,153,0.3) !important;
+  }
+
+  /* Container fix */
+  #approvalsPanel.section-approvals {
+    padding: 14px 10px !important;
+    border-radius: 16px !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  #approvalsPanel .section-approvals-inner {
+    padding: 10px 6px !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+}
+
 </style>
 
   /* === RESTYLE: Dark background adjustments === */
