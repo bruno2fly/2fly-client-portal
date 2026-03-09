@@ -1274,6 +1274,9 @@ async function saveClientLogo(logoUrl) {
 let currentTab = localStorage.getItem('2fly_agency_current_tab') || 'overview';
 
 function switchTab(tabName) {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:switchTab',message:'switchTab called',data:{tabName,prevTab:currentTab},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   currentTab = tabName;
   
   // Save current tab to localStorage
@@ -1338,6 +1341,10 @@ function ensureScheduledTabExists() {
   const tabsContainer = document.querySelector('.tabs');
   const reportsTab = document.querySelector('.tab[data-tab="reports"]');
   let scheduledTab = document.querySelector('.tab[data-tab="scheduled"]');
+  const tabContent = document.getElementById('tabScheduled');
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:ensureScheduledTabExists',message:'ensureScheduledTabExists',data:{hadScheduledTab:!!scheduledTab,hadTabContent:!!tabContent,tabsContainer:!!tabsContainer},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (!scheduledTab && tabsContainer) {
     const btn = document.createElement('button');
     btn.className = 'tab';
@@ -1444,9 +1451,15 @@ async function renderScheduledPostsConnectionSection() {
 }
 
 async function renderScheduledPostsTab() {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:entry',message:'renderScheduledPostsTab entry',data:{currentTab},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   await renderScheduledPostsConnectionSection();
 
   const container = $('#scheduledPostsList');
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:container',message:'container check',data:{hasContainer:!!container},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   const filterClient = $('#scheduledFilterClient');
   const filterPlatform = $('#scheduledFilterPlatform');
   const filterStatus = $('#scheduledFilterStatus');
@@ -1481,6 +1494,9 @@ async function renderScheduledPostsTab() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed to load scheduled posts');
     const posts = j.posts || [];
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:api',message:'API response',data:{postsCount:posts.length,rOk:r.ok},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (posts.length === 0) {
       container.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">No scheduled posts. Approve content in the Approvals tab, then schedule it to Instagram & Facebook.</div>';
     } else {
@@ -5074,6 +5090,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const savedTab = localStorage.getItem('2fly_agency_current_tab');
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:init:tabState',message:'init tab state',data:{savedTab,currentTab,hash:location.hash,hasTabScheduled:!!document.getElementById('tabScheduled'),hasScheduledPostsList:!!document.getElementById('scheduledPostsList')},hypothesisId:'H1,H2,H5',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (savedTab) {
       currentTab = savedTab;
     }
@@ -5138,6 +5157,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { switchTab(savedTab); } catch (e) { console.error('Error switching to saved tab:', e); }
     }
     if (location.hash && typeof applyNotificationAction === 'function') {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:init:applyHash',message:'applyNotificationAction from hash',data:{hash:location.hash},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       try { applyNotificationAction(location.hash); } catch (e) { console.warn('Hash apply:', e); }
     }
     window.addEventListener('hashchange', function () {
