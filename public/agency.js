@@ -1322,6 +1322,9 @@ function switchTab(tabName) {
     case 'contentlibrary':
       renderContentLibraryTab();
       break;
+    case 'scheduled':
+      renderScheduledPostsTab();
+      break;
     case 'reports':
       renderReportsTab();
       break;
@@ -1337,6 +1340,74 @@ function setupTabHandlers() {
       switchTab(tab.dataset.tab);
     });
   });
+}
+
+/* ================== Scheduled Posts Tab ================== */
+async function renderScheduledPostsTab() {
+  const container = $('#scheduledPostsList');
+  const filterClient = $('#scheduledFilterClient');
+  const filterPlatform = $('#scheduledFilterPlatform');
+  const filterStatus = $('#scheduledFilterStatus');
+  if (!container) return;
+
+  const clients = loadClientsRegistry();
+  if (filterClient) {
+    const cur = filterClient.value;
+    filterClient.innerHTML = '<option value="">All clients</option>' + Object.values(clients || {}).map(c => '<option value="' + c.id + '">' + (c.name || c.id) + '</option>').join('');
+    if (cur) filterClient.value = cur;
+  }
+
+  const params = new URLSearchParams();
+  if (filterClient && filterClient.value) params.set('clientId', filterClient.value);
+  if (filterPlatform && filterPlatform.value) params.set('platform', filterPlatform.value);
+  if (filterStatus && filterStatus.value) params.set('status', filterStatus.value);
+
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/posts/scheduled?${params}`, { credentials: 'include' });
+    const j = await r.json();
+    const posts = j.posts || [];
+    if (posts.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">No scheduled posts. Approve content in the Approvals tab, then schedule it to Instagram & Facebook.</div>';
+    } else {
+      const byDate = {};
+      posts.forEach(p => {
+        const d = new Date(p.scheduledAt);
+        const key = d.toDateString();
+        if (!byDate[key]) byDate[key] = [];
+        byDate[key].push(p);
+      });
+      const keys = Object.keys(byDate).sort((a, b) => new Date(a) - new Date(b));
+      let html = '';
+      keys.forEach(k => {
+        const isToday = k === new Date().toDateString();
+        const isPast = new Date(k) < new Date();
+        html += '<div class="scheduled-posts-day" style="margin-bottom: 24px;"><div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px;">' + (isToday ? 'Today' : isPast ? 'Past' : '') + ' - ' + new Date(k).toLocaleDateString() + '</div>';
+        byDate[k].forEach(p => {
+          const clientName = (clients && clients[p.clientId]) ? clients[p.clientId].name : p.clientId;
+          const platforms = p.platforms.join(' + ');
+          const statusStyle = p.status === 'published' ? 'color:#059669' : p.status === 'failed' ? 'color:#dc2626' : 'color:#6366f1';
+          html += '<div class="scheduled-post-card" style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: flex; gap: 16px; align-items: flex-start;">';
+          html += '<div style="flex: 1; min-width: 0;"><div style="font-weight: 600; color: #0f172a;">' + (p.caption ? p.caption.slice(0, 60) + (p.caption.length > 60 ? '…' : '') : 'No caption') + '</div>';
+          html += '<div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' • ' + clientName + ' • ' + platforms + '</div>';
+          if (p.error) html += '<div style="font-size: 12px; color: #dc2626; margin-top: 4px;">' + p.error + '</div>';
+          html += '</div><div style="font-size: 12px; font-weight: 600; ' + statusStyle + '">' + (p.status === 'published' ? '✓ Published' : p.status === 'failed' ? '✗ Failed' : '● Scheduled') + '</div></div>';
+        });
+        html += '</div>';
+      });
+      container.innerHTML = html;
+    }
+  } catch (e) {
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + (e.message || 'Unknown error') + '</div>';
+  }
+}
+
+function setupScheduledPostsFilters() {
+  const filterClient = $('#scheduledFilterClient');
+  const filterPlatform = $('#scheduledFilterPlatform');
+  const filterStatus = $('#scheduledFilterStatus');
+  if (filterClient && !filterClient._scheduledBound) { filterClient._scheduledBound = true; filterClient.addEventListener('change', () => renderScheduledPostsTab()); }
+  if (filterPlatform && !filterPlatform._scheduledBound) { filterPlatform._scheduledBound = true; filterPlatform.addEventListener('change', () => renderScheduledPostsTab()); }
+  if (filterStatus && !filterStatus._scheduledBound) { filterStatus._scheduledBound = true; filterStatus.addEventListener('change', () => renderScheduledPostsTab()); }
 }
 
 /* ================== Overview Tab ================== */
@@ -1997,6 +2068,7 @@ function loadApprovalForEdit(id) {
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
     setAutoDueDate();
+    updateSchedulePostSectionVisibility();
     return;
   }
   
@@ -2032,6 +2104,34 @@ function loadApprovalForEdit(id) {
   postSelectedAssetIds = Array.isArray(item.assetIds) ? item.assetIds.slice() : [];
   renderApprovedVisualsSection();
   updatePostFormFromAssets();
+
+  updateSchedulePostSectionVisibility();
+  updateScheduleCaptionCount();
+}
+
+function updateSchedulePostSectionVisibility() {
+  const section = $('#schedulePostSection');
+  const statusVal = $('#approvalStatus') ? $('#approvalStatus').value : '';
+  const isApproved = statusVal === 'approved' && selectedApprovalId && currentClientId;
+  if (section) section.style.display = isApproved ? 'block' : 'none';
+  if (isApproved) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateInput = $('#schedulePostDate');
+    const timeInput = $('#schedulePostTime');
+    if (dateInput && !dateInput.value) dateInput.value = tomorrow.toISOString().slice(0, 10);
+    if (timeInput && !timeInput.value) timeInput.value = '10:00';
+  }
+}
+
+function updateScheduleCaptionCount() {
+  const el = $('#scheduleCaptionCount');
+  const caption = $('#approvalCaption') ? $('#approvalCaption').value : '';
+  const len = caption.length;
+  if (el) {
+    el.textContent = 'Caption: ' + len + ' / 2,200 characters' + (len > 2200 ? ' (Instagram limit exceeded)' : '');
+    el.style.color = len > 2200 ? '#dc2626' : '#64748b';
+  }
 }
 
 /** Render Approved Visuals section: load approved assets, filters, grid + selected list. */
@@ -2132,8 +2232,124 @@ function updatePostFormFromAssets() {
   }
 }
 
+function setupSchedulePostHandlers() {
+  const statusSelect = $('#approvalStatus');
+  const captionInput = $('#approvalCaption');
+  if (statusSelect) statusSelect.addEventListener('change', updateSchedulePostSectionVisibility);
+  if (captionInput) captionInput.addEventListener('input', updateScheduleCaptionCount);
+
+  const scheduleBtn = $('#schedulePostBtn');
+  const postNowBtn = $('#postNowBtn');
+  if (scheduleBtn) scheduleBtn.addEventListener('click', schedulePostToMeta);
+  if (postNowBtn) postNowBtn.addEventListener('click', postNowToMeta);
+}
+
+async function getMediaUrlForApproval() {
+  const state = load();
+  const item = (state.approvals || []).find(a => a.id === selectedApprovalId);
+  if (!item || !currentClientId) return null;
+  const urls = getApprovalImageUrls();
+  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
+  if (postSelectedAssetIds.length > 0) {
+    const assets = loadAssets(currentClientId);
+    const first = assets.find(a => a.id === postSelectedAssetIds[0]);
+    if (first) return first.thumbnailUrl || getPreviewUrl(first) || first.url || null;
+  }
+  if (item.uploadedImages && item.uploadedImages.length > 0 && item.uploadedImages[0].data) {
+    const base64 = item.uploadedImages[0].data;
+    const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64 })
+    });
+    const j = await r.json();
+    if (j.url) return j.url;
+  }
+  return urls[0] || null;
+}
+
+async function schedulePostToMeta() {
+  const statusEl = $('#schedulePostStatus');
+  if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Scheduling...'; statusEl.style.color = '#64748b'; }
+  try {
+    const mediaUrl = await getMediaUrlForApproval();
+    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an approved asset.');
+    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
+    const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
+    const timeVal = $('#schedulePostTime') ? $('#schedulePostTime').value : '10:00';
+    const platforms = [];
+    if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
+    if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
+    if (platforms.length === 0) throw new Error('Select at least one platform');
+    const scheduledAt = dateVal && timeVal ? new Date(dateVal + 'T' + timeVal).toISOString() : new Date(Date.now() + 3600000).toISOString();
+    const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: currentClientId,
+        contentId: selectedApprovalId,
+        caption,
+        mediaUrl,
+        platforms,
+        scheduledAt,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+    if (statusEl) { statusEl.textContent = 'Scheduled for ' + new Date(scheduledAt).toLocaleString(); statusEl.style.color = '#059669'; }
+    renderScheduledPostsTab();
+    createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: 'Post scheduled to publish at ' + new Date(scheduledAt).toLocaleString(), clientId: currentClientId, action: { label: 'View scheduled', href: '#scheduled' } });
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = e.message || 'Failed'; statusEl.style.color = '#dc2626'; }
+  }
+}
+
+async function postNowToMeta() {
+  const statusEl = $('#schedulePostStatus');
+  if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Publishing...'; statusEl.style.color = '#64748b'; }
+  try {
+    const mediaUrl = await getMediaUrlForApproval();
+    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an approved asset.');
+    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
+    const platforms = [];
+    if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
+    if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
+    if (platforms.length === 0) throw new Error('Select at least one platform');
+    const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: currentClientId,
+        contentId: selectedApprovalId,
+        caption,
+        mediaUrl,
+        platforms,
+        scheduledAt: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+    const postId = j.post && j.post.id;
+    if (!postId) throw new Error('No post ID returned');
+    const pubRes = await fetch(`${getApiBaseUrl()}/api/posts/${postId}/publish-now`, { method: 'POST', credentials: 'include' });
+    const pubJ = await pubRes.json();
+    if (!pubRes.ok) throw new Error(pubJ.error || 'Publish failed');
+    if (statusEl) { statusEl.textContent = 'Published to ' + (platforms.includes('instagram') ? 'Instagram' : '') + (platforms.includes('facebook') ? (platforms.includes('instagram') ? ' & Facebook' : 'Facebook') : ''); statusEl.style.color = '#059669'; }
+    renderScheduledPostsTab();
+    createNotification({ type: 'REWARD', title: 'Post published', message: 'Post published to ' + platforms.join(' & '), clientId: currentClientId, action: { label: 'View', href: '#scheduled' } });
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = e.message || 'Failed'; statusEl.style.color = '#dc2626'; }
+  }
+}
+
 // Setup approval form handler - will be called after DOM loads
 function setupApprovalHandlers() {
+  setupSchedulePostHandlers();
   const createNewPostBtn = $('#approvalsCreateNewPostBtn');
   if (createNewPostBtn) {
     createNewPostBtn.addEventListener('click', () => {
@@ -3673,6 +3889,39 @@ function setupPinInviteHandlers() {
   });
 }
 
+async function loadMetaConnectionStatus() {
+  const statusEl = $('#metaStatusText');
+  const detailEl = $('#metaStatusDetail');
+  const connectBtn = $('#metaConnectBtn');
+  const disconnectBtn = $('#metaDisconnectBtn');
+  if (!statusEl) return;
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/status`, { credentials: 'include' });
+    const j = await r.json();
+    if (j.connected) {
+      statusEl.textContent = 'Connected';
+      statusEl.style.color = '#059669';
+      const parts = [];
+      if (j.pageName) parts.push('Page: ' + j.pageName);
+      if (j.instagramUsername) parts.push('Instagram: @' + j.instagramUsername);
+      if (detailEl) detailEl.textContent = parts.join(' • ');
+      if (connectBtn) connectBtn.style.display = 'none';
+      if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
+    } else {
+      statusEl.textContent = j.error || 'Not connected';
+      statusEl.style.color = j.error ? '#dc2626' : '#64748b';
+      if (detailEl) detailEl.textContent = '';
+      if (connectBtn) connectBtn.style.display = 'inline-block';
+      if (disconnectBtn) disconnectBtn.style.display = 'none';
+    }
+  } catch (e) {
+    statusEl.textContent = 'Error checking status';
+    statusEl.style.color = '#dc2626';
+    if (connectBtn) connectBtn.style.display = 'inline-block';
+    if (disconnectBtn) disconnectBtn.style.display = 'none';
+  }
+}
+
 // Setup settings modal
 function setupSettingsModal() {
   const settingsBtn = $('#settingsBtn');
@@ -3689,8 +3938,34 @@ function setupSettingsModal() {
       if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
+      loadMetaConnectionStatus();
     });
   }
+
+  // Meta (Facebook/Instagram) connect
+  const metaConnectBtn = $('#metaConnectBtn');
+  const metaDisconnectBtn = $('#metaDisconnectBtn');
+  if (metaConnectBtn) {
+    metaConnectBtn.addEventListener('click', async () => {
+      try {
+        const r = await fetch(`${getApiBaseUrl()}/api/auth/meta`, { credentials: 'include' });
+        const j = await r.json();
+        if (j.authUrl) window.open(j.authUrl, 'meta_oauth', 'width=600,height=700');
+      } catch (e) { console.error('Meta connect:', e); }
+    });
+  }
+  if (metaDisconnectBtn) {
+    metaDisconnectBtn.addEventListener('click', async () => {
+      try {
+        const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/disconnect`, { method: 'POST', credentials: 'include' });
+        const j = await r.json();
+        if (j.success) loadMetaConnectionStatus();
+      } catch (e) { console.error('Meta disconnect:', e); }
+    });
+  }
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'META_CONNECTED' && e.data.success) loadMetaConnectionStatus();
+  });
   
   // Close settings modal
   if (closeSettingsBtn && settingsModal) {
@@ -4737,6 +5012,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     try { setupTabHandlers(); } catch (e) { console.error('Error setting up tab handlers:', e); }
     try { setupApprovalHandlers(); } catch (e) { console.error('Error setting up approval handlers:', e); }
+    try { setupScheduledPostsFilters(); } catch (e) { console.error('Error setting up scheduled posts filters:', e); }
     try { setupRequestsHandlers(); } catch (e) { console.error('Error setting up request handlers:', e); }
     try { setupNeedsHandlers(); } catch (e) { console.error('Error setting up needs handlers:', e); }
     try { setupAssetHandlers(); } catch (e) { console.error('Error setting up asset handlers:', e); }

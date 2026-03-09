@@ -163,9 +163,42 @@ export interface AuthSession {
   expiresAt: number;
 }
 
+/** Meta (Facebook/Instagram) integration per agency */
+export interface MetaIntegration {
+  id: string;
+  agencyId: string;
+  metaAccessToken: string;
+  metaPageId: string;
+  metaPageName?: string;
+  metaInstagramAccountId?: string;
+  metaInstagramUsername?: string;
+  tokenExpiresAt: number;
+  connectedAt: number;
+  updatedAt: number;
+}
+
+/** Scheduled post for Meta publishing */
+export interface ScheduledPost {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  contentId: string;
+  caption: string;
+  mediaUrl: string;
+  platforms: ('instagram' | 'facebook')[];
+  scheduledAt: string;
+  timezone: string;
+  status: 'scheduled' | 'publishing' | 'published' | 'failed';
+  publishedAt?: string;
+  error?: string;
+  metaPostIds?: { instagram?: string; facebook?: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Agency dashboard portal state per client (tasks, requests, assets, etc.). Scoped by agencyId. */
 export interface PortalStateData {
-  client: { id: string; name: string; whatsapp?: string };
+  client: { id: string; name: string; whatsapp?: string; logoUrl?: string };
   kpis: { scheduled: number; waitingApproval: number; missingAssets: number; frustration: number };
   approvals: unknown[];
   needs: unknown[];

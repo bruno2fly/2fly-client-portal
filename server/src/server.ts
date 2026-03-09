@@ -12,6 +12,11 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import googleDriveRoutes from './routes/googleDrive.js';
+import metaAuthRoutes from './routes/metaAuth.js';
+import metaRoutes from './routes/meta.js';
+import postsRoutes from './routes/posts.js';
+import cronRoutes from './routes/cron.js';
+import uploadRoutes from './routes/upload.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import agencyRoutes from './routes/agency.js';
@@ -26,27 +31,28 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware - CORS configuration
-// Allow both Vite dev server (5173) and Python server (8000) in development
+// In development allow any localhost origin (Vite may use 5173, 5174, etc.)
 const allowedOrigins = process.env.NODE_ENV === 'development'
-  ? ['http://localhost:5173', 'http://localhost:8000', 'http://127.0.0.1:8000']
+  ? ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174']
   : [process.env.FRONTEND_URL || 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    // In development, allow any localhost:* origin so any dev port works
+    if (process.env.NODE_ENV === 'development' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
 app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
@@ -83,7 +89,22 @@ app.get('/', (req, res) => {
           import: '/api/integrations/google-drive/import',
           disconnect: '/api/integrations/google-drive/disconnect',
           accessToken: '/api/integrations/google-drive/access-token'
-        }
+        },
+        meta: {
+          connect: '/api/auth/meta',
+          callback: '/api/auth/meta/callback',
+          status: '/api/integrations/meta/status',
+          disconnect: '/api/integrations/meta/disconnect'
+        },
+        posts: {
+          schedule: 'POST /api/posts/schedule',
+          scheduled: 'GET /api/posts/scheduled',
+          reschedule: 'PUT /api/posts/:id/reschedule',
+          cancel: 'DELETE /api/posts/:id/cancel',
+          publishNow: 'POST /api/posts/:id/publish-now'
+        },
+        cron: '/api/cron/publish-posts',
+        upload: 'POST /api/upload/image'
       }
   });
 });
@@ -288,7 +309,12 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
 
 // API routes
 app.use('/api/integrations/google-drive', googleDriveRoutes);
+app.use('/api/integrations/meta', metaRoutes);
+app.use('/api/auth/meta', metaAuthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/posts', postsRoutes);
+app.use('/api/cron', cronRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/agency', agencyRoutes);
 app.use('/api/client', clientPortalRoutes);

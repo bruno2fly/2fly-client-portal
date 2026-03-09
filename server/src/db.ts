@@ -18,7 +18,9 @@ import type {
   InviteToken,
   PasswordResetToken,
   AuditLog,
-  PortalStateData
+  PortalStateData,
+  MetaIntegration,
+  ScheduledPost
 } from './types.js';
 
 const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
@@ -35,6 +37,8 @@ const PASSWORD_RESET_TOKENS_FILE = join(DB_DIR, 'password-reset-tokens.json');
 const AUDIT_LOGS_FILE = join(DB_DIR, 'audit-logs.json');
 const PORTAL_STATE_FILE = join(DB_DIR, 'portal-state.json');
 const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
+const META_INTEGRATIONS_FILE = join(DB_DIR, 'meta-integrations.json');
+const SCHEDULED_POSTS_FILE = join(DB_DIR, 'scheduled-posts.json');
 
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
@@ -392,5 +396,56 @@ export function deleteClientCredentials(agencyId: string, clientId: string): voi
   const map = readJSON<ClientCredentialsMap>(CLIENT_CREDENTIALS_FILE, {});
   delete map[portalKey(agencyId, clientId)];
   writeJSON(CLIENT_CREDENTIALS_FILE, map);
+}
+
+// Meta integrations (per agency)
+export function getMetaIntegrations(): Record<string, MetaIntegration> {
+  return readJSON<Record<string, MetaIntegration>>(META_INTEGRATIONS_FILE, {});
+}
+
+export function getMetaIntegrationByAgency(agencyId: string): MetaIntegration | null {
+  const integrations = getMetaIntegrations();
+  return Object.values(integrations).find(i => i.agencyId === agencyId) || null;
+}
+
+export function saveMetaIntegration(integration: MetaIntegration): void {
+  const integrations = getMetaIntegrations();
+  integrations[integration.id] = integration;
+  writeJSON(META_INTEGRATIONS_FILE, integrations);
+}
+
+export function deleteMetaIntegration(agencyId: string): void {
+  const integrations = getMetaIntegrations();
+  const toDelete = Object.entries(integrations).find(([, i]) => i.agencyId === agencyId);
+  if (toDelete) {
+    delete integrations[toDelete[0]];
+    writeJSON(META_INTEGRATIONS_FILE, integrations);
+  }
+}
+
+// Scheduled posts
+export function getScheduledPosts(): ScheduledPost[] {
+  return readJSON<ScheduledPost[]>(SCHEDULED_POSTS_FILE, []);
+}
+
+export function getScheduledPostsByAgency(agencyId: string): ScheduledPost[] {
+  return getScheduledPosts().filter(p => p.agencyId === agencyId);
+}
+
+export function getScheduledPostById(id: string): ScheduledPost | null {
+  return getScheduledPosts().find(p => p.id === id) || null;
+}
+
+export function saveScheduledPost(post: ScheduledPost): void {
+  const posts = getScheduledPosts();
+  const idx = posts.findIndex(p => p.id === post.id);
+  if (idx >= 0) posts[idx] = post;
+  else posts.push(post);
+  writeJSON(SCHEDULED_POSTS_FILE, posts);
+}
+
+export function deleteScheduledPost(id: string): void {
+  const posts = getScheduledPosts().filter(p => p.id !== id);
+  writeJSON(SCHEDULED_POSTS_FILE, posts);
 }
 

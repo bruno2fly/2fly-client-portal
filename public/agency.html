@@ -1343,6 +1343,7 @@
         <button class="tab" data-tab="requests">Requests</button>
         <button class="tab" data-tab="needs">Agency Needs <span class="tab-tooltip" title="Things your team needs from the client to move work forward.">ⓘ</span></button>
         <button class="tab" data-tab="contentlibrary">Assets &amp; References</button>
+        <button class="tab" data-tab="scheduled">Scheduled Posts</button>
         <button class="tab" data-tab="reports">Reports</button>
       </div>
 
@@ -1534,6 +1535,33 @@
                 </select>
                 <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Select "Copy Pending" to send for copy approval first</small>
               </div>
+              <!-- Schedule to Instagram/Facebook (shown when approved) -->
+              <div id="schedulePostSection" class="schedule-post-section" style="display: none; margin-top: 24px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 16px;">Schedule this post to Instagram & Facebook</div>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;">
+                  <div>
+                    <label class="form-label" style="font-size: 12px;">Date</label>
+                    <input type="date" id="schedulePostDate" class="form-input" style="padding: 8px 12px;" />
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size: 12px;">Time</label>
+                    <input type="time" id="schedulePostTime" class="form-input" style="padding: 8px 12px;" />
+                  </div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <label class="form-label" style="font-size: 12px;">Platform</label>
+                  <div style="display: flex; gap: 16px; margin-top: 8px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="schedulePlatformIg" checked /> Instagram</label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="schedulePlatformFb" checked /> Facebook</label>
+                  </div>
+                </div>
+                <div id="scheduleCaptionCount" style="font-size: 11px; color: #64748b; margin-bottom: 12px;"></div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <button type="button" id="schedulePostBtn" class="btn btn-primary" style="padding: 10px 20px;">Schedule Post</button>
+                  <button type="button" id="postNowBtn" class="btn btn-secondary" style="padding: 10px 20px;">Post Now</button>
+                </div>
+                <div id="schedulePostStatus" style="margin-top: 12px; font-size: 13px; display: none;"></div>
+              </div>
               <div class="form-actions">
                 <button type="button" class="btn btn-secondary" id="approvalPreview">Preview</button>
                 <button type="submit" class="btn btn-primary">Save</button>
@@ -1575,6 +1603,29 @@
               <button type="submit" class="btn btn-primary">Add Need</button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <div id="tabScheduled" class="tab-content">
+        <p class="section-desc">Posts scheduled to publish to Instagram and/or Facebook. Connect Facebook & Instagram in Settings to enable scheduling.</p>
+        <div id="scheduledPostsFilters" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+          <select id="scheduledFilterClient" class="form-select form-select--sm">
+            <option value="">All clients</option>
+          </select>
+          <select id="scheduledFilterPlatform" class="form-select form-select--sm">
+            <option value="">All platforms</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+          </select>
+          <select id="scheduledFilterStatus" class="form-select form-select--sm">
+            <option value="">All statuses</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="published">Published</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <div id="scheduledPostsList" class="scheduled-posts-list">
+          <div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div>
         </div>
       </div>
 
@@ -2170,6 +2221,20 @@
           </form>
           <div id="createAdminSuccessMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #d1fae5; color: #059669; border-radius: 8px; font-size: 14px; white-space: pre-line;"></div>
           <div id="createAdminErrorMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #fee2e2; color: #dc2626; border-radius: 8px; font-size: 14px;"></div>
+        </div>
+
+        <!-- Facebook & Instagram Section -->
+        <div class="settings-section" style="margin-bottom: 32px;">
+          <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Facebook & Instagram</h3>
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">Connect your Facebook Page and Instagram account to schedule and publish approved posts directly from 2FlyFlow.</p>
+          <div id="metaConnectionStatus" style="margin-bottom: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div id="metaStatusText" style="font-size: 14px; color: #64748b;">Checking connection...</div>
+            <div id="metaStatusDetail" style="font-size: 12px; color: #94a3b8; margin-top: 4px;"></div>
+          </div>
+          <div id="metaConnectActions">
+            <button type="button" id="metaConnectBtn" class="btn btn-primary" style="padding: 12px 24px; background: #0052CC; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: none;">Connect Facebook & Instagram</button>
+            <button type="button" id="metaDisconnectBtn" class="btn btn-secondary" style="padding: 12px 24px; margin-left: 8px; display: none;">Disconnect</button>
+          </div>
         </div>
 
         <!-- Register New Staff Section (OWNER/ADMIN only) -->
