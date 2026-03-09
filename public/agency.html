@@ -199,13 +199,16 @@
     /* Tabs */
     .tabs {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 24px;
       border-bottom: 2px solid #e2e8f0;
       padding-bottom: 0;
+      overflow-x: auto;
     }
     
     .tab {
+      flex-shrink: 0;
       padding: 12px 20px;
       background: none;
       border: none;
@@ -225,6 +228,13 @@
     .tab.active {
       color: #0052CC;
       border-bottom-color: #0052CC;
+    }
+    
+    /* Force Scheduled Posts tab always visible */
+    .tab[data-tab="scheduled"] {
+      display: inline-block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
     }
     
     .tab-content {
@@ -1607,7 +1617,10 @@
       </div>
 
       <div id="tabScheduled" class="tab-content">
-        <p class="section-desc">Posts scheduled to publish to Instagram and/or Facebook. Connect Facebook & Instagram in Settings to enable scheduling.</p>
+        <div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;">
+          <div id="scheduledPostsConnectionContent"></div>
+        </div>
+        <div id="scheduledPostsListTitle" style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 12px;">Scheduled Posts:</div>
         <div id="scheduledPostsFilters" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
           <select id="scheduledFilterClient" class="form-select form-select--sm">
             <option value="">All clients</option>
@@ -2223,20 +2236,6 @@
           <div id="createAdminErrorMessage" style="display: none; margin-top: 16px; padding: 12px 16px; background: #fee2e2; color: #dc2626; border-radius: 8px; font-size: 14px;"></div>
         </div>
 
-        <!-- Facebook & Instagram Section -->
-        <div class="settings-section" style="margin-bottom: 32px;">
-          <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Facebook & Instagram</h3>
-          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">Connect your Facebook Page and Instagram account to schedule and publish approved posts directly from 2FlyFlow.</p>
-          <div id="metaConnectionStatus" style="margin-bottom: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <div id="metaStatusText" style="font-size: 14px; color: #64748b;">Checking connection...</div>
-            <div id="metaStatusDetail" style="font-size: 12px; color: #94a3b8; margin-top: 4px;"></div>
-          </div>
-          <div id="metaConnectActions">
-            <button type="button" id="metaConnectBtn" class="btn btn-primary" style="padding: 12px 24px; background: #0052CC; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: none;">Connect Facebook & Instagram</button>
-            <button type="button" id="metaDisconnectBtn" class="btn btn-secondary" style="padding: 12px 24px; margin-left: 8px; display: none;">Disconnect</button>
-          </div>
-        </div>
-
         <!-- Register New Staff Section (OWNER/ADMIN only) -->
         <div id="settingsInviteSection" class="settings-section" style="margin-bottom: 32px;">
           <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Register New Staff</h3>
@@ -2478,7 +2477,7 @@
     }
   </style>
 
-  <script src="/agency.js"></script>
+  <script src="/agency.js?v=4"></script>
 </body>
 </html>
 

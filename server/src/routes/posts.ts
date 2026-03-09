@@ -12,7 +12,7 @@ import {
   deleteScheduledPost,
   getClient,
 } from '../db.js';
-import { getMetaIntegrationByAgency } from '../db.js';
+import { getMetaIntegrationByClient } from '../db.js';
 import {
   publishToFacebook,
   createInstagramMediaContainer,
@@ -43,9 +43,9 @@ router.post('/schedule', authenticate, requireCanViewDashboard, (req: Authentica
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    const integration = getMetaIntegrationByAgency(agencyId);
+    const integration = getMetaIntegrationByClient(agencyId, clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Connect Facebook & Instagram in Settings first' });
+      return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
 
     const scheduledAtStr = scheduledAt || new Date().toISOString();
@@ -166,9 +166,9 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       return res.status(400).json({ error: 'Post is not in scheduled status' });
     }
 
-    const integration = getMetaIntegrationByAgency(agencyId);
+    const integration = getMetaIntegrationByClient(agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Connect Facebook & Instagram in Settings first' });
+      return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
 
     post.status = 'publishing';

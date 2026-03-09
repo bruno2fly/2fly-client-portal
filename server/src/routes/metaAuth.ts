@@ -22,8 +22,8 @@ const SCOPES = [
 ].join(',');
 
 /**
- * GET /api/auth/meta
- * Redirects to Meta OAuth consent screen
+ * GET /api/auth/meta?clientId=xxx
+ * Redirects to Meta OAuth consent screen. clientId required for per-client connection.
  */
 router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res: Response) => {
   if (!META_APP_ID || !META_REDIRECT_URI) {
@@ -32,8 +32,12 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
       message: 'META_APP_ID and META_REDIRECT_URI must be set',
     });
   }
+  const clientId = req.query.clientId as string;
+  if (!clientId) {
+    return res.status(400).json({ error: 'clientId query parameter is required' });
+  }
   const { agencyId } = getAgencyScope(req);
-  const state = Buffer.from(JSON.stringify({ agencyId, userId: req.userId })).toString('base64');
+  const state = Buffer.from(JSON.stringify({ agencyId, clientId, userId: req.userId })).toString('base64');
   const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code`;
   res.json({ authUrl });
 });
@@ -50,10 +54,15 @@ router.get('/callback', async (req: Request, res: Response) => {
     }
 
     let agencyId: string;
+    let clientId: string;
     if (state && typeof state === 'string') {
       try {
         const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
         agencyId = decoded.agencyId;
+        clientId = decoded.clientId;
+        if (!clientId) {
+          return res.status(400).send(renderCallbackPage(false, 'Missing clientId in state'));
+        }
       } catch {
         return res.status(400).send(renderCallbackPage(false, 'Invalid state parameter'));
       }
@@ -87,8 +96,9 @@ router.get('/callback', async (req: Request, res: Response) => {
     const tokenExpiresAt = Date.now() + (expires_in * 1000);
     const now = Date.now();
     const integration = {
-      id: `meta_${agencyId}_${now}`,
+      id: `meta_${agencyId}_${clientId}_${now}`,
       agencyId,
+      clientId,
       metaAccessToken: page.access_token,
       metaPageId: page.id,
       metaPageName: page.name,
@@ -101,14 +111,19 @@ router.get('/callback', async (req: Request, res: Response) => {
 
     saveMetaIntegration(integration);
 
-    res.send(renderCallbackPage(true, undefined, page.name, igAccount?.username));
+    res.send(renderCallbackPage(true, undefined, page.name, igAccount?.username, clientId));
   } catch (error: any) {
     console.error('Meta OAuth callback error:', error);
     res.status(500).send(renderCallbackPage(false, error.message || 'Connection failed'));
   }
 });
 
-function renderCallbackPage(success: boolean, error?: string, pageName?: string, igUsername?: string): string {
+function renderCallbackPage(success: boolean, error?: string, pageName?: string, igUsername?: string, clientId?: string): string {
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:8000';
+  const redirectUrl = clientId
+    ? `${baseUrl}/agency#client=${encodeURIComponent(clientId)}&tab=scheduled`
+    : `${baseUrl}/agency`;
+  const safeClientId = (clientId || '').replace(/'/g, "\\'");
   return `
 <!DOCTYPE html>
 <html>
@@ -123,7 +138,7 @@ function renderCallbackPage(success: boolean, error?: string, pageName?: string,
   ${success ? `<p class="success">Page: ${pageName || 'N/A'}${igUsername ? ` • Instagram: @${igUsername}` : ''}</p>` : ''}
   ${error ? `<p class="error">${error}</p>` : ''}
   <p>You can close this window.</p>
-  <a href="#" class="btn" onclick="if(window.opener){window.opener.postMessage({type:'META_CONNECTED',success:${success}},'*');window.close();}return false;">Close</a>
+  <a href="${redirectUrl}" class="btn" onclick="if(window.opener){window.opener.postMessage({type:'META_CONNECTED',success:${success},clientId:'${safeClientId}'},'*');window.close();}return true;">Close</a>
 </body>
 </html>`;
 }

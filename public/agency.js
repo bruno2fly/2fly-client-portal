@@ -1333,8 +1333,39 @@ function switchTab(tabName) {
   }
 }
 
+/** Ensure Scheduled Posts tab exists and is visible. Injects if missing (e.g. cached HTML). */
+function ensureScheduledTabExists() {
+  const tabsContainer = document.querySelector('.tabs');
+  const reportsTab = document.querySelector('.tab[data-tab="reports"]');
+  let scheduledTab = document.querySelector('.tab[data-tab="scheduled"]');
+  if (!scheduledTab && tabsContainer) {
+    const btn = document.createElement('button');
+    btn.className = 'tab';
+    btn.dataset.tab = 'scheduled';
+    btn.textContent = 'Scheduled Posts';
+    btn.addEventListener('click', () => { if (typeof switchTab === 'function') switchTab('scheduled'); });
+    if (reportsTab) tabsContainer.insertBefore(btn, reportsTab);
+    else tabsContainer.appendChild(btn);
+    scheduledTab = btn;
+  }
+  if (scheduledTab) {
+    scheduledTab.style.display = '';
+    scheduledTab.style.visibility = '';
+  }
+  const tabContent = document.getElementById('tabScheduled');
+  if (!tabContent && document.getElementById('tabContentlibrary')) {
+    const contentLibraryContent = document.getElementById('tabContentlibrary');
+    const div = document.createElement('div');
+    div.id = 'tabScheduled';
+    div.className = 'tab-content';
+    div.innerHTML = '<div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;"><div id="scheduledPostsConnectionContent"></div></div><div id="scheduledPostsListTitle" style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 12px;">Scheduled Posts:</div><div id="scheduledPostsFilters" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;"><select id="scheduledFilterClient" class="form-select form-select--sm"><option value="">All clients</option></select><select id="scheduledFilterPlatform" class="form-select form-select--sm"><option value="">All platforms</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select><select id="scheduledFilterStatus" class="form-select form-select--sm"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="failed">Failed</option></select></div><div id="scheduledPostsList" class="scheduled-posts-list"><div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div></div>';
+    contentLibraryContent.parentNode.insertBefore(div, contentLibraryContent);
+  }
+}
+
 // Setup tab click handlers - will be called after DOM loads
 function setupTabHandlers() {
+  ensureScheduledTabExists();
   $$('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
       switchTab(tab.dataset.tab);
@@ -1343,7 +1374,78 @@ function setupTabHandlers() {
 }
 
 /* ================== Scheduled Posts Tab ================== */
+async function renderScheduledPostsConnectionSection() {
+  const wrap = $('#scheduledPostsConnectionSection');
+  const content = $('#scheduledPostsConnectionContent');
+  if (!wrap || !content) return;
+
+  const clients = loadClientsRegistry();
+  const client = currentClientId && clients ? clients[currentClientId] : null;
+
+  if (!currentClientId || !client) {
+    content.innerHTML = '<p style="margin: 0; font-size: 14px; color: #64748b;">Select a client to manage their social accounts.</p>';
+    return;
+  }
+
+  content.innerHTML = '<div style="text-align: center; padding: 12px; color: #64748b;">Checking connection...</div>';
+  wrap.style.display = 'block';
+
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/status?clientId=${encodeURIComponent(currentClientId)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to check status');
+
+    let html = '<div style="font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px;">' + (client.name || currentClientId) + ' — Social Accounts</div>';
+    if (j.connected) {
+      html += '<div style="display: flex; flex-direction: column; gap: 12px;">';
+      html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Instagram: Connected' + (j.instagramUsername ? ' (@' + j.instagramUsername + ')' : '') + ' <button type="button" class="btn btn--sm btn-secondary" id="scheduledMetaDisconnectBtn" style="margin-left: auto;">Disconnect</button></div>';
+      html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Facebook: Connected' + (j.pageName ? ' (' + j.pageName + ')' : '') + '</div>';
+      html += '</div>';
+    } else {
+      html += '<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">';
+      html += '<div><span style="color: #94a3b8;">○</span> Instagram: Not connected</div>';
+      html += '<div><span style="color: #94a3b8;">○</span> Facebook: Not connected</div>';
+      html += '</div>';
+      if (j.error) html += '<p style="font-size: 13px; color: #dc2626; margin: 0 0 12px 0;">' + j.error + '</p>';
+      html += '<button type="button" class="btn btn-primary" id="scheduledMetaConnectBtn" style="padding: 12px 24px;">Connect Facebook &amp; Instagram</button>';
+    }
+    content.innerHTML = html;
+
+    const connectBtn = $('#scheduledMetaConnectBtn');
+    const disconnectBtn = $('#scheduledMetaDisconnectBtn');
+    if (connectBtn && !connectBtn._bound) {
+      connectBtn._bound = true;
+      connectBtn.addEventListener('click', async () => {
+        try {
+          const authRes = await fetch(`${getApiBaseUrl()}/api/auth/meta?clientId=${encodeURIComponent(currentClientId)}`, { credentials: 'include' });
+          const authJ = await authRes.json();
+          if (authJ.authUrl) window.open(authJ.authUrl, 'meta_oauth', 'width=600,height=700');
+        } catch (e) { console.error('Meta connect:', e); }
+      });
+    }
+    if (disconnectBtn && !disconnectBtn._bound) {
+      disconnectBtn._bound = true;
+      disconnectBtn.addEventListener('click', async () => {
+        try {
+          const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/disconnect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ clientId: currentClientId })
+          });
+          const j = await r.json();
+          if (j.success) { renderScheduledPostsConnectionSection(); renderScheduledPostsTab(); }
+        } catch (e) { console.error('Meta disconnect:', e); }
+      });
+    }
+  } catch (e) {
+    content.innerHTML = '<p style="margin: 0; font-size: 14px; color: #dc2626;">Error checking status: ' + (e.message || 'Unknown error') + '</p>';
+  }
+}
+
 async function renderScheduledPostsTab() {
+  await renderScheduledPostsConnectionSection();
+
   const container = $('#scheduledPostsList');
   const filterClient = $('#scheduledFilterClient');
   const filterPlatform = $('#scheduledFilterPlatform');
@@ -1362,9 +1464,22 @@ async function renderScheduledPostsTab() {
   if (filterPlatform && filterPlatform.value) params.set('platform', filterPlatform.value);
   if (filterStatus && filterStatus.value) params.set('status', filterStatus.value);
 
+  const listTitle = $('#scheduledPostsListTitle');
+  if (listTitle) {
+    const filteredClientId = filterClient && filterClient.value;
+    const clientName = filteredClientId && clients ? (clients[filteredClientId]?.name || filteredClientId) : null;
+    listTitle.textContent = clientName ? 'Scheduled Posts for ' + clientName + ':' : 'Scheduled Posts:';
+  }
+
   try {
     const r = await fetch(`${getApiBaseUrl()}/api/posts/scheduled?${params}`, { credentials: 'include' });
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      await r.text();
+      throw new Error('API returned non-JSON (status ' + r.status + '). Check that the API server is running and reachable.');
+    }
     const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to load scheduled posts');
     const posts = j.posts || [];
     if (posts.length === 0) {
       container.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">No scheduled posts. Approve content in the Approvals tab, then schedule it to Instagram & Facebook.</div>';
@@ -1544,6 +1659,7 @@ function renderClientWorkspaceChecklist() {
 
 function focusOnSection(sectionId) {
   if (sectionId === 'contentlibrary' || sectionId === 'tabContentlibrary') { switchTab('contentlibrary'); return; }
+  if (sectionId === 'scheduled' || sectionId === 'tabScheduled') { switchTab('scheduled'); return; }
   if (sectionId === 'needs' || sectionId === 'tabNeeds') { switchTab('needs'); return; }
   if (sectionId === 'approvals') { switchTab('approvals'); return; }
   if (sectionId === 'requests') { switchTab('requests'); return; }
@@ -3889,39 +4005,6 @@ function setupPinInviteHandlers() {
   });
 }
 
-async function loadMetaConnectionStatus() {
-  const statusEl = $('#metaStatusText');
-  const detailEl = $('#metaStatusDetail');
-  const connectBtn = $('#metaConnectBtn');
-  const disconnectBtn = $('#metaDisconnectBtn');
-  if (!statusEl) return;
-  try {
-    const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/status`, { credentials: 'include' });
-    const j = await r.json();
-    if (j.connected) {
-      statusEl.textContent = 'Connected';
-      statusEl.style.color = '#059669';
-      const parts = [];
-      if (j.pageName) parts.push('Page: ' + j.pageName);
-      if (j.instagramUsername) parts.push('Instagram: @' + j.instagramUsername);
-      if (detailEl) detailEl.textContent = parts.join(' • ');
-      if (connectBtn) connectBtn.style.display = 'none';
-      if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
-    } else {
-      statusEl.textContent = j.error || 'Not connected';
-      statusEl.style.color = j.error ? '#dc2626' : '#64748b';
-      if (detailEl) detailEl.textContent = '';
-      if (connectBtn) connectBtn.style.display = 'inline-block';
-      if (disconnectBtn) disconnectBtn.style.display = 'none';
-    }
-  } catch (e) {
-    statusEl.textContent = 'Error checking status';
-    statusEl.style.color = '#dc2626';
-    if (connectBtn) connectBtn.style.display = 'inline-block';
-    if (disconnectBtn) disconnectBtn.style.display = 'none';
-  }
-}
-
 // Setup settings modal
 function setupSettingsModal() {
   const settingsBtn = $('#settingsBtn');
@@ -3938,35 +4021,19 @@ function setupSettingsModal() {
       if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
-      loadMetaConnectionStatus();
     });
   }
 
-  // Meta (Facebook/Instagram) connect
-  const metaConnectBtn = $('#metaConnectBtn');
-  const metaDisconnectBtn = $('#metaDisconnectBtn');
-  if (metaConnectBtn) {
-    metaConnectBtn.addEventListener('click', async () => {
-      try {
-        const r = await fetch(`${getApiBaseUrl()}/api/auth/meta`, { credentials: 'include' });
-        const j = await r.json();
-        if (j.authUrl) window.open(j.authUrl, 'meta_oauth', 'width=600,height=700');
-      } catch (e) { console.error('Meta connect:', e); }
-    });
-  }
-  if (metaDisconnectBtn) {
-    metaDisconnectBtn.addEventListener('click', async () => {
-      try {
-        const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/disconnect`, { method: 'POST', credentials: 'include' });
-        const j = await r.json();
-        if (j.success) loadMetaConnectionStatus();
-      } catch (e) { console.error('Meta disconnect:', e); }
-    });
-  }
+  // META_CONNECTED postMessage from OAuth popup - refresh Scheduled Posts connection when opened from that tab
   window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'META_CONNECTED' && e.data.success) loadMetaConnectionStatus();
+    if (e.data && e.data.type === 'META_CONNECTED' && e.data.success) {
+      if (currentTab === 'scheduled') {
+        renderScheduledPostsConnectionSection();
+        renderScheduledPostsTab();
+      }
+    }
   });
-  
+
   // Close settings modal
   if (closeSettingsBtn && settingsModal) {
     closeSettingsBtn.addEventListener('click', () => {
@@ -4364,6 +4431,7 @@ function updateGlobalStatusSummary() {
 }
 
 function renderAll() {
+  ensureScheduledTabExists();
   renderClientsSidebar();
   renderClientHeader();
   updateGlobalStatusSummary();

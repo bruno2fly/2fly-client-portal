@@ -163,10 +163,11 @@ export interface AuthSession {
   expiresAt: number;
 }
 
-/** Meta (Facebook/Instagram) integration per agency */
+/** Meta (Facebook/Instagram) integration per client */
 export interface MetaIntegration {
   id: string;
   agencyId: string;
+  clientId: string;
   metaAccessToken: string;
   metaPageId: string;
   metaPageName?: string;

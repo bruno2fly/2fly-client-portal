@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import {
   getScheduledPosts,
   saveScheduledPost,
-  getMetaIntegrationByAgency,
+  getMetaIntegrationByClient,
 } from '../db.js';
 import {
   publishToFacebook,
@@ -48,7 +48,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
   const results: { id: string; status: string; error?: string }[] = [];
 
   for (const post of posts) {
-    const integration = getMetaIntegrationByAgency(post.agencyId);
+    const integration = getMetaIntegrationByClient(post.agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       post.status = 'failed';
       post.error = 'Token expired or not connected';

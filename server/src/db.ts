@@ -398,7 +398,7 @@ export function deleteClientCredentials(agencyId: string, clientId: string): voi
   writeJSON(CLIENT_CREDENTIALS_FILE, map);
 }
 
-// Meta integrations (per agency)
+// Meta integrations (per client: agencyId + clientId)
 export function getMetaIntegrations(): Record<string, MetaIntegration> {
   return readJSON<Record<string, MetaIntegration>>(META_INTEGRATIONS_FILE, {});
 }
@@ -406,6 +406,13 @@ export function getMetaIntegrations(): Record<string, MetaIntegration> {
 export function getMetaIntegrationByAgency(agencyId: string): MetaIntegration | null {
   const integrations = getMetaIntegrations();
   return Object.values(integrations).find(i => i.agencyId === agencyId) || null;
+}
+
+export function getMetaIntegrationByClient(agencyId: string, clientId: string): MetaIntegration | null {
+  const integrations = getMetaIntegrations();
+  return Object.values(integrations).find(
+    i => i.agencyId === agencyId && i.clientId === clientId
+  ) || null;
 }
 
 export function saveMetaIntegration(integration: MetaIntegration): void {
@@ -417,6 +424,17 @@ export function saveMetaIntegration(integration: MetaIntegration): void {
 export function deleteMetaIntegration(agencyId: string): void {
   const integrations = getMetaIntegrations();
   const toDelete = Object.entries(integrations).find(([, i]) => i.agencyId === agencyId);
+  if (toDelete) {
+    delete integrations[toDelete[0]];
+    writeJSON(META_INTEGRATIONS_FILE, integrations);
+  }
+}
+
+export function deleteMetaIntegrationByClient(agencyId: string, clientId: string): void {
+  const integrations = getMetaIntegrations();
+  const toDelete = Object.entries(integrations).find(
+    ([, i]) => i.agencyId === agencyId && i.clientId === clientId
+  );
   if (toDelete) {
     delete integrations[toDelete[0]];
     writeJSON(META_INTEGRATIONS_FILE, integrations);
