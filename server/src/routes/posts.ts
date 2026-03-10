@@ -15,11 +15,53 @@ import {
 import { getMetaIntegrationByClient } from '../db.js';
 import {
   publishToFacebook,
+  publishPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
 } from '../lib/meta-api.js';
 
 const router = Router();
+
+/**
+ * Helper: if mediaUrl is base64 data URI, upload to Vercel Blob and return public URL.
+ * If already a public URL, return as-is.
+ */
+async function ensurePublicMediaUrl(mediaUrl: string, agencyId: string): Promise<string> {
+  if (!mediaUrl || !mediaUrl.startsWith('data:image/')) {
+    return mediaUrl; // already a URL (or empty)
+  }
+
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!blobToken) {
+    throw new Error('Image upload not configured. Set BLOB_READ_WRITE_TOKEN or use a public image URL.');
+  }
+
+  let put: any;
+  try {
+    // @ts-ignore
+    const blob = await import('@vercel/blob');
+    put = blob.put;
+  } catch {
+    throw new Error('Image upload not available. Install @vercel/blob package.');
+  }
+
+  const match = mediaUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!match) {
+    throw new Error('Invalid base64 image format');
+  }
+
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const buffer = Buffer.from(match[2], 'base64');
+  const filename = `posts/${agencyId}/${Date.now()}.${ext}`;
+
+  const result = await put(filename, buffer, {
+    access: 'public',
+    contentType: `image/${match[1]}`,
+    token: blobToken,
+  });
+
+  return result.url;
+}
 
 function generateId(): string {
   return `post_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -29,7 +71,7 @@ function generateId(): string {
  * POST /api/posts/schedule
  * Schedule a new post
  */
-router.post('/schedule', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.post('/schedule', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { clientId, contentId, caption, mediaUrl, platforms, scheduledAt, timezone } = req.body;
@@ -56,13 +98,24 @@ router.post('/schedule', authenticate, requireCanViewDashboard, (req: Authentica
     const tz = timezone || 'America/New_York';
     const now = new Date().toISOString();
 
+    // Convert base64 images to public URLs at schedule time
+    let finalMediaUrl = (typeof mediaUrl === 'string' && mediaUrl.trim()) ? mediaUrl.trim() : '';
+    if (finalMediaUrl.startsWith('data:image/')) {
+      try {
+        finalMediaUrl = await ensurePublicMediaUrl(finalMediaUrl, agencyId);
+      } catch (uploadErr: any) {
+        console.error('[schedule] Failed to upload base64 image:', uploadErr.message);
+        // Keep original URL, publish-now will retry upload
+      }
+    }
+
     const post = {
       id: generateId(),
       agencyId,
       clientId,
       contentId,
       caption: String(caption).slice(0, 2200),
-      mediaUrl: (typeof mediaUrl === 'string' && mediaUrl.trim()) ? mediaUrl.trim() : '',
+      mediaUrl: finalMediaUrl,
       platforms: platformsList,
       scheduledAt: scheduledAtStr,
       timezone: tz,
@@ -183,19 +236,41 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     let error: string | undefined;
 
     try {
-      if (post.platforms.includes('facebook')) {
-        const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
-          message: post.caption,
-          url: post.mediaUrl,
-        });
-        metaPostIds.facebook = result.id;
+      // Convert base64 to public URL if needed (Instagram requires public HTTPS URLs)
+      let publicMediaUrl = post.mediaUrl;
+      if (publicMediaUrl && publicMediaUrl.startsWith('data:image/')) {
+        console.log('[publish-now] Converting base64 image to public URL via Vercel Blob...');
+        publicMediaUrl = await ensurePublicMediaUrl(publicMediaUrl, post.agencyId);
+        // Update the stored post with the public URL so we don't re-upload next time
+        post.mediaUrl = publicMediaUrl;
+        console.log('[publish-now] Public URL obtained:', publicMediaUrl);
       }
 
-      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId && post.mediaUrl) {
+      if (post.platforms.includes('facebook')) {
+        if (publicMediaUrl && publicMediaUrl.startsWith('http')) {
+          // Post with photo
+          const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            url: publicMediaUrl,
+            caption: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else {
+          // Text-only post
+          const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            message: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        }
+      }
+
+      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
+        if (!publicMediaUrl || !publicMediaUrl.startsWith('http')) {
+          throw new Error('Instagram requires an image. Please attach an image to this post.');
+        }
         const container = await createInstagramMediaContainer(
           integration.metaInstagramAccountId,
           integration.metaAccessToken,
-          { image_url: post.mediaUrl, caption: post.caption }
+          { image_url: publicMediaUrl, caption: post.caption }
         );
         const publishResult = await publishInstagramContainer(
           integration.metaInstagramAccountId,

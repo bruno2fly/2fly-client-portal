@@ -82,6 +82,32 @@ export async function publishToFacebook(
 }
 
 /**
+ * Publish a photo to Facebook Page (uses /photos endpoint, not /feed)
+ * This is the correct way to post images to Facebook.
+ */
+export async function publishPhotoToFacebook(
+  pageId: string,
+  pageAccessToken: string,
+  options: { url: string; caption?: string; published?: boolean }
+): Promise<{ id: string }> {
+  const body: Record<string, any> = {
+    url: options.url,
+    caption: options.caption || '',
+    access_token: pageAccessToken,
+  };
+  if (options.published === false) body.published = false;
+
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/photos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish photo to Facebook');
+  return { id: data.id };
+}
+
+/**
  * Create Instagram media container (Step 1 of 2-step publish)
  */
 export async function createInstagramMediaContainer(
