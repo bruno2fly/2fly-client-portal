@@ -32,9 +32,15 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware - CORS configuration
 // In development allow any localhost origin (Vite may use 5173, 5174, etc.)
+// In production: allow FRONTEND_URL and production domains for cross-origin (2flyflow.com -> api.2flyflow.com)
+const prodOrigins = [
+  process.env.FRONTEND_URL,
+  'https://2flyflow.com',
+  'https://www.2flyflow.com'
+].filter(Boolean);
 const allowedOrigins = process.env.NODE_ENV === 'development'
   ? ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174']
-  : [process.env.FRONTEND_URL || 'http://localhost:5173'];
+  : (prodOrigins.length > 0 ? prodOrigins : ['https://2flyflow.com']);
 
 app.use(cors({
   origin: (origin, callback) => {

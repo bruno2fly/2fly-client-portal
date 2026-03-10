@@ -121,10 +121,12 @@ router.post('/login', async (req, res) => {
     );
 
     // Set httpOnly cookie
+    // Cross-origin: 2flyflow.com -> api.2flyflow.com requires sameSite: 'none' for credentials
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -212,7 +214,12 @@ router.post('/client-login', async (req, res) => {
  * Logout (clear session cookie)
  */
 router.post('/logout', (req, res) => {
-  res.clearCookie(COOKIE_NAME);
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax'
+  });
   res.json({ success: true });
 });
 

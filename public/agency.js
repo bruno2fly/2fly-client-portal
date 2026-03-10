@@ -172,27 +172,40 @@ function setPipelineModalSeen() {
   localStorage.setItem(LS_PIPELINE_SEEN, '1');
 }
 
-async function parseJsonOrThrow(r) {
+async function parseJsonOrThrow(r, url) {
   const ct = r.headers.get('content-type') || '';
   const text = await r.text();
   if (!ct.includes('application/json') || text.trim().startsWith('<')) {
     const hint = isLocal() ? ' Make sure the backend is running: cd server && npm start' : '';
-    throw new Error('API returned HTML instead of JSON. Is the server running on ' + getApiBaseUrl() + '?' + hint);
+    const msg = 'API returned HTML instead of JSON. Is the server running on ' + getApiBaseUrl() + '?' + hint;
+    console.error('[parseJsonOrThrow]', msg, { url: url || 'unknown', status: r.status, contentType: ct, bodyPreview: text.slice(0, 200) });
+    throw new Error(msg);
   }
   try {
     return JSON.parse(text);
   } catch (e) {
+    console.error('[parseJsonOrThrow] Invalid JSON', { url: url || 'unknown', status: r.status, parseError: e.message, bodyPreview: text.slice(0, 200) });
     throw new Error('Invalid API response: ' + (e.message || 'parse error'));
   }
 }
 
 async function fetchClientsFromAPI() {
-  const r = await fetch(`${getApiBaseUrl()}/api/agency/clients`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' }
-  });
-  const j = await parseJsonOrThrow(r);
+  const url = `${getApiBaseUrl()}/api/agency/clients`;
+  let r;
+  try {
+    r = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (fetchErr) {
+    console.error('[fetchClientsFromAPI] Network error', { url, error: fetchErr.message, name: fetchErr.name });
+    throw fetchErr;
+  }
+  if (!r.ok) {
+    console.error('[fetchClientsFromAPI] Non-OK response', { url, status: r.status, statusText: r.statusText });
+  }
+  const j = await parseJsonOrThrow(r, url);
   if (!r.ok) throw new Error(j.error || 'Failed to fetch clients');
   const list = j.clients || [];
   const map = {};
@@ -5053,7 +5066,11 @@ function setupContentLibraryLearnMore() {
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    console.log('Agency dashboard loaded');
+    console.log('[init] Agency dashboard loaded', {
+      apiBase: getApiBaseUrl(),
+      origin: window.location.origin,
+      staffFromStorage: currentStaff ? { name: currentStaff.name, role: currentStaff.role, agencyId: currentStaff.agencyId } : null
+    });
     if (!currentStaff) {
       console.log('No staff session, redirecting to staff login');
       setTimeout(() => {
@@ -5062,7 +5079,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     console.log('Staff authenticated:', currentStaff.name || currentStaff.username || currentStaff.fullName);
-    try { updateStaffHeader(); } catch (e) { console.error('Error updating staff header:', e); }
+    try {
+      updateStaffHeader();
+    } catch (e) {
+      console.error('[init] updateStaffHeader failed:', e.message, e);
+    }
 
     let clients = {};
     try {
@@ -5081,7 +5102,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     } catch (e) {
-      console.error('Error loading clients/portal:', e);
+      console.error('[init] fetchClientsFromAPI/fetchPortalStateFromAPI failed:', {
+        message: e.message,
+        name: e.name,
+        stack: e.stack,
+        apiBase: getApiBaseUrl(),
+        hasCredentials: true
+      });
       let msg = e.message || '';
       if (msg.includes('Failed to fetch') || msg.includes('Load failed') || msg.includes('NetworkError')) {
         msg = 'Cannot reach the API. Start the backend: cd server && npm start';
