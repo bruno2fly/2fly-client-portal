@@ -197,8 +197,8 @@ router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: Authen
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    if (post.status !== 'scheduled') {
-      return res.status(400).json({ error: 'Can only cancel scheduled posts' });
+    if (post.status !== 'scheduled' && post.status !== 'failed') {
+      return res.status(400).json({ error: 'Can only cancel or dismiss scheduled or failed posts' });
     }
 
     deleteScheduledPost(post.id);

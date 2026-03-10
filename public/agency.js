@@ -1523,7 +1523,7 @@ function injectCalendarStyles() {
   if (document.getElementById('scheduled-cal-css')) return;
   const style = document.createElement('style');
   style.id = 'scheduled-cal-css';
-  style.textContent = '.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:white;}.cal-header-cell{padding:10px;text-align:center;font-weight:600;font-size:12px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;}.cal-day{min-height:100px;padding:6px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;vertical-align:top;background:white;}.cal-day:nth-child(7n){border-right:none;}.cal-day.other-month{background:#f9fafb;opacity:0.6;}.cal-day.today{background:#eff6ff;}.cal-day-number{font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;}.cal-day.today .cal-day-number{background:#1a56db;color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;}.cal-posts{min-height:60px;}';
+  style.textContent = '.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:white;}.cal-header-cell{padding:10px;text-align:center;font-weight:600;font-size:12px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;}.cal-day{min-height:100px;padding:6px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;vertical-align:top;background:white;}.cal-day:nth-child(7n){border-right:none;}.cal-day.other-month{background:#f9fafb;opacity:0.6;}.cal-day.today{background:#eff6ff;}.cal-day-number{font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;}.cal-day.today .cal-day-number{background:#1a56db;color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;}.cal-posts{min-height:60px;}.cal-post-dismiss{position:absolute;top:4px;right:4px;width:18px;height:18px;padding:0;border:none;background:transparent;color:#94a3b8;font-size:16px;line-height:1;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;}.cal-post-dismiss:hover{color:#64748b;background:rgba(0,0,0,0.08);}';
   document.head.appendChild(style);
 }
 
@@ -1621,7 +1621,8 @@ async function renderScheduledPostsTab() {
         const borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
         const bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
         const statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
-        html += '<div class="cal-post" style="padding:6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
+        html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
+        html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
         html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
         html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
         html += '<div class="cal-status" style="font-size:10px;font-weight:600;">' + statusLabel + '</div></div>';
@@ -1648,6 +1649,26 @@ async function renderScheduledPostsTab() {
         navigateCalendarMonth(offset);
       });
     });
+
+    if (!container._calDismissBound) {
+      container._calDismissBound = true;
+      container.addEventListener('click', async function(e) {
+        const dismiss = e.target && e.target.closest && e.target.closest('.cal-post-dismiss');
+        if (!dismiss) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const postId = dismiss.getAttribute('data-post-id');
+        if (!postId) return;
+        try {
+          const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || 'Failed to remove');
+          renderScheduledPostsTab();
+        } catch (err) {
+          showToast(err.message || 'Failed to remove post', 'error');
+        }
+      });
+    }
   } catch (e) {
     container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + (e.message || 'Unknown error') + '</div>';
   }
