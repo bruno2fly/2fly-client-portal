@@ -1,5 +1,5 @@
-/* 2FlyFlow PWA — network-first service worker */
-const CACHE = '2flyflow-v2';
+/* 2FlyFlow PWA — network-first service worker v3 */
+const CACHE = '2flyflow-v3';
 
 const URLS = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
@@ -18,14 +18,21 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+
+  // Only handle same-origin GET requests for static assets
+  // Never intercept API calls or cross-origin requests
   if (e.request.method !== 'GET') return;
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
+
   e.respondWith(
     fetch(e.request).then((res) => {
-      const clone = res.clone();
-      if (res.ok && (res.type === 'basic' || res.type === '')) {
+      if (res.ok) {
+        const clone = res.clone();
         caches.open(CACHE).then((cache) => cache.put(e.request, clone));
       }
       return res;
-    }).catch(() => caches.match(e.request).then((r) => r || caches.match('/index.html')))
+    }).catch(() => caches.match(e.request))
   );
 });
