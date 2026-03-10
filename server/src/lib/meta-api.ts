@@ -26,7 +26,7 @@ export async function exchangeForLongLivedToken(shortLivedToken: string): Promis
 
   const url = `${META_GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
   const res = await fetch(url);
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to exchange token');
   return { access_token: data.access_token, expires_in: data.expires_in || 5184000 };
 }
@@ -37,7 +37,7 @@ export async function exchangeForLongLivedToken(shortLivedToken: string): Promis
 export async function getPages(accessToken: string): Promise<MetaPage[]> {
   const url = `${META_GRAPH_BASE}/me/accounts?fields=id,name,access_token&access_token=${accessToken}`;
   const res = await fetch(url);
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to get pages');
   return (data.data || []).map((p: any) => ({ id: p.id, name: p.name, access_token: p.access_token }));
 }
@@ -48,7 +48,7 @@ export async function getPages(accessToken: string): Promise<MetaPage[]> {
 export async function getInstagramAccount(pageId: string, pageAccessToken: string): Promise<MetaInstagramAccount | null> {
   const url = `${META_GRAPH_BASE}/${pageId}?fields=instagram_business_account{id,username}&access_token=${pageAccessToken}`;
   const res = await fetch(url);
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to get Instagram account');
   const ig = data.instagram_business_account;
   if (!ig) return null;
@@ -76,7 +76,7 @@ export async function publishToFacebook(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to publish to Facebook');
   return { id: data.id };
 }
@@ -99,7 +99,7 @@ export async function createInstagramMediaContainer(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to create Instagram container');
   return { id: data.id };
 }
@@ -118,7 +118,7 @@ export async function publishInstagramContainer(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to publish to Instagram');
   return { id: data.id };
 }

@@ -77,7 +77,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     // Exchange code for short-lived token
     const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&client_secret=${META_APP_SECRET}&code=${code}`;
     const tokenRes = await fetch(tokenUrl);
-    const tokenData = await tokenRes.json();
+    const tokenData: any = await tokenRes.json();
     if (tokenData.error) {
       throw new Error(tokenData.error.message || 'Failed to exchange code');
     }

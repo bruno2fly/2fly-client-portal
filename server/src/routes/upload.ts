@@ -29,8 +29,9 @@ router.post('/image', authenticate, requireCanViewDashboard, async (req: Authent
       });
     }
 
-    let put: (path: string, data: Buffer, opts: { access: string; contentType: string }) => Promise<{ url: string }>;
+    let put: any;
     try {
+      // @ts-ignore - @vercel/blob may not be installed in all environments
       const blob = await import('@vercel/blob');
       put = blob.put;
     } catch {
