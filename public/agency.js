@@ -1372,7 +1372,7 @@ function ensureScheduledTabExists() {
     scheduledTab.style.display = '';
     scheduledTab.style.visibility = '';
   }
-  const tabContent = document.getElementById('tabScheduled');
+  tabContent = document.getElementById('tabScheduled');
   if (!tabContent && document.getElementById('tabContentlibrary')) {
     const contentLibraryContent = document.getElementById('tabContentlibrary');
     const div = document.createElement('div');
