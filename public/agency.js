@@ -2454,12 +2454,12 @@ function renderApprovedVisualsSection() {
   if (!grid) return;
 
   if (!currentClientId) {
-    grid.innerHTML = '<div class="empty-state__text" style="font-size: 12px; color: #94a3b8;">Select a client to see approved visuals.</div>';
+    grid.innerHTML = '<div class="empty-state__text" style="font-size: 12px; color: #94a3b8;">Select a client to see visuals.</div>';
     if (selectedWrap) selectedWrap.style.display = 'none';
     return;
   }
 
-  let assets = loadAssets(currentClientId).filter(a => a.approvalStatus === 'APPROVED');
+  let assets = loadAssets(currentClientId);
   const formatVal = filterFormat ? filterFormat.value : 'ANY';
   const pillarVal = filterPillar ? filterPillar.value : '';
   if (formatVal && formatVal !== 'ANY') assets = assets.filter(a => (a.formatUse || 'ANY') === formatVal);
@@ -2518,7 +2518,7 @@ function renderApprovedVisualsSection() {
         item.appendChild(img);
       }
       const label = document.createElement('span');
-      label.textContent = (asset.title || 'Untitled') + (asset.approvalStatus === 'PENDING' ? ' (pending approval)' : '');
+      label.textContent = asset.title || 'Untitled';
       item.appendChild(label);
       const remove = el('button', { type: 'button', class: 'btn btn--sm btn-secondary', style: 'margin-left: 4px; padding: 2px 6px; font-size: 11px;' }, '×');
       remove.addEventListener('click', (e) => { e.stopPropagation(); postSelectedAssetIds = postSelectedAssetIds.filter(i => i !== id); renderApprovedVisualsSection(); updatePostFormFromAssets(); });
@@ -2712,7 +2712,7 @@ async function schedulePostToMeta() {
   if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Scheduling...'; statusEl.style.color = '#64748b'; }
   try {
     const mediaUrl = await getMediaUrlForApproval();
-    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an approved asset.');
+    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an asset.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
     const timeVal = $('#schedulePostTime') ? $('#schedulePostTime').value : '10:00';
@@ -2757,7 +2757,7 @@ async function postNowToMeta() {
   if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Publishing...'; statusEl.style.color = '#64748b'; }
   try {
     const mediaUrl = await getMediaUrlForApproval();
-    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an approved asset.');
+    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an asset.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const platforms = [];
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
@@ -4923,7 +4923,7 @@ function setupImageUpload() {
           updatePostFormFromAssets();
           var warnEl = $('#postUploadApprovalWarning');
           if (warnEl) warnEl.style.display = 'block';
-          showToast(`${file.name} added; requires approval before reuse.`, 'success');
+          showToast(`${file.name} added; you can use it in posts.`, 'success');
         } else {
           uploadedImages.push(compressed);
           displayUploadedImages();
