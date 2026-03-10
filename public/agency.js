@@ -1387,7 +1387,7 @@ function ensureScheduledTabExists() {
     const div = document.createElement('div');
     div.id = 'tabScheduled';
     div.className = 'tab-content';
-    div.innerHTML = '<div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;"><div id="scheduledPostsConnectionContent"></div></div><div id="scheduledPostsListTitle" style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 12px;">Scheduled Posts:</div><div id="scheduledPostsFilters" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;"><select id="scheduledFilterClient" class="form-select form-select--sm"><option value="">All clients</option></select><select id="scheduledFilterPlatform" class="form-select form-select--sm"><option value="">All platforms</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select><select id="scheduledFilterStatus" class="form-select form-select--sm"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="failed">Failed</option></select></div><div id="scheduledPostsList" class="scheduled-posts-list"><div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div></div>';
+    div.innerHTML = '<div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;"><div id="scheduledPostsConnectionContent"></div></div><div id="scheduledPostsListTitle" style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 12px;">Scheduled Posts:</div><div id="scheduledPostsList" class="scheduled-posts-list"><div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div></div>';
     contentLibraryContent.parentNode.insertBefore(div, contentLibraryContent);
   }
 }
@@ -1476,27 +1476,15 @@ async function renderScheduledPostsTab() {
   await renderScheduledPostsConnectionSection();
 
   const container = $('#scheduledPostsList');
-  const filterClient = $('#scheduledFilterClient');
-  const filterPlatform = $('#scheduledFilterPlatform');
-  const filterStatus = $('#scheduledFilterStatus');
   if (!container) return;
 
   const clients = loadClientsRegistry();
-  if (filterClient) {
-    const cur = filterClient.value;
-    filterClient.innerHTML = '<option value="">All clients</option>' + Object.values(clients || {}).map(c => '<option value="' + c.id + '">' + (c.name || c.id) + '</option>').join('');
-    if (cur) filterClient.value = cur;
-  }
-
   const params = new URLSearchParams();
-  if (filterClient && filterClient.value) params.set('clientId', filterClient.value);
-  if (filterPlatform && filterPlatform.value) params.set('platform', filterPlatform.value);
-  if (filterStatus && filterStatus.value) params.set('status', filterStatus.value);
+  if (currentClientId) params.set('clientId', currentClientId);
 
   const listTitle = $('#scheduledPostsListTitle');
   if (listTitle) {
-    const filteredClientId = filterClient && filterClient.value;
-    const clientName = filteredClientId && clients ? (clients[filteredClientId]?.name || filteredClientId) : null;
+    const clientName = currentClientId && clients ? (clients[currentClientId]?.name || currentClientId) : null;
     listTitle.textContent = clientName ? 'Scheduled Posts for ' + clientName + ':' : 'Scheduled Posts:';
   }
 
@@ -1556,12 +1544,7 @@ async function renderScheduledPostsTab() {
 }
 
 function setupScheduledPostsFilters() {
-  const filterClient = $('#scheduledFilterClient');
-  const filterPlatform = $('#scheduledFilterPlatform');
-  const filterStatus = $('#scheduledFilterStatus');
-  if (filterClient && !filterClient._scheduledBound) { filterClient._scheduledBound = true; filterClient.addEventListener('change', () => renderScheduledPostsTab()); }
-  if (filterPlatform && !filterPlatform._scheduledBound) { filterPlatform._scheduledBound = true; filterPlatform.addEventListener('change', () => renderScheduledPostsTab()); }
-  if (filterStatus && !filterStatus._scheduledBound) { filterStatus._scheduledBound = true; filterStatus.addEventListener('change', () => renderScheduledPostsTab()); }
+  /* Scheduled posts are per-client; no filters needed. */
 }
 
 /* ================== Overview Tab ================== */
