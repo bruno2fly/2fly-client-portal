@@ -561,6 +561,12 @@ function saveNotifications(list) {
   } catch (e) { console.warn('saveNotifications', e); }
 }
 
+function deleteNotification(id) {
+  const list = loadNotifications().filter(function(n) { return n.id !== id; });
+  saveNotifications(list);
+  renderNotificationBell();
+}
+
 /** Create and store one notification. ACTION defaults to unread; PROGRESS/REWARD default read. */
 function createNotification(opts) {
   const type = opts.type || 'PROGRESS';
@@ -635,7 +641,14 @@ function renderNotificationBell() {
       const item = document.createElement('div');
       item.className = 'notif-item' + (n.read ? '' : ' unread notif-item--' + n.type.toLowerCase());
       item.dataset.id = n.id;
-      item.innerHTML = '<span class="notif-item__icon">' + icon + '</span><div class="notif-item__body"><div class="notif-item__title">' + (n.title || '').replace(/</g, '&lt;') + '</div><div class="notif-item__message">' + (n.message || '').replace(/</g, '&lt;') + '</div><div class="notif-item__time">' + timeAgo(n.createdAt) + '</div></div>';
+      item.innerHTML = '<span class="notif-item__icon">' + icon + '</span><div class="notif-item__body"><div class="notif-item__title">' + (n.title || '').replace(/</g, '&lt;') + '</div><div class="notif-item__message">' + (n.message || '').replace(/</g, '&lt;') + '</div><div class="notif-item__time">' + timeAgo(n.createdAt) + '</div></div><button type="button" class="notif-item__dismiss" aria-label="Dismiss">×</button>';
+      const dismissBtn = item.querySelector('.notif-item__dismiss');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          deleteNotification(n.id);
+        });
+      }
       item.addEventListener('click', () => {
         const list2 = loadNotifications();
         const nn = list2.find(x => x.id === n.id);
