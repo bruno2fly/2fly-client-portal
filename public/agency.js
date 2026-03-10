@@ -1,5 +1,4 @@
 /* ================== Agency Dashboard Script ================== */
-console.log('agency.js file loaded successfully');
 
 /* ================== Authentication ================== */
 const LS_STAFF_SESSION_KEY = "2fly_staff_session";
@@ -69,6 +68,21 @@ let portalStateCache = {};
 // save() is blocked until the client's state has been loaded at least once,
 // preventing empty/default state from overwriting real server data.
 const portalStateFetched = new Set();
+
+const metaStatusCache = {};
+
+async function getMetaStatusForClient(clientId) {
+  if (metaStatusCache[clientId] !== undefined) return metaStatusCache[clientId];
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/status?clientId=${encodeURIComponent(clientId)}`, { credentials: 'include' });
+    const data = await r.json();
+    metaStatusCache[clientId] = !!(data && data.connected);
+    return metaStatusCache[clientId];
+  } catch {
+    metaStatusCache[clientId] = false;
+    return false;
+  }
+}
 
 function getApiBaseUrl() {
   return (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -1149,6 +1163,7 @@ async function selectClient(clientId) {
   const client = clients[clientId];
   if (!client) return;
   currentClientId = clientId;
+  for (const k of Object.keys(metaStatusCache)) delete metaStatusCache[k];
   try {
     localStorage.setItem(LS_LAST_CLIENT_KEY, clientId);
   } catch (_) {}
@@ -1287,9 +1302,6 @@ async function saveClientLogo(logoUrl) {
 let currentTab = localStorage.getItem('2fly_agency_current_tab') || 'overview';
 
 function switchTab(tabName) {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:switchTab',message:'switchTab called',data:{tabName,prevTab:currentTab},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   currentTab = tabName;
   
   // Save current tab to localStorage
@@ -1355,8 +1367,6 @@ function ensureScheduledTabExists() {
   const reportsTab = document.querySelector('.tab[data-tab="reports"]');
   let scheduledTab = document.querySelector('.tab[data-tab="scheduled"]');
   let tabContent = document.getElementById('tabScheduled');
-  // #region agent log
-  // #endregion
   if (!scheduledTab && tabsContainer) {
     const btn = document.createElement('button');
     btn.className = 'tab';
@@ -1463,15 +1473,9 @@ async function renderScheduledPostsConnectionSection() {
 }
 
 async function renderScheduledPostsTab() {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:entry',message:'renderScheduledPostsTab entry',data:{currentTab},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   await renderScheduledPostsConnectionSection();
 
   const container = $('#scheduledPostsList');
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:container',message:'container check',data:{hasContainer:!!container},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const filterClient = $('#scheduledFilterClient');
   const filterPlatform = $('#scheduledFilterPlatform');
   const filterStatus = $('#scheduledFilterStatus');
@@ -1506,9 +1510,6 @@ async function renderScheduledPostsTab() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed to load scheduled posts');
     const posts = j.posts || [];
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:renderScheduledPostsTab:api',message:'API response',data:{postsCount:posts.length,rOk:r.ok},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (posts.length === 0) {
       container.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">No scheduled posts. Approve content in the Approvals tab, then schedule it to Instagram & Facebook.</div>';
     } else {
@@ -1520,23 +1521,33 @@ async function renderScheduledPostsTab() {
         byDate[key].push(p);
       });
       const keys = Object.keys(byDate).sort((a, b) => new Date(a) - new Date(b));
-      let html = '';
+      let html = '<div class="schedule-timeline">';
       keys.forEach(k => {
         const isToday = k === new Date().toDateString();
         const isPast = new Date(k) < new Date();
-        html += '<div class="scheduled-posts-day" style="margin-bottom: 24px;"><div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px;">' + (isToday ? 'Today' : isPast ? 'Past' : '') + ' - ' + new Date(k).toLocaleDateString() + '</div>';
+        const dateLabel = (isToday ? 'Today' : isPast ? 'Past' : '') + (isToday || isPast ? ' — ' : '') + new Date(k).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        html += '<div class="timeline-date" style="margin-bottom: 24px;"><h4 style="font-size: 14px; font-weight: 600; color: #0f172a; margin: 0 0 12px 0;">' + dateLabel + '</h4><div class="timeline-posts">';
         byDate[k].forEach(p => {
           const clientName = (clients && clients[p.clientId]) ? clients[p.clientId].name : p.clientId;
-          const platforms = p.platforms.join(' + ');
-          const statusStyle = p.status === 'published' ? 'color:#059669' : p.status === 'failed' ? 'color:#dc2626' : 'color:#6366f1';
-          html += '<div class="scheduled-post-card" style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: flex; gap: 16px; align-items: flex-start;">';
-          html += '<div style="flex: 1; min-width: 0;"><div style="font-weight: 600; color: #0f172a;">' + (p.caption ? p.caption.slice(0, 60) + (p.caption.length > 60 ? '…' : '') : 'No caption') + '</div>';
-          html += '<div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' • ' + clientName + ' • ' + platforms + '</div>';
-          if (p.error) html += '<div style="font-size: 12px; color: #dc2626; margin-top: 4px;">' + p.error + '</div>';
-          html += '</div><div style="font-size: 12px; font-weight: 600; ' + statusStyle + '">' + (p.status === 'published' ? '✓ Published' : p.status === 'failed' ? '✗ Failed' : '● Scheduled') + '</div></div>';
+          const timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          const platformIcons = (p.platforms || []).map(plat => plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : '').filter(Boolean).join(' ') || '—';
+          const titleStr = (p.caption ? p.caption.slice(0, 60) + (p.caption.length > 60 ? '…' : '') : 'No caption');
+          const borderColor = p.status === 'published' ? '#059669' : p.status === 'failed' ? '#dc2626' : '#1a56db';
+          const badgeBg = p.status === 'published' ? '#d1fae5' : p.status === 'failed' ? '#fee2e2' : '#dbeafe';
+          const badgeColor = p.status === 'published' ? '#065f46' : p.status === 'failed' ? '#991b1b' : '#1a56db';
+          const statusLabel = p.status === 'published' ? '✓ Published' : p.status === 'failed' ? '✗ Failed' : '● Scheduled';
+          html += '<div class="timeline-post" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: white; border-radius: 8px; border-left: 4px solid ' + borderColor + '; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">';
+          html += '<span class="time" style="font-weight: 600; min-width: 64px; font-size: 13px;">' + timeStr + '</span>';
+          html += '<span class="platforms" style="min-width: 36px;">' + platformIcons + '</span>';
+          html += '<span class="title" style="flex: 1; min-width: 0; font-size: 14px; color: #0f172a;">' + (titleStr.replace(/</g, '&lt;')) + '</span>';
+          if (clientName) html += '<span style="font-size: 12px; color: #64748b;">' + (String(clientName).replace(/</g, '&lt;')) + '</span>';
+          html += '<span class="status-badge" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ' + badgeBg + '; color: ' + badgeColor + ';">' + statusLabel + '</span>';
+          if (p.error) html += '<span style="font-size: 11px; color: #dc2626;">' + (String(p.error).replace(/</g, '&lt;').slice(0, 40)) + '</span>';
+          html += '</div>';
         });
-        html += '</div>';
+        html += '</div></div>';
       });
+      html += '</div>';
       container.innerHTML = html;
     }
   } catch (e) {
@@ -2080,6 +2091,69 @@ function renderApprovalsTab() {
           changeRequestBox.appendChild(changeRequestText);
           itemEl.appendChild(changeRequestBox);
         }
+
+        if (sectionKey === 'approved') {
+          const prefillDate = item.postDate ? (function() {
+            const d = new Date(item.postDate);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return y + '-' + m + '-' + day + 'T' + h + ':' + min;
+          })() : '';
+          const scheduleSection = el('div', {
+            class: 'schedule-section',
+            style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
+          });
+          scheduleSection.addEventListener('click', (e) => e.stopPropagation());
+          const heading = el('h4', { style: 'margin: 0 0 8px 0; font-size: 14px; color: #1a56db;' }, 'Schedule to Social Media');
+          scheduleSection.appendChild(heading);
+          const connectedWrap = el('div', { class: 'schedule-section-connected', style: 'display: none;' });
+          const platformsRow = el('div', { style: 'display: flex; gap: 12px; align-items: center; flex-wrap: wrap;' });
+          const igLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px;' });
+          const igCheck = document.createElement('input');
+          igCheck.type = 'checkbox';
+          igCheck.checked = true;
+          igCheck.dataset.platform = 'instagram';
+          igLabel.appendChild(igCheck);
+          igLabel.appendChild(document.createTextNode(' Instagram'));
+          const fbLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px;' });
+          const fbCheck = document.createElement('input');
+          fbCheck.type = 'checkbox';
+          fbCheck.checked = true;
+          fbCheck.dataset.platform = 'facebook';
+          fbLabel.appendChild(fbCheck);
+          fbLabel.appendChild(document.createTextNode(' Facebook'));
+          const dateInput = document.createElement('input');
+          dateInput.type = 'datetime-local';
+          dateInput.className = 'schedule-datetime';
+          dateInput.value = prefillDate;
+          dateInput.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;';
+          const scheduleBtn = document.createElement('button');
+          scheduleBtn.textContent = 'Schedule';
+          scheduleBtn.style.cssText = 'padding: 6px 16px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;';
+          scheduleBtn.addEventListener('click', () => { if (typeof scheduleFromApproval === 'function') scheduleFromApproval(item.id); });
+          const postNowBtn = document.createElement('button');
+          postNowBtn.textContent = 'Post Now';
+          postNowBtn.style.cssText = 'padding: 6px 16px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer;';
+          postNowBtn.addEventListener('click', () => { if (typeof postNowFromApproval === 'function') postNowFromApproval(item.id); });
+          platformsRow.appendChild(igLabel);
+          platformsRow.appendChild(fbLabel);
+          platformsRow.appendChild(dateInput);
+          platformsRow.appendChild(scheduleBtn);
+          platformsRow.appendChild(postNowBtn);
+          connectedWrap.appendChild(platformsRow);
+          const notConnectedWrap = el('div', { class: 'schedule-section-not-connected', style: 'display: none;' });
+          const notConnectedP = el('p', { style: 'color: #6b7280; margin: 0;' }, "Connect this client's social accounts first.");
+          const link = el('a', { href: '#', style: 'color: #1a56db; text-decoration: underline;' }, 'Go to Scheduled Posts → Connect');
+          link.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (typeof switchTab === 'function') switchTab('scheduled'); return false; });
+          notConnectedWrap.appendChild(notConnectedP);
+          notConnectedWrap.appendChild(link);
+          scheduleSection.appendChild(connectedWrap);
+          scheduleSection.appendChild(notConnectedWrap);
+          itemEl.appendChild(scheduleSection);
+        }
         
         itemEl.addEventListener('click', (e) => {
           e.stopPropagation(); // Prevent section toggle and container click when clicking item
@@ -2104,6 +2178,13 @@ function renderApprovalsTab() {
   renderSection('Changes Requested', changes, container, 'changes', EMPTY_APPROVALS.changes);
   renderSection('Approved', approved, container, 'approved', EMPTY_APPROVALS.approved);
   renderSection('Scheduled', scheduled, container, 'scheduled', EMPTY_APPROVALS.scheduled);
+
+  if (approved.length > 0 && currentClientId) {
+    getMetaStatusForClient(currentClientId).then(function(connected) {
+      container.querySelectorAll('.schedule-section-connected').forEach(function(el) { el.style.display = connected ? 'block' : 'none'; });
+      container.querySelectorAll('.schedule-section-not-connected').forEach(function(el) { el.style.display = connected ? 'none' : 'block'; });
+    });
+  }
 
   if (approvalsList.length === 0) {
     container.appendChild(el('div', { class: 'empty-state' },
@@ -2413,6 +2494,134 @@ async function getMediaUrlForApproval() {
   return urls[0] || null;
 }
 
+async function getMediaUrlForApprovalId(approvalId) {
+  const state = load();
+  const item = (state.approvals || []).find(a => a.id === approvalId);
+  if (!item || !currentClientId) return null;
+  const urls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+    ? item.imageUrls.filter(u => u && String(u).trim())
+    : (item.imageUrl ? [item.imageUrl] : []);
+  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
+  if (item.uploadedImages && item.uploadedImages.length > 0 && item.uploadedImages[0].data) {
+    const base64 = item.uploadedImages[0].data;
+    const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64 })
+    });
+    const j = await r.json();
+    if (j && j.url) return j.url;
+  }
+  return urls[0] || null;
+}
+
+async function scheduleFromApproval(approvalId) {
+  const card = document.querySelector(`[data-approval-id="${approvalId}"]`);
+  if (!card) return;
+  const datetimeInput = card.querySelector('.schedule-datetime');
+  if (!datetimeInput || !datetimeInput.value) {
+    showToast('Please select a date and time', 'error');
+    return;
+  }
+  const platforms = [];
+  if (card.querySelector('[data-platform="instagram"]') && card.querySelector('[data-platform="instagram"]').checked) platforms.push('instagram');
+  if (card.querySelector('[data-platform="facebook"]') && card.querySelector('[data-platform="facebook"]').checked) platforms.push('facebook');
+  if (platforms.length === 0) {
+    showToast('Select at least one platform', 'error');
+    return;
+  }
+  const mediaUrl = await getMediaUrlForApprovalId(approvalId);
+  if (!mediaUrl) {
+    showToast('No image URL available for this post. Add an image in the approval.', 'error');
+    return;
+  }
+  const state = load();
+  const item = (state.approvals || []).find(a => a.id === approvalId);
+  const caption = (item && (item.caption || item.title)) || '';
+  const scheduledAt = new Date(datetimeInput.value).toISOString();
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: currentClientId,
+        contentId: approvalId,
+        caption,
+        mediaUrl,
+        platforms,
+        scheduledAt,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+    if (item) {
+      item.status = 'scheduled';
+      save(state);
+    }
+    renderApprovalsTab();
+    renderScheduledPostsTab();
+    createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: 'Post scheduled to publish at ' + new Date(scheduledAt).toLocaleString(), clientId: currentClientId, action: { label: 'View scheduled', href: '#scheduled' } });
+  } catch (e) {
+    showToast(e.message || 'Failed to schedule', 'error');
+  }
+}
+
+async function postNowFromApproval(approvalId) {
+  const card = document.querySelector(`[data-approval-id="${approvalId}"]`);
+  if (!card) return;
+  const platforms = [];
+  if (card.querySelector('[data-platform="instagram"]') && card.querySelector('[data-platform="instagram"]').checked) platforms.push('instagram');
+  if (card.querySelector('[data-platform="facebook"]') && card.querySelector('[data-platform="facebook"]').checked) platforms.push('facebook');
+  if (platforms.length === 0) {
+    showToast('Select at least one platform', 'error');
+    return;
+  }
+  if (!confirm('Post now to ' + platforms.join(' & ') + '?')) return;
+  const mediaUrl = await getMediaUrlForApprovalId(approvalId);
+  if (!mediaUrl) {
+    showToast('No image URL available for this post. Add an image in the approval.', 'error');
+    return;
+  }
+  const state = load();
+  const item = (state.approvals || []).find(a => a.id === approvalId);
+  const caption = (item && (item.caption || item.title)) || '';
+  try {
+    const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: currentClientId,
+        contentId: approvalId,
+        caption,
+        mediaUrl,
+        platforms,
+        scheduledAt: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+    const postId = j.post && j.post.id;
+    if (!postId) throw new Error('No post ID returned');
+    const pubRes = await fetch(`${getApiBaseUrl()}/api/posts/${postId}/publish-now`, { method: 'POST', credentials: 'include' });
+    const pubJ = await pubRes.json();
+    if (!pubRes.ok) throw new Error(pubJ.error || 'Publish failed');
+    if (item) {
+      item.status = 'scheduled';
+      save(state);
+    }
+    renderApprovalsTab();
+    renderScheduledPostsTab();
+    createNotification({ type: 'REWARD', title: 'Post published', message: 'Post published to ' + platforms.join(' & '), clientId: currentClientId, action: { label: 'View', href: '#scheduled' } });
+  } catch (e) {
+    showToast(e.message || 'Failed to publish', 'error');
+  }
+}
+
 async function schedulePostToMeta() {
   const statusEl = $('#schedulePostStatus');
   if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Scheduling...'; statusEl.style.color = '#64748b'; }
@@ -2443,8 +2652,15 @@ async function schedulePostToMeta() {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+    const state = load();
+    const approval = (state.approvals || []).find(a => a.id === selectedApprovalId);
+    if (approval) {
+      approval.status = 'scheduled';
+      save(state);
+    }
     if (statusEl) { statusEl.textContent = 'Scheduled for ' + new Date(scheduledAt).toLocaleString(); statusEl.style.color = '#059669'; }
     renderScheduledPostsTab();
+    renderApprovalsTab();
     createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: 'Post scheduled to publish at ' + new Date(scheduledAt).toLocaleString(), clientId: currentClientId, action: { label: 'View scheduled', href: '#scheduled' } });
   } catch (e) {
     if (statusEl) { statusEl.textContent = e.message || 'Failed'; statusEl.style.color = '#dc2626'; }
@@ -2483,8 +2699,15 @@ async function postNowToMeta() {
     const pubRes = await fetch(`${getApiBaseUrl()}/api/posts/${postId}/publish-now`, { method: 'POST', credentials: 'include' });
     const pubJ = await pubRes.json();
     if (!pubRes.ok) throw new Error(pubJ.error || 'Publish failed');
+    const state = load();
+    const approval = (state.approvals || []).find(a => a.id === selectedApprovalId);
+    if (approval) {
+      approval.status = 'scheduled';
+      save(state);
+    }
     if (statusEl) { statusEl.textContent = 'Published to ' + (platforms.includes('instagram') ? 'Instagram' : '') + (platforms.includes('facebook') ? (platforms.includes('instagram') ? ' & Facebook' : 'Facebook') : ''); statusEl.style.color = '#059669'; }
     renderScheduledPostsTab();
+    renderApprovalsTab();
     createNotification({ type: 'REWARD', title: 'Post published', message: 'Post published to ' + platforms.join(' & '), clientId: currentClientId, action: { label: 'View', href: '#scheduled' } });
   } catch (e) {
     if (statusEl) { statusEl.textContent = e.message || 'Failed'; statusEl.style.color = '#dc2626'; }
@@ -5065,23 +5288,16 @@ function setupContentLibraryLearnMore() {
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    console.log('[init] Agency dashboard loaded', {
-      apiBase: getApiBaseUrl(),
-      origin: window.location.origin,
-      staffFromStorage: currentStaff ? { name: currentStaff.name, role: currentStaff.role, agencyId: currentStaff.agencyId } : null
-    });
     if (!currentStaff) {
-      console.log('No staff session, redirecting to staff login');
       setTimeout(() => {
         if (!currentStaff) window.location.href = staffLoginUrl();
       }, 100);
       return;
     }
-    console.log('Staff authenticated:', currentStaff.name || currentStaff.username || currentStaff.fullName);
     try {
       updateStaffHeader();
     } catch (e) {
-      console.error('[init] updateStaffHeader failed:', e.message, e);
+      console.error('updateStaffHeader failed:', e);
     }
 
     let clients = {};
@@ -5101,13 +5317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     } catch (e) {
-      console.error('[init] fetchClientsFromAPI/fetchPortalStateFromAPI failed:', {
-        message: e.message,
-        name: e.name,
-        stack: e.stack,
-        apiBase: getApiBaseUrl(),
-        hasCredentials: true
-      });
+      console.error('fetchClientsFromAPI/fetchPortalStateFromAPI failed:', e);
       let msg = e.message || '';
       if (msg.includes('Failed to fetch') || msg.includes('Load failed') || msg.includes('NetworkError')) {
         msg = 'Cannot reach the API. Start the backend: cd server && npm start';
@@ -5116,9 +5326,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const savedTab = localStorage.getItem('2fly_agency_current_tab');
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:init:tabState',message:'init tab state',data:{savedTab,currentTab,hash:location.hash,hasTabScheduled:!!document.getElementById('tabScheduled'),hasScheduledPostsList:!!document.getElementById('scheduledPostsList')},hypothesisId:'H1,H2,H5',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (savedTab) {
       currentTab = savedTab;
     }
@@ -5174,7 +5381,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       renderAll();
       renderNotificationBell();
-      console.log('Initial view rendered');
     } catch (e) {
       console.error('Error rendering initial view:', e);
     }
@@ -5183,9 +5389,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { switchTab(savedTab); } catch (e) { console.error('Error switching to saved tab:', e); }
     }
     if (location.hash && typeof applyNotificationAction === 'function') {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:init:applyHash',message:'applyNotificationAction from hash',data:{hash:location.hash},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       try { applyNotificationAction(location.hash); } catch (e) { console.warn('Hash apply:', e); }
     }
     window.addEventListener('hashchange', function () {
