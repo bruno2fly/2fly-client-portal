@@ -18,6 +18,8 @@ const SCOPES = [
   'instagram_basic',
   'instagram_content_publish',
   'pages_read_engagement',
+  'pages_show_list',
+  'pages_read_user_content',
   'business_management',
 ].join(',');
 
