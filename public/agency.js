@@ -2593,23 +2593,42 @@ async function getMediaUrlForApproval() {
 async function getMediaUrlForApprovalId(approvalId) {
   const state = load();
   const item = (state.approvals || []).find(a => a.id === approvalId);
-  if (!item || !currentClientId) return null;
-  const urls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
-    ? item.imageUrls.filter(u => u && String(u).trim())
-    : (item.imageUrl ? [item.imageUrl] : []);
-  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
-  if (item.uploadedImages && item.uploadedImages.length > 0 && (item.uploadedImages[0].dataUrl || item.uploadedImages[0].data)) {
-    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
-    if (base64 && String(base64).startsWith('data:image/')) {
-      const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
-        method: 'POST',
-        credentials: 'include',
+  if (!currentClientId) return null;
+  const uploadBase64 = async function(base64) {
+    try {
+      const r = await fetch(getApiBaseUrl() + '/api/upload/image', {
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64 })
       });
       const j = await r.json();
-      if (j && j.url) return j.url;
+      return (j && j.url) ? j.url : null;
+    } catch (e) { return null; }
+  };
+  const urls = item ? (Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+    ? item.imageUrls.filter(u => u && String(u).trim())
+    : (item.imageUrl ? [item.imageUrl] : [])) : [];
+  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
+  // Check global uploadedImages from file input first
+  if (typeof uploadedImages !== 'undefined' && uploadedImages.length > 0) {
+    const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
+    if (base64 && String(base64).startsWith('data:image/')) {
+      const url = await uploadBase64(base64);
+      if (url) return url;
     }
+  }
+  // Check saved approval images
+  if (item && item.uploadedImages && item.uploadedImages.length > 0) {
+    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
+    if (base64 && String(base64).startsWith('data:image/')) {
+      const url = await uploadBase64(base64);
+      if (url) return url;
+    }
+  }
+  // If urls has a base64, upload it too
+  if (urls.length > 0 && urls[0].startsWith('data:image/')) {
+    const url = await uploadBase64(urls[0]);
+    if (url) return url;
   }
   return urls[0] || null;
 }
