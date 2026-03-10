@@ -188,7 +188,7 @@ router.put('/:id/reschedule', authenticate, requireCanViewDashboard, (req: Authe
 
 /**
  * DELETE /api/posts/:id/cancel
- * Cancel a scheduled post
+ * Remove a post from the calendar (scheduled → cancelled; failed/published → deleted from list).
  */
 router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
   try {
@@ -197,14 +197,10 @@ router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: Authen
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    if (post.status !== 'scheduled' && post.status !== 'failed') {
-      return res.status(400).json({ error: 'Can only cancel or dismiss scheduled or failed posts' });
-    }
-
     deleteScheduledPost(post.id);
     res.json({ success: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message || 'Failed to cancel' });
+    res.status(500).json({ error: e.message || 'Failed to remove' });
   }
 });
 
