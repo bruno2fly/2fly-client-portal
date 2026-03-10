@@ -1356,7 +1356,6 @@ function ensureScheduledTabExists() {
   let scheduledTab = document.querySelector('.tab[data-tab="scheduled"]');
   const tabContent = document.getElementById('tabScheduled');
   // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bf99f81b-bbc9-4e67-a855-e74314700c53',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'11d91c'},body:JSON.stringify({sessionId:'11d91c',location:'agency.js:ensureScheduledTabExists',message:'ensureScheduledTabExists',data:{hadScheduledTab:!!scheduledTab,hadTabContent:!!tabContent,tabsContainer:!!tabsContainer},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
   // #endregion
   if (!scheduledTab && tabsContainer) {
     const btn = document.createElement('button');
