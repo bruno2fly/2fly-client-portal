@@ -1354,7 +1354,7 @@ function ensureScheduledTabExists() {
   const tabsContainer = document.querySelector('.tabs');
   const reportsTab = document.querySelector('.tab[data-tab="reports"]');
   let scheduledTab = document.querySelector('.tab[data-tab="scheduled"]');
-  const tabContent = document.getElementById('tabScheduled');
+  let tabContent = document.getElementById('tabScheduled');
   // #region agent log
   // #endregion
   if (!scheduledTab && tabsContainer) {
