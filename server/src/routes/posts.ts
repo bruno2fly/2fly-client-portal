@@ -34,8 +34,12 @@ router.post('/schedule', authenticate, requireCanViewDashboard, (req: Authentica
     const { agencyId } = getAgencyScope(req);
     const { clientId, contentId, caption, mediaUrl, platforms, scheduledAt, timezone } = req.body;
 
-    if (!clientId || !contentId || !caption || !mediaUrl || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
-      return res.status(400).json({ error: 'clientId, contentId, caption, mediaUrl, and platforms required' });
+    if (!clientId || !contentId || !caption || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
+      return res.status(400).json({ error: 'clientId, contentId, caption, and platforms required' });
+    }
+    const platformsList = platforms.filter((p: string) => p === 'instagram' || p === 'facebook');
+    if (platformsList.includes('instagram') && (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.trim())) {
+      return res.status(400).json({ error: 'Instagram requires an image. Provide mediaUrl or post to Facebook only.' });
     }
 
     const client = getClient(clientId);
@@ -58,8 +62,8 @@ router.post('/schedule', authenticate, requireCanViewDashboard, (req: Authentica
       clientId,
       contentId,
       caption: String(caption).slice(0, 2200),
-      mediaUrl,
-      platforms: platforms.filter((p: string) => p === 'instagram' || p === 'facebook'),
+      mediaUrl: (typeof mediaUrl === 'string' && mediaUrl.trim()) ? mediaUrl.trim() : '',
+      platforms: platformsList,
       scheduledAt: scheduledAtStr,
       timezone: tz,
       status: 'scheduled' as const,
@@ -187,7 +191,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
         metaPostIds.facebook = result.id;
       }
 
-      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
+      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId && post.mediaUrl) {
         const container = await createInstagramMediaContainer(
           integration.metaInstagramAccountId,
           integration.metaAccessToken,

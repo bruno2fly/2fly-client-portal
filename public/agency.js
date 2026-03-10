@@ -2565,16 +2565,27 @@ async function getMediaUrlForApproval() {
     const first = assets.find(a => a.id === postSelectedAssetIds[0]);
     if (first) return first.thumbnailUrl || getPreviewUrl(first) || first.url || null;
   }
-  if (item.uploadedImages && item.uploadedImages.length > 0 && item.uploadedImages[0].data) {
-    const base64 = item.uploadedImages[0].data;
-    const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
+  const uploadBase64 = function(base64) {
+    return fetch(`${getApiBaseUrl()}/api/upload/image`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: base64 })
-    });
-    const j = await r.json();
-    if (j.url) return j.url;
+    }).then(function(r) { return r.json(); }).then(function(j) { return j && j.url ? j.url : null; });
+  };
+  if (uploadedImages && uploadedImages.length > 0 && (uploadedImages[0].dataUrl || uploadedImages[0].data)) {
+    const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
+    if (base64 && String(base64).startsWith('data:image/')) {
+      const url = await uploadBase64(base64);
+      if (url) return url;
+    }
+  }
+  if (item.uploadedImages && item.uploadedImages.length > 0 && (item.uploadedImages[0].dataUrl || item.uploadedImages[0].data)) {
+    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
+    if (base64 && String(base64).startsWith('data:image/')) {
+      const url = await uploadBase64(base64);
+      if (url) return url;
+    }
   }
   return urls[0] || null;
 }
@@ -2587,16 +2598,18 @@ async function getMediaUrlForApprovalId(approvalId) {
     ? item.imageUrls.filter(u => u && String(u).trim())
     : (item.imageUrl ? [item.imageUrl] : []);
   if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
-  if (item.uploadedImages && item.uploadedImages.length > 0 && item.uploadedImages[0].data) {
-    const base64 = item.uploadedImages[0].data;
-    const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64 })
-    });
-    const j = await r.json();
-    if (j && j.url) return j.url;
+  if (item.uploadedImages && item.uploadedImages.length > 0 && (item.uploadedImages[0].dataUrl || item.uploadedImages[0].data)) {
+    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
+    if (base64 && String(base64).startsWith('data:image/')) {
+      const r = await fetch(`${getApiBaseUrl()}/api/upload/image`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 })
+      });
+      const j = await r.json();
+      if (j && j.url) return j.url;
+    }
   }
   return urls[0] || null;
 }
@@ -2617,8 +2630,8 @@ async function scheduleFromApproval(approvalId) {
     return;
   }
   const mediaUrl = await getMediaUrlForApprovalId(approvalId);
-  if (!mediaUrl) {
-    showToast('No image URL available for this post. Add an image in the approval.', 'error');
+  if (platforms.includes('instagram') && !mediaUrl) {
+    showToast('Instagram requires an image. Add an image in the approval or post to Facebook only.', 'error');
     return;
   }
   const state = load();
@@ -2634,7 +2647,7 @@ async function scheduleFromApproval(approvalId) {
         clientId: currentClientId,
         contentId: approvalId,
         caption,
-        mediaUrl,
+        mediaUrl: mediaUrl || '',
         platforms,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -2666,8 +2679,8 @@ async function postNowFromApproval(approvalId) {
   }
   if (!confirm('Post now to ' + platforms.join(' & ') + '?')) return;
   const mediaUrl = await getMediaUrlForApprovalId(approvalId);
-  if (!mediaUrl) {
-    showToast('No image URL available for this post. Add an image in the approval.', 'error');
+  if (platforms.includes('instagram') && !mediaUrl) {
+    showToast('Instagram requires an image. Add an image in the approval or post to Facebook only.', 'error');
     return;
   }
   const state = load();
@@ -2682,7 +2695,7 @@ async function postNowFromApproval(approvalId) {
         clientId: currentClientId,
         contentId: approvalId,
         caption,
-        mediaUrl,
+        mediaUrl: mediaUrl || '',
         platforms,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -2711,15 +2724,15 @@ async function schedulePostToMeta() {
   const statusEl = $('#schedulePostStatus');
   if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Scheduling...'; statusEl.style.color = '#64748b'; }
   try {
-    const mediaUrl = await getMediaUrlForApproval();
-    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an asset.');
-    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
-    const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
-    const timeVal = $('#schedulePostTime') ? $('#schedulePostTime').value : '10:00';
     const platforms = [];
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
+    const mediaUrl = await getMediaUrlForApproval();
+    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires an image. Add an image or post to Facebook only.');
+    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
+    const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
+    const timeVal = $('#schedulePostTime') ? $('#schedulePostTime').value : '10:00';
     const scheduledAt = dateVal && timeVal ? new Date(dateVal + 'T' + timeVal).toISOString() : new Date(Date.now() + 3600000).toISOString();
     const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
       method: 'POST',
@@ -2729,7 +2742,7 @@ async function schedulePostToMeta() {
         clientId: currentClientId,
         contentId: selectedApprovalId,
         caption,
-        mediaUrl,
+        mediaUrl: mediaUrl || '',
         platforms,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -2756,13 +2769,13 @@ async function postNowToMeta() {
   const statusEl = $('#schedulePostStatus');
   if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Publishing...'; statusEl.style.color = '#64748b'; }
   try {
-    const mediaUrl = await getMediaUrlForApproval();
-    if (!mediaUrl) throw new Error('No image URL available. Add an image URL or select an asset.');
-    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const platforms = [];
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
+    const mediaUrl = await getMediaUrlForApproval();
+    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires an image. Add an image or post to Facebook only.');
+    const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
       method: 'POST',
       credentials: 'include',
@@ -2771,7 +2784,7 @@ async function postNowToMeta() {
         clientId: currentClientId,
         contentId: selectedApprovalId,
         caption,
-        mediaUrl,
+        mediaUrl: mediaUrl || '',
         platforms,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
