@@ -20,7 +20,8 @@ import type {
   AuditLog,
   PortalStateData,
   MetaIntegration,
-  ScheduledPost
+  ScheduledPost,
+  ProductionTask
 } from './types.js';
 
 const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
@@ -39,6 +40,7 @@ const PORTAL_STATE_FILE = join(DB_DIR, 'portal-state.json');
 const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 const META_INTEGRATIONS_FILE = join(DB_DIR, 'meta-integrations.json');
 const SCHEDULED_POSTS_FILE = join(DB_DIR, 'scheduled-posts.json');
+const PRODUCTION_TASKS_FILE = join(DB_DIR, 'production-tasks.json');
 
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
@@ -465,5 +467,37 @@ export function saveScheduledPost(post: ScheduledPost): void {
 export function deleteScheduledPost(id: string): void {
   const posts = getScheduledPosts().filter(p => p.id !== id);
   writeJSON(SCHEDULED_POSTS_FILE, posts);
+}
+
+// Production tasks (designer workflow)
+export function getProductionTasks(): ProductionTask[] {
+  const tasks = readJSON<ProductionTask[]>(PRODUCTION_TASKS_FILE, []);
+  tasks.forEach(t => { if (!t.comments) t.comments = []; });
+  return tasks;
+}
+
+export function getProductionTasksByAgency(agencyId: string): ProductionTask[] {
+  return getProductionTasks().filter(t => t.agencyId === agencyId);
+}
+
+export function getProductionTaskById(id: string): ProductionTask | null {
+  return getProductionTasks().find(t => t.id === id) || null;
+}
+
+export function getProductionTasksByDesigner(designerId: string): ProductionTask[] {
+  return getProductionTasks().filter(t => t.designerId === designerId);
+}
+
+export function saveProductionTask(task: ProductionTask): void {
+  const tasks = getProductionTasks();
+  const idx = tasks.findIndex(t => t.id === task.id);
+  if (idx >= 0) tasks[idx] = task;
+  else tasks.push(task);
+  writeJSON(PRODUCTION_TASKS_FILE, tasks);
+}
+
+export function deleteProductionTask(id: string): void {
+  const tasks = getProductionTasks().filter(t => t.id !== id);
+  writeJSON(PRODUCTION_TASKS_FILE, tasks);
 }
 

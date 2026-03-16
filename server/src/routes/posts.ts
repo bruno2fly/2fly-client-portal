@@ -31,9 +31,9 @@ async function ensurePublicMediaUrl(mediaUrl: string, agencyId: string): Promise
     return mediaUrl; // already a URL (or empty)
   }
 
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
   if (!blobToken) {
-    throw new Error('Image upload not configured. Set BLOB_READ_WRITE_TOKEN or use a public image URL.');
+    throw new Error('Image upload not configured. Set BLOB_PUBLIC_READ_WRITE_TOKEN or BLOB_READ_WRITE_TOKEN.');
   }
 
   let put: any;

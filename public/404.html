@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found - 2FlyFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #1e40af 100%);
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    .container { max-width: 480px; }
+    .logo {
+      width: 64px; height: 64px; border-radius: 16px;
+      background: rgba(255,255,255,0.15);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700; margin-bottom: 24px;
+    }
+    h1 { font-size: 72px; font-weight: 700; line-height: 1; margin-bottom: 8px; opacity: 0.9; }
+    p { font-size: 18px; opacity: 0.8; margin-bottom: 32px; line-height: 1.5; }
+    .links { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .links a {
+      display: inline-block; padding: 12px 24px; border-radius: 8px;
+      text-decoration: none; font-weight: 600; font-size: 14px;
+      transition: all 0.15s ease;
+    }
+    .links a.primary {
+      background: #fff; color: #1e3a8a;
+    }
+    .links a.primary:hover { background: #f0f4ff; transform: translateY(-1px); }
+    .links a.secondary {
+      background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+    }
+    .links a.secondary:hover { background: rgba(255,255,255,0.25); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">2F</div>
+    <h1>404</h1>
+    <p>This page doesn't exist. You might have followed a broken link or typed the wrong URL.</p>
+    <div class="links">
+      <a href="/" class="primary">Go Home</a>
+      <a href="/login" class="secondary">Client Login</a>
+      <a href="/staff-login" class="secondary">Staff Login</a>
+    </div>
+  </div>
+</body>
+</html>

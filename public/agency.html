@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" href="/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2Fly Agency Dashboard</title>
   <style>
@@ -59,6 +61,9 @@
       background: rgba(255,255,255,0.3) !important;
       border-color: rgba(255,255,255,0.5) !important;
     }
+    .header-view-switcher .view-switch-btn { transition: background 0.15s, border-color 0.15s; }
+    .header-view-switcher .view-switch-btn:hover { background: rgba(255,255,255,0.2) !important; color: white !important; }
+    .header-view-switcher .view-switch-btn.view-switch-btn--active { background: rgba(255,255,255,0.35) !important; border-color: white !important; font-weight: 600; }
 
     .notif-bell-wrap { position: relative; }
     .notif-bell { position: relative; padding: 8px !important; background: rgba(255,255,255,0.2) !important; color: white !important; border: 1px solid rgba(255,255,255,0.3) !important; border-radius: 8px; cursor: pointer; }
@@ -91,6 +96,18 @@
     .inline-cue--progress { background: #dbeafe; color: #1e40af; }
     .inline-cue--reward { background: #d1fae5; color: #065f46; }
 
+    /* Hide duplicate Dashboard/Production toggle row below navbar (frees ~50px) */
+    #viewSwitcher.production-view-hidden-toggle-row,
+    .production-view-hidden-toggle-row#viewSwitcher {
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      visibility: hidden !important;
+    }
     /* Layout */
     .layout {
       display: flex;
@@ -171,11 +188,478 @@
       font-weight: 500;
     }
     
+    /* Production View sidebar */
+    .production-sidebar {
+      width: 180px;
+      min-width: 180px;
+      background: #0B1437;
+      color: white;
+      padding: 20px 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .production-sidebar__title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.5);
+      padding: 0 16px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 8px;
+    }
+    .production-sidebar__link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 16px;
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      border: none;
+      background: none;
+      border-left: 4px solid transparent;
+    }
+    .production-sidebar__link:hover {
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+    .production-sidebar__link.active {
+      background: rgba(26, 86, 219, 0.25);
+      color: white;
+      border-left-color: #1a56db;
+      box-shadow: 0 0 12px rgba(26, 86, 219, 0.35);
+    }
+    .production-sidebar__icon {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      opacity: 0.9;
+    }
+
+    /* Production View: light canvas consistent with Dashboard (#F9FAFB) */
+    #productionViewContainer {
+      background: #F9FAFB !important;
+      min-height: 100%;
+    }
+    #productionViewMain,
+    .production-view-main {
+      background: #F9FAFB !important;
+      min-height: calc(100vh - 68px);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .production-task-overlay { transition: opacity 0.2s; }
+    .production-task-panel { transition: transform 0.25s ease; }
+    .production-task-panel__close:hover { background: #e2e8f0; color: #334155; }
+
+    /* Creative Production Workspace */
+    .production-workspace-wrap { padding: 0 0 32px 0; }
+    .workspace-back { display: inline-block; font-size: 14px; color: #1a56db; text-decoration: none; margin-bottom: 20px; font-weight: 500; }
+    .workspace-back:hover { text-decoration: underline; }
+    .workspace-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .workspace-title { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0; }
+    .workspace-meta { font-size: 13px; color: #64748b; display: flex; gap: 16px; flex-wrap: wrap; }
+    .workspace-header-badge { flex-shrink: 0; }
+    .workspace-body { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .workspace-body { grid-template-columns: 1fr; } }
+    .workspace-left .creative-brief,
+    .workspace-left .references-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .workspace-right .upload-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 20px; }
+    .section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    .creative-brief .copy-text-box { background: #f0f7ff; border-left: 3px solid #1a56db; padding: 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; color: #1e293b; margin: 12px 0; white-space: pre-wrap; }
+    .instructions-text { font-size: 14px; line-height: 1.6; color: #475569; }
+    .reference-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+    .reference-thumb-wrap { display: block; width: 120px; height: 120px; border-radius: 8px; overflow: hidden; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+    .reference-thumb-wrap:hover { transform: scale(1.03); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .reference-thumb { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; display: block; }
+    .reference-save { display: block; font-size: 12px; color: #1a56db; margin-top: 4px; }
+    .upload-drop-zone { border: 2px dashed #cbd5e1; background: #f8fafc; border-radius: 12px; min-height: 250px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+    .upload-drop-zone:hover { border-color: #94a3b8; }
+    .upload-drop-zone--over { border-color: #1a56db; background: #eff6ff; }
+    .upload-drop-zone--loading { opacity: 0.7; pointer-events: none; }
+    .upload-drop-content { text-align: center; padding: 24px; color: #64748b; }
+    .upload-preview-main { margin-bottom: 12px; }
+    .upload-thumbs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .workspace-add-more { font-size: 13px; color: #1a56db; }
+    .workspace-btn { padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; border: 1px solid #d1d5db; background: white; color: #374151; margin-right: 8px; }
+    .workspace-btn:hover { background: #f3f4f6; }
+    .workspace-btn-primary { background: #1a56db; color: white; border-color: #1a56db; }
+    .workspace-btn-primary:hover { background: #1d4ed8; color: white; }
+
+    .feedback-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-top: 20px; }
+    .feedback-empty { margin: 0; font-size: 14px; color: #64748b; }
+    .comment-card { padding: 14px 16px; background: #f8fafc; border-radius: 10px; margin-bottom: 10px; border-left: 3px solid #e2e8f0; }
+    .comment-card.from-designer { border-left-color: #60a5fa; }
+    .comment-card.from-agency { border-left-color: #1a56db; }
+    .comment-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
+    .comment-author { font-weight: 700; color: #1e293b; }
+    .comment-role { font-size: 11px; color: #94a3b8; margin-left: 6px; }
+    .comment-time { color: #94a3b8; font-size: 12px; }
+    .comment-body { font-size: 14px; line-height: 1.5; color: #334155; }
+    .comment-status-change { font-size: 12px; color: #64748b; margin-top: 6px; font-style: italic; }
+    .feedback-review-actions { margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 10px; }
+    .feedback-review-p { margin: 0 0 10px 0; font-size: 14px; color: #475569; }
+    .comment-input-row { display: flex; gap: 10px; margin-top: 16px; align-items: flex-end; }
+    .comment-input-row textarea { flex: 1; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; resize: vertical; min-height: 44px; font-family: inherit; }
+    .comment-input-row textarea:focus { outline: none; border-color: #1a56db; box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.1); }
+    .btn-send-comment { padding: 10px 20px; background: #1a56db; color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-send-comment:hover { background: #1d4ed8; }
+    .btn-send-comment:disabled { opacity: 0.7; cursor: not-allowed; }
+
+    /* Production View light canvas: wrap is transparent so #F9FAFB shows */
+    .production-demands-wrap.production-light-canvas {
+      background: transparent !important;
+      overflow: visible;
+    }
+    .production-filter-bar {
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 0;
+      overflow: visible;
+      gap: 12px;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 14px;
+    }
+    .production-filter-bar input,
+    .production-filter-bar select,
+    .production-filter-bar button {
+      font-family: inherit !important;
+      font-size: 13px !important;
+    }
+    .production-filter-bar > div {
+      gap: 12px;
+      align-items: center;
+    }
+    .production-stats-strip-light {
+      background: #F9FAFB !important;
+      color: #334155 !important;
+      border: none !important;
+      padding: 10px 0 !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    .production-stats-strip-light .stat-dot { flex-shrink: 0; }
+    .production-dark-container {
+      background: #1a2332 !important;
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .production-demands-table-wrap {
+      background: #f8fafc !important;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    .demand-row:hover .demand-row-menu { opacity: 1 !important; }
+    .reference-thumb-wrap { width: 140px; height: 140px; }
+    .reference-thumb { width: 140px; height: 140px; }
+    .kanban-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    .production-task-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .production-kanban-wrap.production-dark-container {
+      border-radius: 12px;
+      margin-top: 0;
+    }
+    /* Kanban column + button (primary style on dark) */
+    .kanban-column-add-btn.production-btn-assign-column {
+      background: #2563EB !important;
+      color: #FFFFFF !important;
+      border: none !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .kanban-column-add-btn.production-btn-assign-column:hover {
+      background: #1D4ED8 !important;
+    }
+    /* Kanban board container (dark card) */
+    .production-demands-wrap.demands-main-table:not(.production-light-canvas) .production-kanban-wrap,
+    .production-kanban-wrap.production-dark-container {
+      background: #1a2332 !important;
+      border-radius: 12px;
+    }
+    .production-kanban {
+      min-width: min-content;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .kanban-column {
+      min-width: 180px;
+      background: #1a2332;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .kanban-column-header {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .kanban-card {
+      background: white;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .kanban-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transform: translateY(-2px);
+    }
+    .kanban-card--assigned { border-left: 4px solid #f97316; }
+    .kanban-card--in_progress { border-left: 4px solid #3b82f6; }
+    .kanban-card--review { border-left: 4px solid #8b5cf6; }
+    .kanban-card--changes_requested { border-left: 4px solid #f59e0b; }
+    .kanban-card--approved { border-left: 4px solid #22c55e; }
+    .kanban-card--ready_to_post { border-left: 4px solid #14b8a6; }
+    .kanban-card__client-chip {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .kanban-card__title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+    .kanban-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .kanban-card__avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #475569;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .kanban-column-empty {
+      border: 2px dashed #334155;
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .kanban-column-add-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 10px;
+      border: 1px dashed #475569;
+      background: transparent;
+      color: #94a3b8;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .kanban-column-add-btn:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+
+    /* Demands table view */
+    .demands-group {
+      background: #F9FAFB !important;
+    }
+    .demands-group,
+    .demands-group .demands-group-header,
+    /* Dark container only: white text (Kanban) */
+    .production-dark-container:not(.production-demands-table-wrap) .demands-group .demand-row,
+    .production-dark-container:not(.production-demands-table-wrap) .demands-group .demand-task-name,
+    .production-dark-container:not(.production-demands-table-wrap) .demands-group span,
+    .production-dark-container:not(.production-demands-table-wrap) .demands-group div {
+      color: #ffffff !important;
+    }
+    .production-dark-container:not(.production-demands-table-wrap) .demands-group-header {
+      font-size: 11px !important;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8 !important;
+    }
+    .production-dark-container:not(.production-demands-table-wrap) .demand-row:hover { background: #334155 !important; }
+    .demand-row .demand-task-name:hover { text-decoration: underline; }
+    /* Production typography: system font, readable sizes */
+    .production-demands-wrap,
+    .production-demands-table-wrap,
+    .production-filter-bar,
+    #productionViewContent {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .production-demands-table-wrap .demands-group-header {
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b !important;
+    }
+    .production-demands-table-wrap .demand-row,
+    .production-demands-table-wrap .demand-task-name,
+    .production-demands-table-wrap .demand-row span,
+    .production-demands-table-wrap .demand-row div {
+      color: #1e293b !important;
+    }
+    .production-demands-table-wrap .demand-task-name { color: #0f172a !important; font-weight: 600 !important; }
+    .production-demands-table-wrap .demand-row .demand-row-menu { color: #64748b !important; }
+    /* Due pills: UI standard colors, readable contrast */
+    .due-pill {
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-family: inherit;
+    }
+    .due-pill--today { background: #fee2e2 !important; color: #b91c1c !important; }
+    .due-pill--overdue { background: #fee2e2 !important; color: #b91c1c !important; }
+    .due-pill .due-pill-overdue-label { color: #b91c1c !important; font-weight: 700 !important; }
+    .due-pill--future { background: #fef3c7 !important; color: #92400e !important; }
+    .production-demands-table-wrap .status-badge { color: inherit !important; }
+    .status-badge--todo { background: #6b7280 !important; color: #fff !important; }
+    .status-badge--in_progress { background: #3b82f6 !important; color: #fff !important; }
+    .status-badge--review { background: #8b5cf6 !important; color: #fff !important; }
+    .status-badge--changes_requested { background: #f59e0b !important; color: #fff !important; }
+    .status-badge--approved { background: #22c55e !important; color: #fff !important; }
+    .status-badge--ready_to_post { background: #14b8a6 !important; color: #fff !important; }
+    .demands-stats-strip {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 10px 0;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .demands-stats-strip span { display: inline-flex; align-items: center; gap: 6px; }
+    .demands-stats-strip .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .demands-search-input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 13px;
+      width: 200px;
+    }
+    .demands-search-input::placeholder { color: #94a3b8; }
+    /* Production light theme: primary button (+ Assign Task) — prevent clipping */
+    #btnAssignTask,
+    .production-btn-assign,
+    .production-light-canvas #btnAssignTask,
+    .kanban-column-add-btn.production-btn-assign-column {
+      background: #2563EB !important;
+      color: #FFFFFF !important;
+      border: none !important;
+      border-radius: 8px !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: visible;
+    }
+    .production-btn-assign:hover,
+    .production-light-canvas #btnAssignTask:hover,
+    .kanban-column-add-btn.production-btn-assign-column:hover {
+      background: #1D4ED8 !important;
+    }
+    /* View toggle tabs (Main table / Kanban) */
+    .production-light-canvas .demands-view-btn {
+      border-radius: 6px !important;
+    }
+    .production-light-canvas .demands-view-btn.active {
+      background: #1E293B !important;
+      color: #FFFFFF !important;
+    }
+    .production-light-canvas .demands-view-btn:not(.active) {
+      background: transparent !important;
+      color: #6B7280 !important;
+    }
+    .production-light-canvas .demands-view-btn:not(.active):hover {
+      background: #F3F4F6 !important;
+    }
+    /* Search input */
+    .production-light-canvas #demandsSearchInput,
+    .production-light-canvas .demands-search-input,
+    #demandsSearchInput {
+      background: #FFFFFF !important;
+      color: #374151 !important;
+      border: 1px solid #D1D5DB !important;
+      border-radius: 6px !important;
+      max-width: 160px;
+      min-width: 120px;
+    }
+    .production-light-canvas #demandsSearchInput::placeholder,
+    .production-light-canvas .demands-search-input::placeholder {
+      color: #9CA3AF;
+    }
+    .production-light-canvas #demandsSearchInput:focus,
+    .production-light-canvas .demands-search-input:focus {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+      outline: none;
+    }
+    /* Dropdowns (All Status, All Clients) */
+    .production-light-canvas #demandFilterStatus,
+    .production-light-canvas #demandFilterClient {
+      background: #FFFFFF !important;
+      color: #374151 !important;
+      border: 1px solid #D1D5DB !important;
+      border-radius: 6px !important;
+    }
+    /* Filter bar "Filter" label */
+    .production-filter-bar .production-filter-label {
+      color: #6B7280 !important;
+    }
+    /* Secondary chips (Due Today, My Tasks) */
+    .production-light-canvas #demandFilterDueToday,
+    .production-light-canvas .filter-chip.filter-chip--mytasks {
+      background: #FFFFFF !important;
+      color: #374151 !important;
+      border: 1px solid #D1D5DB !important;
+      border-radius: 6px !important;
+    }
+    .production-light-canvas #demandFilterDueToday:hover,
+    .production-light-canvas .filter-chip.filter-chip--mytasks:not(.filter-chip--disabled):hover {
+      background: #F3F4F6 !important;
+    }
+    .production-light-canvas #demandFilterDueToday.filter-chip--active,
+    .production-light-canvas .filter-chip--active {
+      background: #EFF6FF !important;
+      color: #2563EB !important;
+      border-color: #2563EB !important;
+    }
+    /* Overdue chip */
+    .production-light-canvas .filter-chip--overdue {
+      background: #FEF2F2 !important;
+      color: #DC2626 !important;
+      border: 1px solid #FECACA !important;
+      border-radius: 6px !important;
+    }
+    .filter-chip--active { background: #EFF6FF !important; color: #2563EB !important; border-color: #2563EB !important; }
+    .filter-chip--overdue { background: #FEF2F2 !important; color: #DC2626 !important; border: 1px solid #FECACA !important; }
+    .filter-chip--mytasks { background: #FFFFFF !important; color: #374151 !important; border: 1px solid #D1D5DB !important; }
+    .filter-chip--disabled { opacity: 0.6; cursor: not-allowed; }
+
     /* Main Content */
     .main {
       flex: 1;
       overflow-y: auto;
       padding: 24px;
+      background: #F9FAFB;
     }
     
     /* Client Header */
@@ -1278,6 +1762,10 @@
   <header class="header">
     <div style="display: flex; align-items: center; gap: 16px;">
       <div class="header__logo">2Fly Agency Dashboard</div>
+      <div id="viewSwitcherInHeader" class="header-view-switcher" style="display: flex; align-items: center; gap: 6px;" data-view-switcher>
+        <button type="button" id="btnViewDashboardHeader" class="view-switch-btn view-switch-btn--active" data-view="dashboard" style="padding: 8px 14px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.25); color: white; font-weight: 600; cursor: pointer;">Dashboard</button>
+        <button type="button" id="btnViewProductionHeader" class="view-switch-btn" data-view="production" style="padding: 8px 14px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.5); background: transparent; color: rgba(255,255,255,0.95); font-weight: 500; cursor: pointer;">Production View</button>
+      </div>
       <span class="header-status" id="headerSystemStatus" title="All systems operational">
         <span class="header-status__dot"></span>
         <span class="header-status__text">All systems operational</span>
@@ -1313,17 +1801,23 @@
     </div>
   </header>
 
+  <!-- View switcher duplicate row: hidden to free vertical space; top navbar has Dashboard/Production buttons -->
+  <div id="viewSwitcher" class="production-view-hidden-toggle-row" style="padding: 12px 24px; background: #e0e7ff; border-bottom: 1px solid #c7d2fe; gap: 8px; flex-wrap: wrap; align-items: center;">
+    <button type="button" id="btnViewDashboard" class="view-switch-btn active" style="padding: 8px 16px; border-radius: 8px; border: 1px solid #1a56db; background: #1a56db; color: white; font-weight: 600; cursor: pointer;">Dashboard View</button>
+    <button type="button" id="btnViewProduction" class="view-switch-btn" style="padding: 8px 16px; border-radius: 8px; border: 1px solid #94a3b8; background: white; color: #475569; font-weight: 500; cursor: pointer;">Production View</button>
+  </div>
+
   <!-- Layout -->
-  <div class="layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
+  <div class="layout" id="mainLayout">
+    <!-- Sidebar (hidden for designers and when Production View selected) -->
+    <aside class="sidebar" id="dashboardSidebar">
       <div class="sidebar__title">Clients</div>
       <div id="clientsList"></div>
       <button class="btn btn-primary btn-primary-cta" id="newClientBtn" style="width: 100%; margin-top: 16px; padding: 12px; background: #0052CC; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">+ Add Client</button>
     </aside>
 
-    <!-- Main Content -->
-    <main class="main">
+    <!-- Main Content (Dashboard) -->
+    <main class="main" id="dashboardMain">
       <!-- Client Header with Logo and kebab menu -->
       <div id="clientHeader" class="client-header" style="display: none; background: #0052CC; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
         <div style="display: flex; align-items: center; gap: 20px;">
@@ -1457,6 +1951,7 @@
           <div class="edit-panel">
             <div class="edit-panel__title" id="editPanelTitle">Create Approval</div>
             <form id="approvalForm">
+              <div id="approvalFormProductionNote" class="form-group" style="display: none; padding: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 14px; color: #065f46;"></div>
               <input type="hidden" id="approvalId" />
               <div class="form-group">
                 <label class="form-label" for="approvalTitle">Title</label>
@@ -1816,6 +2311,37 @@
         </div>
       </div>
     </main>
+    <!-- Production View (designer workflow) -->
+    <div id="productionViewContainer" style="display: none; flex: 1; overflow: hidden; flex-direction: row;">
+      <aside id="productionSidebar" class="production-sidebar" aria-label="Production navigation">
+        <div class="production-sidebar__title">Production</div>
+        <button type="button" id="productionNavDemands" class="production-sidebar__link active" data-section="demands"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>DEMANDS</button>
+        <button type="button" id="productionNavAILibrary" class="production-sidebar__link" data-section="ai-library"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>AI LIBRARY</button>
+        <button type="button" id="productionNavReferences" class="production-sidebar__link" data-section="references"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></span>REFERENCES</button>
+      </aside>
+      <div id="productionViewMain" class="production-view-main" style="flex: 1; overflow: auto; padding: 24px; background: #F9FAFB;">
+        <div id="productionViewInner"></div>
+      </div>
+      <!-- Task detail slide-over panel (shown by JS when task row/card clicked) -->
+      <div id="productionTaskDetailOverlay" class="production-task-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 9000;"></div>
+      <div id="productionTaskDetailPanel" class="production-task-panel" style="display: none; position: fixed; top: 0; right: 0; width: 400px; max-width: 100%; height: 100vh; background: white; box-shadow: -4px 0 24px rgba(0,0,0,0.12); z-index: 9001; overflow-y: auto;">
+        <div class="production-task-panel__head" style="padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+          <h2 id="productionTaskDetailTitle" class="production-task-panel__title" style="margin: 0; font-size: 18px; font-weight: 700; color: #1e293b; flex: 1;">Task title</h2>
+          <button type="button" id="productionTaskDetailClose" class="production-task-panel__close" aria-label="Close" style="width: 32px; height: 32px; border: none; background: #f1f5f9; color: #64748b; border-radius: 8px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+        </div>
+        <div class="production-task-panel__body" style="padding: 24px;">
+          <div id="productionTaskDetailMeta" style="margin-bottom: 20px;"></div>
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px;">Description</label>
+            <textarea id="productionTaskDetailDescription" placeholder="No description" readonly style="width: 100%; min-height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; resize: vertical;" disabled></textarea>
+          </div>
+          <div>
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px;">Comments</label>
+            <div id="productionTaskDetailComments" style="min-height: 60px; padding: 12px; border: 1px dashed #e2e8f0; border-radius: 8px; font-size: 13px; color: #94a3b8;">No comments yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Preview Modal -->
@@ -2259,6 +2785,20 @@
             
             <div style="margin-bottom: 16px;">
               <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                Role <span style="color: #ef4444;">*</span>
+              </label>
+              <select 
+                id="settingsInviteRole" 
+                required
+                style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; background: white;"
+              >
+                <option value="staff">Staff — full agency dashboard access</option>
+                <option value="designer">Designer — only Production View (assigned tasks)</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
                 Email Address <span style="color: #ef4444;">*</span>
               </label>
               <input 
@@ -2283,7 +2823,7 @@
                 required
                 style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;"
               />
-              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">PIN: 747800</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Ask your administrator for the PIN</div>
             </div>
             
             <div style="margin-bottom: 20px;">
@@ -2479,7 +3019,7 @@
     }
   </style>
 
-  <script src="/agency.js?v=12"></script>
+  <script src="/agency.js?v=31"></script>
 </body>
 </html>
 

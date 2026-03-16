@@ -31,7 +31,7 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
     }
 
     // Validate role
-    const validRoles: UserRole[] = ['OWNER', 'ADMIN', 'STAFF', 'CLIENT'];
+    const validRoles: UserRole[] = ['OWNER', 'ADMIN', 'STAFF', 'CLIENT', 'DESIGNER'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }

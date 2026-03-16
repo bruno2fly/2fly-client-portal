@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" href="/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#f1f5f9" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1371,10 +1373,8 @@ window.handleLogout = function(e) {
     e.preventDefault();
     e.stopPropagation();
   }
-  console.log("Logout clicked - clearing session");
   // Clear session from localStorage
   localStorage.removeItem(LS_SESSION_KEY);
-  console.log("Session cleared, redirecting to login...");
   // Redirect to login page
   window.location.href = 'login.html';
 };
@@ -1436,7 +1436,6 @@ const isStaffPage = pathname.includes('staff-login') ||
 
 // Don't run client portal code on staff/agency pages
 if (isStaffPage) {
-  console.log('Staff/agency page detected, skipping client portal initialization');
   // Stop execution - this is not the client portal
   throw new Error('Not a client portal page');
 }
@@ -1447,7 +1446,6 @@ if (!isLoginPage) {
     // Redirect is happening, stop execution of this script
     // The redirect will navigate away, but wrap rest of code in session check
     // to prevent errors during redirect transition
-    console.log("No session found, redirecting to login...");
   }
 }
 
@@ -1455,14 +1453,9 @@ if (!isLoginPage) {
 if (!session) {
   // No session - either redirecting or on login page
   // Don't execute the rest of the code to prevent errors
-  console.log("No session - redirecting to login or on login page");
   // Early return - wrap everything else in else block
 } else {
-  console.log("Session found, initializing application...");
   // Debug logging
-  console.log("Session loaded:", session);
-  console.log("Client ID:", session.clientId);
-  console.log("Client Name:", session.clientName);
 
   // Get client ID from session - normalize to lowercase for consistency
   const currentClientId = (session.clientId || "").toLowerCase().trim();
@@ -1476,7 +1469,6 @@ if (!session) {
   }
   if (session.clientName) {
     setClientNameDisplay(session.clientName);
-    console.log("Client name set immediately to:", session.clientName);
   }
 
   function syncMobileLogo(showImg, src, initials) {
@@ -1573,7 +1565,7 @@ if (!session) {
 
   /* ================== State (API-backed, same as agency) ================== */
   const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001' : 'https://api.2flyflow.com';
+    ? 'http://localhost:3003' : 'https://api.2flyflow.com';
   let portalStateCache = null;
   let portalStateFetchedFromAPI = false;
 
@@ -2073,7 +2065,6 @@ function render(){
     }
     
     setClientNameDisplay(displayName);
-    console.log("Client name set to:", displayName);
     
     // Update state if it's different (for consistency)
     if (currentSession && currentSession.clientName && state.client.name !== currentSession.clientName) {
@@ -2216,7 +2207,6 @@ function render(){
     const readIds = loadReadNotificationIds();
     const unreadActionCount = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id)).length;
     const topAction = notifications.filter(n => n.type === 'ACTION')[0];
-    console.log('Client notifications: computed=' + notifications.length + ', unread ACTION=' + unreadActionCount + ', top priority=' + (topAction ? topAction.title : '—'));
   } catch (e) { console.warn('Client notification render:', e); }
 }
 
@@ -2338,7 +2328,6 @@ document.addEventListener("click", (e)=>{
 
 /* ================== Approval Actions ================== */
 function approveItem(id){
-  console.log("approveItem called with id:", id);
   const s = load(); 
   const item = s.approvals.find(a=>a.id===id); 
   if(!item) {
@@ -2369,13 +2358,10 @@ function approveItem(id){
   
   // Re-render to update the list
   render();
-  console.log("Item approved and list updated");
 }
 
 function deleteApprovalItem(id){
-  console.log("deleteApprovalItem called with id:", id);
   if (!confirm("Are you sure you want to delete this approval item?")) {
-    console.log("Delete cancelled by user");
     return;
   }
   
@@ -2386,7 +2372,6 @@ function deleteApprovalItem(id){
     return;
   }
   
-  console.log("Deleting item:", item.title);
   s.approvals = s.approvals.filter(a => a.id !== id);
   
   // Update pending count
@@ -2403,14 +2388,12 @@ function deleteApprovalItem(id){
   
   // Re-render to update the list
   render();
-  console.log("Item deleted and list updated");
 }
 
 let CURRENT_APPROVAL_ITEM = null;
 
 // Make function globally accessible
 window.openApprovalModal = function(id){
-  console.log("openApprovalModal called with id:", id);
   const s = load(); 
   const item = s.approvals.find(a=>a.id===id); 
   if(!item) {
@@ -2418,7 +2401,6 @@ window.openApprovalModal = function(id){
     return;
   }
   
-  console.log("Found item:", item);
   CURRENT_APPROVAL_ITEM = id;
   
   // Set title
@@ -2718,10 +2700,8 @@ window.openApprovalModal = function(id){
   
   // Show modal
   const approvalModal = document.getElementById("approvalModal");
-  console.log("Modal element:", approvalModal);
   if (approvalModal) {
     approvalModal.classList.add("show");
-    console.log("Modal should be visible now, classList:", approvalModal.classList.toString());
     // Force display
     approvalModal.style.display = "flex";
   } else {
@@ -2736,7 +2716,6 @@ function openApprovalModal(id) {
 
 // Close modal function
 function closeApprovalModal() {
-  console.log("closeApprovalModal called");
   const modal = document.getElementById("approvalModal");
   if (modal) {
     modal.classList.remove("show");
@@ -2749,7 +2728,6 @@ function closeApprovalModal() {
     if (cancelBtn) cancelBtn.style.display = "none";
     const changesText = document.getElementById("changesText");
     if (changesText) changesText.value = "";
-    console.log("Modal closed");
   } else {
     console.error("Modal element not found for closing");
   }
@@ -2786,7 +2764,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'approveBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Approve button clicked");
       if (CURRENT_APPROVAL_ITEM) {
         approveItem(CURRENT_APPROVAL_ITEM);
       }
@@ -2797,7 +2774,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'deleteApprovalBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Delete button clicked");
       if (CURRENT_APPROVAL_ITEM) {
         deleteApprovalItem(CURRENT_APPROVAL_ITEM);
       }
@@ -2808,7 +2784,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'requestChangesBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Request Changes button clicked");
       const changesForm = document.getElementById("changesFormContainer");
       const cancelBtn = document.getElementById("cancelChangesBtn");
       if (changesForm) changesForm.style.display = "block";
@@ -2825,7 +2800,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'cancelChangesBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Cancel button clicked");
       const changesForm = document.getElementById("changesFormContainer");
       const cancelBtn = document.getElementById("cancelChangesBtn");
       if (changesForm) changesForm.style.display = "none";
@@ -2839,7 +2813,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'submitChangesBtn' || btn.classList.contains('submit-changes-btn')) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Submit Changes button clicked");
       const changesText = document.getElementById("changesText");
       const note = changesText ? changesText.value.trim() : "";
       
@@ -2881,7 +2854,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'closeModalBtn' || btn.hasAttribute('data-close-modal')) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Close button clicked via delegation");
       closeApprovalModal();
       return;
     }
@@ -2895,7 +2867,6 @@ function setupModalEventDelegation() {
     closeBtn.onclick = function(e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Close button clicked directly");
       closeApprovalModal();
     };
   }
@@ -2905,7 +2876,6 @@ function setupModalEventDelegation() {
     deleteBtn.onclick = function(e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Delete button clicked directly");
       if (CURRENT_APPROVAL_ITEM) {
         deleteApprovalItem(CURRENT_APPROVAL_ITEM);
       }
@@ -3334,7 +3304,6 @@ function renderReports(){
         heroList.appendChild(li);
       });
     }
-    console.log("Progress: highlights rendered =", fallbackUsed ? ["Content engine active and consistent."] : highlights, fallbackUsed ? "(fallback copy used)" : "(data-driven)");
   }
 
   const rAdsRunning = $("#r-ads-running");
@@ -3480,7 +3449,6 @@ async function initializeApp() {
       }
     }
     setClientNameDisplay(displayName);
-    console.log("Initial client name set to:", displayName);
   }
   
   // Load logo after name is set (pass client from portal-state so logo from agency is shown)
@@ -3490,7 +3458,6 @@ async function initializeApp() {
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener("click", window.handleLogout);
-    console.log("Logout button event listener attached");
   }
 
   try { setupClientNotificationBell(); } catch (e) { console.warn('Client notification bell setup:', e); }

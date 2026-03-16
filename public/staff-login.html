@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" href="/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2Fly Agency - Staff Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -327,9 +329,9 @@
       return isLocalHost() ? '/agency.html' : '/agency';
     }
     
-    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-      ? 'http://localhost:3001' 
-      : 'https://api.2flyflow.com'; // Update with your production API URL
+    const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? (window.__2FLY_API_BASE__ || 'http://localhost:3004')
+      : 'https://api.2flyflow.com';
     
     const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
     // Get agencyId from URL or use default (for MVP)
@@ -377,14 +379,16 @@
         return true;
       } catch (error) {
         console.error('Login error:', error);
-        showError('Network error. Please try again.');
+        const msg = (error && error.message === 'Failed to fetch')
+          ? 'Unable to connect to the server. Please try again in a moment.'
+          : 'Network error. Please try again.';
+        showError(msg);
         return false;
       }
     }
     
     // Wait for DOM to be ready before setting up event listeners
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('Staff login page loaded');
       
       // Check if already logged in - redirect to agency dashboard
       const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
@@ -393,7 +397,6 @@
           const sessionData = JSON.parse(session);
           // Check if session is still valid (24 hours)
           if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
-            console.log('Already logged in, redirecting to agency');
             window.location.href = agencyUrl();
             return; // Stop execution
           } else {

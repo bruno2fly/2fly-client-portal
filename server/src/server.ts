@@ -9,6 +9,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import googleDriveRoutes from './routes/googleDrive.js';
@@ -21,6 +22,9 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import agencyRoutes from './routes/agency.js';
 import clientPortalRoutes from './routes/clientPortal.js';
+import productionRoutes from './routes/production.js';
+import designersRoutes from './routes/designers.js';
+import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, markInviteTokenUsed, getUserByEmail, saveUser, saveAuditLog } from './db.js';
 import { generateToken, generateId, generateUsernameFromEmail, generateRandomPassword, hashPassword } from './utils/auth.js';
@@ -57,6 +61,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser());
+// Security headers
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images served cross-origin
+  }));
+}
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -211,7 +221,7 @@ app.get('/api/dev/generate-owner-invite', (req, res) => {
 // PIN: 747800
 app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, async (req: any, res) => {
   try {
-    const { email, pin, name, password: customPassword } = req.body;
+    const { email, pin, name, password: customPassword, role: roleParam } = req.body;
     const REQUIRED_PIN = '747800';
 
     if (!email || !pin) {
@@ -226,6 +236,8 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
     if (raw.length > 0 && raw.length < 8) {
       return res.status(400).json({ error: 'Custom password must be at least 8 characters' });
     }
+
+    const roleInput: UserRole = (roleParam === 'designer' || roleParam === 'DESIGNER') ? 'DESIGNER' : 'STAFF';
 
     const targetAgencyId = req.user!.agencyId;
     if (!targetAgencyId) {
@@ -261,7 +273,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
       email: email.toLowerCase(),
       username: finalUsername, // Store username for login
       name: name,
-      role: 'STAFF' as const,
+      role: roleInput,
       status: 'ACTIVE' as const,
       passwordHash: passwordHash,
       tempPassword: process.env.NODE_ENV !== 'production' ? password : undefined, // Store temp password in dev mode only
@@ -297,7 +309,8 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
         id: userId,
         email: newUser.email,
         name: newUser.name,
-        username: finalUsername
+        username: finalUsername,
+        role: roleInput
       },
       // In dev mode, return credentials
       ...(process.env.NODE_ENV !== 'production' && {
@@ -324,6 +337,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/agency', agencyRoutes);
 app.use('/api/client', clientPortalRoutes);
+app.use('/api/production', productionRoutes);
+app.use('/api/designers', designersRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

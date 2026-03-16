@@ -113,9 +113,11 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
       staff = getStaffByUsername(userId);
     }
     
-    // For MVP: If staff doesn't exist, allow access anyway with provided credentials
-    // This allows testing without creating staff records in the database
+    // In production, reject unknown staff. In development, allow for testing.
     if (!staff) {
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
       req.userId = userId;
       req.workspaceId = workspaceId;
       req.agencyId = workspaceId;
@@ -177,7 +179,17 @@ export function requireCanManageUsers(req: AuthenticatedRequest, res: Response, 
   return requireRole(['OWNER', 'ADMIN'])(req, res, next);
 }
 
-/** Can view agency dashboard (clients, tasks, etc.). All staff share same view. */
+/** Can view agency dashboard (clients, tasks, etc.). Excludes designers (they only see Production View). */
 export function requireCanViewDashboard(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER', 'ADMIN', 'STAFF'])(req, res, next);
+}
+
+/** Can access production (designer workflow). Designers and agency staff. */
+export function requireProductionAccess(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  return requireRole(['OWNER', 'ADMIN', 'STAFF', 'DESIGNER'])(req, res, next);
+}
+
+/** Agency only (no designers) - for managing designers and production from dashboard. */
+export function requireAgencyOnly(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   return requireRole(['OWNER', 'ADMIN', 'STAFF'])(req, res, next);
 }

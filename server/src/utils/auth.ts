@@ -3,7 +3,8 @@
  * Password hashing, token generation, validation
  */
 
-import bcrypt from 'bcrypt';
+// Use bcryptjs (pure JS) for cross-platform compatibility; falls back to native bcrypt
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 const BCRYPT_ROUNDS = 12; // Cost factor for bcrypt

@@ -61,6 +61,19 @@ const DEFAULT_AGENCY_ID = "agency_1737676800000_abc123";
 // Current selected client
 let currentClientId = null;
 
+// Production View (designer workflow)
+let currentViewMode = 'dashboard'; // 'dashboard' | 'production'
+let currentProductionSection = 'demands'; // 'demands' | 'ai-library' | 'references'
+let isDesigner = currentStaff && (currentStaff.role === 'DESIGNER');
+let productionTasksCache = [];
+let designersCache = [];
+let productionNavBound = false;
+let demandFilterStatus = '';
+let demandFilterClient = '';
+let demandFilterDueToday = false;
+let currentProductionTaskId = null;
+let demandViewMode = 'table';
+
 // Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
 let clientsRegistryCache = {};
 let portalStateCache = {};
@@ -85,9 +98,10 @@ async function getMetaStatusForClient(clientId) {
 }
 
 function getApiBaseUrl() {
-  return (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001'
-    : 'https://api.2flyflow.com';
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return 'https://api.2flyflow.com';
+  }
+  return window.__2FLY_API_BASE__ || 'http://localhost:3004';
 }
 
 function getAgencyIdFromSession() {
@@ -255,12 +269,10 @@ async function fetchPortalStateFromAPI(clientId) {
         if (oldStatus !== newStatus) {
           if (newStatus === 'approved' || newStatus === 'copy_approved') {
             if (oldStatus === 'pending' || oldStatus === 'copy_pending' || !oldStatus) {
-              console.log('Agency: client action detected – approved', a.title, clientId);
               createNotification({ type: 'PROGRESS', title: 'Client approved', message: (a.title || 'Post') + ' was approved by client.', clientId: clientId, action: { label: 'View approvals', href: '#approvals' } });
             }
           } else if (newStatus === 'changes' || newStatus === 'copy_changes') {
             if (oldStatus === 'pending' || oldStatus === 'copy_pending' || oldStatus === 'copy_approved' || !oldStatus) {
-              console.log('Agency: client action detected – requested changes', a.title, clientId);
               createNotification({ type: 'ACTION', title: 'Client requested changes', message: (a.title || 'Post') + ' – client requested changes.', clientId: clientId, action: { label: 'View approvals', href: '#approvals' } });
             }
           }
@@ -268,7 +280,6 @@ async function fetchPortalStateFromAPI(clientId) {
       });
       prevApprovals.forEach(function(a) {
         if (!dataIds[a.id]) {
-          console.log('Agency: client action detected – deleted post', a.title, clientId);
           createNotification({ type: 'ACTION', title: 'Client deleted post', message: (a.title || 'Post') + ' was removed by client.', clientId: clientId, action: { label: 'View approvals', href: '#approvals' } });
         }
       });
@@ -281,7 +292,6 @@ async function fetchPortalStateFromAPI(clientId) {
       dataRequests.forEach(function(r) {
         if (!prevReqIds[r.id] && r.status === 'open') {
           var msg = (r.type || 'Request') + (r.details && r.details !== '(no details)' ? ': ' + r.details.slice(0, 50) + (r.details.length > 50 ? '…' : '') : '');
-          console.log('Agency: client action detected – new request', r.type, clientId);
           createNotification({ type: 'ACTION', title: 'Client submitted a request', message: msg, clientId: clientId, action: { label: 'View requests', href: '#requests' } });
         }
       });
@@ -875,8 +885,6 @@ function maybeGenerateMonthlyProgressSummaryNotifications() {
     logReasons.push({ clientId: cid, reason: 'sent' });
   });
 
-  console.log('Monthly progress summary: monthKey=' + monthKey + ', clientsProcessed=' + clientIds.length + ', notificationsCreated=' + created);
-  logReasons.forEach(function (r) { console.log('  ' + r.clientId + ': ' + r.reason); });
 
   if (created > 0 && typeof window !== 'undefined') {
     window._progressSummaryToastShown = window._progressSummaryToastShown || false;
@@ -2186,7 +2194,11 @@ function renderApprovalsTab() {
           class: `chip chip--status-${item.status || 'pending'}`
         }, statusDisplay));
         meta.appendChild(el('span', { class: 'approval-item__date' }, `Due ${item.date || 'N/A'}`));
-        
+        if (item.source === 'production') {
+          const fromProd = el('span', { class: 'chip chip--from-production', style: 'background: #dbeafe; color: #1d4ed8; font-size: 11px;' }, 'From Production');
+          meta.appendChild(fromProd);
+        }
+
         itemEl.appendChild(header);
         itemEl.appendChild(meta);
         
@@ -2211,7 +2223,33 @@ function renderApprovalsTab() {
           itemEl.appendChild(changeRequestBox);
         }
 
+        if (sectionKey === 'copyApproved') {
+          itemEl.setAttribute('data-approval-id', item.id);
+          if (item.productionStatus === 'art_approved') {
+            const artApprovedWrap = el('div', {
+              class: 'schedule-section',
+              style: 'margin-top: 12px; padding: 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; font-size: 13px; color: #065f46;'
+            });
+            artApprovedWrap.textContent = 'Final art attached — click to review and send to client.';
+            artApprovedWrap.addEventListener('click', (e) => e.stopPropagation());
+            itemEl.appendChild(artApprovedWrap);
+          } else if (item.source !== 'production') {
+            const sendToDesignerWrap = el('div', {
+              class: 'schedule-section',
+              style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
+            });
+            sendToDesignerWrap.addEventListener('click', (e) => e.stopPropagation());
+            const sendToDesignerBtn = document.createElement('button');
+            sendToDesignerBtn.textContent = 'Send to Designer';
+            sendToDesignerBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+            sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+            sendToDesignerWrap.appendChild(sendToDesignerBtn);
+            itemEl.appendChild(sendToDesignerWrap);
+          }
+        }
+
         if (sectionKey === 'approved') {
+          itemEl.setAttribute('data-approval-id', item.id);
           const prefillDate = item.postDate ? (function() {
             const d = new Date(item.postDate);
             const y = d.getFullYear();
@@ -2226,6 +2264,13 @@ function renderApprovalsTab() {
             style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
           });
           scheduleSection.addEventListener('click', (e) => e.stopPropagation());
+          if (item.source !== 'production') {
+            const sendToDesignerBtn = document.createElement('button');
+            sendToDesignerBtn.textContent = 'Send to Designer';
+            sendToDesignerBtn.style.cssText = 'margin-bottom: 12px; padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+            sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+            scheduleSection.appendChild(sendToDesignerBtn);
+          }
           const heading = el('h4', { style: 'margin: 0 0 8px 0; font-size: 14px; color: #1a56db;' }, 'Schedule to Social Media');
           scheduleSection.appendChild(heading);
           const connectedWrap = el('div', { class: 'schedule-section-connected', style: 'display: none;' });
@@ -2303,6 +2348,7 @@ function renderApprovalsTab() {
       container.querySelectorAll('.schedule-section-connected').forEach(function(el) { el.style.display = connected ? 'block' : 'none'; });
       container.querySelectorAll('.schedule-section-not-connected').forEach(function(el) { el.style.display = connected ? 'none' : 'block'; });
     });
+    injectProductionBadgesOnApprovals(container);
   }
 
   if (approvalsList.length === 0) {
@@ -2411,6 +2457,8 @@ function loadApprovalForEdit(id) {
     $('#editPanelTitle').textContent = 'Create Approval';
     $('#approvalDelete').style.display = 'none';
     selectedApprovalId = null;
+    var noteEl = document.getElementById('approvalFormProductionNote');
+    if (noteEl) noteEl.style.display = 'none';
     setAutoDueDate();
     updateSchedulePostSectionVisibility();
     return;
@@ -2425,10 +2473,15 @@ function loadApprovalForEdit(id) {
   $('#approvalCaption').value = item.caption || '';
   $('#approvalStatus').value = item.status || 'pending';
   
-  // Load image URLs (carousel): imageUrls array or single imageUrl
-  var urls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
-    ? item.imageUrls.filter(function (u) { return u && String(u).trim(); })
-    : (item.imageUrl ? [item.imageUrl] : []);
+  // Load image URLs: prefer finalArtUrls (from production), then imageUrls, then imageUrl
+  var urls = [];
+  if (Array.isArray(item.finalArtUrls) && item.finalArtUrls.length > 0) {
+    urls = item.finalArtUrls.filter(function (u) { return u && String(u).trim(); });
+  } else if (Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+    urls = item.imageUrls.filter(function (u) { return u && String(u).trim(); });
+  } else if (item.imageUrl) {
+    urls = [item.imageUrl];
+  }
   renderApprovalImageUrlRows(urls);
   var firstInput = document.querySelector('.approval-image-url-input');
   if (firstInput) firstInput.dispatchEvent(new Event('input'));
@@ -2451,6 +2504,16 @@ function loadApprovalForEdit(id) {
 
   updateSchedulePostSectionVisibility();
   updateScheduleCaptionCount();
+
+  var formNote = document.getElementById('approvalFormProductionNote');
+  if (formNote) {
+    if (item.productionStatus === 'art_approved') {
+      formNote.textContent = 'Final art from production is attached. Change status to Content Pending to send to client.';
+      formNote.style.display = 'block';
+    } else {
+      formNote.style.display = 'none';
+    }
+  }
 }
 
 function updateSchedulePostSectionVisibility() {
@@ -2936,7 +2999,6 @@ function setupApprovalHandlers() {
       status: $('#approvalStatus').value,
       tags: []
     };
-    console.log('Save post: selected asset IDs', approvalData.assetIds || []);
     
     if (!state.approvals) state.approvals = [];
     
@@ -3544,10 +3606,8 @@ function renderContentLibraryTab() {
   }
 
   // Console logging for selected client
-  console.log('Assets & References: loaded', assets.length, 'for client', currentClientId, '| approved:', approvedCount);
   if (assets.length) {
     assets.slice(0, 6).forEach(a => {
-      console.log('Provider detection:', a.url ? parseProviderFromUrl(a.url) : '—', 'for', (a.title || '').slice(0, 30));
     });
   }
 }
@@ -3563,7 +3623,6 @@ function buildAssetCard(asset) {
   const previewUrl = asset.thumbnailUrl || getPreviewUrl(asset);
   const fileId = (asset.url && (asset.sourceProvider === 'GOOGLE_DRIVE' || asset.url.includes('drive.google.com'))) ? extractGoogleDriveFileId(asset.url) : null;
   if (previewUrl) {
-    if (fileId) console.log('Drive preview:', { fileId, previewUrl, assetId: asset.id });
     const img = el('img', {
       class: 'asset-card__thumb-img',
       src: previewUrl,
@@ -3573,7 +3632,6 @@ function buildAssetCard(asset) {
     });
     img.onload = function () {
       thumbPlaceholder.style.display = 'none';
-      if (fileId) console.log('Drive preview loaded:', { fileId, previewUrl });
     };
     img.onerror = function () {
       img.style.display = 'none';
@@ -3586,7 +3644,6 @@ function buildAssetCard(asset) {
         note.textContent = 'Preview unavailable (permissions)';
         thumbPlaceholder.appendChild(note);
       }
-      if (fileId) console.log('Drive preview onerror (permissions):', { fileId, previewUrl });
     };
     thumbContainer.appendChild(img);
   }
@@ -4482,6 +4539,7 @@ function setupSettingsModal() {
       const email = $('#settingsInviteEmail')?.value.trim();
       const pin = $('#settingsInvitePin')?.value.trim();
       const password = $('#settingsInvitePassword')?.value.trim() || null;
+      const role = ($('#settingsInviteRole')?.value || 'staff').toLowerCase();
       
       if (!name || !email || !pin) {
         if (settingsErrorMsg) {
@@ -4504,7 +4562,7 @@ function setupSettingsModal() {
       }
       
       try {
-        const payload = { name, email, pin, agencyId: getAgencyIdFromSession() };
+        const payload = { name, email, pin, agencyId: getAgencyIdFromSession(), role: role === 'designer' ? 'designer' : 'staff' };
         if (password) payload.password = password;
         const response = await fetch(`${getApiBaseUrl()}/api/users/invite-with-pin`, {
           method: 'POST',
@@ -5436,6 +5494,922 @@ function setupContentLibraryLearnMore() {
   });
 }
 
+/* ================== Production View (designer workflow) ================== */
+async function loadDesigners() {
+  const r = await fetch(getApiBaseUrl() + '/api/designers', { credentials: 'include' });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Failed to load designers');
+  designersCache = j.designers || [];
+  return designersCache;
+}
+async function loadProductionTasks() {
+  const r = await fetch(getApiBaseUrl() + '/api/production/tasks', { credentials: 'include' });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Failed to load tasks');
+  productionTasksCache = j.tasks || [];
+  return productionTasksCache;
+}
+function productionStatusBadgeLabel(task, designerName) {
+  var name = designerName || 'Designer';
+  switch (task.status) {
+    case 'assigned': return 'In Production — Assigned to ' + name;
+    case 'in_progress': return 'In Production — In Progress';
+    case 'review': return 'In Production — Review';
+    case 'changes_requested': return 'In Production — Changes Requested';
+    case 'approved':
+    case 'ready_to_post': return 'Art Approved — Ready to Post';
+    default: return 'In Production';
+  }
+}
+function productionStatusBadgeColor(status) {
+  switch (status) {
+    case 'assigned': return { bg: '#f1f5f9', color: '#475569' };
+    case 'in_progress': return { bg: '#dbeafe', color: '#1d4ed8' };
+    case 'review': return { bg: '#fef9c3', color: '#a16207' };
+    case 'changes_requested': return { bg: '#ffedd5', color: '#c2410c' };
+    case 'approved':
+    case 'ready_to_post': return { bg: '#dcfce7', color: '#166534' };
+    default: return { bg: '#f1f5f9', color: '#475569' };
+  }
+}
+async function injectProductionBadgesOnApprovals(container) {
+  if (!currentClientId) return;
+  try {
+    var r = await fetch(getApiBaseUrl() + '/api/production/tasks?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' });
+    var j = await r.json();
+    var tasks = (j && j.tasks) ? j.tasks : [];
+    var designers = await loadDesigners();
+    var designerMap = {};
+    designers.forEach(function(d) { designerMap[d.id] = d.name || d.email || 'Designer'; });
+    container.querySelectorAll('.approval-item[data-approval-id]').forEach(function(card) {
+      var existing = card.querySelector('.approval-production-badge');
+      if (existing) existing.remove();
+      var approvalId = card.getAttribute('data-approval-id');
+      var task = tasks.find(function(t) { return t.approvalId === approvalId; });
+      if (!task) return;
+      var designerName = designerMap[task.designerId] || 'Designer';
+      var label = productionStatusBadgeLabel(task, designerName);
+      var colors = productionStatusBadgeColor(task.status);
+      var badge = document.createElement('div');
+      badge.className = 'approval-production-badge';
+      badge.style.cssText = 'margin-bottom: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; background: ' + colors.bg + '; color: ' + colors.color + ';';
+      badge.textContent = label;
+      card.insertBefore(badge, card.firstChild);
+    });
+  } catch (e) {}
+}
+function switchToProductionView() {
+  currentViewMode = 'production';
+  var sidebar = document.getElementById('dashboardSidebar');
+  var main = document.getElementById('dashboardMain');
+  var prod = document.getElementById('productionViewContainer');
+  if (sidebar) sidebar.style.display = 'none';
+  if (main) main.style.display = 'none';
+  if (prod) prod.style.display = 'flex';
+  if (document.getElementById('btnViewDashboard')) document.getElementById('btnViewDashboard').style.background = '#94a3b8';
+  if (document.getElementById('btnViewProduction')) document.getElementById('btnViewProduction').style.background = '#1a56db';
+  var btnD = document.getElementById('btnViewDashboardHeader');
+  var btnP = document.getElementById('btnViewProductionHeader');
+  if (btnD && btnP) { btnD.classList.remove('view-switch-btn--active'); btnP.classList.add('view-switch-btn--active'); }
+  if (!productionNavBound) {
+    productionNavBound = true;
+    ['demands', 'ai-library', 'references'].forEach(function(section) {
+      var btn = document.getElementById('productionNav' + (section === 'demands' ? 'Demands' : section === 'ai-library' ? 'AILibrary' : 'References'));
+      if (btn) btn.addEventListener('click', function() {
+        currentProductionSection = section;
+        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+        if (btn) btn.classList.add('active');
+        renderProductionView();
+      });
+    });
+  }
+  document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+  var activeBtn = document.querySelector('.production-sidebar__link[data-section="' + currentProductionSection + '"]');
+  if (activeBtn) activeBtn.classList.add('active');
+  Promise.all([loadProductionTasks(), loadDesigners().catch(function() {})]).then(function() { renderProductionView(); }).catch(function(e) { showToast(e && e.message ? e.message : 'Failed to load', 'error'); });
+}
+function switchToDashboardView() {
+  currentViewMode = 'dashboard';
+  currentProductionTaskId = null;
+  var sidebar = document.getElementById('dashboardSidebar');
+  var main = document.getElementById('dashboardMain');
+  var prod = document.getElementById('productionViewContainer');
+  if (sidebar) sidebar.style.display = 'block';
+  if (main) main.style.display = 'block';
+  if (prod) prod.style.display = 'none';
+  if (document.getElementById('btnViewDashboard')) document.getElementById('btnViewDashboard').style.background = '#1a56db';
+  if (document.getElementById('btnViewProduction')) document.getElementById('btnViewProduction').style.background = 'white';
+  var btnD = document.getElementById('btnViewDashboardHeader');
+  var btnP = document.getElementById('btnViewProductionHeader');
+  if (btnD && btnP) { btnD.classList.add('view-switch-btn--active'); btnP.classList.remove('view-switch-btn--active'); }
+}
+function priorityColor(p) {
+  return { low: '#22c55e', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' }[p] || '#64748b';
+}
+function getFilteredDemands() {
+  var tasks = productionTasksCache.slice();
+  if (demandFilterStatus === 'todo') {
+    tasks = tasks.filter(function(t) { return t.status === 'assigned'; });
+  } else if (demandFilterStatus === 'in_progress') {
+    tasks = tasks.filter(function(t) { return ['in_progress', 'changes_requested'].indexOf(t.status) !== -1; });
+  } else if (demandFilterStatus === 'completed') {
+    tasks = tasks.filter(function(t) { return ['review', 'approved', 'ready_to_post'].indexOf(t.status) !== -1; });
+  }
+  if (demandFilterClient) {
+    tasks = tasks.filter(function(t) { return t.clientId === demandFilterClient; });
+  }
+  if (demandFilterDueToday) {
+    var today = new Date().toISOString().slice(0, 10);
+    tasks = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === today; });
+  }
+  var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+  var now = new Date();
+  tasks.sort(function(a, b) {
+    var aOverdue = a.deadline && new Date(a.deadline) < now ? 0 : 1;
+    var bOverdue = b.deadline && new Date(b.deadline) < now ? 0 : 1;
+    if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+    var aDate = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+    var bDate = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    if (aDate !== bDate) return aDate - bDate;
+    return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+  });
+  return tasks;
+}
+function getDemandStatusBadge(status) {
+  var map = {
+    assigned: { label: 'To Do', bg: '#e2e8f0', color: '#475569' },
+    in_progress: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
+    changes_requested: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
+    review: { label: 'Completed', bg: '#dcfce7', color: '#16a34a' },
+    approved: { label: 'Completed', bg: '#dcfce7', color: '#16a34a' },
+    ready_to_post: { label: 'Completed', bg: '#dcfce7', color: '#16a34a' }
+  };
+  var s = map[status] || { label: status, bg: '#e2e8f0', color: '#475569' };
+  return '<span style="display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ' + s.bg + '; color: ' + s.color + ';">' + s.label + '</span>';
+}
+function getDemandStatusBadgeDark(status) {
+  var map = {
+    assigned: { label: 'To do', bg: '#e2e8f0', color: '#475569' },
+    in_progress: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
+    changes_requested: { label: 'Changes Requested', bg: '#fee2e2', color: '#dc2626' },
+    review: { label: 'Review', bg: '#fef3c7', color: '#d97706' },
+    approved: { label: 'Approved', bg: '#dcfce7', color: '#16a34a' },
+    ready_to_post: { label: 'Ready to Post', bg: '#dcfce7', color: '#16a34a' }
+  };
+  var s = map[status] || { label: status, bg: '#e2e8f0', color: '#475569' };
+  return '<span class="status-badge production-status-badge" style="display:inline-block;padding:4px 10px;border-radius:9999px;font-size:13px;font-weight:600;background:' + (s.bg || '#e2e8f0') + ';color:' + (s.color || '#475569') + ';">' + (s.label || status).replace(/</g, '&lt;') + '</span>';
+}
+function getWorkspaceStatusBadge(status) {
+  var map = {
+    assigned: { label: 'To Do', bg: '#e2e8f0', color: '#475569' },
+    in_progress: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
+    changes_requested: { label: 'Changes Requested', bg: '#ffedd5', color: '#ea580c' },
+    review: { label: 'Review', bg: '#fef3c7', color: '#d97706' },
+    approved: { label: 'Approved', bg: '#dcfce7', color: '#16a34a' },
+    ready_to_post: { label: 'Ready to Post', bg: '#dcfce7', color: '#16a34a' }
+  };
+  var s = map[status] || { label: status, bg: '#e2e8f0', color: '#475569' };
+  return '<span style="display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;background:' + s.bg + ';color:' + s.color + ';">' + (s.label || status).replace(/</g, '&lt;') + '</span>';
+}
+function getCommentStatusChangeLabel(statusChange) {
+  var map = { in_progress: 'Started working', review: 'Submitted for review', changes_requested: 'Requested changes', approved: 'Approved \u2713', ready_to_post: 'Marked as ready to post' };
+  return map[statusChange] || statusChange || '';
+}
+function formatCommentTime(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  var month = d.toLocaleDateString('en-US', { month: 'short' });
+  var day = d.getDate();
+  var time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return month + ' ' + day + ', ' + time;
+}
+function openTaskDetailPanel(taskId) {
+  var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+  if (!task) return;
+  var clientsData = loadClientsRegistry();
+  var clientName = (clientsData && clientsData[task.clientId] && clientsData[task.clientId].name) || task.clientId || '—';
+  var title = (task.caption || task.briefNotes || 'Untitled demand').replace(/</g, '&lt;').slice(0, 120);
+  var dueStr = task.deadline ? new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  var designerName = (designersCache.find(function(d) { return d.id === task.designerId; }) || {}).name || task.designerId || '—';
+  var initial = (designerName + '').charAt(0).toUpperCase();
+  var titleEl = document.getElementById('productionTaskDetailTitle');
+  var metaEl = document.getElementById('productionTaskDetailMeta');
+  var descEl = document.getElementById('productionTaskDetailDescription');
+  if (titleEl) titleEl.textContent = title || 'Untitled';
+  var statusBadgeMap = { assigned: { cls: 'status-badge--todo', label: 'To do' }, in_progress: { cls: 'status-badge--in_progress', label: 'In Progress' }, changes_requested: { cls: 'status-badge--changes_requested', label: 'Changes Requested' }, review: { cls: 'status-badge--review', label: 'Review' }, approved: { cls: 'status-badge--approved', label: 'Approved' }, ready_to_post: { cls: 'status-badge--ready_to_post', label: 'Ready to Post' } };
+  var statusInfo = statusBadgeMap[task.status] || { cls: 'status-badge--todo', label: task.status || 'To do' };
+  if (metaEl) {
+    metaEl.innerHTML = '<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">' +
+      '<span class="status-badge ' + statusInfo.cls + '" style="display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + (statusInfo.label || task.status).replace(/</g, '&lt;') + '</span>' +
+      '</div><div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Client: <strong style="color: #1e293b;">' + (clientName + '').replace(/</g, '&lt;') + '</strong></div>' +
+      '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; color: #475569; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">' + initial + '</span><span style="font-size: 13px; color: #334155;">' + (designerName + '').replace(/</g, '&lt;') + '</span></div>' +
+      '<div style="font-size: 13px; color: #64748b;">Due: ' + dueStr + '</div>';
+  }
+  if (descEl) descEl.value = [task.caption || '', task.briefNotes || ''].filter(Boolean).join('\n\n') || '';
+  var overlay = document.getElementById('productionTaskDetailOverlay');
+  var panel = document.getElementById('productionTaskDetailPanel');
+  if (overlay) overlay.style.display = 'block';
+  if (panel) panel.style.display = 'block';
+  currentProductionTaskId = taskId;
+  if (!window.__productionPanelCloseBound) {
+    window.__productionPanelCloseBound = true;
+    var closeBtn = document.getElementById('productionTaskDetailClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeTaskDetailPanel);
+    if (overlay) overlay.addEventListener('click', closeTaskDetailPanel);
+  }
+}
+function closeTaskDetailPanel() {
+  var overlay = document.getElementById('productionTaskDetailOverlay');
+  var panel = document.getElementById('productionTaskDetailPanel');
+  if (overlay) overlay.style.display = 'none';
+  if (panel) panel.style.display = 'none';
+  currentProductionTaskId = null;
+}
+function groupTasksByPeriod(tasks) {
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth();
+  var startThisMonth = new Date(y, m, 1).getTime();
+  var endThisMonth = new Date(y, m + 1, 0).getTime();
+  var startNextMonth = new Date(y, m + 1, 1).getTime();
+  var endNextMonth = new Date(y, m + 2, 0).getTime();
+  var overdue = [], thisMonth = [], nextMonth = [], later = [];
+  tasks.forEach(function(t) {
+    var due = t.deadline ? new Date(t.deadline).getTime() : null;
+    if (due !== null && due < startThisMonth) overdue.push(t);
+    else if (due !== null && due >= startThisMonth && due <= endThisMonth) thisMonth.push(t);
+    else if (due !== null && due >= startNextMonth && due <= endNextMonth) nextMonth.push(t);
+    else later.push(t);
+  });
+  return [
+    { label: 'Overdue', tasks: overdue },
+    { label: 'This month', tasks: thisMonth },
+    { label: 'Next month', tasks: nextMonth },
+    { label: 'Later', tasks: later }
+  ];
+}
+function renderProductionWorkspace(task, clientsData, designerMap) {
+  var clientName = (clientsData && clientsData[task.clientId] && clientsData[task.clientId].name) || task.clientId || '—';
+  var title = (task.caption || task.briefNotes || 'Untitled demand').replace(/</g, '&lt;');
+  var dueStr = task.deadline ? (function() { var d = new Date(task.deadline); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })() : '—';
+  var now = new Date();
+  var isOverdue = task.deadline && new Date(task.deadline) < now && ['review', 'approved', 'ready_to_post'].indexOf(task.status) === -1;
+  var designerName = designerMap[task.designerId] || (currentStaff && task.designerId === currentStaff.id ? (currentStaff.name || currentStaff.fullName || currentStaff.username || 'You') : null) || task.designerId || '—';
+  var priorityColors = { low: '#22c55e', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' };
+  var priorityDot = priorityColors[task.priority] || '#64748b';
+  var isAssignedDesigner = isDesigner && currentStaff && task.designerId === currentStaff.id;
+  var isManager = !isDesigner;
+  var hasArt = task.finalArt && task.finalArt.length > 0;
+  var refs = task.referenceImages && task.referenceImages.length ? task.referenceImages : [];
+
+  var html = '<div class="production-workspace-wrap">';
+  html += '<a href="#" id="productionTaskDetailBack" class="workspace-back">← Back to Demands</a>';
+  html += '<div class="workspace-header">';
+  html += '<div><h1 class="workspace-title" style="font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 12px 0; color: #1e293b;">' + title + '</h1>';
+  html += '<div class="workspace-meta" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 13px; color: #64748b;">';
+  html += '<span><strong style="color: #475569;">Client</strong> ' + (clientName + '').replace(/</g, '&lt;') + '</span>';
+  html += '<span><strong style="color: #475569;">Due</strong> <span style="color:' + (isOverdue ? '#dc2626' : '#334155') + ';">' + dueStr + (isOverdue ? ' (overdue)' : '') + '</span></span>';
+  html += '<span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:' + priorityDot + ';"></span> <strong style="color: #475569;">' + (task.priority || 'medium') + '</strong></span>';
+  html += '<span><strong style="color: #475569;">Assigned to</strong> ' + (designerName + '').replace(/</g, '&lt;') + '</span></div></div>';
+  html += '<div class="workspace-header-badge">' + getWorkspaceStatusBadge(task.status) + '</div></div>';
+
+  html += '<div class="workspace-body">';
+  html += '<div class="workspace-left">';
+  html += '<div class="creative-brief"><h2 class="section-title">Creative Brief</h2>';
+  html += '<div class="copy-text-box">' + (task.caption && task.caption.trim() ? (task.caption || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No copy text provided.') + '</div>';
+  html += '<p class="instructions-text" style="margin:0 0 8px 0;font-weight:600;color:#1e293b;">Instructions</p>';
+  html += '<p class="instructions-text">' + (task.briefNotes && task.briefNotes.trim() ? (task.briefNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No additional instructions.') + '</p></div>';
+  html += '<div class="references-section"><h2 class="section-title">References' + (refs.length ? ' (' + refs.length + ')' : '') + '</h2>';
+  if (refs.length === 0) html += '<p style="margin:0;font-size:14px;color:#64748b;">No reference images attached.</p>';
+  else {
+    html += '<div class="reference-grid">';
+    refs.forEach(function(url) {
+      var safeUrl = (url || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      html += '<div><a href="' + safeUrl + '" target="_blank" rel="noopener" class="reference-thumb-wrap"><img src="' + safeUrl + '" alt="Reference" class="reference-thumb"></a><a href="' + safeUrl + '" download class="reference-save" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;margin-top:6px;">↓ Save</a></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  html += '<div class="workspace-right"><div class="upload-section">';
+  if (task.status === 'review' && isManager) {
+    html += '<h2 class="section-title">Design Upload</h2>';
+    if (hasArt) {
+      html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Submission" style="max-width:100%;border-radius:10px;"></div>';
+      html += '<div style="margin-top:12px;"><button type="button" class="workspace-btn workspace-btn-approve" data-id="' + task.id + '">Approve</button> <button type="button" class="workspace-btn workspace-btn-request-changes" data-id="' + task.id + '">Request Changes</button></div>';
+    } else html += '<p style="color:#64748b;">No art submitted yet.</p>';
+  } else if (task.status === 'review' && isAssignedDesigner) {
+    html += '<h2 class="section-title">Your Design</h2>';
+    if (hasArt) html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Submission" style="max-width:100%;border-radius:10px;"></div>';
+    html += '<p style="margin-top:12px;color:#64748b;">Submitted for review. Waiting for feedback.</p>';
+  } else if ((task.status === 'approved' || task.status === 'ready_to_post') && hasArt) {
+    html += '<h2 class="section-title">Design</h2>';
+    html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Approved" style="max-width:100%;border-radius:10px;"></div>';
+    html += '<span style="display:inline-block;margin-top:12px;padding:6px 14px;border-radius:9999px;font-size:13px;font-weight:600;background:#dcfce7;color:#16a34a;">✓ Approved</span>';
+  } else if (task.status === 'assigned' && isAssignedDesigner) {
+    html += '<h2 class="section-title">Design Upload</h2>';
+    html += '<p style="color:#64748b;margin-bottom:12px;">Start working on this task first.</p>';
+    html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-start" data-id="' + task.id + '">Start Working</button>';
+  } else if ((task.status === 'in_progress' || task.status === 'changes_requested') && isAssignedDesigner) {
+    html += '<h2 class="section-title">Design Upload / Preview</h2>';
+    if (task.reviewNotes && task.reviewNotes.trim()) html += '<div class="review-feedback" style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;color:#92400e;">' + (task.reviewNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+    if (!hasArt) {
+      html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><div class="upload-drop-content"><span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG accepted · Max 10MB per file</p></div></div>';
+    } else {
+      html += '<div class="upload-preview-main"><img id="workspaceMainPreview' + task.id + '" src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Preview" style="max-width:100%;border-radius:10px;"></div>';
+      html += '<div class="upload-thumbs" id="workspaceThumbs' + task.id + '">';
+      task.finalArt.forEach(function(url, i) {
+        var safe = (url || '').replace(/"/g, '&quot;');
+        html += '<button type="button" class="upload-thumb-btn' + (i === 0 ? ' active' : '') + '" data-url="' + safe + '" data-index="' + i + '" style="width:60px;height:60px;border-radius:8px;overflow:hidden;padding:0;border:2px solid ' + (i === 0 ? '#1a56db' : '#e2e8f0') + ';background:#f1f5f9;cursor:pointer;"><img src="' + safe + '" alt="" style="width:100%;height:100%;object-fit:cover;"></button>';
+      });
+      html += '</div><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><a href="#" class="workspace-add-more" data-id="' + task.id + '">+ Add More</a>';
+      html += '<div style="margin-top:12px;"><button type="button" class="workspace-btn workspace-btn-replace" data-id="' + task.id + '">Replace All</button></div>';
+      html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-submit-review" data-id="' + task.id + '" style="width:100%;margin-top:16px;">Submit for Review ▶</button>';
+    }
+  } else {
+    html += '<h2 class="section-title">Design Upload</h2>';
+    if (hasArt) html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Preview" style="max-width:100%;border-radius:10px;"></div>';
+    else html += '<p style="color:#64748b;">No design uploaded yet.</p>';
+  }
+  html += '</div></div></div>';
+
+  var comments = task.comments && Array.isArray(task.comments) ? task.comments : [];
+  html += '<div class="feedback-section" id="workspaceFeedbackSection' + task.id + '"><h2 class="section-title">Review &amp; Feedback</h2>';
+  if (task.status === 'review' && isManager) {
+    html += '<div class="feedback-review-actions" style="margin-bottom: 20px; padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px;"><p class="feedback-review-p" style="margin: 0 0 12px 0; font-weight: 600; color: #166534;">This task is ready for your review.</p>';
+    html += '<button type="button" class="workspace-btn workspace-btn-approve-comment" data-id="' + task.id + '" style="background: #16a34a; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: 8px;">✓ Approve</button>';
+    html += '<button type="button" class="workspace-btn workspace-btn-request-changes-comment" data-id="' + task.id + '" style="background: #ea580c; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">✎ Request Changes</button></div>';
+  }
+  if (comments.length === 0) {
+    html += '<p class="feedback-empty">No feedback yet. Comments and review notes will appear here.</p>';
+  } else {
+    comments.forEach(function(c) {
+      var roleLabel = c.authorRole === 'designer' ? 'Designer' : 'Agency';
+      var cardClass = 'comment-card from-' + (c.authorRole === 'designer' ? 'designer' : 'agency');
+      var safeMsg = (c.message || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+      var timeStr = formatCommentTime(c.createdAt);
+      var statusLabel = c.statusChange ? getCommentStatusChangeLabel(c.statusChange) : '';
+      html += '<div class="' + cardClass + '"><div class="comment-header"><span class="comment-author">' + (c.authorName || 'User').replace(/</g, '&lt;') + ' <span class="comment-role">(' + roleLabel + ')</span></span><span class="comment-time">' + timeStr + '</span></div>';
+      html += '<div class="comment-body">' + safeMsg + '</div>';
+      if (statusLabel) html += '<div class="comment-status-change">Status changed: ' + statusLabel + '</div>';
+      html += '</div>';
+    });
+  }
+  html += '<div class="comment-input-row"><textarea id="workspaceCommentInput' + task.id + '" placeholder="Type your feedback..." rows="2" class="comment-input-textarea"></textarea>';
+  html += '<button type="button" class="btn-send-comment" data-id="' + task.id + '">Send</button></div></div>';
+
+  html += '</div>';
+  return html;
+}
+function bindWorkspaceEvents(container, task) {
+  var taskId = task.id;
+  var backLink = container.querySelector('#productionTaskDetailBack');
+  if (backLink) backLink.addEventListener('click', function(e) { e.preventDefault(); currentProductionTaskId = null; renderProductionView(); });
+
+  function postCommentAndRefresh(message, statusChange) {
+    var body = { message: message || '' };
+    if (statusChange) body.statusChange = statusChange;
+    return fetch(getApiBaseUrl() + '/api/production/tasks/' + taskId + '/comment', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function(r) { return r.json(); })
+      .then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); })
+      .then(function() { renderProductionView(); });
+  }
+
+  var startBtn = container.querySelector('.workspace-btn-start[data-id="' + taskId + '"]');
+  if (startBtn) startBtn.addEventListener('click', function() {
+    postCommentAndRefresh('Started working on this task', 'in_progress').then(function() { showToast('Started working'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var submitBtn = container.querySelector('.workspace-btn-submit-review[data-id="' + taskId + '"]');
+  if (submitBtn) submitBtn.addEventListener('click', function() {
+    var msg = task.status === 'changes_requested' ? 'Resubmitted with changes' : 'Submitted design for review';
+    postCommentAndRefresh(msg, 'review').then(function() { showToast('Submitted for review'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var approveBtn = container.querySelector('.workspace-btn-approve[data-id="' + taskId + '"]');
+  if (approveBtn) approveBtn.addEventListener('click', function() {
+    postCommentAndRefresh('Approved', 'approved').then(function() { showToast('Design approved! Sent to client approvals for review.'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var approveCommentBtn = container.querySelector('.workspace-btn-approve-comment[data-id="' + taskId + '"]');
+  if (approveCommentBtn) approveCommentBtn.addEventListener('click', function() {
+    postCommentAndRefresh('Approved', 'approved').then(function() { showToast('Design approved! Sent to client approvals for review.'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var requestChangesBtn = container.querySelector('.workspace-btn-request-changes[data-id="' + taskId + '"]');
+  if (requestChangesBtn) requestChangesBtn.addEventListener('click', function() {
+    var notes = prompt('Describe what changes are needed...');
+    if (notes === null) return;
+    postCommentAndRefresh(notes.trim() || 'Requested changes', 'changes_requested').then(function() { showToast('Changes requested'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var requestChangesCommentBtn = container.querySelector('.workspace-btn-request-changes-comment[data-id="' + taskId + '"]');
+  if (requestChangesCommentBtn) requestChangesCommentBtn.addEventListener('click', function() {
+    var textarea = document.getElementById('workspaceCommentInput' + taskId);
+    if (textarea) { textarea.placeholder = 'Describe what changes are needed...'; textarea.focus(); }
+    var notes = prompt('Describe what changes are needed...');
+    if (notes === null) return;
+    postCommentAndRefresh(notes.trim() || 'Requested changes', 'changes_requested').then(function() { showToast('Changes requested'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var sendCommentBtn = container.querySelector('.btn-send-comment[data-id="' + taskId + '"]');
+  var commentInput = document.getElementById('workspaceCommentInput' + taskId);
+  if (sendCommentBtn && commentInput) {
+    sendCommentBtn.addEventListener('click', function() {
+      var msg = (commentInput.value || '').trim();
+      if (!msg) return;
+      sendCommentBtn.disabled = true;
+      postCommentAndRefresh(msg, null).then(function() {
+        var section = document.getElementById('workspaceFeedbackSection' + taskId);
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }).catch(function(e) { showToast(e.message || 'Failed', 'error'); }).finally(function() { sendCommentBtn.disabled = false; });
+    });
+  }
+
+  var replaceBtn = container.querySelector('.workspace-btn-replace[data-id="' + taskId + '"]');
+  if (replaceBtn) replaceBtn.addEventListener('click', function() {
+    fetch(getApiBaseUrl() + '/api/production/tasks/' + taskId + '/upload-art', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: [] }) })
+      .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+  });
+
+  var addMoreLink = container.querySelector('.workspace-add-more[data-id="' + taskId + '"]');
+  var fileInput = document.getElementById('workspaceFileInput' + taskId);
+  if (addMoreLink && fileInput) addMoreLink.addEventListener('click', function(e) { e.preventDefault(); fileInput.click(); });
+
+  var dropZone = document.getElementById('workspaceDropZone' + taskId);
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('click', function() { fileInput.click(); });
+    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('upload-drop-zone--over'); });
+    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('upload-drop-zone--over'); });
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropZone.classList.remove('upload-drop-zone--over');
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) runWorkspaceUpload(taskId, files, dropZone);
+    });
+  }
+  if (fileInput) fileInput.addEventListener('change', function() {
+    var files = fileInput.files;
+    if (!files || !files.length) return;
+    runWorkspaceUpload(taskId, files, dropZone || fileInput.parentElement);
+    fileInput.value = '';
+  });
+
+  var thumbs = container.querySelectorAll('.upload-thumb-btn');
+  var mainPreview = document.getElementById('workspaceMainPreview' + taskId);
+  thumbs.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var url = btn.getAttribute('data-url');
+      if (mainPreview && url) mainPreview.src = url;
+      thumbs.forEach(function(b) { b.style.borderColor = '#e2e8f0'; });
+      btn.style.borderColor = '#1a56db';
+    });
+  });
+}
+function runWorkspaceUpload(taskId, files, feedbackEl) {
+  var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+  var currentUrls = (task && task.finalArt) ? task.finalArt.slice() : [];
+  var toUpload = [];
+  for (var i = 0; i < files.length; i++) {
+    if (files[i].type === 'image/jpeg' || files[i].type === 'image/png') toUpload.push(files[i]);
+  }
+  if (toUpload.length === 0) { showToast('No valid images (JPG/PNG)', 'error'); return; }
+  if (feedbackEl) feedbackEl.classList.add('upload-drop-zone--loading');
+  var uploadUrl = getApiBaseUrl() + '/api/upload/image';
+  var promises = toUpload.map(function(file) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function() {
+        fetch(uploadUrl, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: reader.result }) })
+          .then(function(r) {
+            return r.json();
+          }).then(function(j) { resolve(j && j.url ? j.url : null); }).catch(function(err) {
+            resolve(null);
+          });
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+  Promise.all(promises).then(function(urls) {
+    urls = urls.filter(Boolean);
+    if (urls.length === 0) { if (feedbackEl) feedbackEl.classList.remove('upload-drop-zone--loading'); showToast('Upload failed', 'error'); return; }
+    var allUrls = currentUrls.concat(urls);
+    fetch(getApiBaseUrl() + '/api/production/tasks/' + taskId + '/upload-art', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: allUrls }) })
+      .then(function(r) { return r.json(); }).then(function(j) {
+        if (!j.task) throw new Error(j.error || 'Failed');
+        if (feedbackEl) feedbackEl.classList.remove('upload-drop-zone--loading');
+        return loadProductionTasks();
+      }).then(function() { renderProductionView(); showToast('Uploaded'); }).catch(function(e) { if (feedbackEl) feedbackEl.classList.remove('upload-drop-zone--loading'); showToast(e.message || 'Upload failed', 'error'); });
+  });
+}
+function renderProductionView() {
+  const container = document.getElementById('productionViewInner');
+  if (!container) return;
+  document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+  var activeLink = document.querySelector('.production-sidebar__link[data-section="' + currentProductionSection + '"]');
+  if (activeLink) activeLink.classList.add('active');
+  if (currentProductionSection === 'ai-library') {
+    var clients = loadClientsRegistry();
+    var clientList = clients ? Object.keys(clients).map(function(id) { return clients[id].name || id; }).join(', ') : '—';
+    container.innerHTML = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">AI Library</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">A library of images for each client will be available here.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Coming soon</span><p style="font-size: 13px; color: #94a3b8; margin-top: 16px;">Clients: ' + (clientList || 'None') + '</p></div>';
+    return;
+  }
+  if (currentProductionSection === 'references') {
+    var clientsRef = loadClientsRegistry();
+    var list = clientsRef ? Object.keys(clientsRef) : [];
+    var refHtml;
+    if (list.length === 0) {
+      refHtml = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">References</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">Check client references and visual identity guidelines.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Coming soon</span><p style="color: #94a3b8; margin-top: 16px; font-size: 13px;">No clients yet. References will appear here by client.</p></div>';
+    } else {
+      refHtml = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">References</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">Check client references and how the visual identity works.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Reference materials coming soon</span><ul style="list-style: none; padding: 0; margin-top: 24px; text-align: left;">';
+      list.forEach(function(cid) {
+        var c = clientsRef[cid];
+        var name = (c && c.name) || cid;
+        refHtml += '<li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;"><strong>' + name + '</strong><span style="color: #64748b; font-size: 13px;"> — Reference materials coming soon.</span></li>';
+      });
+      refHtml += '</ul></div>';
+    }
+    container.innerHTML = refHtml;
+    return;
+  }
+  var clientsData = loadClientsRegistry();
+  if (currentProductionSection === 'demands' && currentProductionTaskId) {
+    var task = productionTasksCache.find(function(t) { return t.id === currentProductionTaskId; });
+    if (task) {
+      var designerMap = {};
+      designersCache.forEach(function(d) { designerMap[d.id] = d.name || d.email || 'Designer'; });
+      if (currentStaff && (currentStaff.role === 'DESIGNER' || currentStaff.role === 'STAFF' || currentStaff.role === 'ADMIN' || currentStaff.role === 'OWNER')) {
+        designerMap[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || currentStaff.email || 'You';
+      }
+      container.innerHTML = renderProductionWorkspace(task, clientsData, designerMap);
+      bindWorkspaceEvents(container, task);
+      return;
+    }
+    currentProductionTaskId = null;
+  }
+  if (isDesigner) {
+    const tasks = productionTasksCache;
+    var designerMapMyTasks = {};
+    designersCache.forEach(function(d) { designerMapMyTasks[d.id] = d.name || d.email || 'Designer'; });
+    if (currentStaff) designerMapMyTasks[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
+    let html = '<div style="padding: 24px;"><h2 style="margin: 0 0 24px 0; font-size: 20px; font-weight: 600; color: #1e293b;">My Tasks</h2>';
+    if (tasks.length === 0) {
+      html += '<div style="text-align: center; padding: 48px 24px; color: #64748b; font-size: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa;">No tasks assigned yet. New tasks will appear here.</div></div>';
+      container.innerHTML = html;
+      return;
+    }
+    tasks.forEach(function(t) {
+      const clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId;
+      const cap = (t.caption || '').slice(0, 80) + ((t.caption || '').length > 80 ? '…' : '');
+      const refImg = (t.referenceImages && t.referenceImages[0]) ? '<img src="' + t.referenceImages[0] + '" alt="" style="width: 72px; height: 72px; object-fit: cover; border-radius: 8px;">' : '';
+      const deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '';
+      const isOverdue = t.deadline && new Date(t.deadline) < new Date() && !['approved', 'ready_to_post'].includes(t.status);
+      var assigneeName = designerMapMyTasks[t.designerId] || t.designerId || '—';
+      html += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid ' + priorityColor(t.priority) + '; box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06); transition: box-shadow 0.2s ease; cursor: pointer;">';
+      html += '<div style="font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 6px;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
+      html += '<div style="font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #1e293b;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
+      html += '<div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">' + refImg + '</div>';
+      html += '<div style="font-size: 12px; color: #64748b;">Deadline: <span style="' + (isOverdue ? 'color: #dc2626; font-weight: 600;' : '') + '">' + deadlineStr + '</span> · Priority: <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:' + priorityColor(t.priority) + ';"></span>' + t.priority + '</span></div>';
+      html += '<div style="margin-top: 12px;">';
+      if (t.status === 'assigned') html += '<button type="button" class="btn-start-task" data-id="' + t.id + '" style="padding: 6px 14px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Working</button>';
+      if (t.status === 'in_progress' || t.status === 'changes_requested') {
+        html += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display: none;">';
+        html += '<button type="button" class="btn-upload-art" data-id="' + t.id + '" style="padding: 6px 14px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">Upload final art</button> ';
+      }
+      if (t.status === 'in_progress') html += '<button type="button" class="btn-submit-review" data-id="' + t.id + '" style="padding: 6px 14px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer;">Submit for Review</button>';
+      if (t.status === 'changes_requested') html += '<button type="button" class="btn-resubmit" data-id="' + t.id + '" style="padding: 6px 14px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;">Resubmit</button>';
+      if (t.status === 'approved') html += '<span style="color: #059669; font-weight: 600;">✓ Approved</span>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    container.querySelectorAll('.production-task-card').forEach(function(card) {
+      card.addEventListener('click', function(e) {
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        var id = card.getAttribute('data-task-id');
+        if (id) { currentProductionTaskId = id; renderProductionView(); }
+      });
+    });
+    container.querySelectorAll('.btn-start-task').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = btn.getAttribute('data-id');
+        fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'in_progress' }) })
+          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+      });
+    });
+    container.querySelectorAll('.btn-submit-review').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = btn.getAttribute('data-id');
+        fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
+          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+      });
+    });
+    container.querySelectorAll('.btn-resubmit').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = btn.getAttribute('data-id');
+        fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
+          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+      });
+    });
+    container.querySelectorAll('.btn-upload-art').forEach(function(btn) {
+      var taskId = btn.getAttribute('data-id');
+      var input = container.querySelector('.upload-final-art-input[data-id="' + taskId + '"]');
+      if (!input) return;
+      btn.addEventListener('click', function() { input.click(); });
+      input.addEventListener('change', function() {
+        var files = input.files;
+        if (!files || !files.length) return;
+        var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+        var currentUrls = (task && task.finalArt) ? task.finalArt.slice() : [];
+        var promises = [];
+        for (var i = 0; i < files.length; i++) {
+          var f = files[i];
+          if (!f.type.startsWith('image/')) continue;
+          var p = new Promise(function(resolve) {
+            var reader = new FileReader();
+            reader.onload = function() {
+              fetch(getApiBaseUrl() + '/api/upload/image', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: reader.result }) })
+                .then(function(r) { return r.json(); })
+                .then(function(j) { resolve(j.url); })
+                .catch(function() { resolve(null); });
+            };
+            reader.readAsDataURL(f);
+          });
+          promises.push(p);
+        }
+        Promise.all(promises).then(function(urls) {
+          urls = urls.filter(Boolean);
+          if (urls.length === 0) { showToast('No valid images uploaded', 'error'); return; }
+          var allUrls = currentUrls.concat(urls);
+          fetch(getApiBaseUrl() + '/api/production/tasks/' + taskId + '/upload-art', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: allUrls }) })
+            .then(function(r) { return r.json(); })
+            .then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); input.value = ''; return loadProductionTasks(); })
+            .then(function() { renderProductionView(); showToast('Art uploaded'); })
+            .catch(function(e) { showToast(e.message || 'Upload failed', 'error'); });
+        });
+      });
+    });
+    return;
+  }
+  var designerMap = {};
+  designersCache.forEach(function(d) { designerMap[d.id] = d.name || d.email || 'Designer'; });
+  if (currentStaff) designerMap[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
+  var tasks = getFilteredDemands();
+  var uniqueClientIds = [];
+  productionTasksCache.forEach(function(t) {
+    if (t.clientId && uniqueClientIds.indexOf(t.clientId) === -1) uniqueClientIds.push(t.clientId);
+  });
+  var now = new Date();
+  var todayStr = now.toISOString().slice(0, 10);
+  var statsTotal = tasks.length;
+  var statsToDo = tasks.filter(function(t) { return t.status === 'assigned'; }).length;
+  var statsInProgress = tasks.filter(function(t) { return ['in_progress', 'changes_requested'].indexOf(t.status) !== -1; }).length;
+  var statsOverdue = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
+  var statsCompleted = tasks.filter(function(t) { return ['review', 'approved', 'ready_to_post'].indexOf(t.status) !== -1; }).length;
+  var html = '<div class="production-demands-wrap demands-main-table production-light-canvas">';
+  html += '<div class="production-filter-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px;">';
+  html += '<div style="display: flex; align-items: center; gap: 8px;">';
+  html += '<button type="button" id="demandsViewTable" class="demands-view-btn' + (demandViewMode === 'table' ? ' active' : '') + '" style="padding: 8px 14px; border-radius: 8px; border: none; background: ' + (demandViewMode === 'table' ? '#334155' : 'transparent') + '; color: ' + (demandViewMode === 'table' ? '#f1f5f9' : '#94a3b8') + '; font-size: 13px; font-weight: 600; cursor: pointer;">Main table</button>';
+  html += '<button type="button" id="demandsViewKanban" class="demands-view-btn' + (demandViewMode === 'kanban' ? ' active' : '') + '" style="padding: 8px 14px; border-radius: 8px; border: none; background: ' + (demandViewMode === 'kanban' ? '#334155' : 'transparent') + '; color: ' + (demandViewMode === 'kanban' ? '#f1f5f9' : '#94a3b8') + '; font-size: 13px; cursor: pointer;">Kanban</button>';
+  html += '</div>';
+  html += '<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">';
+  html += '<input type="text" id="demandsSearchInput" class="demands-search-input" placeholder="🔍 Search tasks..." style="padding: 8px 12px 8px 36px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; background: #fff; color: #1e293b; width: 200px;">';
+  html += '<span class="production-filter-label" style="font-size: 12px; color: #94a3b8;">Filter</span>';
+  html += '<select id="demandFilterStatus" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; font-size: 12px; background: #1e293b; color: #e2e8f0;">';
+  html += '<option value="">All Status</option><option value="todo"' + (demandFilterStatus === 'todo' ? ' selected' : '') + '>To do</option><option value="in_progress"' + (demandFilterStatus === 'in_progress' ? ' selected' : '') + '>In progress</option><option value="completed"' + (demandFilterStatus === 'completed' ? ' selected' : '') + '>Done</option>';
+  html += '</select>';
+  html += '<select id="demandFilterClient" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; font-size: 12px; background: #1e293b; color: #e2e8f0;">';
+  html += '<option value="">All Clients</option>';
+  uniqueClientIds.forEach(function(cid) {
+    var cName = (clientsData && clientsData[cid] && clientsData[cid].name) || cid;
+    html += '<option value="' + (cid || '').replace(/"/g, '&quot;') + '"' + (demandFilterClient === cid ? ' selected' : '') + '>' + (cName || 'Unknown').replace(/</g, '&lt;') + '</option>';
+  });
+  html += '</select>';
+  html += '<button type="button" id="demandFilterDueToday" class="filter-chip' + (demandFilterDueToday ? ' filter-chip--active' : '') + '" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #475569; font-size: 12px; cursor: pointer; background: ' + (demandFilterDueToday ? '#3b82f6' : 'transparent') + '; color: ' + (demandFilterDueToday ? '#fff' : '#94a3b8') + ';">Due Today</button>';
+  html += '<button type="button" class="filter-chip filter-chip--overdue filter-chip--disabled" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: not-allowed;" disabled title="Coming soon">Overdue</button>';
+  html += '<button type="button" class="filter-chip filter-chip--mytasks filter-chip--disabled" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: not-allowed;" disabled title="Coming soon">My Tasks</button>';
+  html += '<button type="button" id="btnAssignTask" class="production-btn-assign" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s ease;">➕ Assign Task</button>';
+  html += '</div></div>';
+  html += '<div class="demands-stats-strip production-stats-strip-light"><span><span class="stat-dot" style="background: #64748b;"></span> ' + statsTotal + ' Total</span><span><span class="stat-dot" style="background: #6b7280;"></span> ' + statsToDo + ' To do</span><span><span class="stat-dot" style="background: #3b82f6;"></span> ' + statsInProgress + ' In Progress</span><span><span class="stat-dot" style="background: #ef4444;"></span> ' + statsOverdue + ' Overdue</span><span><span class="stat-dot" style="background: #22c55e;"></span> ' + statsCompleted + ' Completed</span></div>';
+  if (demandViewMode === 'kanban') {
+    html += '<div id="demandsKanbanContainer" class="production-kanban-wrap production-dark-container" style="padding: 20px;"></div>';
+    html += '</div>';
+    container.innerHTML = html;
+    var kanbanEl = document.getElementById('demandsKanbanContainer');
+    if (kanbanEl) renderProductionKanbanView(kanbanEl, clientsData);
+    var sEl = document.getElementById('demandFilterStatus');
+    var cEl = document.getElementById('demandFilterClient');
+    var dEl = document.getElementById('demandFilterDueToday');
+    if (sEl) sEl.addEventListener('change', function() { demandFilterStatus = sEl.value || ''; renderProductionView(); });
+    if (cEl) cEl.addEventListener('change', function() { demandFilterClient = cEl.value || ''; renderProductionView(); });
+    if (dEl) dEl.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
+    var vt = document.getElementById('demandsViewTable');
+    var vk = document.getElementById('demandsViewKanban');
+    if (vt) vt.addEventListener('click', function() { demandViewMode = 'table'; renderProductionView(); });
+    if (vk) vk.addEventListener('click', function() { demandViewMode = 'kanban'; renderProductionView(); });
+    var btnA = document.getElementById('btnAssignTask');
+    if (btnA) btnA.addEventListener('click', function() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); });
+    return;
+  }
+  html += '<div class="production-dark-container production-demands-table-wrap">';
+  if (tasks.length === 0) {
+    html += '<div class="demands-empty" style="text-align: center; padding: 48px 24px; color: #94a3b8; font-size: 14px;">';
+    html += 'No demands found.<br><span style="font-size: 12px; margin-top: 8px; display: block;">Use "Send to Designer" from the Approvals tab to create new demands.</span>';
+    html += '</div>';
+  } else {
+    var groups = groupTasksByPeriod(tasks);
+    groups.forEach(function(group) {
+      if (group.tasks.length === 0) return;
+      html += '<div class="demands-group" style="border-bottom: 1px solid #e2e8f0;">';
+      html += '<div class="demands-group-header" style="display: grid; grid-template-columns: 24px 100px 1fr 120px 140px 100px; align-items: center; gap: 12px; padding: 10px 20px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0;">';
+      html += '<span style="opacity: 0.6;">▼</span>';
+      html += '<span>Client</span>';
+      html += '<span>TASK</span>';
+      html += '<span>Timeline</span>';
+      html += '<span>Assignee</span>';
+      html += '<span>Status</span>';
+      html += '</div>';
+      group.tasks.forEach(function(t) {
+        var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId;
+        var title = (t.caption || t.briefNotes || 'Untitled demand').slice(0, 60) + ((t.caption || t.briefNotes || '').length > 60 ? '…' : '');
+        var dueStr = t.deadline ? (function() { var d = new Date(t.deadline); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })() : '—';
+        var now = new Date();
+        var isOverdue = t.deadline && new Date(t.deadline) < now && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1;
+        var dueUrgency = 'future';
+        if (t.deadline) {
+          var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          var dueDate = new Date(t.deadline);
+          var dueStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime();
+          if (dueStart < todayStart) dueUrgency = 'overdue';
+          else if (dueStart === todayStart) dueUrgency = 'today';
+        }
+        var designerName = designerMap[t.designerId] || (currentStaff && t.designerId === currentStaff.id ? (currentStaff.name || currentStaff.fullName || currentStaff.username || 'You') : null) || t.designerId || '—';
+        var initial = (designerName + '').charAt(0).toUpperCase();
+        var avatarRing = (t.status === 'approved' || t.status === 'ready_to_post') ? '#16a34a' : (t.status === 'review' ? '#d97706' : (['in_progress', 'changes_requested'].indexOf(t.status) !== -1 ? '#2563eb' : '#64748b'));
+        html += '<div class="demand-row production-task-card" data-task-id="' + t.id + '" style="display: grid; grid-template-columns: 24px 100px 1fr 120px 140px 100px; align-items: center; gap: 12px; padding: 10px 20px; min-height: 48px; line-height: 1.5; background: #ffffff; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: background 0.15s ease;">';
+        html += '<span class="demand-row-menu" style="color: #94a3b8; font-size: 14px; cursor: grab; opacity: 0.5;">⋮</span>';
+        html += '<div style="font-size: 13px; color: #64748b;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
+        html += '<div class="demand-task-name" style="font-size: 14px; font-weight: 600; color: #1e293b;">' + (title || 'Untitled').replace(/</g, '&lt;') + '</div>';
+        html += '<span class="due-pill due-pill--' + dueUrgency + '">' + dueStr + (isOverdue ? ' <span class="due-pill-overdue-label">Overdue</span>' : '') + '</span>';
+        html += '<div style="display: flex; align-items: center; gap: 8px;"><span style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ' + avatarRing + '; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; box-sizing: border-box;">' + initial + '</span><span style="font-size: 13px; color: #334155;">' + (designerName + '').replace(/</g, '&lt;') + '</span></div>';
+        html += '<div>' + getDemandStatusBadgeDark(t.status) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+  }
+  html += '</div></div>';
+  container.innerHTML = html;
+  var statusEl = document.getElementById('demandFilterStatus');
+  var clientEl = document.getElementById('demandFilterClient');
+  var dueTodayEl = document.getElementById('demandFilterDueToday');
+  var searchEl = document.getElementById('demandsSearchInput');
+  if (statusEl) statusEl.addEventListener('change', function() { demandFilterStatus = statusEl.value || ''; renderProductionView(); });
+  if (clientEl) clientEl.addEventListener('change', function() { demandFilterClient = clientEl.value || ''; renderProductionView(); });
+  if (dueTodayEl) dueTodayEl.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
+  if (searchEl) searchEl.addEventListener('input', function() {
+    var q = (searchEl.value || '').toLowerCase().trim();
+    container.querySelectorAll('.demand-row').forEach(function(row) {
+      var id = row.getAttribute('data-task-id');
+      var task = productionTasksCache.find(function(t) { return t.id === id; });
+      var text = ((task && (task.caption || '') + ' ' + (task && task.briefNotes || '')) || '').toLowerCase();
+      row.style.display = !q || text.indexOf(q) !== -1 ? '' : 'none';
+    });
+  });
+  container.querySelectorAll('.demand-row').forEach(function(row) {
+    row.addEventListener('click', function(e) {
+      if (e.target.closest('button')) return;
+      var id = row.getAttribute('data-task-id');
+      if (id) { currentProductionTaskId = id; renderProductionView(); }
+    });
+    row.addEventListener('mouseenter', function() {
+      if (row.closest('.production-demands-table-wrap')) { row.style.background = '#f1f5f9'; } else { row.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }
+    });
+    row.addEventListener('mouseleave', function() {
+      if (row.closest('.production-demands-table-wrap')) { row.style.background = '#ffffff'; } else { row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)'; }
+    });
+  });
+  var btnAssign = document.getElementById('btnAssignTask');
+  if (btnAssign) btnAssign.addEventListener('click', function() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); });
+  var viewTableBtn = document.getElementById('demandsViewTable');
+  var viewKanbanBtn = document.getElementById('demandsViewKanban');
+  if (viewTableBtn) viewTableBtn.addEventListener('click', function() { demandViewMode = 'table'; renderProductionView(); });
+  if (viewKanbanBtn) viewKanbanBtn.addEventListener('click', function() { demandViewMode = 'kanban'; renderProductionView(); });
+}
+
+function renderProductionKanbanView(container, clientsData) {
+  if (!container) return;
+  var designerMapKanban = {};
+  designersCache.forEach(function(d) { designerMapKanban[d.id] = d.name || d.email || 'Designer'; });
+  if (currentStaff) designerMapKanban[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
+  var colColors = { assigned: { bg: '#f1f5f9', color: '#475569' }, in_progress: { bg: '#dbeafe', color: '#1d4ed8' }, review: { bg: '#fef3c7', color: '#d97706' }, changes_requested: { bg: '#fee2e2', color: '#dc2626' }, approved: { bg: '#dcfce7', color: '#16a34a' }, ready_to_post: { bg: '#dcfce7', color: '#16a34a' } };
+  var priorityBorder = { low: '#22c55e', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' };
+  var columns = ['assigned', 'in_progress', 'review', 'changes_requested', 'approved', 'ready_to_post'];
+  var labels = { assigned: 'Assigned', in_progress: 'In Progress', review: 'Review', changes_requested: 'Changes Requested', approved: 'Approved', ready_to_post: 'Ready to Post' };
+  var html = '<div class="production-kanban" style="display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px; min-height: 400px;">';
+  columns.forEach(function(col) {
+    var colTasks = productionTasksCache.filter(function(t) { return t.status === col; });
+    var cc = colColors[col] || colColors.assigned;
+    html += '<div class="kanban-column" data-status="' + col + '" style="min-width: 280px; max-width: 280px; display: flex; flex-direction: column;">';
+    html += '<div class="kanban-column-header" style="padding: 10px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-bottom: 12px; background: ' + cc.bg + '; color: ' + cc.color + ';">' + labels[col] + ' <span style="opacity: 0.9;">(' + colTasks.length + ')</span></div>';
+    html += '<div class="kanban-column-cards" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">';
+    colTasks.forEach(function(t) {
+      var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '—';
+      var cap = (t.caption || t.briefNotes || '').slice(0, 60) + ((t.caption || t.briefNotes || '').length > 60 ? '…' : '');
+      var designerName = designerMapKanban[t.designerId] || t.designerId || '—';
+      var initial = (designerName + '').charAt(0).toUpperCase();
+      var dueStr = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+      var borderColor = priorityBorder[t.priority] || priorityBorder.medium;
+      var thumbHtml = (t.finalArt && t.finalArt[0]) ? '<img src="' + (t.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;">' : '';
+      html += '<div class="kanban-card kanban-card--' + col + '" data-task-id="' + t.id + '" style="background: #fff; border-radius: 12px; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid ' + borderColor + '; cursor: pointer; transition: all 0.2s ease; overflow: hidden;">';
+      if (thumbHtml) html += thumbHtml;
+      html += '<div style="padding: 12px;">';
+      html += '<div class="kanban-card__client-chip" style="font-size: 11px; color: #64748b; margin-bottom: 4px;">' + (clientName + '').replace(/</g, '&lt;') + '</div>';
+      html += '<div class="kanban-card__title" style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
+      if (col === 'review') {
+        html += '<div style="margin-bottom: 8px; display: flex; gap: 6px;"><button type="button" class="btn-review-approve" data-id="' + t.id + '" style="padding: 6px 12px; font-size: 12px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer;">Approve</button><button type="button" class="btn-review-changes" data-id="' + t.id + '" style="padding: 6px 12px; font-size: 12px; background: #ea580c; color: white; border: none; border-radius: 6px; cursor: pointer;">Request Changes</button></div>';
+      }
+      html += '<div class="kanban-card__footer" style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9;"><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">' + initial + '</span><span style="font-size: 12px; color: #64748b;">' + (designerName + '').replace(/</g, '&lt;') + '</span></span><span style="font-size: 11px; color: #94a3b8;">' + dueStr + '</span></div>';
+      html += '</div></div>';
+    });
+    if (colTasks.length === 0) html += '<div class="kanban-column-empty" style="padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; border: 2px dashed #e2e8f0; border-radius: 8px; background: #fafafa;">No tasks in this column</div>';
+    html += '</div>';
+    html += '<button type="button" class="kanban-column-add-btn btnAssignTaskColumn" style="margin-top: 10px; padding: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; background: transparent; color: #64748b; font-size: 14px; cursor: pointer;">+ Add</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+  container.querySelectorAll('.kanban-card').forEach(function(card) {
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('button')) return;
+      var id = card.getAttribute('data-task-id');
+      if (id) { currentProductionTaskId = id; renderProductionView(); }
+    });
+  });
+  container.querySelectorAll('.btnAssignTaskColumn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); });
+  });
+  container.querySelectorAll('.btn-review-approve').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); showToast('Design approved! Sent to client approvals for review.'); }).catch(function(e) { showToast(e.message, 'error'); }); });
+  });
+  container.querySelectorAll('.btn-review-changes').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); var notes = prompt('Feedback for designer:'); if (notes === null) return; fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_changes', reviewNotes: notes }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(renderProductionView).catch(function(e) { showToast(e.message, 'error'); }); });
+  });
+}
+function openSendToDesignerModal(item) {
+  var modal = document.getElementById('sendToDesignerModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'sendToDesignerModal';
+    modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; align-items: center; justify-content: center;';
+    modal.innerHTML = '<div style="background: white; border-radius: 12px; padding: 24px; max-width: 440px; width: 90%;"><h3 style="margin: 0 0 16px 0;">Send to Designer</h3><label style="display: block; margin-bottom: 8px; font-weight: 600;">Designer *</label><select id="sendToDesignerDesigner" style="width: 100%; padding: 8px; margin-bottom: 16px;"></select><label style="display: block; margin-bottom: 8px; font-weight: 600;">Priority *</label><select id="sendToDesignerPriority" style="width: 100%; padding: 8px; margin-bottom: 16px;"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select><label style="display: block; margin-bottom: 8px; font-weight: 600;">Deadline *</label><input type="date" id="sendToDesignerDeadline" style="width: 100%; padding: 8px; margin-bottom: 16px;"><label style="display: block; margin-bottom: 8px; font-weight: 600;">Notes for Designer (optional)</label><textarea id="sendToDesignerNotes" rows="3" style="width: 100%; padding: 8px; margin-bottom: 16px;"></textarea><div style="display: flex; gap: 8px; justify-content: flex-end;"><button type="button" id="sendToDesignerCancel" class="btn btn-secondary">Cancel</button><button type="button" id="sendToDesignerSubmit" style="padding: 8px 16px; background: #1a56db; color: white; border: none; border-radius: 8px; cursor: pointer;">Send to Designer</button></div></div>';
+    document.body.appendChild(modal);
+    document.getElementById('sendToDesignerCancel').addEventListener('click', function() { modal.style.display = 'none'; });
+    document.getElementById('sendToDesignerSubmit').addEventListener('click', function() { submitSendToDesigner(modal); });
+  }
+  window.__sendToDesignerItem = item;
+  var sel = document.getElementById('sendToDesignerDesigner');
+  sel.innerHTML = '<option value="">Select designer</option>';
+  loadDesigners().then(function(list) {
+    if (list.length === 0) sel.innerHTML = '<option value="">No designers registered. Add a designer in Staff settings first.</option>';
+    else list.forEach(function(d) {
+      var opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.name + ' (' + d.email + ')';
+      sel.appendChild(opt);
+    });
+  });
+  var d = new Date();
+  d.setDate(d.getDate() + 3);
+  document.getElementById('sendToDesignerDeadline').value = d.toISOString().slice(0, 10);
+  document.getElementById('sendToDesignerNotes').value = '';
+  modal.style.display = 'flex';
+}
+function submitSendToDesigner(modal) {
+  var item = window.__sendToDesignerItem;
+  if (!item || !currentClientId) return;
+  var designerId = document.getElementById('sendToDesignerDesigner').value;
+  var priority = document.getElementById('sendToDesignerPriority').value;
+  var deadline = document.getElementById('sendToDesignerDeadline').value;
+  var notes = document.getElementById('sendToDesignerNotes').value;
+  if (!designerId) { showToast('Select a designer', 'error'); return; }
+  var designerOpt = document.getElementById('sendToDesignerDesigner').selectedOptions[0];
+  var designerName = designerOpt && designerOpt.textContent ? designerOpt.textContent.split(' (')[0].trim() : 'designer';
+  var refImages = [];
+  if (item.imageUrl) refImages.push(item.imageUrl);
+  if (item.imageUrls && item.imageUrls.length) refImages = refImages.concat(item.imageUrls);
+  var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, caption: item.caption || item.title || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
+  fetch(getApiBaseUrl() + '/api/production/tasks', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.task) throw new Error(j.error || 'Failed');
+      modal.style.display = 'none';
+      showToast('Task sent to ' + designerName);
+      renderApprovalsTab();
+      if (currentViewMode === 'production') loadProductionTasks().then(renderProductionView);
+    })
+    .catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+}
+
 /* ================== Initialize ================== */
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -5445,11 +6419,71 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 100);
       return;
     }
+    isDesigner = currentStaff.role === 'DESIGNER';
     try {
       updateStaffHeader();
     } catch (e) {
       console.error('updateStaffHeader failed:', e);
     }
+
+    if (isDesigner) {
+      document.getElementById('viewSwitcher').style.display = 'none';
+      var headerSwitcher = document.getElementById('viewSwitcherInHeader');
+      if (headerSwitcher) headerSwitcher.style.display = 'none';
+      document.getElementById('dashboardSidebar').style.display = 'none';
+      document.getElementById('dashboardMain').style.display = 'none';
+      document.getElementById('productionViewContainer').style.display = 'flex';
+      document.querySelector('.header__logo').textContent = '2FlyFlow Production';
+      try {
+        await loadProductionTasks();
+        renderProductionView();
+      } catch (e) {
+        console.error('Production load failed:', e);
+        showToast('Failed to load production tasks', 'error');
+      }
+      return;
+    }
+
+    document.getElementById('viewSwitcher').style.display = 'flex';
+    var headerSwitcher = document.getElementById('viewSwitcherInHeader');
+    if (headerSwitcher) headerSwitcher.style.display = 'flex';
+    function updateProductionViewHeaderActive() {
+      var btnD = document.getElementById('btnViewDashboardHeader');
+      var btnP = document.getElementById('btnViewProductionHeader');
+      if (btnD && btnP) {
+        btnD.classList.toggle('view-switch-btn--active', currentViewMode === 'dashboard');
+        btnP.classList.toggle('view-switch-btn--active', currentViewMode === 'production');
+      }
+    }
+    updateProductionViewHeaderActive();
+    if (!document.body._viewSwitcherDelegationBound) {
+      document.body._viewSwitcherDelegationBound = true;
+      document.body.addEventListener('click', function viewSwitcherClick(e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-view="dashboard"], [data-view="production"]') : null;
+        if (!t) return;
+        var wrap = document.getElementById('viewSwitcherInHeader');
+        if (!wrap || !wrap.contains(t)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (t.getAttribute('data-view') === 'production') {
+          currentViewMode = 'production';
+          switchToProductionView();
+          updateProductionViewHeaderActive();
+        } else if (t.getAttribute('data-view') === 'dashboard') {
+          currentViewMode = 'dashboard';
+          switchToDashboardView();
+          updateProductionViewHeaderActive();
+        }
+      });
+    }
+    const btnDashboard = document.getElementById('btnViewDashboard');
+    const btnProduction = document.getElementById('btnViewProduction');
+    if (btnDashboard) btnDashboard.addEventListener('click', () => { currentViewMode = 'dashboard'; switchToDashboardView(); updateProductionViewHeaderActive(); });
+    if (btnProduction) btnProduction.addEventListener('click', () => { currentViewMode = 'production'; switchToProductionView(); updateProductionViewHeaderActive(); });
+    var btnDashboardHeader = document.getElementById('btnViewDashboardHeader');
+    var btnProductionHeader = document.getElementById('btnViewProductionHeader');
+    if (btnDashboardHeader) btnDashboardHeader.addEventListener('click', function(e) { e.preventDefault(); currentViewMode = 'dashboard'; switchToDashboardView(); updateProductionViewHeaderActive(); });
+    if (btnProductionHeader) btnProductionHeader.addEventListener('click', function(e) { e.preventDefault(); currentViewMode = 'production'; switchToProductionView(); updateProductionViewHeaderActive(); });
 
     let clients = {};
     try {
@@ -5571,22 +6605,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const restored = !!(lastStored && clients[lastStored]);
       const summary = getGlobalStatusSummary();
       const nextLabel = currentClientId ? computeNextAction(getClientHealthData(currentClientId)).label : '—';
-      console.log('--- Dashboard checklist ---');
-      console.log('Selected client restored:', restored ? 'yes' : 'no');
-      console.log('Global summary state:', summary.state);
-      console.log('Next action label:', nextLabel);
       Object.keys(clients).forEach(id => {
         const h = computeHealth(getClientHealthData(id));
-        console.log('Health for', clients[id].name || id + ':', h);
       });
-      console.log('----------------------------');
     } catch (e) { console.warn('Checklist log:', e); }
 
     var notifs = loadNotifications();
     var actionUnread = notifs.filter(function(n) { return n.type === 'ACTION' && !n.read; });
     var clearEl = document.getElementById('headerClearToday');
-    console.log('Notifications: total=' + notifs.length + ', unread ACTION=' + actionUnread.length + ', header clear shown=' + (clearEl && clearEl.style.display !== 'none'));
-    console.log('Agency dashboard initialization complete');
   } catch (e) {
     console.error('Fatal error during agency dashboard initialization:', e);
     alert('An error occurred while loading the dashboard. Please check the console for details.');

@@ -20,7 +20,7 @@ export interface Staff {
 
 // ==================== NEW CREDENTIALS SYSTEM ====================
 
-export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF' | 'CLIENT';
+export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF' | 'CLIENT' | 'DESIGNER';
 export type UserStatus = 'INVITED' | 'ACTIVE' | 'DISABLED';
 
 export interface Agency {
@@ -195,6 +195,53 @@ export interface ScheduledPost {
   metaPostIds?: { instagram?: string; facebook?: string };
   createdAt: string;
   updatedAt: string;
+}
+
+/** Production task for designer workflow */
+export type ProductionTaskStatus =
+  | 'assigned'
+  | 'in_progress'
+  | 'review'
+  | 'changes_requested'
+  | 'approved'
+  | 'ready_to_post';
+
+export type ProductionTaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export type ProductionTaskCommentAuthorRole = 'admin' | 'staff' | 'designer';
+
+export interface ProductionTaskComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: ProductionTaskCommentAuthorRole;
+  message: string;
+  statusChange: string | null;
+  createdAt: string;
+}
+
+export interface ProductionTask {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  contentId: string;
+  approvalId: string;
+  designerId: string;
+  caption: string;
+  referenceImages: string[];
+  briefNotes: string;
+  finalArt: string[];
+  designerNotes: string;
+  status: ProductionTaskStatus;
+  priority: ProductionTaskPriority;
+  deadline: string;
+  reviewNotes: string;
+  comments?: ProductionTaskComment[];
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string;
+  submittedAt: string;
+  approvedAt: string;
 }
 
 /** Agency dashboard portal state per client (tasks, requests, assets, etc.). Scoped by agencyId. */

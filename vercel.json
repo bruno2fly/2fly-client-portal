@@ -1,5 +1,8 @@
 {
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/privacy", "destination": "/privacy.html" }
+  ],
   "rewrites": [
     { "source": "/agency", "destination": "/agency.html" },
     { "source": "/login", "destination": "/login.html" },
