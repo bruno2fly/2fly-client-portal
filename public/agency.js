@@ -6051,37 +6051,167 @@ function renderProductionView() {
     var designerMapMyTasks = {};
     designersCache.forEach(function(d) { designerMapMyTasks[d.id] = d.name || d.email || 'Designer'; });
     if (currentStaff) designerMapMyTasks[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
-    let html = '<div style="padding: 24px;"><h2 style="margin: 0 0 24px 0; font-size: 20px; font-weight: 600; color: #1e293b;">My Tasks</h2>';
+
+    // Designer filter state (persisted on window)
+    if (!window._designerFilter) window._designerFilter = 'cards';
+
+    // Group tasks by status
+    var todoTasks = tasks.filter(function(t) { return t.status === 'assigned'; });
+    var overviewTasks = tasks.filter(function(t) { return t.status === 'in_progress'; });
+    var approvedTasks = tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post' || t.status === 'review'; });
+    var changesTasks = tasks.filter(function(t) { return t.status === 'changes_requested'; });
+
+    // Filter: "Do today" = tasks with deadline today or overdue
+    var todayISO = new Date().toISOString().slice(0, 10);
+    var todayTasks = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) <= todayISO && !['approved', 'ready_to_post'].includes(t.status); });
+
+    // Filter: "By clients" groups
+    var clientGroups = {};
+    tasks.forEach(function(t) {
+      var cName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || 'Unknown';
+      if (!clientGroups[cName]) clientGroups[cName] = [];
+      clientGroups[cName].push(t);
+    });
+
+    var activeFilter = window._designerFilter || 'cards';
+    var filterTabStyle = 'padding: 10px 20px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;';
+    var activeTabBg = '#1e293b'; var activeTabColor = '#fff';
+    var inactiveTabBg = '#f1f5f9'; var inactiveTabColor = '#64748b';
+
+    let html = '<div style="padding: 24px; max-width: 1200px;">';
+    // Header
+    html += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">';
+    html += '<h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #1e293b;">My Tasks</h2>';
+    html += '<span style="font-size: 13px; color: #94a3b8;">' + tasks.length + ' total</span>';
+    html += '</div>';
+
+    // Filter tabs
+    html += '<div style="display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap;">';
+    var filters = [
+      { key: 'cards', label: 'Cards view' },
+      { key: 'calendar', label: 'Calendar' },
+      { key: 'clients', label: 'By clients' },
+      { key: 'today', label: 'Do today' }
+    ];
+    filters.forEach(function(f) {
+      var isActive = activeFilter === f.key;
+      var count = f.key === 'today' ? todayTasks.length : (f.key === 'clients' ? Object.keys(clientGroups).length : '');
+      html += '<button type="button" class="designer-filter-tab" data-filter="' + f.key + '" style="' + filterTabStyle + ' background: ' + (isActive ? activeTabBg : inactiveTabBg) + '; color: ' + (isActive ? activeTabColor : inactiveTabColor) + ';">' + f.label + (count !== '' ? ' <span style="margin-left: 4px; font-size: 11px; opacity: 0.7;">(' + count + ')</span>' : '') + '</button>';
+    });
+    html += '</div>';
+
     if (tasks.length === 0) {
       html += '<div style="text-align: center; padding: 48px 24px; color: #64748b; font-size: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa;">No tasks assigned yet. New tasks will appear here.</div></div>';
       container.innerHTML = html;
+      container.querySelectorAll('.designer-filter-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() { window._designerFilter = btn.getAttribute('data-filter'); renderProductionView(); });
+      });
       return;
     }
-    tasks.forEach(function(t) {
-      const clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId;
-      const cap = (t.caption || '').slice(0, 80) + ((t.caption || '').length > 80 ? '…' : '');
-      const refImg = (t.referenceImages && t.referenceImages[0]) ? '<img src="' + t.referenceImages[0] + '" alt="" style="width: 72px; height: 72px; object-fit: cover; border-radius: 8px;">' : '';
-      const deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '';
-      const isOverdue = t.deadline && new Date(t.deadline) < new Date() && !['approved', 'ready_to_post'].includes(t.status);
-      var assigneeName = designerMapMyTasks[t.designerId] || t.designerId || '—';
-      html += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid ' + priorityColor(t.priority) + '; box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06); transition: box-shadow 0.2s ease; cursor: pointer;">';
-      html += '<div style="font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 6px;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
-      html += '<div style="font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #1e293b;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
-      html += '<div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">' + refImg + '</div>';
-      html += '<div style="font-size: 12px; color: #64748b;">Deadline: <span style="' + (isOverdue ? 'color: #dc2626; font-weight: 600;' : '') + '">' + deadlineStr + '</span> · Priority: <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:' + priorityColor(t.priority) + ';"></span>' + t.priority + '</span></div>';
-      html += '<div style="margin-top: 12px;">';
-      if (t.status === 'assigned') html += '<button type="button" class="btn-start-task" data-id="' + t.id + '" style="padding: 6px 14px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Working</button>';
+
+    // Card renderer helper
+    function renderDesignerCard(t) {
+      var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+      var cap = (t.caption || '').slice(0, 80) + ((t.caption || '').length > 80 ? '...' : '');
+      var deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '—';
+      var isOverdue = t.deadline && new Date(t.deadline) < new Date() && !['approved', 'ready_to_post'].includes(t.status);
+      var c = '';
+      c += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: #fff; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s ease, transform 0.15s ease; cursor: pointer; display: flex; flex-direction: column; gap: 10px;">';
+      c += '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #1a56db;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
+      c += '<div style="font-size: 15px; font-weight: 600; color: #1e293b; line-height: 1.4;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
+      c += '<div style="font-size: 12px; color: #94a3b8;">Deadline: <span style="' + (isOverdue ? 'color: #dc2626; font-weight: 600;' : 'color: #64748b;') + '">' + deadlineStr + '</span> &middot; Priority: <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:' + priorityColor(t.priority) + ';"></span>' + (t.priority || 'medium') + '</span></div>';
+      c += '<div style="margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">';
+      if (t.status === 'assigned') c += '<button type="button" class="btn-start-task" data-id="' + t.id + '" style="padding: 8px 18px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;">Start Working</button>';
       if (t.status === 'in_progress' || t.status === 'changes_requested') {
-        html += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display: none;">';
-        html += '<button type="button" class="btn-upload-art" data-id="' + t.id + '" style="padding: 6px 14px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px;">Upload final art</button> ';
+        c += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display: none;">';
+        c += '<button type="button" class="btn-upload-art" data-id="' + t.id + '" style="padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Upload Art</button>';
       }
-      if (t.status === 'in_progress') html += '<button type="button" class="btn-submit-review" data-id="' + t.id + '" style="padding: 6px 14px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer;">Submit for Review</button>';
-      if (t.status === 'changes_requested') html += '<button type="button" class="btn-resubmit" data-id="' + t.id + '" style="padding: 6px 14px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;">Resubmit</button>';
-      if (t.status === 'approved') html += '<span style="color: #059669; font-weight: 600;">✓ Approved</span>';
-      html += '</div></div>';
-    });
+      if (t.status === 'in_progress') c += '<button type="button" class="btn-submit-review" data-id="' + t.id + '" style="padding: 8px 18px; background: #1a56db; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Submit for Review</button>';
+      if (t.status === 'changes_requested') c += '<button type="button" class="btn-resubmit" data-id="' + t.id + '" style="padding: 8px 18px; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Resubmit</button>';
+      if (t.status === 'approved' || t.status === 'ready_to_post') c += '<span style="color: #059669; font-weight: 600; font-size: 13px;">Approved</span>';
+      if (t.status === 'review') c += '<span style="color: #f59e0b; font-weight: 600; font-size: 13px;">In Review</span>';
+      c += '</div></div>';
+      return c;
+    }
+
+    // Section renderer helper
+    function renderStatusSection(title, color, icon, taskList) {
+      if (taskList.length === 0) return '';
+      var s = '<div style="margin-bottom: 32px;">';
+      s += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
+      s += '<div style="width: 4px; height: 24px; border-radius: 2px; background: ' + color + ';"></div>';
+      s += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + title + '</h3>';
+      s += '<span style="background: ' + color + '22; color: ' + color + '; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + taskList.length + '</span>';
+      s += '</div>';
+      s += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
+      taskList.forEach(function(t) { s += renderDesignerCard(t); });
+      s += '</div></div>';
+      return s;
+    }
+
+    // Render based on active filter
+    if (activeFilter === 'cards') {
+      html += renderStatusSection('To do', '#059669', '', todoTasks);
+      html += renderStatusSection('Overview', '#f59e0b', '', overviewTasks);
+      html += renderStatusSection('Approved', '#10b981', '', approvedTasks);
+      html += renderStatusSection('Needs changes', '#dc2626', '', changesTasks);
+      if (todoTasks.length === 0 && overviewTasks.length === 0 && approvedTasks.length === 0 && changesTasks.length === 0) {
+        html += '<div style="text-align: center; padding: 48px; color: #94a3b8; font-size: 14px;">All caught up! No tasks right now.</div>';
+      }
+    } else if (activeFilter === 'today') {
+      if (todayTasks.length === 0) {
+        html += '<div style="text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa;">No tasks due today. Enjoy your day!</div>';
+      } else {
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
+        todayTasks.forEach(function(t) { html += renderDesignerCard(t); });
+        html += '</div>';
+      }
+    } else if (activeFilter === 'clients') {
+      var clientNames = Object.keys(clientGroups).sort();
+      clientNames.forEach(function(cName) {
+        var cTasks = clientGroups[cName];
+        html += '<div style="margin-bottom: 32px;">';
+        html += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
+        html += '<div style="width: 4px; height: 24px; border-radius: 2px; background: #1a56db;"></div>';
+        html += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + cName.replace(/</g, '&lt;') + '</h3>';
+        html += '<span style="background: #dbeafe; color: #1a56db; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + cTasks.length + '</span>';
+        html += '</div>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
+        cTasks.forEach(function(t) { html += renderDesignerCard(t); });
+        html += '</div></div>';
+      });
+    } else if (activeFilter === 'calendar') {
+      // Calendar view — group by week
+      var weekGroups = {};
+      tasks.forEach(function(t) {
+        var d = t.deadline ? new Date(t.deadline) : null;
+        var label = d ? 'Week of ' + new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()).toLocaleDateString() : 'No deadline';
+        if (!weekGroups[label]) weekGroups[label] = [];
+        weekGroups[label].push(t);
+      });
+      var weekKeys = Object.keys(weekGroups).sort();
+      weekKeys.forEach(function(wk) {
+        html += '<div style="margin-bottom: 32px;">';
+        html += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
+        html += '<div style="width: 4px; height: 24px; border-radius: 2px; background: #8b5cf6;"></div>';
+        html += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + wk + '</h3>';
+        html += '<span style="background: #ede9fe; color: #8b5cf6; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + weekGroups[wk].length + '</span>';
+        html += '</div>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
+        weekGroups[wk].forEach(function(t) { html += renderDesignerCard(t); });
+        html += '</div></div>';
+      });
+    }
+
     html += '</div>';
     container.innerHTML = html;
+
+    // Bind filter tabs
+    container.querySelectorAll('.designer-filter-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() { window._designerFilter = btn.getAttribute('data-filter'); renderProductionView(); });
+    });
+
+    // Bind card clicks — open task workspace
     container.querySelectorAll('.production-task-card').forEach(function(card) {
       card.addEventListener('click', function(e) {
         if (e.target.closest('button') || e.target.closest('input')) return;
@@ -6089,13 +6219,20 @@ function renderProductionView() {
         if (id) { currentProductionTaskId = id; renderProductionView(); }
       });
     });
+
+    // Bind Start Working — change status to in_progress AND open workspace
     container.querySelectorAll('.btn-start-task').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const id = btn.getAttribute('data-id');
+        btn.disabled = true; btn.textContent = 'Starting...';
         fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'in_progress' }) })
-          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); })
+          .then(() => { currentProductionTaskId = id; renderProductionView(); })
+          .catch(e => { btn.disabled = false; btn.textContent = 'Start Working'; showToast(e.message, 'error'); });
       });
     });
+
+    // Bind Submit for Review
     container.querySelectorAll('.btn-submit-review').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const id = btn.getAttribute('data-id');
@@ -6103,6 +6240,8 @@ function renderProductionView() {
           .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
       });
     });
+
+    // Bind Resubmit
     container.querySelectorAll('.btn-resubmit').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const id = btn.getAttribute('data-id');
@@ -6110,6 +6249,8 @@ function renderProductionView() {
           .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
       });
     });
+
+    // Bind Upload Art
     container.querySelectorAll('.btn-upload-art').forEach(function(btn) {
       var taskId = btn.getAttribute('data-id');
       var input = container.querySelector('.upload-final-art-input[data-id="' + taskId + '"]');

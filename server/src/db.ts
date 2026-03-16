@@ -21,7 +21,9 @@ import type {
   PortalStateData,
   MetaIntegration,
   ScheduledPost,
-  ProductionTask
+  ProductionTask,
+  Vendor,
+  Product
 } from './types.js';
 
 const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
@@ -41,6 +43,8 @@ const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 const META_INTEGRATIONS_FILE = join(DB_DIR, 'meta-integrations.json');
 const SCHEDULED_POSTS_FILE = join(DB_DIR, 'scheduled-posts.json');
 const PRODUCTION_TASKS_FILE = join(DB_DIR, 'production-tasks.json');
+const VENDORS_FILE = join(DB_DIR, 'vendors.json');
+const PRODUCTS_FILE = join(DB_DIR, 'products.json');
 
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
@@ -499,5 +503,74 @@ export function saveProductionTask(task: ProductionTask): void {
 export function deleteProductionTask(id: string): void {
   const tasks = getProductionTasks().filter(t => t.id !== id);
   writeJSON(PRODUCTION_TASKS_FILE, tasks);
+}
+
+// Vendors
+export function getVendors(): Record<string, Vendor> {
+  return readJSON<Record<string, Vendor>>(VENDORS_FILE, {});
+}
+
+export function getVendorsByAgency(agencyId: string): Vendor[] {
+  const vendors = getVendors();
+  return Object.values(vendors).filter(v => v.agencyId === agencyId);
+}
+
+export function getVendor(id: string): Vendor | null {
+  const vendors = getVendors();
+  return vendors[id] || null;
+}
+
+export function saveVendor(vendor: Vendor): void {
+  const vendors = getVendors();
+  vendors[vendor.id] = vendor;
+  writeJSON(VENDORS_FILE, vendors);
+}
+
+export function deleteVendor(id: string): void {
+  const vendors = getVendors();
+  delete vendors[id];
+  writeJSON(VENDORS_FILE, vendors);
+}
+
+// Products
+export function getProducts(): Product[] {
+  return readJSON<Product[]>(PRODUCTS_FILE, []);
+}
+
+export function getProductsByAgency(agencyId: string): Product[] {
+  return getProducts().filter(p => p.agencyId === agencyId);
+}
+
+export function getProductsByVendor(agencyId: string, vendorId: string): Product[] {
+  return getProducts().filter(p => p.agencyId === agencyId && p.vendorId === vendorId);
+}
+
+export function getProductById(id: string): Product | null {
+  return getProducts().find(p => p.id === id) || null;
+}
+
+export function saveProduct(product: Product): void {
+  const products = getProducts();
+  const idx = products.findIndex(p => p.id === product.id);
+  if (idx >= 0) products[idx] = product;
+  else products.push(product);
+  writeJSON(PRODUCTS_FILE, products);
+}
+
+export function saveProductsBulk(newProducts: Product[]): void {
+  const existing = getProducts();
+  const map = new Map(existing.map(p => [p.id, p]));
+  newProducts.forEach(p => map.set(p.id, p));
+  writeJSON(PRODUCTS_FILE, Array.from(map.values()));
+}
+
+export function deleteProduct(id: string): void {
+  const products = getProducts().filter(p => p.id !== id);
+  writeJSON(PRODUCTS_FILE, products);
+}
+
+export function deleteProductsByVendor(agencyId: string, vendorId: string): void {
+  const products = getProducts().filter(p => !(p.agencyId === agencyId && p.vendorId === vendorId));
+  writeJSON(PRODUCTS_FILE, products);
 }
 

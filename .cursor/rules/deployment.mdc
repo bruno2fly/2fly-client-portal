@@ -1,0 +1,14 @@
+---
+description: Deployment rules for 2fly-client-portal
+alwaysApply: true
+---
+
+# 2fly-client-portal deployment rules
+
+- **Build:** `npm run build` (copies public/* to dist/). Never use vite build.
+- **Deploy:** `git push origin main` triggers Vercel auto-deploy. No manual CLI needed.
+- **Vercel plan:** Hobby. Cron jobs must be once/day max (`0 0 * * *`).
+- **Don't modify** vercel.json `buildCommand` or `outputDirectory`.
+- **Source files:** All HTML/JS/CSS live in `public/`. Edit files there, not in `dist/`.
+- **After changes:** Always run `git add . && git commit -m "message" && git push origin main`
+- **Test locally:** Run `npm run build` and verify `dist/` has your changes before pushing.
