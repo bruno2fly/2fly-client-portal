@@ -228,6 +228,7 @@ export interface ProductionTask {
   approvalId: string;
   designerId: string;
   caption: string;
+  copyText: string;
   referenceImages: string[];
   briefNotes: string;
   finalArt: string[];

@@ -5775,7 +5775,8 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
   html += '<div class="workspace-body">';
   html += '<div class="workspace-left">';
   html += '<div class="creative-brief"><h2 class="section-title">Creative Brief</h2>';
-  html += '<div class="copy-text-box">' + (task.caption && task.caption.trim() ? (task.caption || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No copy text provided.') + '</div>';
+  var briefCopyText = task.copyText && task.copyText.trim() ? task.copyText : (task.caption && task.caption.trim() ? task.caption : '');
+  html += '<div class="copy-text-box">' + (briefCopyText ? briefCopyText.replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No copy text provided.') + '</div>';
   html += '<p class="instructions-text" style="margin:0 0 8px 0;font-weight:600;color:#1e293b;">Instructions</p>';
   html += '<p class="instructions-text">' + (task.briefNotes && task.briefNotes.trim() ? (task.briefNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No additional instructions.') + '</p></div>';
   html += '<div class="references-section"><h2 class="section-title">References' + (refs.length ? ' (' + refs.length + ')' : '') + '</h2>';
@@ -6538,7 +6539,7 @@ function submitSendToDesigner(modal) {
   var refImages = [];
   if (item.imageUrl) refImages.push(item.imageUrl);
   if (item.imageUrls && item.imageUrls.length) refImages = refImages.concat(item.imageUrls);
-  var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, caption: item.caption || item.title || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
+  var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, caption: item.caption || item.title || '', copyText: item.copyText || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
   fetch(getApiBaseUrl() + '/api/production/tasks', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     .then(function(r) { return r.json(); })
     .then(function(j) {
