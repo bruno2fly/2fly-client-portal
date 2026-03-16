@@ -197,35 +197,6 @@ export interface ScheduledPost {
   updatedAt: string;
 }
 
-/** Vendor (supplier) */
-export interface Vendor {
-  id: string;
-  agencyId: string;
-  name: string;
-  address?: string;
-  phone?: string;
-  fax?: string;
-  status: 'active' | 'inactive';
-  createdAt: number;
-  updatedAt: number;
-}
-
-/** Product from a vendor's catalog */
-export interface Product {
-  id: string;
-  agencyId: string;
-  vendorId: string;
-  description: string;
-  category: string;
-  packSize: string;
-  unitOfMeasure: string;
-  sku: string;
-  brand: string;
-  status: 'active' | 'inactive';
-  createdAt: number;
-  updatedAt: number;
-}
-
 /** Production task for designer workflow */
 export type ProductionTaskStatus =
   | 'assigned'

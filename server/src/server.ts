@@ -24,7 +24,6 @@ import agencyRoutes from './routes/agency.js';
 import clientPortalRoutes from './routes/clientPortal.js';
 import productionRoutes from './routes/production.js';
 import designersRoutes from './routes/designers.js';
-import productsRoutes from './routes/products.js';
 import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, markInviteTokenUsed, getUserByEmail, saveUser, saveAuditLog } from './db.js';
@@ -340,7 +339,6 @@ app.use('/api/agency', agencyRoutes);
 app.use('/api/client', clientPortalRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/designers', designersRoutes);
-app.use('/api/products', productsRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
