@@ -2251,6 +2251,25 @@ function renderApprovalsTab() {
           }
         }
 
+        // Send to Designer button for Content Pending, Copy Pending, Changes Requested, Copy Changes
+        if (sectionKey === 'pending' || sectionKey === 'copyPending' || sectionKey === 'changes' || sectionKey === 'copyChanges') {
+          const stdWrap = el('div', {
+            class: 'schedule-section',
+            style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
+          });
+          stdWrap.addEventListener('click', (e) => e.stopPropagation());
+          const stdBtn = document.createElement('button');
+          stdBtn.textContent = 'Send to Designer';
+          stdBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+          stdBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+          stdWrap.appendChild(stdBtn);
+          if (sectionKey === 'changes' || sectionKey === 'copyChanges') {
+            const sentNote = el('span', { style: 'margin-left: 10px; font-size: 12px; color: #64748b; font-style: italic;' }, 'Already sent to designer assigned');
+            stdWrap.appendChild(sentNote);
+          }
+          itemEl.appendChild(stdWrap);
+        }
+
         if (sectionKey === 'approved') {
           itemEl.setAttribute('data-approval-id', item.id);
           const prefillDate = item.postDate ? (function() {
