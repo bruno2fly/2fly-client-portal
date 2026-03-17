@@ -3326,33 +3326,46 @@ function renderRequestsTab() {
   
   requests.forEach(req => {
     const item = el('div', { class: 'request-item' });
-    
+    item.style.cursor = 'pointer';
+    item.style.transition = 'box-shadow 0.2s';
+    item.addEventListener('mouseenter', function() { item.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; });
+    item.addEventListener('mouseleave', function() { item.style.boxShadow = ''; });
+
     const info = el('div', { class: 'request-item__info' });
     const type = el('div', { class: 'request-item__type' });
     type.textContent = req.type || 'Request';
     const details = el('div', { class: 'request-item__details' });
-    details.textContent = req.details || '';
+    details.textContent = (req.details || '').slice(0, 120) + ((req.details || '').length > 120 ? '...' : '');
     const meta = el('div', { class: 'request-item__meta' });
-    meta.textContent = `By ${req.by || 'Client'} • ${fmtDate(req.createdAt || Date.now())}`;
-    
+    var metaText = `By ${req.by || 'Client'} • ${fmtDate(req.createdAt || Date.now())}`;
+    var hasAttachments = (req.images && req.images.length) || (req.link && req.link.trim());
+    if (hasAttachments) {
+      var attachCount = (req.images ? req.images.length : 0) + (req.link && req.link.trim() ? 1 : 0);
+      metaText += ' • 📎 ' + attachCount + ' attachment(s)';
+    }
+    meta.textContent = metaText;
+
     info.appendChild(type);
     info.appendChild(details);
     info.appendChild(meta);
-    
+
     const actions = el('div', { style: 'display: flex; align-items: center;' });
     const status = el('span', {
       class: `request-item__status request-item__status--${req.status || 'open'}`
     }, req.status === 'done' ? 'Done' : 'Open');
     actions.appendChild(status);
-    
+
     if (req.status === 'open') {
       const btn = el('button', { class: 'btn btn-primary' }, 'Mark Done');
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         markRequestDone(req.id);
       });
       actions.appendChild(btn);
     }
-    
+
+    item.addEventListener('click', function() { openRequestDetail(req); });
+
     item.appendChild(info);
     item.appendChild(actions);
     container.appendChild(item);
@@ -3386,6 +3399,73 @@ function setupRequestsHandlers() {
     showClosedCheckbox.addEventListener('change', (e) => {
       showClosedRequests = e.target.checked;
       renderRequestsTab();
+    });
+  }
+}
+
+function openRequestDetail(req) {
+  var existing = document.getElementById('requestDetailModal');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'requestDetailModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  var panel = document.createElement('div');
+  panel.style.cssText = 'background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;padding:32px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);';
+
+  var closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;border:none;background:#f1f5f9;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#64748b;';
+  closeBtn.addEventListener('click', function() { overlay.remove(); });
+  panel.appendChild(closeBtn);
+
+  var statusColor = req.status === 'done' ? '#059669' : '#2563eb';
+  var statusLabel = req.status === 'done' ? 'Done' : 'Open';
+
+  var h = '';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:' + statusColor + ';"></span><span style="font-size:12px;font-weight:600;color:' + statusColor + ';text-transform:uppercase;letter-spacing:0.05em;">' + statusLabel + '</span></div>';
+  h += '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#0f172a;">' + (req.type || 'Request').replace(/</g, '&lt;') + '</h2>';
+  h += '<div style="font-size:14px;color:#475569;white-space:pre-wrap;line-height:1.6;margin-bottom:16px;padding:16px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">' + (req.details || 'No details').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+
+  if (req.link && req.link.trim()) {
+    h += '<div style="margin-bottom:16px;padding:12px 16px;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe;display:flex;align-items:center;gap:8px;">';
+    h += '<svg width="16" height="16" fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>';
+    h += '<a href="' + req.link.replace(/"/g, '&quot;') + '" target="_blank" style="color:#2563eb;font-size:14px;word-break:break-all;text-decoration:underline;">' + req.link.replace(/</g, '&lt;') + '</a>';
+    h += '</div>';
+  }
+
+  if (req.images && req.images.length) {
+    h += '<div style="margin-bottom:16px;"><p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px 0;">Attached Images (' + req.images.length + ')</p>';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">';
+    req.images.forEach(function(img, i) {
+      h += '<div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open(\'' + img.replace(/'/g, "\\'") + '\',\'_blank\')">';
+      h += '<img src="' + img + '" style="width:100%;height:140px;object-fit:cover;display:block;" alt="Attachment ' + (i+1) + '">';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  h += '<div style="font-size:13px;color:#94a3b8;margin-top:8px;">By ' + (req.by || 'Client').replace(/</g, '&lt;') + ' • ' + fmtDate(req.createdAt || Date.now()) + '</div>';
+
+  if (req.status === 'open') {
+    h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">';
+    h += '<button id="reqDetailMarkDone" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Mark Done</button>';
+    h += '</div>';
+  }
+
+  var content = document.createElement('div');
+  content.innerHTML = h;
+  panel.appendChild(content);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  var markDoneBtn = document.getElementById('reqDetailMarkDone');
+  if (markDoneBtn) {
+    markDoneBtn.addEventListener('click', function() {
+      markRequestDone(req.id);
+      overlay.remove();
     });
   }
 }
