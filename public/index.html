@@ -2394,6 +2394,12 @@ function renderApprovalsSectioned(){
     const typeTag = el("span", { class: "tag type-tag", style: "background:#dbeafe;color:#1e40af;font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;" });
     typeTag.textContent = item.type || "Post";
     titleRow.appendChild(typeTag);
+    // "From change requested" badge for items returned from changes
+    if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
+      const returnBadge = el("span", { style: "background:#fff7ed;color:#c2410c;font-size:11px;line-height:16px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid #fed7aa;" });
+      returnBadge.textContent = 'Updated from changes';
+      titleRow.appendChild(returnBadge);
+    }
     if (item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes') {
       let statusStyle, statusText;
       if (item.status === 'copy_approved') {
@@ -2971,6 +2977,8 @@ function setupModalEventDelegation() {
         return;
       }
       
+      // Clear returned flag when requesting changes again
+      item.returnedFromChanges = false;
       // If it's a copy approval, set status to copy_changes, otherwise changes
       if (item.status === 'copy_pending' || item.status === 'copy_approved') {
         item.status = "copy_changes";

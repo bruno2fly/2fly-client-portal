@@ -2194,6 +2194,9 @@ function renderApprovalsTab() {
           class: `chip chip--status-${item.status || 'pending'}`
         }, statusDisplay));
         meta.appendChild(el('span', { class: 'approval-item__date' }, `Due ${item.date || 'N/A'}`));
+        if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
+          meta.appendChild(el('span', { class: 'chip', style: 'background:#fff7ed;color:#c2410c;font-size:11px;border:1px solid #fed7aa;' }, 'Updated from changes'));
+        }
         if (item.source === 'production') {
           const fromProd = el('span', { class: 'chip chip--from-production', style: 'background: #dbeafe; color: #1d4ed8; font-size: 11px;' }, 'From Production');
           meta.appendChild(fromProd);

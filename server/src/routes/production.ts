@@ -77,6 +77,32 @@ function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
   console.log('[production] Updated original item with final art:', originalItem.id);
 }
 
+/** When designer resubmits after changes, push the approval back to content_pending for the client. */
+function returnApprovalToPending(task: ProductionTask): void {
+  const state = getPortalState(task.agencyId, task.clientId);
+  if (!state || !Array.isArray(state.approvals)) return;
+  const item = state.approvals.find(
+    (a: any) => a.id === task.approvalId || a.id === task.contentId
+  ) as any;
+  if (!item) return;
+  // Only return to pending if it was in a changes state
+  if (item.status === 'changes' || item.status === 'copy_changes') {
+    // Restore to pending (content pending or copy pending based on previous state)
+    item.status = item.status === 'copy_changes' ? 'copy_pending' : 'pending';
+    item.returnedFromChanges = true;
+    item.returnedAt = new Date().toISOString();
+    // Update images with new final art if available
+    if (task.finalArt && task.finalArt.length > 0) {
+      item.finalArtUrls = task.finalArt;
+      item.imageUrls = task.finalArt;
+      item.imageUrl = task.finalArt[0] || item.imageUrl || '';
+    }
+    item.updatedAt = new Date().toISOString();
+    savePortalState(task.agencyId, task.clientId, state);
+    console.log('[production] Returned approval to pending:', item.id, item.status);
+  }
+}
+
 /** GET /api/production/tasks — List tasks. Agency: all; Designer: own only. */
 router.get('/tasks', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
   try {
@@ -214,12 +240,19 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
       return res.status(400).json({ error: 'Status transition not allowed' });
     }
     const now = new Date().toISOString();
+    const previousStatus = task.status;
     task.status = status;
     task.updatedAt = now;
     if (status === 'in_progress' && !task.startedAt) task.startedAt = now;
     if (status === 'review') task.submittedAt = now;
     if (status === 'approved') task.approvedAt = now;
     saveProductionTask(task);
+    // When designer resubmits after changes, push approval back to content pending for client
+    if (previousStatus === 'changes_requested' && status === 'review') {
+      try { returnApprovalToPending(task); } catch (e: any) {
+        console.error('[production] Failed to return approval to pending:', e?.message);
+      }
+    }
     const result: any = { success: true, task };
     res.json(result);
   } catch (e: any) {
