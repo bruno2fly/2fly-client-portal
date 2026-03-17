@@ -2253,6 +2253,7 @@ function renderApprovalsTab() {
 
         // Send to Designer button for Content Pending, Copy Pending, Changes Requested, Copy Changes
         if (sectionKey === 'pending' || sectionKey === 'copyPending' || sectionKey === 'changes' || sectionKey === 'copyChanges') {
+          const isChangesSection = (sectionKey === 'changes' || sectionKey === 'copyChanges');
           const stdWrap = el('div', {
             class: 'schedule-section',
             style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
@@ -2261,9 +2262,24 @@ function renderApprovalsTab() {
           const stdBtn = document.createElement('button');
           stdBtn.textContent = 'Send to Designer';
           stdBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
-          stdBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+          stdBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isChangesSection) {
+              // Show confirmation popup first
+              var confirmed = confirm('This item was already sent to the assigned designer.\n\nAre you sure you want to send again?');
+              if (!confirmed) return;
+              // Pass change notes so designer sees them, and mark as changes_requested
+              var changeNote = '';
+              if (item.change_notes && item.change_notes.length) {
+                changeNote = item.change_notes[item.change_notes.length - 1].note || '';
+              }
+              item._sendAsChangesRequested = true;
+              item._changeRequestNote = changeNote;
+            }
+            if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item);
+          });
           stdWrap.appendChild(stdBtn);
-          if (sectionKey === 'changes' || sectionKey === 'copyChanges') {
+          if (isChangesSection) {
             const sentNote = el('span', { style: 'margin-left: 10px; font-size: 12px; color: #64748b; font-style: italic;' }, 'Already sent to designer assigned');
             stdWrap.appendChild(sentNote);
           }
@@ -6690,6 +6706,13 @@ function submitSendToDesigner(modal) {
   if (item.imageUrl) refImages.push(item.imageUrl);
   if (item.imageUrls && item.imageUrls.length) refImages = refImages.concat(item.imageUrls);
   var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, title: item.title || '', caption: item.caption || '', copyText: item.copyText || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
+  // If sent from Changes Requested section, create as changes_requested with the client note
+  if (item._sendAsChangesRequested) {
+    payload.initialStatus = 'changes_requested';
+    payload.reviewNotes = 'Client change request: ' + (item._changeRequestNote || 'Change requested');
+    delete item._sendAsChangesRequested;
+    delete item._changeRequestNote;
+  }
   fetch(getApiBaseUrl() + '/api/production/tasks', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     .then(function(r) { return r.json(); })
     .then(function(j) {

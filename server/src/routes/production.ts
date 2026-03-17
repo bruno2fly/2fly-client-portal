@@ -171,6 +171,8 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
       briefNotes,
       priority,
       deadline,
+      initialStatus,
+      reviewNotes: bodyReviewNotes,
     } = body;
 
     if (!clientId || !designerId) {
@@ -200,10 +202,10 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
       briefNotes: String(briefNotes || '').slice(0, 2000),
       finalArt: [],
       designerNotes: '',
-      status: 'assigned',
+      status: (initialStatus === 'changes_requested' ? 'changes_requested' : 'assigned') as ProductionTaskStatus,
       priority: (priority && ['low', 'medium', 'high', 'urgent'].includes(priority)) ? priority : 'medium',
       deadline: deadline || now,
-      reviewNotes: '',
+      reviewNotes: initialStatus === 'changes_requested' ? String(bodyReviewNotes || '').slice(0, 2000) : '',
       comments: [],
       createdAt: now,
       updatedAt: now,
