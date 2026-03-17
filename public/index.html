@@ -2170,6 +2170,69 @@ function render(){
       openRequests.forEach(r=>{
         var detailsHtml = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
         var detailsDiv = el("div",{class:"meta", style:"margin-top:4px;white-space:pre-wrap", html: detailsHtml});
+
+        // --- Attachments area (shown below details, managed in edit mode) ---
+        var attachArea = el("div",{style:"margin-top:6px"});
+        function renderAttachArea(editing) {
+          attachArea.innerHTML = '';
+          if (r.images && r.images.length) {
+            r.images.forEach(function(imgData, idx) {
+              var fileRow = el("div",{style:"display:flex;align-items:center;gap:6px;margin-bottom:4px;"});
+              fileRow.innerHTML = '<svg width="12" height="12" fill="none" stroke="#64748b" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><span style="font-size:12px;color:#64748b;">File ' + (idx+1) + '</span>';
+              if (editing) {
+                var removeBtn = el("button",{style:"background:none;border:none;color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;padding:0 4px"}, "Remove");
+                removeBtn.addEventListener('click', function() {
+                  r.images.splice(idx, 1);
+                  var st = load();
+                  var match = (st.requests || []).find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
+                  if (match) match.images = r.images.slice();
+                  save(st);
+                  renderAttachArea(true);
+                });
+                fileRow.appendChild(removeBtn);
+              }
+              attachArea.appendChild(fileRow);
+            });
+          }
+          if (editing) {
+            var addFileLabel = el("label",{style:"display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;font-weight:600;cursor:pointer;margin-top:4px"});
+            addFileLabel.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Upload file';
+            var addFileInput = document.createElement('input');
+            addFileInput.type = 'file';
+            addFileInput.accept = 'image/*';
+            addFileInput.multiple = true;
+            addFileInput.style.display = 'none';
+            addFileLabel.appendChild(addFileInput);
+            addFileInput.addEventListener('change', function() {
+              var files = addFileInput.files;
+              if (!files || !files.length) return;
+              if (!r.images) r.images = [];
+              var loaded = 0;
+              for (var fi = 0; fi < files.length; fi++) {
+                (function(file) {
+                  var reader = new FileReader();
+                  reader.onload = function() {
+                    r.images.push(reader.result);
+                    loaded++;
+                    if (loaded === files.length) {
+                      var st = load();
+                      var match = (st.requests || []).find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
+                      if (match) match.images = r.images.slice();
+                      save(st);
+                      renderAttachArea(true);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                })(files[fi]);
+              }
+            });
+            attachArea.appendChild(addFileLabel);
+          } else if (!r.images || !r.images.length) {
+            // no attachments, show nothing in view mode
+          }
+        }
+        renderAttachArea(false);
+
         var editBtn = el("button",{style:"background:none;border:none;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;padding:4px 0;margin-top:4px"}, "Edit");
         editBtn.addEventListener('click', function(e) {
           e.stopPropagation();
@@ -2186,11 +2249,14 @@ function render(){
           btnRow.appendChild(cancelBtn);
           detailsDiv.appendChild(btnRow);
           editBtn.style.display = 'none';
+          renderAttachArea(true);
           textarea.focus();
           cancelBtn.addEventListener('click', function() {
+            detailsHtml = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
             detailsDiv.innerHTML = detailsHtml;
             detailsDiv.style.whiteSpace = 'pre-wrap';
             editBtn.style.display = '';
+            renderAttachArea(false);
           });
           saveBtn.addEventListener('click', function() {
             var newText = textarea.value.trim();
@@ -2198,13 +2264,14 @@ function render(){
             r.details = newText;
             var st = load();
             var reqs = st.requests || [];
-            var match = reqs.find(function(x) { return x.createdAt === r.createdAt && x.type === r.type; });
+            var match = reqs.find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
             if (match) match.details = newText;
             save(st);
             detailsHtml = newText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
             detailsDiv.innerHTML = detailsHtml;
             detailsDiv.style.whiteSpace = 'pre-wrap';
             editBtn.style.display = '';
+            renderAttachArea(false);
           });
         });
         var infoDiv = el("div",{style:"flex:1"});
@@ -2216,17 +2283,30 @@ function render(){
           linkEl.innerHTML = '<svg width="12" height="12" fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="' + r.link.replace(/"/g,'&quot;') + '" target="_blank" style="color:#2563eb;text-decoration:underline;">' + r.link.replace(/</g,'&lt;').slice(0,50) + (r.link.length > 50 ? '...' : '') + '</a>';
           infoDiv.appendChild(linkEl);
         }
-        if (r.images && r.images.length) {
-          var attachDiv = el("div",{style:"margin-top:4px;display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;"});
-          attachDiv.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg> ' + r.images.length + ' file(s) attached';
-          infoDiv.appendChild(attachDiv);
-        }
+        infoDiv.appendChild(attachArea);
         infoDiv.appendChild(el("div",{class:"meta", style:"margin-top:2px;font-size:14px;line-height:18px;font-weight:400"}, `${fmtDate(r.createdAt)} • ${r.by||'Client'}`));
         const left = el("div",{class:"left"},
           el("div",{class:"status-dot", style:"background:#2563eb"}),
           infoDiv
         );
-        const row = el("div",{class:"row"}, left);
+        const row = el("div",{class:"row", style:"position:relative"}, left);
+
+        // Delete X button
+        var delBtn = document.createElement('button');
+        delBtn.innerHTML = '&times;';
+        delBtn.style.cssText = 'position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:none;background:transparent;font-size:16px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:2;';
+        delBtn.addEventListener('mouseenter', function() { delBtn.style.background='#fee2e2'; delBtn.style.color='#ef4444'; });
+        delBtn.addEventListener('mouseleave', function() { delBtn.style.background='transparent'; delBtn.style.color='#94a3b8'; });
+        delBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!confirm('Delete this request?\n\nThis action cannot be undone.')) return;
+          var st = load();
+          st.requests = (st.requests || []).filter(function(x) { return !(x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type)); });
+          save(st);
+          render();
+        });
+        row.appendChild(delBtn);
+
         reqList.append(row);
       });
     }
