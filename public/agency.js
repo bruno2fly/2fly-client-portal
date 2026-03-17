@@ -3440,7 +3440,7 @@ function openRequestDetail(req) {
     h += '<div style="margin-bottom:16px;"><p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px 0;">Attached Images (' + req.images.length + ')</p>';
     h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">';
     req.images.forEach(function(img, i) {
-      h += '<div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;cursor:pointer;" onclick="window.open(\'' + img.replace(/'/g, "\\'") + '\',\'_blank\')">';
+      h += '<div class="req-thumb" data-img-index="' + i + '" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;cursor:pointer;">';
       h += '<img src="' + img + '" style="width:100%;height:140px;object-fit:cover;display:block;" alt="Attachment ' + (i+1) + '">';
       h += '</div>';
     });
@@ -3460,6 +3460,22 @@ function openRequestDetail(req) {
   panel.appendChild(content);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
+
+  // Image lightbox — click thumbnail to view full size
+  if (req.images && req.images.length) {
+    content.querySelectorAll('.req-thumb').forEach(function(thumb) {
+      thumb.addEventListener('click', function() {
+        var idx = parseInt(thumb.getAttribute('data-img-index'), 10);
+        var src = req.images[idx];
+        if (!src) return;
+        var lb = document.createElement('div');
+        lb.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+        lb.innerHTML = '<img src="' + src + '" style="max-width:90%;max-height:90%;border-radius:8px;object-fit:contain;">';
+        lb.addEventListener('click', function() { lb.remove(); });
+        document.body.appendChild(lb);
+      });
+    });
+  }
 
   var markDoneBtn = document.getElementById('reqDetailMarkDone');
   if (markDoneBtn) {
