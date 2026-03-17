@@ -6113,13 +6113,14 @@ function renderProductionView() {
     // Card renderer helper
     function renderDesignerCard(t) {
       var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
-      var cap = (t.caption || '').slice(0, 80) + ((t.caption || '').length > 80 ? '...' : '');
+      var cardTitle = (t.title || t.caption || '').slice(0, 80) + ((t.title || t.caption || '').length > 80 ? '...' : '');
       var deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '—';
       var isOverdue = t.deadline && new Date(t.deadline) < new Date() && !['approved', 'ready_to_post'].includes(t.status);
       var c = '';
-      c += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: #fff; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s ease, transform 0.15s ease; cursor: pointer; display: flex; flex-direction: column; gap: 10px;">';
+      c += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: #fff; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s ease, transform 0.15s ease; cursor: pointer; display: flex; flex-direction: column; gap: 10px; position: relative;">';
+      c += '<button type="button" class="btn-delete-task" data-id="' + t.id + '" title="Delete task" style="position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: #94a3b8; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, color 0.2s; line-height: 1;" onmouseover="this.style.background=\'#fee2e2\';this.style.color=\'#dc2626\'" onmouseout="this.style.background=\'transparent\';this.style.color=\'#94a3b8\'">&times;</button>';
       c += '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #1a56db;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
-      c += '<div style="font-size: 15px; font-weight: 600; color: #1e293b; line-height: 1.4;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
+      c += '<div style="font-size: 15px; font-weight: 600; color: #1e293b; line-height: 1.4; padding-right: 24px;">' + (cardTitle || 'Untitled').replace(/</g, '&lt;') + '</div>';
       c += '<div style="font-size: 12px; color: #94a3b8;">Deadline: <span style="' + (isOverdue ? 'color: #dc2626; font-weight: 600;' : 'color: #64748b;') + '">' + deadlineStr + '</span> &middot; Priority: <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:' + priorityColor(t.priority) + ';"></span>' + (t.priority || 'medium') + '</span></div>';
       c += '<div style="margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">';
       if (t.status === 'assigned') c += '<button type="button" class="btn-start-task" data-id="' + t.id + '" style="padding: 8px 18px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;">Start Working</button>';
@@ -6288,6 +6289,23 @@ function renderProductionView() {
             .then(function() { renderProductionView(); showToast('Art uploaded'); })
             .catch(function(e) { showToast(e.message || 'Upload failed', 'error'); });
         });
+      });
+    });
+
+    // Bind Delete Task
+    container.querySelectorAll('.btn-delete-task').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-id');
+        var task = productionTasksCache.find(function(t) { return t.id === id; });
+        var taskName = (task && (task.title || task.caption)) ? (task.title || task.caption).slice(0, 40) : 'this task';
+        if (!confirm('Delete "' + taskName + '"?\n\nThis action cannot be undone.')) return;
+        btn.disabled = true;
+        fetch(getApiBaseUrl() + '/api/production/tasks/' + id, { method: 'DELETE', credentials: 'include' })
+          .then(function(r) { return r.json(); })
+          .then(function(j) { if (j.error) throw new Error(j.error); showToast('Task deleted'); return loadProductionTasks(); })
+          .then(function() { renderProductionView(); })
+          .catch(function(e) { btn.disabled = false; showToast(e.message || 'Delete failed', 'error'); });
       });
     });
     return;
@@ -6539,7 +6557,7 @@ function submitSendToDesigner(modal) {
   var refImages = [];
   if (item.imageUrl) refImages.push(item.imageUrl);
   if (item.imageUrls && item.imageUrls.length) refImages = refImages.concat(item.imageUrls);
-  var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, caption: item.caption || item.title || '', copyText: item.copyText || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
+  var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, title: item.title || '', caption: item.caption || '', copyText: item.copyText || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
   fetch(getApiBaseUrl() + '/api/production/tasks', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     .then(function(r) { return r.json(); })
     .then(function(j) {

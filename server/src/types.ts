@@ -227,6 +227,7 @@ export interface ProductionTask {
   contentId: string;
   approvalId: string;
   designerId: string;
+  title: string;
   caption: string;
   copyText: string;
   referenceImages: string[];
