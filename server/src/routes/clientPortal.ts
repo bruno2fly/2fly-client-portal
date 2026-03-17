@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { getPortalState, savePortalState, getClient } from '../db.js';
+import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask } from '../db.js';
 import type { PortalStateData } from '../types.js';
 
 const router = Router();
@@ -84,6 +84,43 @@ router.put('/portal-state', (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to save portal state' });
+  }
+});
+
+/**
+ * POST /api/client/request-changes
+ * Client requests changes on an approval item.
+ * Finds linked production task and sets it to changes_requested with reviewNotes.
+ * Body: { approvalId, note, images? }
+ */
+router.post('/request-changes', (req, res) => {
+  const ctx = authenticateClient(req, res);
+  if (!ctx) return;
+  try {
+    const { approvalId, note } = req.body || {};
+    if (!approvalId || !note) {
+      return res.status(400).json({ error: 'approvalId and note are required' });
+    }
+    // Find production task linked to this approval
+    const tasks = getProductionTasksByAgency(ctx.agencyId);
+    const linkedTask = tasks.find(
+      (t: any) => (t.approvalId === approvalId || t.contentId === approvalId) && t.clientId === ctx.clientId
+    );
+    if (!linkedTask) {
+      // No linked production task — that's OK, just return success (change is stored in portal state)
+      return res.json({ success: true, taskUpdated: false });
+    }
+    // Only update if task is in a state where changes make sense
+    const changeable = ['review', 'in_progress', 'approved', 'ready_to_post'];
+    if (changeable.includes(linkedTask.status)) {
+      linkedTask.status = 'changes_requested' as any;
+      linkedTask.reviewNotes = 'Client change request: ' + String(note).slice(0, 2000);
+      linkedTask.updatedAt = new Date().toISOString();
+      saveProductionTask(linkedTask);
+    }
+    res.json({ success: true, taskUpdated: true, taskId: linkedTask.id });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to process change request' });
   }
 });
 

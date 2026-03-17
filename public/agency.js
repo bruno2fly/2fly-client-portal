@@ -5748,7 +5748,7 @@ function getDemandStatusBadgeDark(status) {
     assigned: { label: 'To do', bg: '#e2e8f0', color: '#475569' },
     in_progress: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
     changes_requested: { label: 'Changes Requested', bg: '#fee2e2', color: '#dc2626' },
-    review: { label: 'Review', bg: '#fef3c7', color: '#d97706' },
+    review: { label: 'In Review', bg: '#e0e7ff', color: '#4338ca' },
     approved: { label: 'Approved', bg: '#dcfce7', color: '#16a34a' },
     ready_to_post: { label: 'Ready to Post', bg: '#dcfce7', color: '#16a34a' }
   };
@@ -5760,7 +5760,7 @@ function getWorkspaceStatusBadge(status) {
     assigned: { label: 'To Do', bg: '#e2e8f0', color: '#475569' },
     in_progress: { label: 'In Progress', bg: '#dbeafe', color: '#1d4ed8' },
     changes_requested: { label: 'Changes Requested', bg: '#ffedd5', color: '#ea580c' },
-    review: { label: 'Review', bg: '#fef3c7', color: '#d97706' },
+    review: { label: 'In Review', bg: '#e0e7ff', color: '#4338ca' },
     approved: { label: 'Approved', bg: '#dcfce7', color: '#16a34a' },
     ready_to_post: { label: 'Ready to Post', bg: '#dcfce7', color: '#16a34a' }
   };
@@ -5908,7 +5908,14 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-start" data-id="' + task.id + '">Start Working</button>';
   } else if ((task.status === 'in_progress' || task.status === 'changes_requested') && isAssignedDesigner) {
     html += '<h2 class="section-title">Design Upload / Preview</h2>';
-    if (task.reviewNotes && task.reviewNotes.trim()) html += '<div class="review-feedback" style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;color:#92400e;">' + (task.reviewNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+    if (task.reviewNotes && task.reviewNotes.trim()) {
+      var isClientChange = task.reviewNotes.indexOf('Client change request:') === 0;
+      var feedbackBg = isClientChange ? '#fff7ed' : '#fef3c7';
+      var feedbackBorder = isClientChange ? '#fb923c' : '#fcd34d';
+      var feedbackColor = isClientChange ? '#9a3412' : '#92400e';
+      var feedbackLabel = isClientChange ? '<strong style="display:block;margin-bottom:4px;color:#c2410c;">CHANGE REQUEST FROM CLIENT:</strong>' : '';
+      html += '<div class="review-feedback" style="background:' + feedbackBg + ';border:1px solid ' + feedbackBorder + ';border-left:4px solid ' + feedbackBorder + ';border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;color:' + feedbackColor + ';">' + feedbackLabel + (task.reviewNotes || '').replace(/^Client change request: /, '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+    }
     if (!hasArt) {
       html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><div class="upload-drop-content"><span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG accepted · Max 10MB per file</p></div></div>';
     } else {
@@ -6155,8 +6162,9 @@ function renderProductionView() {
     // Group tasks by status
     var todoTasks = tasks.filter(function(t) { return t.status === 'assigned'; });
     var overviewTasks = tasks.filter(function(t) { return t.status === 'in_progress'; });
-    var approvedTasks = tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post' || t.status === 'review'; });
+    var reviewTasks = tasks.filter(function(t) { return t.status === 'review'; });
     var changesTasks = tasks.filter(function(t) { return t.status === 'changes_requested'; });
+    var approvedTasks = tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; });
 
     // Filter: "Do today" = tasks with deadline today or overdue
     var todayISO = new Date().toISOString().slice(0, 10);
@@ -6227,8 +6235,13 @@ function renderProductionView() {
       if (t.status === 'in_progress') c += '<button type="button" class="btn-submit-review" data-id="' + t.id + '" style="padding: 8px 18px; background: #1a56db; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Submit for Review</button>';
       if (t.status === 'changes_requested') c += '<button type="button" class="btn-resubmit" data-id="' + t.id + '" style="padding: 8px 18px; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Resubmit</button>';
       if (t.status === 'approved' || t.status === 'ready_to_post') c += '<span style="color: #059669; font-weight: 600; font-size: 13px;">Approved</span>';
-      if (t.status === 'review') c += '<span style="color: #f59e0b; font-weight: 600; font-size: 13px;">In Review</span>';
-      c += '</div></div>';
+      if (t.status === 'review') c += '<span style="color: #6366f1; font-weight: 600; font-size: 13px;">In Review</span>';
+      c += '</div>';
+      // Show change request notes on card
+      if (t.status === 'changes_requested' && t.reviewNotes && t.reviewNotes.trim()) {
+        c += '<div style="background:#fff7ed;border-left:3px solid #f97316;border-radius:0 6px 6px 0;padding:8px 10px;font-size:12px;color:#9a3412;line-height:1.4;margin-top:2px;"><strong style="color:#c2410c;">CHANGE REQUEST:</strong><br>' + t.reviewNotes.replace(/</g, '&lt;').replace(/\n/g, '<br>').slice(0, 200) + (t.reviewNotes.length > 200 ? '...' : '') + '</div>';
+      }
+      c += '</div>';
       return c;
     }
 
@@ -6251,9 +6264,10 @@ function renderProductionView() {
     if (activeFilter === 'cards') {
       html += renderStatusSection('To do', '#059669', '', todoTasks);
       html += renderStatusSection('Overview', '#f59e0b', '', overviewTasks);
+      html += renderStatusSection('In Review', '#6366f1', '', reviewTasks);
+      html += renderStatusSection('Changes Requested', '#dc2626', '', changesTasks);
       html += renderStatusSection('Approved', '#10b981', '', approvedTasks);
-      html += renderStatusSection('Needs changes', '#dc2626', '', changesTasks);
-      if (todoTasks.length === 0 && overviewTasks.length === 0 && approvedTasks.length === 0 && changesTasks.length === 0) {
+      if (todoTasks.length === 0 && overviewTasks.length === 0 && reviewTasks.length === 0 && approvedTasks.length === 0 && changesTasks.length === 0) {
         html += '<div style="text-align: center; padding: 48px; color: #94a3b8; font-size: 14px;">All caught up! No tasks right now.</div>';
       }
     } else if (activeFilter === 'today') {

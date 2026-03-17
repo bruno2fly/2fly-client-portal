@@ -2980,9 +2980,18 @@ function setupModalEventDelegation() {
       item.change_notes = item.change_notes || []; 
       item.change_notes.push({ when: Date.now(), note });
       
-      save(s); 
+      save(s);
   var changeNote = (note || '').substring(0, 60) + ((note || '').length > 60 ? '...' : '');
   notifyTeam({ type:"needs_changes", itemId:item.id, title:item.title, note, activityText:'✏️ Requested changes on "' + item.title + '": "' + changeNote + '"' });
+  // Also notify production task system so designer sees the change request
+  var cToken = (session && session.token) || null;
+  if (cToken) {
+    fetch(API_BASE + '/api/client/request-changes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cToken },
+      body: JSON.stringify({ approvalId: item.id, note: note })
+    }).catch(function(err) { console.warn('Failed to notify production:', err); });
+  }
       
       closeApprovalModal();
   render();
