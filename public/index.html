@@ -143,26 +143,25 @@
   .client-notif-mark-all{font-size:14px;line-height:18px;font-weight:500;color:var(--text-secondary);cursor:pointer;text-decoration:none;}
   .client-notif-mark-all:hover{color:var(--text-primary);text-decoration:underline;}
   .client-notif-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:18px;font-weight:400;}
-  /* Alert Banner — primary attention component */
+  /* Alert Banner — primary attention component, sits above everything */
   .alert-banner{
     background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);
     border:2px solid #1e3a8a;
     border-radius:16px;
-    padding:24px 28px;
-    margin:24px 24px 0;
-    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    padding:28px 28px;
+    margin:24px 24px 8px;
   }
   body[data-theme="dark"] .alert-banner{
     background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);border-color:#3b82f6;
   }
-  .alert-banner__left{display:flex;align-items:center;gap:14px;flex:1;}
+  .alert-banner__content{display:flex;flex-direction:column;align-items:flex-start;gap:16px;}
+  .alert-banner__top{display:flex;align-items:center;gap:14px;}
   .alert-banner__dot{width:28px;height:28px;min-width:28px;border-radius:50%;background:#1e3a8a;display:block;}
   body[data-theme="dark"] .alert-banner__dot{background:#60a5fa;}
   .alert-banner__text{font-size:18px;line-height:26px;font-weight:700;color:#0f172a;}
   body[data-theme="dark"] .alert-banner__text{color:#e0eaff;}
   .alert-banner__btn{
-    flex-shrink:0;
-    padding:12px 24px;
+    padding:14px 28px;
     border-radius:12px;
     font-size:15px;font-weight:600;
     background:#1e3a8a;color:#ffffff;
@@ -778,7 +777,7 @@ body[data-theme="dark"] .section-overview{
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text-primary);
-  margin: 0 0 20px 0;
+  margin: 0 0 28px 0;
 }
 body[data-theme="dark"] .section-overview h3{
   color: var(--text-primary);
@@ -878,11 +877,12 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 @media (max-width: 768px){
   .alert-banner{
     margin: 16px 16px 0;
-    padding: 20px 22px;
+    padding: 24px 22px;
     border-radius: 16px;
   }
-  .alert-banner__text{ font-size: 16px; line-height: 22px; }
+  .alert-banner__text{ font-size: 17px; line-height: 24px; }
   .alert-banner__dot{ width: 24px; height: 24px; min-width: 24px; }
+  .alert-banner__btn{ padding: 12px 24px; width: auto; }
   .section-overview{ background: #f8f9fb !important; margin-top: 8px !important; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
@@ -1100,13 +1100,15 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
     <main id="mainContent">
     <div class="main-content-area" id="mainContentArea">
     <div class="pull-refresh-zone hidden" id="pullRefreshZone"><div class="pull-refresh-spinner"></div><span style="font-size:14px;line-height:18px;color:var(--text-secondary);">Release to refresh</span></div>
-    <!-- ALERT BANNER — above everything, not inside overview -->
+    <!-- ALERT BANNER — first element on screen, above everything -->
     <div class="alert-banner" id="actionRequiredCard" aria-live="polite" style="display:none;" data-show-tabs="dashboard">
-      <div class="alert-banner__left">
-        <span class="alert-banner__dot"></span>
-        <span class="alert-banner__text" id="actionRequiredText"></span>
+      <div class="alert-banner__content">
+        <div class="alert-banner__top">
+          <span class="alert-banner__dot"></span>
+          <span class="alert-banner__text" id="actionRequiredText"></span>
+        </div>
+        <button type="button" class="alert-banner__btn" id="actionRequiredBtn">Review now</button>
       </div>
-      <button type="button" class="alert-banner__btn" id="actionRequiredBtn">Review now</button>
     </div>
 
     <section class="panel section-overview" style="margin-top:16px;" aria-label="Overview" data-show-tabs="dashboard">
@@ -1114,16 +1116,16 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 
       <div class="overview" id="overviewRow">
 
-        <article class="kpi-card" id="cardApproval">
-          <div class="label">Waiting for your approval</div>
-          <div class="value" id="kpiValApproval">0</div>
-          <div class="sub"><span class="pill" id="kpiSubApproval">All clear</span></div>
-        </article>
-
         <article class="kpi-card" id="cardScheduled">
           <div class="label">Posts scheduled (next 15 days)</div>
           <div class="value" id="kpiValScheduled">0</div>
           <div class="sub"><span class="pill" id="kpiSubScheduled">On track</span></div>
+        </article>
+
+        <article class="kpi-card" id="cardApproval">
+          <div class="label">Waiting for your approval</div>
+          <div class="value" id="kpiValApproval">0</div>
+          <div class="sub"><span class="pill" id="kpiSubApproval">All clear</span></div>
         </article>
 
         <article class="kpi-card" id="cardMissing">
