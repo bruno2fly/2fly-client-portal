@@ -38,16 +38,30 @@ function verifyCronAuth(req: Request, res: Response): boolean {
 
 /**
  * GET /api/cron/publish-posts
- * Publish posts where scheduledAt <= now and status === 'scheduled'
+ * Publish posts where scheduledAt <= now and status === 'scheduled'.
+ * Also retries recent token-related failures (since Hobby plan only allows daily cron).
+ * Pass ?retry=1 to include failed post retries.
  */
 router.get('/publish-posts', async (req: Request, res: Response) => {
   if (!verifyCronAuth(req, res)) return;
 
+  const includeRetries = req.query.retry === '1';
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const now = new Date();
   const posts = getScheduledPosts().filter(p => {
-    if (p.status !== 'scheduled') return false;
-    const scheduled = new Date(p.scheduledAt);
-    return scheduled <= now;
+    // Normal scheduled posts due now
+    if (p.status === 'scheduled') {
+      const scheduled = new Date(p.scheduledAt);
+      return scheduled <= now;
+    }
+    // Also retry recent token-related failures
+    if (includeRetries && p.status === 'failed') {
+      const updatedAt = new Date(p.updatedAt);
+      if (now.getTime() - updatedAt.getTime() > TWENTY_FOUR_HOURS) return false;
+      const err = (p.error || '').toLowerCase();
+      return err.includes('token') || err.includes('expired') || err.includes('authorized') || err.includes('oauth') || err.includes('session');
+    }
+    return false;
   });
 
   const results: { id: string; status: string; error?: string }[] = [];

@@ -13,16 +13,12 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/publish-posts",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/publish-posts?retry=1",
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/refresh-tokens",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/cron/retry-failed",
-      "schedule": "*/30 * * * *"
     }
   ]
 }
