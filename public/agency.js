@@ -5945,7 +5945,7 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
         html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
@@ -5960,7 +5960,7 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
         html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
@@ -5974,7 +5974,7 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     task.finalArt.forEach(function(url, i) {
       var safe = (url || '').replace(/"/g, '&quot;');
       html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-      html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+      html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
       if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
       html += '</div>';
     });
@@ -5999,12 +5999,12 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     var canAddMore = artCount < maxImages;
     // Image counter
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-    html += '<span style="font-size:13px;color:#64748b;font-weight:500;">Images: <strong style="color:' + (artCount >= maxImages ? '#dc2626' : '#1e40af') + ';">' + artCount + '/' + maxImages + '</strong></span>';
+    html += '<span style="font-size:13px;color:#64748b;font-weight:500;">Media: <strong style="color:' + (artCount >= maxImages ? '#dc2626' : '#1e40af') + ';">' + artCount + '/' + maxImages + '</strong></span>';
     if (artCount > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;">Carousel (' + artCount + ' slides)</span>';
     html += '</div>';
     // Upload drop zone (show if can add more)
     if (canAddMore) {
-      html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '" style="' + (hasArt ? 'padding:16px;min-height:auto;' : '') + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><div class="upload-drop-content">' + (hasArt ? '<p style="margin:0;font-size:13px;">+ Add more images <span style="color:#94a3b8;">(' + (maxImages - artCount) + ' remaining)</span></p>' : '<span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG accepted · Max 10MB · Up to ' + maxImages + ' images for carousel</p>') + '</div></div>';
+      html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '" style="' + (hasArt ? 'padding:16px;min-height:auto;' : '') + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm" multiple style="display:none;"><div class="upload-drop-content">' + (hasArt ? '<p style="margin:0;font-size:13px;">+ Add more files <span style="color:#94a3b8;">(' + (maxImages - artCount) + ' remaining)</span></p>' : '<span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG, MP4, MOV, WebM · Up to ' + maxImages + ' files for carousel</p>') + '</div></div>';
     }
     // Image grid
     if (hasArt) {
@@ -6012,14 +6012,14 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
         html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:2px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
         html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '<button type="button" class="workspace-remove-image" data-task-id="' + task.id + '" data-index="' + i + '" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
         html += '</div>';
       });
       html += '</div>';
       if (!canAddMore) {
-        html += '<input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;">';
+        html += '<input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
       }
       html += '<div style="display:flex;gap:8px;margin-top:12px;">';
       html += '<button type="button" class="workspace-btn workspace-btn-replace" data-id="' + task.id + '" style="flex:1;">Replace All</button>';
@@ -6034,7 +6034,7 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
         html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
@@ -6196,33 +6196,60 @@ function removeWorkspaceImage(taskId, index) {
     }).then(function() { renderProductionView(); showToast('Image removed'); }).catch(function(e) { showToast(e.message || 'Failed to remove', 'error'); });
 }
 
+var ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/webm', 'video/mov'];
+var MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+var MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function isVideoUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  var lower = url.toLowerCase();
+  return lower.match(/\.(mp4|mov|webm|avi)(\?|$)/) !== null || lower.indexOf('video') !== -1;
+}
+
+function mediaTag(url, alt, style) {
+  var safe = (url || '').replace(/"/g, '&quot;');
+  if (isVideoUrl(url)) {
+    return '<video src="' + safe + '" ' + (style ? 'style="' + style + '"' : '') + ' preload="metadata" muted playsinline loop onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0;"><\/video>';
+  }
+  return '<img src="' + safe + '" alt="' + (alt || '').replace(/"/g, '&quot;') + '" ' + (style ? 'style="' + style + '"' : '') + '>';
+}
+
 function runWorkspaceUpload(taskId, files, feedbackEl) {
   var task = productionTasksCache.find(function(t) { return t.id === taskId; });
   var currentUrls = (task && task.finalArt) ? task.finalArt.slice() : [];
-  var maxImages = 5;
-  var remaining = maxImages - currentUrls.length;
-  if (remaining <= 0) { showToast('Maximum ' + maxImages + ' images allowed. Remove some first.', 'error'); return; }
+  var maxFiles = 5;
+  var remaining = maxFiles - currentUrls.length;
+  if (remaining <= 0) { showToast('Maximum ' + maxFiles + ' files allowed. Remove some first.', 'error'); return; }
   var toUpload = [];
   for (var i = 0; i < files.length; i++) {
-    if (files[i].type === 'image/jpeg' || files[i].type === 'image/png') toUpload.push(files[i]);
+    var f = files[i];
+    if (ALLOWED_MEDIA_TYPES.indexOf(f.type) !== -1) {
+      var isVid = f.type.startsWith('video/');
+      var maxSize = isVid ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (f.size > maxSize) {
+        showToast(f.name + ' is too large (' + (isVid ? '100MB max for video' : '10MB max for image') + ')', 'error');
+        continue;
+      }
+      toUpload.push(f);
+    }
   }
-  if (toUpload.length === 0) { showToast('No valid images (JPG/PNG)', 'error'); return; }
+  if (toUpload.length === 0) { showToast('No valid files. Accepted: JPG, PNG, MP4, MOV, WebM', 'error'); return; }
   if (toUpload.length > remaining) {
-    showToast('Only ' + remaining + ' more image' + (remaining > 1 ? 's' : '') + ' allowed. Uploading first ' + remaining + '.', 'error');
+    showToast('Only ' + remaining + ' more file' + (remaining > 1 ? 's' : '') + ' allowed. Uploading first ' + remaining + '.', 'error');
     toUpload = toUpload.slice(0, remaining);
   }
   if (feedbackEl) feedbackEl.classList.add('upload-drop-zone--loading');
-  var uploadUrl = getApiBaseUrl() + '/api/upload/image';
   var promises = toUpload.map(function(file) {
     return new Promise(function(resolve) {
+      var isVideo = file.type.startsWith('video/');
       var reader = new FileReader();
       reader.onload = function() {
-        fetch(uploadUrl, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: reader.result }) })
-          .then(function(r) {
-            return r.json();
-          }).then(function(j) { resolve(j && j.url ? j.url : null); }).catch(function(err) {
-            resolve(null);
-          });
+        var endpoint = isVideo ? '/api/upload/media' : '/api/upload/image';
+        var body = isVideo ? { media: reader.result, filename: file.name } : { image: reader.result };
+        fetch(getApiBaseUrl() + endpoint, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          .then(function(r) { return r.json(); })
+          .then(function(j) { resolve(j && j.url ? j.url : null); })
+          .catch(function(err) { resolve(null); });
       };
       reader.readAsDataURL(file);
     });
@@ -6442,7 +6469,7 @@ function renderProductionView() {
       // Action buttons (hidden file input + visible buttons)
       r += '<div class="dv-task-row__actions">';
       if (t.status === 'in_progress' || t.status === 'changes_requested') {
-        r += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        r += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         r += '<button type="button" class="btn-upload-art dv-action-btn" data-id="' + t.id + '" style="background:#f1f5f9;color:#475569;">Upload</button>';
       }
       if (cfg.action) {
@@ -6486,7 +6513,7 @@ function renderProductionView() {
         h += '<button type="button" class="btn-start-task dv-focus-btn dv-focus-btn--green" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Working</button>';
       }
       if (t.status === 'in_progress') {
-        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
         h += '<button type="button" class="btn-submit-review dv-focus-btn dv-focus-btn--blue" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit for Review</button>';
       }
@@ -6495,7 +6522,7 @@ function renderProductionView() {
           h += '<div class="dv-focus-card__revision-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><p>' + t.reviewNotes.replace(/</g, '&lt;').slice(0, 200) + '</p></div>';
         }
         h += '<div style="display:flex;align-items:center;gap:8px;">';
-        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
         h += '<button type="button" class="btn-resubmit dv-focus-btn dv-focus-btn--red" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Resubmit</button>';
         h += '</div>';
@@ -7141,7 +7168,7 @@ function renderProductionKanbanView(container, clientsData) {
       var initial = (designerName + '').charAt(0).toUpperCase();
       var dueStr = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
       var borderColor = priorityBorder[t.priority] || priorityBorder.medium;
-      var thumbHtml = (t.finalArt && t.finalArt[0]) ? '<img src="' + (t.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;">' : '';
+      var thumbHtml = (t.finalArt && t.finalArt[0]) ? mediaTag(t.finalArt[0], '', 'width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;') : '';
       html += '<div class="kanban-card kanban-card--' + col + '" data-task-id="' + t.id + '" style="background: #fff; border-radius: 12px; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid ' + borderColor + '; cursor: pointer; transition: all 0.2s ease; overflow: hidden;">';
       if (thumbHtml) html += thumbHtml;
       html += '<div style="padding: 12px;">';
@@ -7735,7 +7762,7 @@ function getCopilotHTML() {
     '<div class="copilot-input-wrap">' +
     // #3: Image upload button
     '<button id="copilot-img-btn" class="copilot-img-btn" title="Attach image"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>' +
-    '<input type="file" id="copilot-img-input" accept="image/*" style="display:none;" />' +
+    '<input type="file" id="copilot-img-input" accept="image/*,video/mp4,video/quicktime,video/webm" style="display:none;" />' +
     '<input type="text" id="copilot-input" class="copilot-input" placeholder="Ask anything..." />' +
     '<button id="copilot-send" class="copilot-send" title="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>' +
     '</div></div></div>';

@@ -2599,6 +2599,28 @@ window.openApprovalModal = function(id){
           });
         }
       } else {
+        // Video detection helper
+        function isVideoUrl(url) {
+          if (!url || typeof url !== 'string') return false;
+          var lower = url.toLowerCase();
+          return lower.match(/\.(mp4|mov|webm|avi)(\?|$)/) !== null || lower.indexOf('video') !== -1;
+        }
+        function mediaElement(url, alt, style) {
+          if (isVideoUrl(url)) {
+            var v = document.createElement('video');
+            v.src = url;
+            v.style.cssText = style || '';
+            v.controls = true;
+            v.preload = 'metadata';
+            v.playsInline = true;
+            return v;
+          }
+          var img = document.createElement('img');
+          img.src = url;
+          img.alt = alt || '';
+          img.style.cssText = style || '';
+          return img;
+        }
         // Try previewImageUrl or imageUrl (with Drive embeddable URL)
         function driveThumbnailUrl(url) {
           if (!url || typeof url !== 'string') return null;
@@ -2699,10 +2721,7 @@ window.openApprovalModal = function(id){
               return t || u;
             });
         if (urls.length === 1) {
-          var singleImg = document.createElement('img');
-          singleImg.src = urls[0];
-          singleImg.alt = item.title || 'Content preview';
-          singleImg.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+          var singleImg = mediaElement(urls[0], item.title || 'Content preview', 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;');
           var singleFb = driveFallbackUrls2(item.imageUrls[0]);
           var singleFbIdx = 1;
           singleImg.onerror = function() {
@@ -2719,7 +2738,11 @@ window.openApprovalModal = function(id){
           carouselHtml += '<div class="client-carousel-track" style="display:flex;flex-wrap:nowrap;overflow:hidden;border-radius:12px;border:1px solid #e2e8f0;width:' + trackWidthPct + '%;">';
           urls.forEach(function(url, i) {
             carouselHtml += '<div class="client-carousel-slide" data-index="' + i + '" style="flex:0 0 ' + slidePct + '%;min-width:0;display:flex;align-items:center;justify-content:center;background:#f1f5f9;">';
-            carouselHtml += '<img src="' + url + '" alt="Slide ' + (i+1) + '" style="max-width:100%;max-height:500px;object-fit:contain;">';
+            if (isVideoUrl(url)) {
+              carouselHtml += '<video src="' + url + '" controls preload="metadata" playsinline style="max-width:100%;max-height:500px;object-fit:contain;"><\/video>';
+            } else {
+              carouselHtml += '<img src="' + url + '" alt="Slide ' + (i+1) + '" style="max-width:100%;max-height:500px;object-fit:contain;">';
+            }
             carouselHtml += '</div>';
           });
           carouselHtml += '</div>';
@@ -2768,11 +2791,22 @@ window.openApprovalModal = function(id){
         }
         imageContainer.style.display = 'block';
       } else if (displayUrl) {
-        const img = approvalImage || document.createElement('img');
-        img.src = displayUrl;
-        img.alt = item.title || 'Content preview';
-        img.id = 'approvalImage';
-        img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+        var img;
+        if (isVideoUrl(displayUrl)) {
+          img = document.createElement('video');
+          img.src = displayUrl;
+          img.controls = true;
+          img.preload = 'metadata';
+          img.playsInline = true;
+          img.id = 'approvalImage';
+          img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+        } else {
+          img = approvalImage || document.createElement('img');
+          img.src = displayUrl;
+          img.alt = item.title || 'Content preview';
+          img.id = 'approvalImage';
+          img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+        }
         var contentFallbacks = driveFallbackUrls2(item.imageUrl);
         var contentFbIdx = 1;
         img.onerror = function() {

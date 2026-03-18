@@ -15,10 +15,12 @@ const META_REDIRECT_URI = process.env.META_REDIRECT_URI || '';
 
 const SCOPES = [
   'pages_manage_posts',
+  'pages_manage_metadata',
+  'pages_read_engagement',
+  'pages_read_user_content',
+  'pages_show_list',
   'instagram_basic',
   'instagram_content_publish',
-  'pages_read_engagement',
-  'pages_show_list',
   'business_management',
 ].join(',');
 

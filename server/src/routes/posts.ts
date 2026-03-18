@@ -231,6 +231,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
 
+    console.log(`[publish-now] Post ${post.id}: platforms=${post.platforms.join(',')}, pageId=${integration.metaPageId}, igId=${integration.metaInstagramAccountId || 'none'}, hasMedia=${!!post.mediaUrl}`);
+
     try {
       // Convert base64 to public URL if needed (Instagram requires public HTTPS URLs)
       let publicMediaUrl = post.mediaUrl;

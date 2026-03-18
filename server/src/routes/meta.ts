@@ -52,6 +52,60 @@ router.get('/status', authenticate, requireCanViewDashboard, (req: Authenticated
 });
 
 /**
+ * GET /api/integrations/meta/debug?clientId=xxx
+ * Check token permissions with Graph API (for troubleshooting)
+ */
+router.get('/debug', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
+  try {
+    const clientId = req.query.clientId as string;
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+    const { agencyId } = getAgencyScope(req);
+    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    if (!integration) return res.json({ connected: false, message: 'No integration found' });
+
+    const tokenExpired = integration.tokenExpiresAt < Date.now();
+    // Check token permissions via Graph API
+    const permUrl = `https://graph.facebook.com/v19.0/me/permissions?access_token=${integration.metaAccessToken}`;
+    let permissions: any[] = [];
+    let permError: string | undefined;
+    try {
+      const permRes = await fetch(permUrl);
+      const permData: any = await permRes.json();
+      if (permData.error) permError = permData.error.message;
+      else permissions = permData.data || [];
+    } catch (e: any) { permError = e.message; }
+
+    // Check page access
+    let pageValid = false;
+    let pageError: string | undefined;
+    try {
+      const pageUrl = `https://graph.facebook.com/v19.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`;
+      const pageRes = await fetch(pageUrl);
+      const pageData: any = await pageRes.json();
+      if (pageData.error) pageError = pageData.error.message;
+      else pageValid = true;
+    } catch (e: any) { pageError = e.message; }
+
+    res.json({
+      connected: !tokenExpired,
+      tokenExpired,
+      expiresAt: new Date(integration.tokenExpiresAt).toISOString(),
+      pageId: integration.metaPageId,
+      pageName: integration.metaPageName,
+      igAccountId: integration.metaInstagramAccountId,
+      igUsername: integration.metaInstagramUsername,
+      permissions: permissions.filter((p: any) => p.status === 'granted').map((p: any) => p.permission),
+      declinedPermissions: permissions.filter((p: any) => p.status === 'declined').map((p: any) => p.permission),
+      permError,
+      pageValid,
+      pageError,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
  * POST /api/integrations/meta/disconnect
  * Disconnect Meta for the client. Body: { clientId: string }
  */

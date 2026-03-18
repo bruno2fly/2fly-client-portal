@@ -11,6 +11,7 @@ import {
 } from '../db.js';
 import {
   publishToFacebook,
+  publishPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
 } from '../lib/meta-api.js';
@@ -67,11 +68,20 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
 
     try {
       if (post.platforms.includes('facebook')) {
-        const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
-          message: post.caption,
-          url: post.mediaUrl,
-        });
-        metaPostIds.facebook = result.id;
+        if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
+          // Photo post
+          const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            url: post.mediaUrl,
+            caption: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else {
+          // Text-only post
+          const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            message: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        }
       }
 
       if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
