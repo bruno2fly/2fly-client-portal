@@ -654,6 +654,77 @@
     .filter-chip--mytasks { background: #FFFFFF !important; color: #374151 !important; border: 1px solid #D1D5DB !important; }
     .filter-chip--disabled { opacity: 0.6; cursor: not-allowed; }
 
+    /* Production View Redesign */
+    .pv-stats-bar { display: flex; align-items: center; gap: 4px; padding: 4px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .pv-stat-chip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #475569; cursor: default; transition: background 0.15s; }
+    .pv-stat-chip:hover { background: #ffffff; }
+    .pv-stat-chip--alert { background: #fef2f2; color: #b91c1c; }
+    .pv-stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .pv-stat-divider { width: 1px; height: 24px; background: #e2e8f0; }
+    .pv-table-wrap { background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden; }
+    .pv-sortable-header { padding: 10px 16px; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; cursor: pointer; user-select: none; transition: color 0.15s; white-space: nowrap; }
+    .pv-sortable-header:hover { color: #475569; }
+    .pv-client-header { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: rgba(248,250,252,0.8); border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s; text-align: left; border-right: none; border-left: none; }
+    .pv-client-header:hover { background: rgba(241,245,249,0.8); }
+    .pv-client-chevron { transition: transform 0.2s; color: #94a3b8; }
+    .pv-client-chevron--collapsed { transform: rotate(-90deg); }
+    .pv-client-name { font-size: 14px; font-weight: 600; color: #334155; text-transform: capitalize; }
+    .pv-client-count { font-size: 12px; color: #94a3b8; font-weight: 500; }
+    .pv-client-dots { display: flex; align-items: center; gap: 6px; margin-left: auto; opacity: 0; transition: opacity 0.15s; }
+    .pv-client-header:hover .pv-client-dots { opacity: 1; }
+    .pv-task-row { display: grid; grid-template-columns: 40px 1fr 130px 160px 130px; align-items: center; padding: 0 16px; min-height: 52px; background: #ffffff; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
+    .pv-task-row:hover { background: rgba(239,246,255,0.4); }
+    .pv-task-row:last-child { border-bottom: none; }
+    .pv-task-title { font-size: 14px; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+    .pv-task-title--untitled { font-style: italic; color: #94a3b8; }
+    .pv-task-review-note { font-size: 12px; color: #ea580c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .pv-due-label { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .pv-due--overdue { color: #dc2626; font-weight: 600; }
+    .pv-due--today { color: #d97706; font-weight: 500; }
+    .pv-due--future { color: #475569; }
+    .pv-late-badge { font-size: 10px; font-weight: 700; color: #ef4444; background: #fef2f2; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+    .pv-today-badge { font-size: 10px; font-weight: 700; color: #d97706; background: #fffbeb; border: 1px solid #fde68a; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+    .pv-assignee { display: flex; align-items: center; gap: 8px; }
+    .pv-assignee-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #e2e8f0, #cbd5e1); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #475569; flex-shrink: 0; }
+    .pv-assignee-name { font-size: 13px; color: #475569; }
+    .pv-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; border: 1px solid; white-space: nowrap; min-width: 88px; justify-content: center; }
+    .pv-status-icon { font-size: 10px; line-height: 1; }
+    .pv-ghost-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 13px; color: #94a3b8; border: none; background: none; border-top: 1px solid #f1f5f9; cursor: pointer; transition: all 0.15s; }
+    .pv-ghost-row:hover { color: #2563eb; background: rgba(239,246,255,0.4); }
+    .pv-ghost-plus { opacity: 0; transition: opacity 0.15s; }
+    .pv-ghost-row:hover .pv-ghost-plus { opacity: 1; }
+    .pv-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
+    .pv-toolbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .pv-view-toggle { display: flex; align-items: center; background: #f1f5f9; border-radius: 8px; padding: 2px; }
+    .pv-view-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; background: transparent; color: #64748b; }
+    .pv-view-btn--active { background: #ffffff; color: #1e293b; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+    .pv-search-wrap { position: relative; }
+    .pv-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+    .pv-search-input { padding: 6px 12px 6px 32px; width: 220px; font-size: 13px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #1e293b; outline: none; transition: all 0.15s; }
+    .pv-search-input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .pv-filter-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.15s; background: transparent; color: #475569; }
+    .pv-filter-btn:hover { background: #f8fafc; }
+    .pv-filter-btn--active { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .pv-filter-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; }
+    .pv-quick-chip { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #64748b; border: 1px solid transparent; background: none; cursor: pointer; transition: all 0.15s; }
+    .pv-quick-chip:hover { color: #334155; background: #f1f5f9; border-color: #e2e8f0; }
+    .pv-quick-chip-count { background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+    .pv-assign-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: #2563eb; color: #ffffff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; box-shadow: 0 1px 3px rgba(37,99,235,0.3); }
+    .pv-assign-btn:hover { background: #1d4ed8; }
+    .pv-filter-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid #f1f5f9; margin-top: 12px; }
+    .pv-filter-label { font-size: 12px; color: #94a3b8; font-weight: 500; }
+    .pv-filter-select { font-size: 13px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; color: #334155; outline: none; cursor: pointer; }
+    .pv-filter-select:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .pv-clear-filters { font-size: 12px; color: #2563eb; font-weight: 500; background: none; border: none; cursor: pointer; margin-left: auto; }
+    .pv-clear-filters:hover { color: #1d4ed8; }
+    .pv-footer-count { text-align: center; padding: 20px 0; font-size: 12px; color: #94a3b8; }
+    .pv-priority-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .pv-tooltip-wrap { position: relative; display: inline-block; }
+    .pv-tooltip { position: absolute; bottom: 100%; left: 0; margin-bottom: 8px; padding: 6px 12px; font-size: 12px; color: #ffffff; background: #1e293b; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); white-space: pre-wrap; max-width: 300px; pointer-events: none; z-index: 50; }
+    .pv-tooltip::after { content: ''; position: absolute; top: 100%; left: 16px; border: 4px solid transparent; border-top-color: #1e293b; }
+    @keyframes pvFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .pv-filter-row { animation: pvFadeIn 0.15s ease; }
+
     /* Main Content */
     .main {
       flex: 1;
@@ -3020,7 +3091,7 @@
     }
   </style>
 
-  <script src="/agency.js?v=35"></script>
+  <script src="/agency.js?v=36"></script>
 </body>
 </html>
 

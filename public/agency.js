@@ -73,6 +73,11 @@ let demandFilterClient = '';
 let demandFilterDueToday = false;
 let currentProductionTaskId = null;
 let demandViewMode = 'table';
+let productionSortCol = null; // null | 'task' | 'timeline' | 'assignee' | 'status'
+let productionSortDir = null; // null | 'asc' | 'desc'
+let productionCollapsedClients = {};
+let productionFiltersOpen = false;
+let demandFilterAssignee = '';
 
 // Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
 let clientsRegistryCache = {};
@@ -5913,13 +5918,15 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
   html += '<div class="copy-text-box">' + (briefCopyText ? briefCopyText.replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No copy text provided.') + '</div>';
   html += '<p class="instructions-text" style="margin:0 0 8px 0;font-weight:600;color:#1e293b;">Instructions</p>';
   html += '<p class="instructions-text">' + (task.briefNotes && task.briefNotes.trim() ? (task.briefNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') : 'No additional instructions.') + '</p></div>';
-  html += '<div class="references-section"><h2 class="section-title">References' + (refs.length ? ' (' + refs.length + ')' : '') + '</h2>';
-  if (refs.length === 0) html += '<p style="margin:0;font-size:14px;color:#64748b;">No reference images attached.</p>';
+  // Deduplicate and filter empty refs
+  var uniqueRefs = refs.filter(function(url, i) { return url && url.trim() && refs.indexOf(url) === i; });
+  html += '<div class="references-section"><h2 class="section-title">Design from Post' + (uniqueRefs.length ? ' (' + uniqueRefs.length + ')' : '') + '</h2>';
+  if (uniqueRefs.length === 0) html += '<p style="margin:0;font-size:14px;color:#64748b;">No design images attached.</p>';
   else {
     html += '<div class="reference-grid">';
-    refs.forEach(function(url) {
+    uniqueRefs.forEach(function(url) {
       var safeUrl = (url || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      html += '<div><a href="' + safeUrl + '" target="_blank" rel="noopener" class="reference-thumb-wrap"><img src="' + safeUrl + '" alt="Reference" class="reference-thumb"></a><a href="' + safeUrl + '" download class="reference-save" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;margin-top:6px;">↓ Save</a></div>';
+      html += '<div><a href="' + safeUrl + '" target="_blank" rel="noopener" class="reference-thumb-wrap"><img src="' + safeUrl + '" alt="Design" class="reference-thumb" onerror="this.style.display=\'none\'"></a><a href="' + safeUrl + '" download class="reference-save" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;margin-top:6px;">↓ Save</a></div>';
     });
     html += '</div>';
   }
@@ -6143,6 +6150,16 @@ function runWorkspaceUpload(taskId, files, feedbackEl) {
       }).then(function() { renderProductionView(); showToast('Uploaded'); }).catch(function(e) { if (feedbackEl) feedbackEl.classList.remove('upload-drop-zone--loading'); showToast(e.message || 'Upload failed', 'error'); });
   });
 }
+
+var PRODUCTION_STATUS_CONFIG = {
+  assigned:          { label: 'To Do',      short: 'To Do',    bgColor: '#eff6ff',  textColor: '#1d4ed8', borderColor: '#bfdbfe', dotColor: '#3b82f6', icon: '○' },
+  in_progress:       { label: 'In Progress',short: 'Working',  bgColor: '#fffbeb',  textColor: '#b45309', borderColor: '#fde68a', dotColor: '#f59e0b', icon: '◐' },
+  changes_requested: { label: 'Revision',   short: 'Revision', bgColor: '#fff7ed',  textColor: '#c2410c', borderColor: '#fed7aa', dotColor: '#f97316', icon: '✎' },
+  review:            { label: 'In Review',  short: 'Review',   bgColor: '#f5f3ff',  textColor: '#6d28d9', borderColor: '#ddd6fe', dotColor: '#8b5cf6', icon: '◉' },
+  approved:          { label: 'Approved',   short: 'Approved', bgColor: '#ecfdf5',  textColor: '#059669', borderColor: '#a7f3d0', dotColor: '#10b981', icon: '✓' },
+  ready_to_post:     { label: 'Ready',      short: 'Ready',    bgColor: '#f0fdfa',  textColor: '#0d9488', borderColor: '#99f6e4', dotColor: '#14b8a6', icon: '▸' }
+};
+
 function renderProductionView() {
   const container = document.getElementById('productionViewInner');
   if (!container) return;
@@ -6458,150 +6475,382 @@ function renderProductionView() {
     });
     return;
   }
+  // ─── AGENCY MANAGER: REDESIGNED DEMANDS VIEW ───────────────
   var designerMap = {};
   designersCache.forEach(function(d) { designerMap[d.id] = d.name || d.email || 'Designer'; });
   if (currentStaff) designerMap[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
-  var tasks = getFilteredDemands();
+  var allTasks = productionTasksCache.slice();
+  var clientsData = loadClientsRegistry();
+
+  // Collect unique assignees
+  var uniqueAssignees = [];
+  allTasks.forEach(function(t) {
+    var name = designerMap[t.designerId] || t.designerId || '';
+    if (name && uniqueAssignees.indexOf(name) === -1) uniqueAssignees.push(name);
+  });
+
+  // Collect unique client IDs
   var uniqueClientIds = [];
-  productionTasksCache.forEach(function(t) {
+  allTasks.forEach(function(t) {
     if (t.clientId && uniqueClientIds.indexOf(t.clientId) === -1) uniqueClientIds.push(t.clientId);
   });
+
+  // Apply filters
+  var tasks = allTasks.slice();
+  if (demandFilterStatus === 'todo') tasks = tasks.filter(function(t) { return t.status === 'assigned'; });
+  else if (demandFilterStatus === 'in_progress') tasks = tasks.filter(function(t) { return t.status === 'in_progress'; });
+  else if (demandFilterStatus === 'changes_requested') tasks = tasks.filter(function(t) { return t.status === 'changes_requested'; });
+  else if (demandFilterStatus === 'review') tasks = tasks.filter(function(t) { return t.status === 'review'; });
+  else if (demandFilterStatus === 'approved') tasks = tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; });
+  else if (demandFilterStatus === 'completed') tasks = tasks.filter(function(t) { return ['review', 'approved', 'ready_to_post'].indexOf(t.status) !== -1; });
+
+  if (demandFilterClient) tasks = tasks.filter(function(t) { return t.clientId === demandFilterClient; });
+
+  if (demandFilterAssignee) {
+    tasks = tasks.filter(function(t) {
+      var name = designerMap[t.designerId] || t.designerId || '';
+      return name === demandFilterAssignee;
+    });
+  }
+
+  if (demandFilterDueToday) {
+    var todayISO = new Date().toISOString().slice(0, 10);
+    tasks = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === todayISO; });
+  }
+
+  // Apply sorting
+  if (productionSortCol) {
+    var statusOrder = ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'];
+    tasks.sort(function(a, b) {
+      var va, vb;
+      if (productionSortCol === 'task') {
+        va = (a.caption || a.briefNotes || 'zzz').toLowerCase();
+        vb = (b.caption || b.briefNotes || 'zzz').toLowerCase();
+      } else if (productionSortCol === 'timeline') {
+        va = a.deadline || '9999';
+        vb = b.deadline || '9999';
+      } else if (productionSortCol === 'assignee') {
+        va = (designerMap[a.designerId] || a.designerId || '').toLowerCase();
+        vb = (designerMap[b.designerId] || b.designerId || '').toLowerCase();
+      } else if (productionSortCol === 'status') {
+        va = statusOrder.indexOf(a.status);
+        vb = statusOrder.indexOf(b.status);
+      }
+      if (va < vb) return productionSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return productionSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  } else {
+    // Default sort: overdue first, then by deadline
+    var now = new Date();
+    var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+    tasks.sort(function(a, b) {
+      var aOverdue = a.deadline && new Date(a.deadline) < now ? 0 : 1;
+      var bOverdue = b.deadline && new Date(b.deadline) < now ? 0 : 1;
+      if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+      var aDate = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      var bDate = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      if (aDate !== bDate) return aDate - bDate;
+      return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+    });
+  }
+
+  // Group by client
+  var clientGroupsMap = {};
+  var clientGroupOrder = [];
+  tasks.forEach(function(t) {
+    if (!clientGroupsMap[t.clientId]) {
+      clientGroupsMap[t.clientId] = { name: (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || 'Unknown', tasks: [] };
+      clientGroupOrder.push(t.clientId);
+    }
+    clientGroupsMap[t.clientId].tasks.push(t);
+  });
+  clientGroupOrder.sort(function(a, b) { return clientGroupsMap[a].name.localeCompare(clientGroupsMap[b].name); });
+
+  // Stats from ALL tasks (unfiltered)
   var now = new Date();
   var todayStr = now.toISOString().slice(0, 10);
-  var statsTotal = tasks.length;
-  var statsToDo = tasks.filter(function(t) { return t.status === 'assigned'; }).length;
-  var statsInProgress = tasks.filter(function(t) { return ['in_progress', 'changes_requested'].indexOf(t.status) !== -1; }).length;
-  var statsOverdue = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
-  var statsCompleted = tasks.filter(function(t) { return ['review', 'approved', 'ready_to_post'].indexOf(t.status) !== -1; }).length;
-  var html = '<div class="production-demands-wrap demands-main-table production-light-canvas">';
-  html += '<div class="production-filter-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px;">';
-  html += '<div style="display: flex; align-items: center; gap: 8px;">';
-  html += '<button type="button" id="demandsViewTable" class="demands-view-btn' + (demandViewMode === 'table' ? ' active' : '') + '" style="padding: 8px 14px; border-radius: 8px; border: none; background: ' + (demandViewMode === 'table' ? '#334155' : 'transparent') + '; color: ' + (demandViewMode === 'table' ? '#f1f5f9' : '#94a3b8') + '; font-size: 13px; font-weight: 600; cursor: pointer;">Main table</button>';
-  html += '<button type="button" id="demandsViewKanban" class="demands-view-btn' + (demandViewMode === 'kanban' ? ' active' : '') + '" style="padding: 8px 14px; border-radius: 8px; border: none; background: ' + (demandViewMode === 'kanban' ? '#334155' : 'transparent') + '; color: ' + (demandViewMode === 'kanban' ? '#f1f5f9' : '#94a3b8') + '; font-size: 13px; cursor: pointer;">Kanban</button>';
+  var statCounts = {};
+  ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'].forEach(function(s) { statCounts[s] = 0; });
+  allTasks.forEach(function(t) { if (statCounts[t.status] !== undefined) statCounts[t.status]++; });
+  var statsOverdue = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
+
+  // SVG icons as strings
+  var svgSearch = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>';
+  var svgFilter = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>';
+  var svgPlus = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+  var svgTable = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>';
+  var svgKanban = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="5" height="14" rx="1"/><rect x="10" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="5" height="10" rx="1"/></svg>';
+  var svgChevron = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+
+  function sortIcon(col) {
+    if (productionSortCol !== col) return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.3"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+    if (productionSortDir === 'asc') return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m7 9 5-5 5 5"/></svg>';
+    return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m7 15 5 5 5-5"/></svg>';
+  }
+
+  // Build HTML
+  var html = '<div class="production-demands-wrap production-light-canvas" style="padding: 0 24px 24px 24px;">';
+
+  // ── Toolbar ──
+  html += '<div class="pv-toolbar">';
+  html += '<div class="pv-toolbar-left">';
+  // View toggle
+  html += '<div class="pv-view-toggle">';
+  html += '<button type="button" id="pvViewTable" class="pv-view-btn' + (demandViewMode === 'table' ? ' pv-view-btn--active' : '') + '">' + svgTable + ' Table</button>';
+  html += '<button type="button" id="pvViewKanban" class="pv-view-btn' + (demandViewMode === 'kanban' ? ' pv-view-btn--active' : '') + '">' + svgKanban + ' Kanban</button>';
   html += '</div>';
-  html += '<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">';
-  html += '<input type="text" id="demandsSearchInput" class="demands-search-input" placeholder="🔍 Search tasks..." style="padding: 8px 12px 8px 36px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; background: #fff; color: #1e293b; width: 200px;">';
-  html += '<span class="production-filter-label" style="font-size: 12px; color: #94a3b8;">Filter</span>';
-  html += '<select id="demandFilterStatus" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; font-size: 12px; background: #1e293b; color: #e2e8f0;">';
-  html += '<option value="">All Status</option><option value="todo"' + (demandFilterStatus === 'todo' ? ' selected' : '') + '>To do</option><option value="in_progress"' + (demandFilterStatus === 'in_progress' ? ' selected' : '') + '>In progress</option><option value="completed"' + (demandFilterStatus === 'completed' ? ' selected' : '') + '>Done</option>';
-  html += '</select>';
-  html += '<select id="demandFilterClient" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; font-size: 12px; background: #1e293b; color: #e2e8f0;">';
-  html += '<option value="">All Clients</option>';
-  uniqueClientIds.forEach(function(cid) {
-    var cName = (clientsData && clientsData[cid] && clientsData[cid].name) || cid;
-    html += '<option value="' + (cid || '').replace(/"/g, '&quot;') + '"' + (demandFilterClient === cid ? ' selected' : '') + '>' + (cName || 'Unknown').replace(/</g, '&lt;') + '</option>';
+  // Search
+  html += '<div class="pv-search-wrap"><span class="pv-search-icon">' + svgSearch + '</span>';
+  html += '<input type="text" id="pvSearchInput" class="pv-search-input" placeholder="Search tasks..."></div>';
+  // Filter toggle
+  var hasActiveFilters = demandFilterStatus || demandFilterClient || demandFilterAssignee;
+  html += '<button type="button" id="pvFilterToggle" class="pv-filter-btn' + (productionFiltersOpen ? ' pv-filter-btn--active' : '') + '">' + svgFilter + ' Filters';
+  if (hasActiveFilters) html += ' <span class="pv-filter-dot"></span>';
+  html += '</button>';
+  // Quick filter chips
+  var overdueCount = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
+  var dueTodayCount = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === todayStr; }).length;
+  if (overdueCount > 0) html += '<button type="button" class="pv-quick-chip" id="pvQuickOverdue">Overdue <span class="pv-quick-chip-count">' + overdueCount + '</span></button>';
+  if (dueTodayCount > 0) html += '<button type="button" class="pv-quick-chip' + (demandFilterDueToday ? ' pv-filter-btn--active' : '') + '" id="pvQuickDueToday">Due Today <span class="pv-quick-chip-count">' + dueTodayCount + '</span></button>';
+  html += '</div>';
+  // Assign button
+  html += '<button type="button" id="pvAssignTask" class="pv-assign-btn">' + svgPlus + ' Assign Task</button>';
+  html += '</div>';
+
+  // ── Filter row ──
+  if (productionFiltersOpen) {
+    html += '<div class="pv-filter-row">';
+    html += '<span class="pv-filter-label">Status</span>';
+    html += '<select id="pvFilterStatus" class="pv-filter-select">';
+    html += '<option value="">All statuses</option>';
+    var sKeys = ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'];
+    sKeys.forEach(function(k) {
+      var cfg = PRODUCTION_STATUS_CONFIG[k];
+      html += '<option value="' + k + '"' + (demandFilterStatus === k ? ' selected' : '') + '>' + cfg.label + '</option>';
+    });
+    html += '</select>';
+    html += '<span class="pv-filter-label">Client</span>';
+    html += '<select id="pvFilterClient" class="pv-filter-select">';
+    html += '<option value="">All clients</option>';
+    uniqueClientIds.forEach(function(cid) {
+      var cName = (clientsData && clientsData[cid] && clientsData[cid].name) || cid;
+      html += '<option value="' + (cid || '').replace(/"/g, '&quot;') + '"' + (demandFilterClient === cid ? ' selected' : '') + '>' + (cName || 'Unknown').replace(/</g, '&lt;') + '</option>';
+    });
+    html += '</select>';
+    html += '<span class="pv-filter-label">Assignee</span>';
+    html += '<select id="pvFilterAssignee" class="pv-filter-select">';
+    html += '<option value="">All assignees</option>';
+    uniqueAssignees.forEach(function(name) {
+      html += '<option value="' + (name || '').replace(/"/g, '&quot;') + '"' + (demandFilterAssignee === name ? ' selected' : '') + '>' + (name || 'Unknown').replace(/</g, '&lt;') + '</option>';
+    });
+    html += '</select>';
+    if (hasActiveFilters) html += '<button type="button" id="pvClearFilters" class="pv-clear-filters">Clear filters</button>';
+    html += '</div>';
+  }
+
+  // ── Stats bar ──
+  html += '<div class="pv-stats-bar" style="margin: 12px 0;">';
+  html += '<div class="pv-stat-chip"><span class="pv-stat-dot" style="background: #94a3b8;"></span> ' + allTasks.length + ' <span style="color: #94a3b8; font-weight: 400;">Total</span></div>';
+  html += '<div class="pv-stat-divider"></div>';
+  sKeys.forEach(function(k) {
+    if (statCounts[k] > 0) {
+      var cfg = PRODUCTION_STATUS_CONFIG[k];
+      html += '<div class="pv-stat-chip"><span class="pv-stat-dot" style="background: ' + cfg.dotColor + ';"></span> ' + statCounts[k] + ' <span style="color: #94a3b8; font-weight: 400;">' + cfg.short + '</span></div>';
+    }
   });
-  html += '</select>';
-  html += '<button type="button" id="demandFilterDueToday" class="filter-chip' + (demandFilterDueToday ? ' filter-chip--active' : '') + '" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #475569; font-size: 12px; cursor: pointer; background: ' + (demandFilterDueToday ? '#3b82f6' : 'transparent') + '; color: ' + (demandFilterDueToday ? '#fff' : '#94a3b8') + ';">Due Today</button>';
-  html += '<button type="button" class="filter-chip filter-chip--overdue filter-chip--disabled" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: not-allowed;" disabled title="Coming soon">Overdue</button>';
-  html += '<button type="button" class="filter-chip filter-chip--mytasks filter-chip--disabled" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: not-allowed;" disabled title="Coming soon">My Tasks</button>';
-  html += '<button type="button" id="btnAssignTask" class="production-btn-assign" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s ease;">➕ Assign Task</button>';
-  html += '</div></div>';
-  html += '<div class="demands-stats-strip production-stats-strip-light"><span><span class="stat-dot" style="background: #64748b;"></span> ' + statsTotal + ' Total</span><span><span class="stat-dot" style="background: #6b7280;"></span> ' + statsToDo + ' To do</span><span><span class="stat-dot" style="background: #3b82f6;"></span> ' + statsInProgress + ' In Progress</span><span><span class="stat-dot" style="background: #ef4444;"></span> ' + statsOverdue + ' Overdue</span><span><span class="stat-dot" style="background: #22c55e;"></span> ' + statsCompleted + ' Completed</span></div>';
+  if (statsOverdue > 0) {
+    html += '<div class="pv-stat-divider"></div>';
+    html += '<div class="pv-stat-chip pv-stat-chip--alert"><span class="pv-stat-dot" style="background: #ef4444;"></span> ' + statsOverdue + ' <span style="font-weight: 400;">Overdue</span></div>';
+  }
+  html += '</div>';
+
+  // ── Kanban mode ──
   if (demandViewMode === 'kanban') {
-    html += '<div id="demandsKanbanContainer" class="production-kanban-wrap production-dark-container" style="padding: 20px;"></div>';
+    html += '<div id="demandsKanbanContainer" style="padding: 20px 0;"></div>';
     html += '</div>';
     container.innerHTML = html;
     var kanbanEl = document.getElementById('demandsKanbanContainer');
     if (kanbanEl) renderProductionKanbanView(kanbanEl, clientsData);
-    var sEl = document.getElementById('demandFilterStatus');
-    var cEl = document.getElementById('demandFilterClient');
-    var dEl = document.getElementById('demandFilterDueToday');
-    if (sEl) sEl.addEventListener('change', function() { demandFilterStatus = sEl.value || ''; renderProductionView(); });
-    if (cEl) cEl.addEventListener('change', function() { demandFilterClient = cEl.value || ''; renderProductionView(); });
-    if (dEl) dEl.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
-    var vt = document.getElementById('demandsViewTable');
-    var vk = document.getElementById('demandsViewKanban');
-    if (vt) vt.addEventListener('click', function() { demandViewMode = 'table'; renderProductionView(); });
-    if (vk) vk.addEventListener('click', function() { demandViewMode = 'kanban'; renderProductionView(); });
-    var btnA = document.getElementById('btnAssignTask');
-    if (btnA) btnA.addEventListener('click', function() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); });
-    return;
-  }
-  html += '<div class="production-dark-container production-demands-table-wrap">';
-  if (tasks.length === 0) {
-    html += '<div class="demands-empty" style="text-align: center; padding: 48px 24px; color: #94a3b8; font-size: 14px;">';
-    html += 'No demands found.<br><span style="font-size: 12px; margin-top: 8px; display: block;">Use "Send to Designer" from the Approvals tab to create new demands.</span>';
-    html += '</div>';
   } else {
-    var groups = groupTasksByPeriod(tasks);
-    groups.forEach(function(group) {
-      if (group.tasks.length === 0) return;
-      html += '<div class="demands-group" style="border-bottom: 1px solid #e2e8f0;">';
-      html += '<div class="demands-group-header" style="display: grid; grid-template-columns: 24px 100px 1fr 120px 140px 100px; align-items: center; gap: 12px; padding: 10px 20px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0;">';
-      html += '<span style="opacity: 0.6;">▼</span>';
-      html += '<span>Client</span>';
-      html += '<span>TASK</span>';
-      html += '<span>Timeline</span>';
-      html += '<span>Assignee</span>';
-      html += '<span>Status</span>';
-      html += '</div>';
-      group.tasks.forEach(function(t) {
-        var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId;
-        var title = (t.caption || t.briefNotes || 'Untitled demand').slice(0, 60) + ((t.caption || t.briefNotes || '').length > 60 ? '…' : '');
-        var dueStr = t.deadline ? (function() { var d = new Date(t.deadline); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })() : '—';
-        var now = new Date();
-        var isOverdue = t.deadline && new Date(t.deadline) < now && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1;
-        var dueUrgency = 'future';
-        if (t.deadline) {
-          var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-          var dueDate = new Date(t.deadline);
-          var dueStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime();
-          if (dueStart < todayStart) dueUrgency = 'overdue';
-          else if (dueStart === todayStart) dueUrgency = 'today';
+    // ── Table mode ──
+    html += '<div class="pv-table-wrap">';
+    // Table header
+    html += '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="border-bottom: 1px solid #e2e8f0;">';
+    html += '<th style="width: 40px; padding-left: 8px;"></th>';
+    html += '<th class="pv-sortable-header" data-sort="task" style="padding-right:16px;"><span style="display:flex;align-items:center;gap:4px;">Task ' + sortIcon('task') + '</span></th>';
+    html += '<th class="pv-sortable-header" data-sort="timeline" style="width:130px;"><span style="display:flex;align-items:center;gap:4px;">Timeline ' + sortIcon('timeline') + '</span></th>';
+    html += '<th class="pv-sortable-header" data-sort="assignee" style="width:160px;"><span style="display:flex;align-items:center;gap:4px;">Assignee ' + sortIcon('assignee') + '</span></th>';
+    html += '<th class="pv-sortable-header" data-sort="status" style="width:130px;"><span style="display:flex;align-items:center;gap:4px;">Status ' + sortIcon('status') + '</span></th>';
+    html += '</tr></thead></table>';
+
+    // Client groups
+    if (tasks.length === 0) {
+      html += '<div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-size: 14px;">No demands found.<br><span style="font-size: 12px; margin-top: 8px; display: block;">Use "Send to Designer" from the Approvals tab to create new demands.</span></div>';
+    } else {
+      clientGroupOrder.forEach(function(clientId) {
+        var group = clientGroupsMap[clientId];
+        var isCollapsed = productionCollapsedClients[clientId];
+        // Client status dots
+        var groupStats = {};
+        group.tasks.forEach(function(t) { groupStats[t.status] = (groupStats[t.status] || 0) + 1; });
+        var dotsHtml = '';
+        Object.keys(groupStats).forEach(function(s) {
+          var cfg = PRODUCTION_STATUS_CONFIG[s];
+          if (cfg && groupStats[s] > 0) {
+            dotsHtml += '<span class="pv-stat-dot" style="background: ' + cfg.dotColor + ';" title="' + cfg.label + ': ' + groupStats[s] + '"></span>';
+          }
+        });
+        html += '<button type="button" class="pv-client-header" data-client-id="' + clientId + '">';
+        html += '<span class="pv-client-chevron' + (isCollapsed ? ' pv-client-chevron--collapsed' : '') + '">' + svgChevron + '</span>';
+        html += '<span class="pv-client-name">' + (group.name || '').replace(/</g, '&lt;').toLowerCase() + '</span>';
+        html += '<span class="pv-client-count">' + group.tasks.length + ' task' + (group.tasks.length !== 1 ? 's' : '') + '</span>';
+        html += '<span class="pv-client-dots">' + dotsHtml + '</span>';
+        html += '</button>';
+
+        if (!isCollapsed) {
+          html += '<table style="width: 100%; border-collapse: collapse;">';
+          group.tasks.forEach(function(t, idx) {
+            var title = (t.caption || t.briefNotes || '').slice(0, 80);
+            var isUntitled = !title || !title.trim();
+            var displayTitle = isUntitled ? 'Untitled demand' : title.replace(/</g, '&lt;');
+            var fullTitle = (t.caption || t.briefNotes || '').replace(/</g, '&lt;');
+            var designerName = designerMap[t.designerId] || t.designerId || '—';
+            var initial = (designerName + '').split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().slice(0, 2);
+            var dueDate = t.deadline ? new Date(t.deadline) : null;
+            var deadlineLabel = dueDate ? dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+            var isOverdue = dueDate && dueDate < new Date() && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1;
+            var isToday = dueDate && dueDate.toISOString().slice(0, 10) === todayStr && !isOverdue;
+            var dueClass = isOverdue ? 'pv-due--overdue' : (isToday ? 'pv-due--today' : 'pv-due--future');
+            var priorityColors = { low: '#cbd5e1', medium: '#60a5fa', high: '#fb923c', urgent: '#ef4444' };
+            var priorityDotColor = priorityColors[t.priority] || priorityColors.medium;
+            var cfg = PRODUCTION_STATUS_CONFIG[t.status] || PRODUCTION_STATUS_CONFIG.assigned;
+            var isLast = idx === group.tasks.length - 1;
+            var reviewNote = t.reviewNotes ? t.reviewNotes.replace(/</g, '&lt;').slice(0, 80) : '';
+
+            html += '<tr class="pv-task-row" data-task-id="' + t.id + '" style="' + (!isLast ? 'border-bottom: 1px solid #f1f5f9;' : '') + '">';
+            // Priority dot
+            html += '<td style="width: 40px; padding-left: 12px;"><span class="pv-priority-dot" style="background: ' + priorityDotColor + ';" title="' + (t.priority || 'medium') + '"></span></td>';
+            // Task title
+            html += '<td style="padding: 12px 16px 12px 0; max-width: 0;"><div class="pv-task-title' + (isUntitled ? ' pv-task-title--untitled' : '') + '" title="' + fullTitle + '">' + displayTitle + '</div>';
+            if (reviewNote) html += '<div class="pv-task-review-note">↳ ' + reviewNote + '</div>';
+            html += '</td>';
+            // Timeline
+            html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 130px;"><span class="pv-due-label ' + dueClass + '">' + deadlineLabel + '</span>';
+            if (isOverdue) html += '<span class="pv-late-badge">LATE</span>';
+            else if (isToday) html += '<span class="pv-today-badge">TODAY</span>';
+            html += '</td>';
+            // Assignee
+            html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 160px;"><div class="pv-assignee"><span class="pv-assignee-avatar">' + initial + '</span><span class="pv-assignee-name">' + (designerName + '').replace(/</g, '&lt;') + '</span></div></td>';
+            // Status
+            html += '<td style="padding: 12px 16px 12px 0; width: 130px;"><span class="pv-status-badge" style="background: ' + cfg.bgColor + '; color: ' + cfg.textColor + '; border-color: ' + cfg.borderColor + ';"><span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + '</span></td>';
+            html += '</tr>';
+          });
+          html += '</table>';
         }
-        var designerName = designerMap[t.designerId] || (currentStaff && t.designerId === currentStaff.id ? (currentStaff.name || currentStaff.fullName || currentStaff.username || 'You') : null) || t.designerId || '—';
-        var initial = (designerName + '').charAt(0).toUpperCase();
-        var avatarRing = (t.status === 'approved' || t.status === 'ready_to_post') ? '#16a34a' : (t.status === 'review' ? '#d97706' : (['in_progress', 'changes_requested'].indexOf(t.status) !== -1 ? '#2563eb' : '#64748b'));
-        html += '<div class="demand-row production-task-card" data-task-id="' + t.id + '" style="display: grid; grid-template-columns: 24px 100px 1fr 120px 140px 100px; align-items: center; gap: 12px; padding: 10px 20px; min-height: 48px; line-height: 1.5; background: #ffffff; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: background 0.15s ease;">';
-        html += '<span class="demand-row-menu" style="color: #94a3b8; font-size: 14px; cursor: grab; opacity: 0.5;">⋮</span>';
-        html += '<div style="font-size: 13px; color: #64748b;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
-        html += '<div class="demand-task-name" style="font-size: 14px; font-weight: 600; color: #1e293b;">' + (title || 'Untitled').replace(/</g, '&lt;') + '</div>';
-        html += '<span class="due-pill due-pill--' + dueUrgency + '">' + dueStr + (isOverdue ? ' <span class="due-pill-overdue-label">Overdue</span>' : '') + '</span>';
-        html += '<div style="display: flex; align-items: center; gap: 8px;"><span style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ' + avatarRing + '; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; box-sizing: border-box;">' + initial + '</span><span style="font-size: 13px; color: #334155;">' + (designerName + '').replace(/</g, '&lt;') + '</span></div>';
-        html += '<div>' + getDemandStatusBadgeDark(t.status) + '</div>';
-        html += '</div>';
       });
-      html += '</div>';
-    });
+    }
+
+    // Ghost row
+    html += '<button type="button" class="pv-ghost-row" id="pvGhostRow"><span class="pv-ghost-plus">' + svgPlus + '</span> New demand...</button>';
+    html += '</div>'; // end table wrap
+
+    // Footer count
+    html += '<div class="pv-footer-count">' + tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + ' · ' + clientGroupOrder.length + ' client' + (clientGroupOrder.length !== 1 ? 's' : '') + '</div>';
+    html += '</div>'; // end demands wrap
+    container.innerHTML = html;
   }
-  html += '</div></div>';
-  container.innerHTML = html;
-  var statusEl = document.getElementById('demandFilterStatus');
-  var clientEl = document.getElementById('demandFilterClient');
-  var dueTodayEl = document.getElementById('demandFilterDueToday');
-  var searchEl = document.getElementById('demandsSearchInput');
-  if (statusEl) statusEl.addEventListener('change', function() { demandFilterStatus = statusEl.value || ''; renderProductionView(); });
-  if (clientEl) clientEl.addEventListener('change', function() { demandFilterClient = clientEl.value || ''; renderProductionView(); });
-  if (dueTodayEl) dueTodayEl.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
-  if (searchEl) searchEl.addEventListener('input', function() {
-    var q = (searchEl.value || '').toLowerCase().trim();
-    container.querySelectorAll('.demand-row').forEach(function(row) {
+
+  // ── BIND EVENTS ──
+  // View toggle
+  var pvVT = document.getElementById('pvViewTable');
+  var pvVK = document.getElementById('pvViewKanban');
+  if (pvVT) pvVT.addEventListener('click', function() { demandViewMode = 'table'; renderProductionView(); });
+  if (pvVK) pvVK.addEventListener('click', function() { demandViewMode = 'kanban'; renderProductionView(); });
+  // Search
+  var pvSearch = document.getElementById('pvSearchInput');
+  if (pvSearch) pvSearch.addEventListener('input', function() {
+    var q = (pvSearch.value || '').toLowerCase().trim();
+    container.querySelectorAll('.pv-task-row').forEach(function(row) {
       var id = row.getAttribute('data-task-id');
       var task = productionTasksCache.find(function(t) { return t.id === id; });
-      var text = ((task && (task.caption || '') + ' ' + (task && task.briefNotes || '')) || '').toLowerCase();
-      row.style.display = !q || text.indexOf(q) !== -1 ? '' : 'none';
+      var text = ((task && (task.caption || '') + ' ' + (task.briefNotes || '')) || '').toLowerCase();
+      var clientName = (task && clientsData && clientsData[task.clientId] && clientsData[task.clientId].name || '').toLowerCase();
+      var dName = (task && (designerMap[task.designerId] || '')).toLowerCase();
+      row.style.display = !q || text.indexOf(q) !== -1 || clientName.indexOf(q) !== -1 || dName.indexOf(q) !== -1 ? '' : 'none';
     });
   });
-  container.querySelectorAll('.demand-row').forEach(function(row) {
+  // Filter toggle
+  var pvFT = document.getElementById('pvFilterToggle');
+  if (pvFT) pvFT.addEventListener('click', function() { productionFiltersOpen = !productionFiltersOpen; renderProductionView(); });
+  // Filter selects
+  var pvFS = document.getElementById('pvFilterStatus');
+  var pvFC = document.getElementById('pvFilterClient');
+  var pvFA = document.getElementById('pvFilterAssignee');
+  if (pvFS) pvFS.addEventListener('change', function() { demandFilterStatus = pvFS.value; renderProductionView(); });
+  if (pvFC) pvFC.addEventListener('change', function() { demandFilterClient = pvFC.value; renderProductionView(); });
+  if (pvFA) pvFA.addEventListener('change', function() { demandFilterAssignee = pvFA.value; renderProductionView(); });
+  // Clear filters
+  var pvCF = document.getElementById('pvClearFilters');
+  if (pvCF) pvCF.addEventListener('click', function() { demandFilterStatus = ''; demandFilterClient = ''; demandFilterAssignee = ''; renderProductionView(); });
+  // Quick chips
+  var pvQO = document.getElementById('pvQuickOverdue');
+  if (pvQO) pvQO.addEventListener('click', function() { /* TODO: overdue filter */ });
+  var pvQD = document.getElementById('pvQuickDueToday');
+  if (pvQD) pvQD.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
+  // Assign task
+  var pvAT = document.getElementById('pvAssignTask');
+  var pvGR = document.getElementById('pvGhostRow');
+  function handleAssign() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); }
+  if (pvAT) pvAT.addEventListener('click', handleAssign);
+  if (pvGR) pvGR.addEventListener('click', handleAssign);
+  // Sortable headers
+  container.querySelectorAll('.pv-sortable-header').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var col = th.getAttribute('data-sort');
+      if (productionSortCol === col) {
+        if (productionSortDir === 'asc') productionSortDir = 'desc';
+        else { productionSortCol = null; productionSortDir = null; }
+      } else {
+        productionSortCol = col;
+        productionSortDir = 'asc';
+      }
+      renderProductionView();
+    });
+  });
+  // Client group collapse
+  container.querySelectorAll('.pv-client-header').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var cid = btn.getAttribute('data-client-id');
+      productionCollapsedClients[cid] = !productionCollapsedClients[cid];
+      renderProductionView();
+    });
+  });
+  // Task row click → open workspace
+  container.querySelectorAll('.pv-task-row').forEach(function(row) {
     row.addEventListener('click', function(e) {
       if (e.target.closest('button')) return;
       var id = row.getAttribute('data-task-id');
       if (id) { currentProductionTaskId = id; renderProductionView(); }
     });
-    row.addEventListener('mouseenter', function() {
-      if (row.closest('.production-demands-table-wrap')) { row.style.background = '#f1f5f9'; } else { row.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }
-    });
-    row.addEventListener('mouseleave', function() {
-      if (row.closest('.production-demands-table-wrap')) { row.style.background = '#ffffff'; } else { row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)'; }
+  });
+  // Kanban card clicks (reuse from kanban container)
+  container.querySelectorAll('.kanban-card').forEach(function(card) {
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('button')) return;
+      var id = card.getAttribute('data-task-id');
+      if (id) { currentProductionTaskId = id; renderProductionView(); }
     });
   });
-  var btnAssign = document.getElementById('btnAssignTask');
-  if (btnAssign) btnAssign.addEventListener('click', function() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); });
-  var viewTableBtn = document.getElementById('demandsViewTable');
-  var viewKanbanBtn = document.getElementById('demandsViewKanban');
-  if (viewTableBtn) viewTableBtn.addEventListener('click', function() { demandViewMode = 'table'; renderProductionView(); });
-  if (viewKanbanBtn) viewKanbanBtn.addEventListener('click', function() { demandViewMode = 'kanban'; renderProductionView(); });
+  container.querySelectorAll('.btnAssignTaskColumn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); handleAssign(); });
+  });
+  container.querySelectorAll('.btn-review-approve').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); showToast('Design approved!'); }).catch(function(e) { showToast(e.message, 'error'); }); });
+  });
+  container.querySelectorAll('.btn-review-changes').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); var notes = prompt('Feedback for designer:'); if (notes === null) return; fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_changes', reviewNotes: notes }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(renderProductionView).catch(function(e) { showToast(e.message, 'error'); }); });
+  });
 }
 
 function renderProductionKanbanView(container, clientsData) {
@@ -6703,8 +6952,10 @@ function submitSendToDesigner(modal) {
   var designerOpt = document.getElementById('sendToDesignerDesigner').selectedOptions[0];
   var designerName = designerOpt && designerOpt.textContent ? designerOpt.textContent.split(' (')[0].trim() : 'designer';
   var refImages = [];
-  if (item.imageUrl) refImages.push(item.imageUrl);
   if (item.imageUrls && item.imageUrls.length) refImages = refImages.concat(item.imageUrls);
+  else if (item.imageUrl && item.imageUrl.trim()) refImages.push(item.imageUrl);
+  // Deduplicate and filter empty
+  refImages = refImages.filter(function(url, i, arr) { return url && url.trim() && arr.indexOf(url) === i; });
   var payload = { clientId: currentClientId, contentId: item.id, approvalId: item.id, designerId, title: item.title || '', caption: item.caption || '', copyText: item.copyText || '', referenceImages: refImages, briefNotes: notes, priority, deadline: deadline ? new Date(deadline).toISOString() : new Date().toISOString() };
   // If sent from Changes Requested section, create as changes_requested with the client note
   if (item._sendAsChangesRequested) {
