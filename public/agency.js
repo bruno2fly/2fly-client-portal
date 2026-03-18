@@ -6619,12 +6619,12 @@ function renderProductionView() {
   html += '</div>';
 
   // ── Filter row ──
+  var sKeys = ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'];
   if (productionFiltersOpen) {
     html += '<div class="pv-filter-row">';
     html += '<span class="pv-filter-label">Status</span>';
     html += '<select id="pvFilterStatus" class="pv-filter-select">';
     html += '<option value="">All statuses</option>';
-    var sKeys = ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'];
     sKeys.forEach(function(k) {
       var cfg = PRODUCTION_STATUS_CONFIG[k];
       html += '<option value="' + k + '"' + (demandFilterStatus === k ? ' selected' : '') + '>' + cfg.label + '</option>';
