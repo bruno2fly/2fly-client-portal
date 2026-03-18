@@ -20,6 +20,7 @@ import {
   publishInstagramContainer,
   getPages,
   getInstagramAccount,
+  refreshLongLivedToken,
 } from '../lib/meta-api.js';
 
 const router = Router();
@@ -226,17 +227,28 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
 
-    // Refresh page token from user token if available (ensures fresh permissions)
-    const userToken = (integration as any).metaUserAccessToken;
+    // Refresh tokens before publishing
+    let userToken = (integration as any).metaUserAccessToken;
     if (userToken) {
       try {
+        // Proactively refresh user token if it expires within 7 days
+        const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+        if (integration.tokenExpiresAt - Date.now() < SEVEN_DAYS) {
+          console.log(`[publish-now] Token expires soon, refreshing user token...`);
+          const refreshed = await refreshLongLivedToken(userToken);
+          userToken = refreshed.access_token;
+          (integration as any).metaUserAccessToken = refreshed.access_token;
+          integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
+          console.log(`[publish-now] User token refreshed, new expiry: ${new Date(integration.tokenExpiresAt).toISOString()}`);
+        }
+
+        // Refresh page token from user token
         const freshPages = await getPages(userToken);
         const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
         if (freshPage && freshPage.access_token !== integration.metaAccessToken) {
           console.log(`[publish-now] Refreshed page token for ${integration.metaPageId}`);
           integration.metaAccessToken = freshPage.access_token;
           integration.updatedAt = Date.now();
-          // Also refresh IG account
           if (freshPage.id) {
             const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
             if (igAcct) {
@@ -244,8 +256,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
               integration.metaInstagramUsername = igAcct.username;
             }
           }
-          saveMetaIntegration(integration);
         }
+        saveMetaIntegration(integration);
       } catch (refreshErr: any) {
         console.log(`[publish-now] Token refresh failed (will try with existing): ${refreshErr.message}`);
       }

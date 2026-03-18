@@ -1494,6 +1494,14 @@ async function renderScheduledPostsConnectionSection() {
       html += '<div style="display: flex; align-items: center; gap: 12px;flex-wrap:wrap;"><span style="color: #059669;">●</span> Instagram: Connected' + (j.instagramUsername ? ' (@' + j.instagramUsername + ')' : '') + '</div>';
       html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Facebook: Connected' + (j.pageName ? ' (' + j.pageName + ')' : '') + '</div>';
       html += '</div>';
+      // Token expiry warning
+      if (j.daysUntilExpiry != null && j.daysUntilExpiry <= 14) {
+        var warnColor = j.daysUntilExpiry <= 3 ? '#dc2626' : '#b45309';
+        var warnBg = j.daysUntilExpiry <= 3 ? '#fee2e2' : '#fef3c7';
+        html += '<div style="margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;background:' + warnBg + ';color:' + warnColor + ';">';
+        html += '<strong>⚠ Token expires in ' + j.daysUntilExpiry + ' day' + (j.daysUntilExpiry !== 1 ? 's' : '') + '</strong> — Click Reconnect to refresh it before it stops working.';
+        html += '</div>';
+      }
       html += '<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">';
       html += '<button type="button" class="btn btn-secondary" id="scheduledMetaTestBtn" style="padding:8px 18px;font-size:13px;">Test Connection</button>';
       html += '<button type="button" class="btn btn-secondary" id="scheduledMetaReconnectBtn" style="padding:8px 18px;font-size:13px;">Reconnect</button>';

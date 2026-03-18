@@ -131,6 +131,23 @@ export async function createInstagramMediaContainer(
 }
 
 /**
+ * Refresh a long-lived user token (extends by another 60 days).
+ * Only works if the current token is at least 24h old and not yet expired.
+ * Returns a new long-lived token + expiry, or throws.
+ */
+export async function refreshLongLivedToken(currentToken: string): Promise<{ access_token: string; expires_in: number }> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) throw new Error('META_APP_ID and META_APP_SECRET must be configured');
+
+  const url = `${META_GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${currentToken}`;
+  const res = await fetch(url);
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to refresh token');
+  return { access_token: data.access_token, expires_in: data.expires_in || 5184000 };
+}
+
+/**
  * Publish Instagram container (Step 2)
  */
 export async function publishInstagramContainer(

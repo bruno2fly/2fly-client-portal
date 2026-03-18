@@ -67,11 +67,14 @@ router.get('/status', authenticate, requireCanViewDashboard, (req: Authenticated
       });
     }
 
+    const daysUntilExpiry = Math.floor((integration.tokenExpiresAt - Date.now()) / (1000 * 60 * 60 * 24));
     res.json({
       connected: true,
       pageName: integration.metaPageName,
       instagramUsername: integration.metaInstagramUsername,
       connectedAt: integration.connectedAt,
+      expiresAt: new Date(integration.tokenExpiresAt).toISOString(),
+      daysUntilExpiry,
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to check status' });
