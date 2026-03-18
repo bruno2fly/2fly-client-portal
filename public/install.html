@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0B0F14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>Install 2FlyFlow App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: #0B0F14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 60px 24px 40px;
+      background: linear-gradient(135deg, #0B0F14 0%, #1a1145 50%, #0B0F14 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.08) 0%, transparent 50%);
+      animation: heroGlow 8s ease-in-out infinite;
+    }
+    @keyframes heroGlow {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; }
+    .hero-icon {
+      width: 88px; height: 88px; border-radius: 22px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px; box-shadow: 0 8px 32px rgba(37,99,235,0.3);
+    }
+    .hero-icon img { width: 60px; height: 60px; border-radius: 12px; }
+    .hero h1 {
+      font-size: 32px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .hero p { color: #94a3b8; font-size: 16px; max-width: 360px; margin: 0 auto; }
+
+    /* Detect & auto-show */
+    .install-section { max-width: 520px; margin: 0 auto; padding: 0 20px 60px; }
+
+    .platform-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 32px 28px; margin-bottom: 20px;
+      display: none;
+    }
+    .platform-card.active { display: block; }
+    .platform-card h2 {
+      font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #fff;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .platform-card h2 svg { flex-shrink: 0; }
+    .platform-card .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+
+    .step {
+      display: flex; gap: 16px; margin-bottom: 24px;
+      padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .step:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .step-num {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700; color: #fff;
+    }
+    .step-content h3 { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .step-content p { font-size: 14px; color: #94a3b8; }
+    .step-content .highlight {
+      display: inline-block; background: rgba(37,99,235,0.15); color: #93c5fd;
+      padding: 2px 10px; border-radius: 6px; font-weight: 600; font-size: 13px;
+    }
+
+    /* Show all toggle */
+    .toggle-all {
+      text-align: center; margin-bottom: 24px;
+    }
+    .toggle-all button {
+      background: none; border: 1px solid rgba(255,255,255,0.12);
+      color: #94a3b8; padding: 10px 24px; border-radius: 12px;
+      font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .toggle-all button:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+
+    /* CTA button (Chrome/Edge install) */
+    .install-btn {
+      display: none; width: 100%; padding: 16px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff; font-size: 17px; font-weight: 700; cursor: pointer;
+      font-family: inherit; margin-top: 20px; margin-bottom: 20px;
+      transition: all 0.3s; box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+    }
+    .install-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(37,99,235,0.45); }
+    .install-btn.show { display: block; }
+
+    /* Already installed */
+    .installed-badge {
+      display: none; text-align: center; padding: 20px;
+      background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 14px; margin-bottom: 24px;
+    }
+    .installed-badge.show { display: block; }
+    .installed-badge p { color: #10b981; font-weight: 600; font-size: 15px; }
+
+    /* Footer */
+    .footer {
+      text-align: center; padding: 24px; border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .footer a {
+      color: #7c3aed; text-decoration: none; font-weight: 600; font-size: 14px;
+    }
+    .footer a:hover { text-decoration: underline; }
+    .footer p { color: #475569; font-size: 12px; margin-top: 8px; }
+
+    /* Lang toggle */
+    .lang-toggle {
+      position: fixed; top: 16px; right: 16px; z-index: 100;
+      display: flex; gap: 2px; background: rgba(255,255,255,0.06);
+      border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .lang-btn {
+      padding: 6px 14px; font-size: 13px; font-weight: 600;
+      background: none; border: none; color: #64748b; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .lang-btn.active { background: rgba(37,99,235,0.2); color: #93c5fd; }
+  </style>
+</head>
+<body>
+
+<div class="lang-toggle">
+  <button class="lang-btn active" onclick="setLang('en')">EN</button>
+  <button class="lang-btn" onclick="setLang('pt')">PT</button>
+</div>
+
+<div class="hero">
+  <div class="hero-content">
+    <div class="hero-icon">
+      <img src="/icons/icon-192.png" alt="2FlyFlow" onerror="this.style.display='none'">
+    </div>
+    <h1 data-en="Install 2FlyFlow" data-pt="Instalar 2FlyFlow">Install 2FlyFlow</h1>
+    <p data-en="Get the app on your phone or computer — no app store needed. It works just like a native app!"
+       data-pt="Instale o app no seu celular ou computador — sem app store. Funciona como um app nativo!">
+      Get the app on your phone or computer — no app store needed. It works just like a native app!
+    </p>
+  </div>
+</div>
+
+<div class="install-section">
+
+  <!-- Auto install button for Chrome/Edge -->
+  <button id="installBtn" class="install-btn" onclick="installPWA()">
+    <span data-en="Install 2FlyFlow Now" data-pt="Instalar 2FlyFlow Agora">Install 2FlyFlow Now</span>
+  </button>
+
+  <!-- Already installed badge -->
+  <div id="installedBadge" class="installed-badge">
+    <p data-en="&#10003; 2FlyFlow is already installed on this device!"
+       data-pt="&#10003; 2FlyFlow j&aacute; est&aacute; instalado neste dispositivo!">&#10003; 2FlyFlow is already installed on this device!</p>
+  </div>
+
+  <!-- iPhone / iPad -->
+  <div class="platform-card" id="card-ios">
+    <h2>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      iPhone / iPad
+    </h2>
+    <p class="subtitle" data-en="Safari only — Chrome on iPhone won't work for install" data-pt="Apenas Safari — Chrome no iPhone n&atilde;o funciona para instalar">Safari only — Chrome on iPhone won't work for install</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3 data-en="Open in Safari" data-pt="Abra no Safari">Open in Safari</h3>
+        <p data-en='Go to <span class="highlight">2flyflow.com</span> in Safari browser'
+           data-pt='Abra <span class="highlight">2flyflow.com</span> no navegador Safari'>Go to <span class="highlight">2flyflow.com</span> in Safari browser</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3 data-en='Tap the Share button' data-pt='Toque no bot&atilde;o Compartilhar'>Tap the Share button</h3>
+        <p data-en='Tap the <span class="highlight">&#9757; Share icon</span> at the bottom of Safari (square with arrow pointing up)'
+           data-pt='Toque no <span class="highlight">&#9757; &iacute;cone Compartilhar</span> na parte de baixo do Safari (quadrado com seta pra cima)'>Tap the <span class="highlight">&#9757; Share icon</span> at the bottom of Safari (square with arrow pointing up)</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3 data-en='"Add to Home Screen"' data-pt='"Adicionar &agrave; Tela Inicial"'>"Add to Home Screen"</h3>
+        <p data-en='Scroll down and tap <span class="highlight">Add to Home Screen</span> then tap <span class="highlight">Add</span>'
+           data-pt='Role para baixo e toque em <span class="highlight">Adicionar &agrave; Tela Inicial</span> e depois em <span class="highlight">Adicionar</span>'>Scroll down and tap <span class="highlight">Add to Home Screen</span> then tap <span class="highlight">Add</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">&#10003;</div>
+      <div class="step-content">
+        <h3 data-en="Done! Open from home screen" data-pt="Pronto! Abra pela tela inicial">Done! Open from home screen</h3>
+        <p data-en="2FlyFlow icon appears on your home screen. Opens full-screen like a real app!"
+           data-pt="O &iacute;cone do 2FlyFlow aparece na sua tela inicial. Abre em tela cheia como um app de verdade!">2FlyFlow icon appears on your home screen. Opens full-screen like a real app!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Android -->
+  <div class="platform-card" id="card-android">
+    <h2>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#3ddc84"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67c-.19-.29-.51-.38-.83-.22-.31.16-.43.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg>
+      Android
+    </h2>
+    <p class="subtitle" data-en="Works on Chrome, Samsung Internet & Edge" data-pt="Funciona no Chrome, Samsung Internet e Edge">Works on Chrome, Samsung Internet & Edge</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3 data-en="Open in Chrome" data-pt="Abra no Chrome">Open in Chrome</h3>
+        <p data-en='Go to <span class="highlight">2flyflow.com</span> in Chrome'
+           data-pt='Abra <span class="highlight">2flyflow.com</span> no Chrome'>Go to <span class="highlight">2flyflow.com</span> in Chrome</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3 data-en="Tap the banner or menu" data-pt="Toque no banner ou menu">Tap the banner or menu</h3>
+        <p data-en='If you see an <span class="highlight">Install app</span> banner, tap it! Otherwise tap the <span class="highlight">&#8942; menu</span> (three dots top-right)'
+           data-pt='Se aparecer um banner <span class="highlight">Instalar app</span>, toque nele! Caso contr&aacute;rio toque no <span class="highlight">&#8942; menu</span> (tr&ecirc;s pontos no canto)'>If you see an <span class="highlight">Install app</span> banner, tap it! Otherwise tap the <span class="highlight">&#8942; menu</span> (three dots top-right)</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3 data-en='"Install app"' data-pt='"Instalar aplicativo"'>"Install app"</h3>
+        <p data-en='Tap <span class="highlight">Install app</span> or <span class="highlight">Add to Home screen</span> and confirm'
+           data-pt='Toque em <span class="highlight">Instalar aplicativo</span> ou <span class="highlight">Adicionar &agrave; tela inicial</span> e confirme'>Tap <span class="highlight">Install app</span> or <span class="highlight">Add to Home screen</span> and confirm</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">&#10003;</div>
+      <div class="step-content">
+        <h3 data-en="Done! Open from home screen" data-pt="Pronto! Abra pela tela inicial">Done! Open from home screen</h3>
+        <p data-en="2FlyFlow is now on your home screen and app drawer. Enjoy!"
+           data-pt="2FlyFlow agora est&aacute; na sua tela inicial e gaveta de apps. Aproveite!">2FlyFlow is now on your home screen and app drawer. Enjoy!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop (Chrome / Edge / Brave) -->
+  <div class="platform-card" id="card-desktop">
+    <h2>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Desktop (Mac / Windows)
+    </h2>
+    <p class="subtitle" data-en="Chrome, Edge, Brave or Arc browser" data-pt="Navegador Chrome, Edge, Brave ou Arc">Chrome, Edge, Brave or Arc browser</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3 data-en="Open in Chrome or Edge" data-pt="Abra no Chrome ou Edge">Open in Chrome or Edge</h3>
+        <p data-en='Go to <span class="highlight">2flyflow.com</span>'
+           data-pt='Abra <span class="highlight">2flyflow.com</span>'>Go to <span class="highlight">2flyflow.com</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3 data-en="Click the install icon" data-pt="Clique no &iacute;cone de instalar">Click the install icon</h3>
+        <p data-en='Look for the <span class="highlight">&#8853; Install</span> icon in the address bar (right side) or click the <span class="highlight">&#8942; menu &rarr; Install 2FlyFlow</span>'
+           data-pt='Procure o &iacute;cone <span class="highlight">&#8853; Instalar</span> na barra de endere&ccedil;o (lado direito) ou clique em <span class="highlight">&#8942; menu &rarr; Instalar 2FlyFlow</span>'>Look for the <span class="highlight">&#8853; Install</span> icon in the address bar (right side) or click the <span class="highlight">&#8942; menu &rarr; Install 2FlyFlow</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3 data-en="Click Install" data-pt="Clique em Instalar">Click Install</h3>
+        <p data-en="Confirm the install popup. The app opens in its own window!"
+           data-pt="Confirme o popup de instala&ccedil;&atilde;o. O app abre em sua pr&oacute;pria janela!">Confirm the install popup. The app opens in its own window!</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">&#10003;</div>
+      <div class="step-content">
+        <h3 data-en="Done! Find it in your apps" data-pt="Pronto! Encontre nos seus apps">Done! Find it in your apps</h3>
+        <p data-en="2FlyFlow is now in your dock/taskbar and app launcher. No browser chrome, just the app."
+           data-pt="2FlyFlow agora est&aacute; no seu dock/barra de tarefas. Sem barra do navegador, apenas o app.">2FlyFlow is now in your dock/taskbar and app launcher. No browser chrome, just the app.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toggle-all">
+    <button onclick="showAll()" data-en="Show all platforms" data-pt="Mostrar todas as plataformas">Show all platforms</button>
+  </div>
+
+</div>
+
+<div class="footer">
+  <a href="/" data-en="Open 2FlyFlow &rarr;" data-pt="Abrir 2FlyFlow &rarr;">Open 2FlyFlow &rarr;</a>
+  <p data-en="2FlyFlow &mdash; by 2Fly Digital Marketing" data-pt="2FlyFlow &mdash; por 2Fly Digital Marketing">2FlyFlow &mdash; by 2Fly Digital Marketing</p>
+</div>
+
+<script>
+// PWA Install prompt capture
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').classList.add('show');
+});
+
+window.addEventListener('appinstalled', function() {
+  deferredPrompt = null;
+  document.getElementById('installBtn').classList.remove('show');
+  document.getElementById('installedBadge').classList.add('show');
+});
+
+function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      document.getElementById('installBtn').classList.remove('show');
+    }
+    deferredPrompt = null;
+  });
+}
+
+// Check if already installed
+if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  document.getElementById('installedBadge').classList.add('show');
+}
+
+// Platform detection — show relevant card
+function detectPlatform() {
+  var ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+var platform = detectPlatform();
+var card = document.getElementById('card-' + platform);
+if (card) card.classList.add('active');
+
+function showAll() {
+  document.querySelectorAll('.platform-card').forEach(function(c) { c.classList.add('active'); });
+  document.querySelector('.toggle-all').style.display = 'none';
+}
+
+// Language toggle
+var currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.trim().toLowerCase() === lang);
+  });
+  document.querySelectorAll('[data-' + lang + ']').forEach(function(el) {
+    var val = el.getAttribute('data-' + lang);
+    if (el.tagName === 'INPUT' || el.tagName === 'BUTTON') {
+      if (el.querySelector('span[data-' + lang + ']')) return;
+      el.textContent = val;
+    } else {
+      el.innerHTML = val;
+    }
+  });
+}
+
+// Service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(function() {});
+}
+</script>
+</body>
+</html>

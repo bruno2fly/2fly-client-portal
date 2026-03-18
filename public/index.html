@@ -692,6 +692,7 @@
   @media (prefers-reduced-motion: reduce){ .pull-refresh-spinner{ animation: none; } }
 
   @keyframes gentle-pulse{ 0%, 100%{ transform: scale(1); } 50%{ transform: scale(1.15); } }
+  @keyframes gentlePulse{ 0%, 100%{ opacity:1; } 50%{ opacity:0.7; } }
   .client-notif-badge:not(.hidden){ animation: gentle-pulse 2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce){ .client-notif-badge:not(.hidden){ animation: none; } }
 
@@ -1333,8 +1334,8 @@ body[data-theme="dark"] .kpi-card.approved .pill{
           <div id="approvalCaption" style="background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;color:#0f172a;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
         </div>
         
-        <!-- Change Request Notes (shown only for items with status "changes" or "copy_changes") -->
-        <div id="changeRequestContainer" style="display:none;margin-bottom:20px;">
+        <!-- Change Request Notes (shown for active changes AND revised items) -->
+        <div id="changeRequestContainer" style="display:none;margin-bottom:20px;padding:16px;border-radius:12px;">
           <h5 style="font-size:14px;font-weight:600;color:#ea580c;margin-bottom:8px;">Change Request:</h5>
           <div id="changeRequestNotes" style="background:#fff7ed;padding:16px;border-radius:8px;border:1px solid #fed7aa;color:#9a3412;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
         </div>
@@ -2394,10 +2395,10 @@ function renderApprovalsSectioned(){
     const typeTag = el("span", { class: "tag type-tag", style: "background:#dbeafe;color:#1e40af;font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;" });
     typeTag.textContent = item.type || "Post";
     titleRow.appendChild(typeTag);
-    // "From change requested" badge for items returned from changes
+    // "Revised" badge for items returned from changes
     if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
-      const returnBadge = el("span", { style: "background:#fff7ed;color:#c2410c;font-size:11px;line-height:16px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid #fed7aa;" });
-      returnBadge.textContent = 'Updated from changes';
+      const returnBadge = el("span", { style: "background:linear-gradient(135deg,#fef3c7,#fff7ed);color:#b45309;font-size:12px;line-height:18px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid #fbbf24;display:inline-flex;align-items:center;gap:5px;animation:gentlePulse 2s ease-in-out infinite;" });
+      returnBadge.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Revised';
       titleRow.appendChild(returnBadge);
     }
     if (item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes') {
@@ -2548,9 +2549,15 @@ window.openApprovalModal = function(id){
   
   CURRENT_APPROVAL_ITEM = id;
   
-  // Set title
+  // Set title (with "Revised" badge if returned from changes)
   const approvalTitle = $("#approvalTitle");
-  if (approvalTitle) approvalTitle.textContent = item.title;
+  if (approvalTitle) {
+    if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
+      approvalTitle.innerHTML = item.title + ' <span style="background:linear-gradient(135deg,#fef3c7,#fff7ed);color:#b45309;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid #fbbf24;vertical-align:middle;margin-left:8px;">Revised</span>';
+    } else {
+      approvalTitle.textContent = item.title;
+    }
+  }
   
   // Show/hide copy approval sections
   const copyTextContainer = $("#approvalCopyTextContainer");
@@ -2804,12 +2811,41 @@ window.openApprovalModal = function(id){
   // Show/hide change request notes section
   const changeRequestContainer = $("#changeRequestContainer");
   const changeRequestNotes = $("#changeRequestNotes");
+  const changeRequestLabel = changeRequestContainer ? changeRequestContainer.querySelector("h5") : null;
   if (changeRequestContainer && changeRequestNotes) {
-    if ((item.status === "changes" || item.status === "copy_changes") && item.change_notes && item.change_notes.length > 0) {
-      // Show the most recent change request note
+    const hasChangeNotes = item.change_notes && item.change_notes.length > 0;
+    const isActiveChange = (item.status === "changes" || item.status === "copy_changes");
+    const isRevisedPending = item.returnedFromChanges && (item.status === "pending" || item.status === "copy_pending");
+
+    if ((isActiveChange || isRevisedPending) && hasChangeNotes) {
       const latestNote = item.change_notes[item.change_notes.length - 1];
-      changeRequestNotes.textContent = latestNote.note || "Change requested.";
-      changeRequestContainer.style.display = "block";
+      if (isRevisedPending) {
+        // Revised: show what they asked for + confirmation it was addressed
+        if (changeRequestLabel) {
+          changeRequestLabel.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display:inline;vertical-align:-2px;margin-right:4px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Your requested changes have been applied:';
+          changeRequestLabel.style.color = "#b45309";
+        }
+        changeRequestNotes.textContent = latestNote.note || "Change requested.";
+        changeRequestContainer.style.display = "block";
+        changeRequestContainer.style.background = "#fffbeb";
+        changeRequestContainer.style.borderColor = "#fbbf24";
+        changeRequestNotes.style.background = "#fef9c3";
+        changeRequestNotes.style.borderColor = "#fde68a";
+        changeRequestNotes.style.color = "#92400e";
+      } else {
+        // Active change request
+        if (changeRequestLabel) {
+          changeRequestLabel.textContent = "Change Request:";
+          changeRequestLabel.style.color = "#ea580c";
+        }
+        changeRequestNotes.textContent = latestNote.note || "Change requested.";
+        changeRequestContainer.style.display = "block";
+        changeRequestContainer.style.background = "transparent";
+        changeRequestContainer.style.borderColor = "transparent";
+        changeRequestNotes.style.background = "#fff7ed";
+        changeRequestNotes.style.borderColor = "#fed7aa";
+        changeRequestNotes.style.color = "#9a3412";
+      }
     } else {
       changeRequestContainer.style.display = "none";
     }

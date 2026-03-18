@@ -1,7 +1,15 @@
-/* 2FlyFlow PWA — network-first service worker v3 */
-const CACHE = '2flyflow-v3';
+/* 2FlyFlow PWA — network-first service worker v4 */
+const CACHE = '2flyflow-v4';
 
-const URLS = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const URLS = [
+  '/',
+  '/index.html',
+  '/login.html',
+  '/agency.html',
+  '/manifest.webmanifest',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -20,7 +28,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Only handle same-origin GET requests for static assets
+  // Only handle same-origin GET requests
   // Never intercept API calls or cross-origin requests
   if (e.request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;

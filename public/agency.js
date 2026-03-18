@@ -5965,23 +5965,52 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
       var feedbackLabel = isClientChange ? '<strong style="display:block;margin-bottom:4px;color:#c2410c;">CHANGE REQUEST FROM CLIENT:</strong>' : '';
       html += '<div class="review-feedback" style="background:' + feedbackBg + ';border:1px solid ' + feedbackBorder + ';border-left:4px solid ' + feedbackBorder + ';border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;color:' + feedbackColor + ';">' + feedbackLabel + (task.reviewNotes || '').replace(/^Client change request: /, '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
     }
-    if (!hasArt) {
-      html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><div class="upload-drop-content"><span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG accepted · Max 10MB per file</p></div></div>';
-    } else {
-      html += '<div class="upload-preview-main"><img id="workspaceMainPreview' + task.id + '" src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Preview" style="max-width:100%;border-radius:10px;"></div>';
-      html += '<div class="upload-thumbs" id="workspaceThumbs' + task.id + '">';
+    var artCount = hasArt ? task.finalArt.length : 0;
+    var maxImages = 5;
+    var canAddMore = artCount < maxImages;
+    // Image counter
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+    html += '<span style="font-size:13px;color:#64748b;font-weight:500;">Images: <strong style="color:' + (artCount >= maxImages ? '#dc2626' : '#1e40af') + ';">' + artCount + '/' + maxImages + '</strong></span>';
+    if (artCount > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;">Carousel (' + artCount + ' slides)</span>';
+    html += '</div>';
+    // Upload drop zone (show if can add more)
+    if (canAddMore) {
+      html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '" style="' + (hasArt ? 'padding:16px;min-height:auto;' : '') + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><div class="upload-drop-content">' + (hasArt ? '<p style="margin:0;font-size:13px;">+ Add more images <span style="color:#94a3b8;">(' + (maxImages - artCount) + ' remaining)</span></p>' : '<span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG accepted · Max 10MB · Up to ' + maxImages + ' images for carousel</p>') + '</div></div>';
+    }
+    // Image grid
+    if (hasArt) {
+      html += '<div class="upload-image-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px;">';
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
-        html += '<button type="button" class="upload-thumb-btn' + (i === 0 ? ' active' : '') + '" data-url="' + safe + '" data-index="' + i + '" style="width:60px;height:60px;border-radius:8px;overflow:hidden;padding:0;border:2px solid ' + (i === 0 ? '#1a56db' : '#e2e8f0') + ';background:#f1f5f9;cursor:pointer;"><img src="' + safe + '" alt="" style="width:100%;height:100%;object-fit:cover;"></button>';
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:2px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
+        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+        html += '<button type="button" class="workspace-remove-image" data-task-id="' + task.id + '" data-index="' + i + '" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
+        html += '</div>';
       });
-      html += '</div><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;"><a href="#" class="workspace-add-more" data-id="' + task.id + '">+ Add More</a>';
-      html += '<div style="margin-top:12px;"><button type="button" class="workspace-btn workspace-btn-replace" data-id="' + task.id + '">Replace All</button></div>';
+      html += '</div>';
+      if (!canAddMore) {
+        html += '<input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png" multiple style="display:none;">';
+      }
+      html += '<div style="display:flex;gap:8px;margin-top:12px;">';
+      html += '<button type="button" class="workspace-btn workspace-btn-replace" data-id="' + task.id + '" style="flex:1;">Replace All</button>';
+      html += '</div>';
       html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-submit-review" data-id="' + task.id + '" style="width:100%;margin-top:16px;">Submit for Review ▶</button>';
     }
   } else {
     html += '<h2 class="section-title">Design Upload</h2>';
-    if (hasArt) html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Preview" style="max-width:100%;border-radius:10px;"></div>';
-    else html += '<p style="color:#64748b;">No design uploaded yet.</p>';
+    if (hasArt) {
+      if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;">';
+      task.finalArt.forEach(function(url, i) {
+        var safe = (url || '').replace(/"/g, '&quot;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
+        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else html += '<p style="color:#64748b;">No design uploaded yet.</p>';
   }
   html += '</div></div></div>';
 
@@ -6084,9 +6113,17 @@ function bindWorkspaceEvents(container, task) {
       .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
   });
 
-  var addMoreLink = container.querySelector('.workspace-add-more[data-id="' + taskId + '"]');
+  // Remove individual image buttons
+  var removeImageBtns = container.querySelectorAll('.workspace-remove-image[data-task-id="' + taskId + '"]');
+  removeImageBtns.forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var idx = parseInt(btn.getAttribute('data-index'), 10);
+      removeWorkspaceImage(taskId, idx);
+    });
+  });
+
   var fileInput = document.getElementById('workspaceFileInput' + taskId);
-  if (addMoreLink && fileInput) addMoreLink.addEventListener('click', function(e) { e.preventDefault(); fileInput.click(); });
 
   var dropZone = document.getElementById('workspaceDropZone' + taskId);
   if (dropZone && fileInput) {
@@ -6118,14 +6155,33 @@ function bindWorkspaceEvents(container, task) {
     });
   });
 }
+function removeWorkspaceImage(taskId, index) {
+  var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+  if (!task || !task.finalArt || !task.finalArt.length) return;
+  var updatedUrls = task.finalArt.slice();
+  updatedUrls.splice(index, 1);
+  fetch(getApiBaseUrl() + '/api/production/tasks/' + taskId + '/upload-art', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: updatedUrls }) })
+    .then(function(r) { return r.json(); }).then(function(j) {
+      if (!j.task) throw new Error(j.error || 'Failed');
+      return loadProductionTasks();
+    }).then(function() { renderProductionView(); showToast('Image removed'); }).catch(function(e) { showToast(e.message || 'Failed to remove', 'error'); });
+}
+
 function runWorkspaceUpload(taskId, files, feedbackEl) {
   var task = productionTasksCache.find(function(t) { return t.id === taskId; });
   var currentUrls = (task && task.finalArt) ? task.finalArt.slice() : [];
+  var maxImages = 5;
+  var remaining = maxImages - currentUrls.length;
+  if (remaining <= 0) { showToast('Maximum ' + maxImages + ' images allowed. Remove some first.', 'error'); return; }
   var toUpload = [];
   for (var i = 0; i < files.length; i++) {
     if (files[i].type === 'image/jpeg' || files[i].type === 'image/png') toUpload.push(files[i]);
   }
   if (toUpload.length === 0) { showToast('No valid images (JPG/PNG)', 'error'); return; }
+  if (toUpload.length > remaining) {
+    showToast('Only ' + remaining + ' more image' + (remaining > 1 ? 's' : '') + ' allowed. Uploading first ' + remaining + '.', 'error');
+    toUpload = toUpload.slice(0, remaining);
+  }
   if (feedbackEl) feedbackEl.classList.add('upload-drop-zone--loading');
   var uploadUrl = getApiBaseUrl() + '/api/upload/image';
   var promises = toUpload.map(function(file) {
