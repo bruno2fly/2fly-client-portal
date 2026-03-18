@@ -84,6 +84,7 @@
     display:flex;align-items:center;justify-content:center;
     font-size:18px;line-height:24px;font-weight:600;letter-spacing:0;flex-shrink:0;
   }
+  .settings-icon{ display: none; }
   .notification-icon{
     width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;
     background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
@@ -894,7 +895,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   header{
     margin: 12px 12px 0;
     padding: 12px 20px;
-    border-radius: 9999px;
+    border-radius: 20px;
   }
   header .brand{ display: none; }
   .header-brand-mobile{
@@ -907,12 +908,13 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0,41,102,.5);
+    background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     overflow: hidden;
+    border: 2px solid #1e40af;
   }
   .header-logo-img{
     width: 24px;
@@ -922,7 +924,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .header-logo-initials{
     font-size: 16px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1e40af;
     text-transform: uppercase;
   }
   .header-2fly-text{
@@ -930,24 +932,29 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     font-weight: 600;
     color: #ffffff;
   }
-  header .actions .logout-link{ display: inline-flex !important; font-size: 0; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: none; padding: 0; color: #1e40af; }
+  header .actions .logout-link{ display: inline-flex !important; font-size: 0; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: 2px solid #1e40af; padding: 0; color: #1e40af; }
   header .actions .logout-link .logout-link-text{ display: none; }
   header .actions .logout-link .logout-link-icon{ display: block; }
-  body[data-theme="dark"] header .actions .logout-link{ background: rgba(255,255,255,.15); color: #93c5fd; }
-  #toggleMode{ display: flex !important; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: #ffffff; border: none; padding: 0; font-size: 18px; margin-left: 4px; }
-  body[data-theme="dark"] #toggleMode{ background: rgba(255,255,255,.15); }
+  body[data-theme="dark"] header .actions .logout-link{ background: rgba(255,255,255,.15); color: #93c5fd; border-color: rgba(255,255,255,.3); }
+  #toggleMode{ display: none !important; }
+  header .actions .settings-icon{ display: inline-flex !important; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: 2px solid #1e40af; padding: 0; color: #1e40af; cursor: pointer; }
+  header .actions .settings-icon svg{ width: 20px; height: 20px; stroke: #1e40af; fill: none; stroke-width: 2; }
+  body[data-theme="dark"] header .actions .settings-icon{ background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
+  body[data-theme="dark"] header .actions .settings-icon svg{ stroke: #93c5fd; }
   header .notification-icon{
     width: 44px;
     height: 44px;
     min-width: 44px;
     min-height: 44px;
     background: #ffffff;
-    border: none;
+    border: 2px solid #1e40af;
   }
   header .notification-icon svg{
     stroke: #1e40af;
     stroke-width: 2;
   }
+  body[data-theme="dark"] header .notification-icon{ background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
+  body[data-theme="dark"] header .notification-icon svg{ stroke: #93c5fd; }
 }
 
 /* === MOBILE APPROVAL TABS FIX v2 === */
@@ -1064,6 +1071,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
             </div>
           </div>
         </div>
+        <button class="settings-icon" id="settingsBtn" aria-label="Settings" title="Settings" onclick="document.getElementById('settingsPanel')&&(document.getElementById('settingsPanel').style.display=document.getElementById('settingsPanel').style.display==='none'?'block':'none')">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
         <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;"><span class="logout-link-text">Logout</span><svg class="logout-link-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
         <button class="btn small" id="toggleMode" style="display:none">☀️</button>
       </div>
