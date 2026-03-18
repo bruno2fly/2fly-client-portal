@@ -5940,16 +5940,45 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
   if (task.status === 'review' && isManager) {
     html += '<h2 class="section-title">Design Upload</h2>';
     if (hasArt) {
-      html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Submission" style="max-width:100%;border-radius:10px;"></div>';
+      if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+      task.finalArt.forEach(function(url, i) {
+        var safe = (url || '').replace(/"/g, '&quot;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
+        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
       html += '<div style="margin-top:12px;"><button type="button" class="workspace-btn workspace-btn-approve" data-id="' + task.id + '">Approve</button> <button type="button" class="workspace-btn workspace-btn-request-changes" data-id="' + task.id + '">Request Changes</button></div>';
     } else html += '<p style="color:#64748b;">No art submitted yet.</p>';
   } else if (task.status === 'review' && isAssignedDesigner) {
     html += '<h2 class="section-title">Your Design</h2>';
-    if (hasArt) html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Submission" style="max-width:100%;border-radius:10px;"></div>';
+    if (hasArt) {
+      if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+      task.finalArt.forEach(function(url, i) {
+        var safe = (url || '').replace(/"/g, '&quot;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
+        html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+        if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
     html += '<p style="margin-top:12px;color:#64748b;">Submitted for review. Waiting for feedback.</p>';
   } else if ((task.status === 'approved' || task.status === 'ready_to_post') && hasArt) {
     html += '<h2 class="section-title">Design</h2>';
-    html += '<div class="upload-preview-main"><img src="' + (task.finalArt[0] || '').replace(/"/g, '&quot;') + '" alt="Approved" style="max-width:100%;border-radius:10px;"></div>';
+    if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+    task.finalArt.forEach(function(url, i) {
+      var safe = (url || '').replace(/"/g, '&quot;');
+      html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
+      html += '<img src="' + safe + '" alt="Image ' + (i + 1) + '" style="width:100%;height:100%;object-fit:cover;">';
+      if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
     html += '<span style="display:inline-block;margin-top:12px;padding:6px 14px;border-radius:9999px;font-size:13px;font-weight:600;background:#dcfce7;color:#16a34a;">✓ Approved</span>';
   } else if (task.status === 'assigned' && isAssignedDesigner) {
     html += '<h2 class="section-title">Design Upload</h2>';

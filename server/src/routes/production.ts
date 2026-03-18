@@ -249,6 +249,26 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
     if (status === 'review') task.submittedAt = now;
     if (status === 'approved') task.approvedAt = now;
     saveProductionTask(task);
+    // When designer submits for review, sync images to approval item preview
+    if (status === 'review' && task.finalArt && task.finalArt.length > 0) {
+      try {
+        const state = getPortalState(task.agencyId, task.clientId);
+        if (state && Array.isArray(state.approvals)) {
+          const item = state.approvals.find(
+            (a: any) => a.id === task.approvalId || a.id === task.contentId
+          ) as any;
+          if (item) {
+            item.finalArtUrls = task.finalArt;
+            item.imageUrls = task.finalArt;
+            item.imageUrl = task.finalArt[0] || item.imageUrl || '';
+            item.updatedAt = new Date().toISOString();
+            savePortalState(task.agencyId, task.clientId, state);
+          }
+        }
+      } catch (e: any) {
+        console.error('[production] Failed to sync images on review submit:', e?.message);
+      }
+    }
     // When designer resubmits after changes, push approval back to content pending for client
     if (previousStatus === 'changes_requested' && status === 'review') {
       try { returnApprovalToPending(task); } catch (e: any) {
