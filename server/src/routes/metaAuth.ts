@@ -15,9 +15,7 @@ const META_REDIRECT_URI = process.env.META_REDIRECT_URI || '';
 
 const SCOPES = [
   'pages_manage_posts',
-  'pages_manage_metadata',
   'pages_read_engagement',
-  'pages_read_user_content',
   'pages_show_list',
   'instagram_basic',
   'instagram_content_publish',
@@ -41,7 +39,8 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
   }
   const { agencyId } = getAgencyScope(req);
   const state = Buffer.from(JSON.stringify({ agencyId, clientId, userId: req.userId })).toString('base64');
-  const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code`;
+  // auth_type=rerequest forces Meta to re-ask for permissions if previously declined
+  const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code&auth_type=rerequest`;
   res.json({ authUrl });
 });
 
@@ -87,6 +86,20 @@ router.get('/callback', async (req: Request, res: Response) => {
 
     const shortToken = tokenData.access_token;
     const { access_token: longToken, expires_in } = await exchangeForLongLivedToken(shortToken);
+
+    // Verify granted permissions
+    const permRes = await fetch(`https://graph.facebook.com/v19.0/me/permissions?access_token=${longToken}`);
+    const permData: any = await permRes.json();
+    const granted = (permData.data || []).filter((p: any) => p.status === 'granted').map((p: any) => p.permission);
+    const declined = (permData.data || []).filter((p: any) => p.status === 'declined').map((p: any) => p.permission);
+    console.log('[Meta OAuth] Granted:', granted.join(', '));
+    if (declined.length > 0) console.log('[Meta OAuth] Declined:', declined.join(', '));
+
+    const required = ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'];
+    const missing = required.filter(s => !granted.includes(s));
+    if (missing.length > 0) {
+      return res.send(renderCallbackPage(false, `Missing required permissions: ${missing.join(', ')}. Please reconnect and grant all permissions.`));
+    }
 
     const pages = await getPages(longToken);
     if (pages.length === 0) {

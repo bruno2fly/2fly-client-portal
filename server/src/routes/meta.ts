@@ -5,9 +5,36 @@
 import { Router } from 'express';
 import { authenticate, getAgencyScope, requireCanViewDashboard } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { getMetaIntegrationByClient, deleteMetaIntegrationByClient } from '../db.js';
+import { getMetaIntegrations, getMetaIntegrationByClient, deleteMetaIntegrationByClient } from '../db.js';
 
 const router = Router();
+
+/**
+ * GET /api/integrations/meta/list
+ * List all Meta integrations for the agency (all clients)
+ */
+router.get('/list', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const all = getMetaIntegrations();
+    const agencyIntegrations = Object.values(all)
+      .filter(i => i.agencyId === agencyId)
+      .map(i => ({
+        clientId: i.clientId,
+        pageName: i.metaPageName,
+        pageId: i.metaPageId,
+        instagramUsername: i.metaInstagramUsername,
+        instagramAccountId: i.metaInstagramAccountId,
+        connected: i.tokenExpiresAt > Date.now(),
+        tokenExpired: i.tokenExpiresAt < Date.now(),
+        expiresAt: new Date(i.tokenExpiresAt).toISOString(),
+        connectedAt: i.connectedAt,
+      }));
+    res.json({ success: true, integrations: agencyIntegrations });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to list integrations' });
+  }
+});
 
 /**
  * GET /api/integrations/meta/status?clientId=xxx

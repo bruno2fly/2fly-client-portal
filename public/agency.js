@@ -4623,6 +4623,7 @@ function setupSettingsModal() {
       if (inviteSection) inviteSection.style.display = (role === 'OWNER' || role === 'ADMIN') ? 'block' : 'none';
       loadUsersList();
       loadClientsList();
+      loadMetaIntegrationsList();
     });
   }
 
@@ -4633,6 +4634,8 @@ function setupSettingsModal() {
         renderScheduledPostsConnectionSection();
         renderScheduledPostsTab();
       }
+      // Also refresh settings list if open
+      if (typeof loadMetaIntegrationsList === 'function') loadMetaIntegrationsList();
     }
   });
 
@@ -4665,6 +4668,10 @@ function setupSettingsModal() {
     });
   }
   
+  // Meta integrations in settings
+  var refreshMetaBtn = $('#refreshMetaIntegrationsBtn');
+  if (refreshMetaBtn) refreshMetaBtn.addEventListener('click', function() { loadMetaIntegrationsList(); });
+
   // Setup settings PIN invite form
   const settingsForm = $('#settingsPinInviteForm');
   const settingsSubmitBtn = $('#settingsSubmitInviteBtn');
@@ -4920,8 +4927,78 @@ function setupSettingsModal() {
     return div.innerHTML;
   }
   
+  async function loadMetaIntegrationsList() {
+    var container = $('#metaIntegrationsContainer');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">Loading...</div>';
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/list', { credentials: 'include' });
+      var j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      var integrations = j.integrations || [];
+      var registry = loadClientsRegistry();
+      if (integrations.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">No Meta connections yet. Connect from the <strong>Scheduled Posts</strong> tab for each client.</div>';
+        return;
+      }
+      container.innerHTML = '';
+      integrations.forEach(function(integ) {
+        var clientName = (registry && registry[integ.clientId] && registry[integ.clientId].name) || integ.clientId;
+        var card = document.createElement('div');
+        card.style.cssText = 'padding:14px;background:white;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:10px;';
+        var statusColor = integ.connected ? '#059669' : '#dc2626';
+        var statusText = integ.connected ? 'Connected' : (integ.tokenExpired ? 'Token Expired' : 'Disconnected');
+        var expiresDate = integ.expiresAt ? new Date(integ.expiresAt).toLocaleDateString() : '—';
+        var html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-weight:600;font-size:15px;color:#0f172a;">' + escapeHtml(clientName) + '</div>';
+        html += '<div style="font-size:13px;color:#64748b;margin-top:4px;">';
+        html += '<span style="color:' + statusColor + ';font-weight:600;">● ' + statusText + '</span>';
+        if (integ.pageName) html += ' · FB: ' + escapeHtml(integ.pageName);
+        if (integ.instagramUsername) html += ' · IG: @' + escapeHtml(integ.instagramUsername);
+        html += '</div>';
+        html += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">Token expires: ' + expiresDate + '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
+        html += '<button type="button" class="meta-settings-reconnect btn btn-primary" data-client-id="' + escapeHtml(integ.clientId) + '" style="padding:8px 16px;font-size:13px;border-radius:8px;">Reconnect</button>';
+        html += '<button type="button" class="meta-settings-disconnect btn btn-secondary" data-client-id="' + escapeHtml(integ.clientId) + '" style="padding:8px 16px;font-size:13px;border-radius:8px;color:#dc2626;border-color:#fecaca;">Disconnect</button>';
+        html += '</div></div>';
+        card.innerHTML = html;
+        container.appendChild(card);
+      });
+      // Bind reconnect and disconnect buttons
+      container.querySelectorAll('.meta-settings-reconnect').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var cid = this.getAttribute('data-client-id');
+          try {
+            var authRes = await fetch(getApiBaseUrl() + '/api/auth/meta?clientId=' + encodeURIComponent(cid), { credentials: 'include' });
+            var authJ = await authRes.json();
+            if (authJ.authUrl) window.open(authJ.authUrl, 'meta_oauth', 'width=600,height=700');
+          } catch (e) { console.error('Meta reconnect:', e); }
+        });
+      });
+      container.querySelectorAll('.meta-settings-disconnect').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var cid = this.getAttribute('data-client-id');
+          if (!confirm('Disconnect Meta for this client? You will need to reconnect to schedule posts.')) return;
+          try {
+            var dr = await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+              body: JSON.stringify({ clientId: cid })
+            });
+            var dj = await dr.json();
+            if (dj.success) { loadMetaIntegrationsList(); showToast('Meta disconnected for client', 'success'); }
+          } catch (e) { console.error('Meta disconnect:', e); }
+        });
+      });
+    } catch (e) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">Error: ' + (e.message || 'Failed to load') + '</div>';
+    }
+  }
+
   window.loadUsersList = loadUsersList;
   window.loadClientsList = loadClientsList;
+  window.loadMetaIntegrationsList = loadMetaIntegrationsList;
 }
 
 // Setup reports handlers

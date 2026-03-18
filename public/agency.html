@@ -2946,6 +2946,18 @@
           </div>
         </div>
 
+        <!-- Meta Integrations Section -->
+        <div class="settings-section" style="margin-bottom: 32px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Meta Integrations (Facebook & Instagram)</h3>
+            <button id="refreshMetaIntegrationsBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Refresh</button>
+          </div>
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">Manage Facebook & Instagram connections for each client. Connect from the Scheduled Posts tab or reconnect here.</p>
+          <div id="metaIntegrationsContainer" style="background: #f8fafc; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; padding: 20px; color: #64748b;">Loading integrations...</div>
+          </div>
+        </div>
+
         <!-- Clients List Section (saved credentials) -->
         <div class="settings-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -3540,7 +3552,7 @@
     .copilot-send:hover { filter: brightness(1.1); transform: scale(1.05); }
   </style>
 
-  <script src="/agency.js?v=53"></script>
+  <script src="/agency.js?v=54"></script>
 </body>
 </html>
 
