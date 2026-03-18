@@ -78,6 +78,9 @@ let productionSortDir = null; // null | 'asc' | 'desc'
 let productionCollapsedClients = {};
 let productionFiltersOpen = false;
 let demandFilterAssignee = '';
+let designerViewMode = 'focus'; // focus | list | clients
+let designerSearchQuery = '';
+let designerCollapsedStatuses = {};
 
 // Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
 let clientsRegistryCache = {};
@@ -6151,6 +6154,17 @@ function runWorkspaceUpload(taskId, files, feedbackEl) {
   });
 }
 
+var DESIGNER_STATUS_CONFIG = {
+  assigned:          { label: 'To Do',     color: '#3b82f6', bgColor: '#eff6ff',  textColor: '#1d4ed8', borderColor: '#bfdbfe', icon: '○',  action: 'Start Working',    actionColor: '#059669' },
+  in_progress:       { label: 'Working',   color: '#f59e0b', bgColor: '#fffbeb',  textColor: '#b45309', borderColor: '#fde68a', icon: '◐',  action: 'Submit for Review', actionColor: '#2563eb' },
+  changes_requested: { label: 'Revision',  color: '#ef4444', bgColor: '#fff7ed',  textColor: '#c2410c', borderColor: '#fed7aa', icon: '✎',  action: 'Resubmit',         actionColor: '#dc2626' },
+  review:            { label: 'In Review', color: '#8b5cf6', bgColor: '#f5f3ff',  textColor: '#6d28d9', borderColor: '#ddd6fe', icon: '◉',  action: null,               actionColor: null },
+  approved:          { label: 'Approved',  color: '#10b981', bgColor: '#ecfdf5',  textColor: '#059669', borderColor: '#a7f3d0', icon: '✓',  action: null,               actionColor: null },
+  ready_to_post:     { label: 'Ready',     color: '#14b8a6', bgColor: '#f0fdfa',  textColor: '#0d9488', borderColor: '#99f6e4', icon: '▸',  action: null,               actionColor: null }
+};
+
+var PRIORITY_COLORS = { low: '#94a3b8', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' };
+
 var PRODUCTION_STATUS_CONFIG = {
   assigned:          { label: 'To Do',      short: 'To Do',    bgColor: '#eff6ff',  textColor: '#1d4ed8', borderColor: '#bfdbfe', dotColor: '#3b82f6', icon: '○' },
   in_progress:       { label: 'In Progress',short: 'Working',  bgColor: '#fffbeb',  textColor: '#b45309', borderColor: '#fde68a', dotColor: '#f59e0b', icon: '◐' },
@@ -6206,223 +6220,354 @@ function renderProductionView() {
     currentProductionTaskId = null;
   }
   if (isDesigner) {
-    const tasks = productionTasksCache;
-    var designerMapMyTasks = {};
-    designersCache.forEach(function(d) { designerMapMyTasks[d.id] = d.name || d.email || 'Designer'; });
-    if (currentStaff) designerMapMyTasks[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
+    var tasks = productionTasksCache;
+    var todayStr = new Date().toISOString().slice(0, 10);
 
-    // Designer filter state (persisted on window)
-    if (!window._designerFilter) window._designerFilter = 'cards';
+    // Computed stats
+    var completedCount = tasks.filter(function(t) { return ['approved', 'ready_to_post', 'review'].includes(t.status); }).length;
+    var overdueCount = tasks.filter(function(t) { return t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status); }).length;
+    var changesCount = tasks.filter(function(t) { return t.status === 'changes_requested'; }).length;
+    var todayCount = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0,10) <= todayStr && !['approved','ready_to_post'].includes(t.status); }).length;
 
-    // Group tasks by status
-    var todoTasks = tasks.filter(function(t) { return t.status === 'assigned'; });
-    var overviewTasks = tasks.filter(function(t) { return t.status === 'in_progress'; });
-    var reviewTasks = tasks.filter(function(t) { return t.status === 'review'; });
-    var changesTasks = tasks.filter(function(t) { return t.status === 'changes_requested'; });
-    var approvedTasks = tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; });
+    // Filter by search
+    var filtered = tasks;
+    if (designerSearchQuery) {
+      var q = designerSearchQuery.toLowerCase();
+      filtered = tasks.filter(function(t) {
+        var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+        return (t.title || t.caption || '').toLowerCase().indexOf(q) !== -1 || clientName.toLowerCase().indexOf(q) !== -1;
+      });
+    }
 
-    // Filter: "Do today" = tasks with deadline today or overdue
-    var todayISO = new Date().toISOString().slice(0, 10);
-    var todayTasks = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) <= todayISO && !['approved', 'ready_to_post'].includes(t.status); });
+    // Group by status
+    var byStatus = {};
+    Object.keys(DESIGNER_STATUS_CONFIG).forEach(function(k) { byStatus[k] = []; });
+    filtered.forEach(function(t) { if (byStatus[t.status]) byStatus[t.status].push(t); });
 
-    // Filter: "By clients" groups
-    var clientGroups = {};
-    tasks.forEach(function(t) {
+    // Group by client
+    var byClient = {};
+    filtered.forEach(function(t) {
       var cName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || 'Unknown';
-      if (!clientGroups[cName]) clientGroups[cName] = [];
-      clientGroups[cName].push(t);
+      if (!byClient[t.clientId]) byClient[t.clientId] = { name: cName, tasks: [] };
+      byClient[t.clientId].tasks.push(t);
     });
+    var clientEntries = Object.keys(byClient).map(function(k) { return { id: k, name: byClient[k].name, tasks: byClient[k].tasks }; }).sort(function(a,b) { return a.name.localeCompare(b.name); });
 
-    var activeFilter = window._designerFilter || 'cards';
-    var filterTabStyle = 'padding: 10px 20px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;';
-    var activeTabBg = '#1e293b'; var activeTabColor = '#fff';
-    var inactiveTabBg = '#f1f5f9'; var inactiveTabColor = '#64748b';
+    // Pick focus task: changes_requested > overdue assigned > assigned > in_progress
+    var actionable = filtered.filter(function(t) { return ['assigned','in_progress','changes_requested'].includes(t.status); });
+    var focusTask = null;
+    if (actionable.length > 0) {
+      actionable.sort(function(a, b) {
+        var sp = { changes_requested: 0, assigned: 1, in_progress: 2 };
+        var sa = sp[a.status] !== undefined ? sp[a.status] : 3;
+        var sb = sp[b.status] !== undefined ? sp[b.status] : 3;
+        if (sa !== sb) return sa - sb;
+        var aOv = a.deadline < todayStr ? 0 : 1;
+        var bOv = b.deadline < todayStr ? 0 : 1;
+        if (aOv !== bOv) return aOv - bOv;
+        return (a.deadline || '9999').localeCompare(b.deadline || '9999');
+      });
+      focusTask = actionable[0];
+    }
 
-    let html = '<div style="padding: 24px; max-width: 1200px;">';
-    // Header
-    html += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">';
-    html += '<h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #1e293b;">My Tasks</h2>';
-    html += '<span style="font-size: 13px; color: #94a3b8;">' + tasks.length + ' total</span>';
+    // Progress ring SVG helper
+    function progressRingSvg(completed, total, size) {
+      size = size || 56;
+      var pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+      var r = (size - 8) / 2;
+      var circ = 2 * Math.PI * r;
+      var offset = circ - (pct / 100) * circ;
+      return '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;">' +
+        '<svg width="' + size + '" height="' + size + '" style="transform:rotate(-90deg);">' +
+        '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r + '" fill="none" stroke="#e2e8f0" stroke-width="4"/>' +
+        '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r + '" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="' + circ + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" style="transition:all 0.7s;"/>' +
+        '</svg>' +
+        '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">' +
+        '<span style="font-size:12px;font-weight:700;color:#334155;">' + pct + '%</span></div></div>';
+    }
+
+    // Task row HTML helper
+    function dvTaskRow(t) {
+      var cfg = DESIGNER_STATUS_CONFIG[t.status] || DESIGNER_STATUS_CONFIG.assigned;
+      var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+      var isOverdue = t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status);
+      var deadlineLabel = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+      var taskTitle = (t.title || t.caption || t.briefNotes || 'Untitled').replace(/</g, '&lt;');
+      var pColor = PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.medium;
+      var r = '';
+      r += '<div class="dv-task-row" data-task-id="' + t.id + '">';
+      // Status dot
+      r += '<div class="dv-task-row__dot" style="background:' + cfg.color + ';"></div>';
+      // Client chip
+      r += '<span class="dv-task-row__client">' + (clientName.split(' ')[0] || '—').replace(/</g, '&lt;') + '</span>';
+      // Title + review notes
+      r += '<div class="dv-task-row__title-wrap">';
+      r += '<p class="dv-task-row__title">' + taskTitle + '</p>';
+      if (t.reviewNotes && t.status === 'changes_requested') {
+        r += '<p class="dv-task-row__review-note">&darr; ' + t.reviewNotes.replace(/</g, '&lt;').slice(0, 100) + (t.reviewNotes.length > 100 ? '...' : '') + '</p>';
+      }
+      r += '</div>';
+      // Deadline
+      r += '<span class="dv-task-row__deadline' + (isOverdue ? ' dv-task-row__deadline--late' : '') + '">' + deadlineLabel;
+      if (isOverdue) r += ' <span class="dv-late-badge">LATE</span>';
+      r += '</span>';
+      // Priority dot
+      r += '<span class="dv-task-row__priority-dot" style="background:' + pColor + ';" title="' + (t.priority || 'medium') + '"></span>';
+      // Status badge
+      r += '<span class="dv-status-badge" style="background:' + cfg.bgColor + ';color:' + cfg.textColor + ';border-color:' + cfg.borderColor + ';"><span style="font-size:9px;">' + cfg.icon + '</span> ' + cfg.label + '</span>';
+      // Action buttons (hidden file input + visible buttons)
+      r += '<div class="dv-task-row__actions">';
+      if (t.status === 'in_progress' || t.status === 'changes_requested') {
+        r += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        r += '<button type="button" class="btn-upload-art dv-action-btn" data-id="' + t.id + '" style="background:#f1f5f9;color:#475569;">Upload</button>';
+      }
+      if (cfg.action) {
+        var btnClass = 'btn-start-task';
+        if (t.status === 'in_progress') btnClass = 'btn-submit-review';
+        if (t.status === 'changes_requested') btnClass = 'btn-resubmit';
+        r += '<button type="button" class="' + btnClass + ' dv-action-btn" data-id="' + t.id + '" style="background:' + cfg.actionColor + ';color:#fff;">' + cfg.action + '</button>';
+      }
+      r += '</div>';
+      r += '</div>';
+      return r;
+    }
+
+    // Focus card HTML
+    function dvFocusCard(t) {
+      if (!t) return '';
+      var cfg = DESIGNER_STATUS_CONFIG[t.status] || DESIGNER_STATUS_CONFIG.assigned;
+      var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+      var isOverdue = t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status);
+      var deadlineLabel = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
+      var taskTitle = (t.title || t.caption || t.briefNotes || 'Untitled').replace(/</g, '&lt;');
+      var pColor = PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.medium;
+      var h = '<div class="dv-focus-card">';
+      h += '<div class="dv-focus-card__accent"></div>';
+      h += '<div class="dv-focus-card__inner">';
+      h += '<div class="dv-focus-card__label">' + (isOverdue ? '&#9889; OVERDUE — DO THIS NOW' : 'UP NEXT') + '</div>';
+      h += '<div class="dv-focus-card__body">';
+      h += '<div class="dv-focus-card__left">';
+      h += '<p class="dv-focus-card__client">' + clientName.replace(/</g, '&lt;') + '</p>';
+      h += '<h3 class="dv-focus-card__title">' + taskTitle + '</h3>';
+      h += '<div class="dv-focus-card__meta">';
+      h += '<span class="dv-focus-card__meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> <span' + (isOverdue ? ' style="color:#dc2626;font-weight:600;"' : '') + '>' + deadlineLabel + '</span>';
+      if (isOverdue) h += ' <span class="dv-late-badge">LATE</span>';
+      h += '</span>';
+      h += '<span class="dv-focus-card__meta-item"><span style="width:8px;height:8px;border-radius:50%;background:' + pColor + ';display:inline-block;"></span> ' + (t.priority || 'medium') + '</span>';
+      h += '</div>';
+      // Action buttons
+      h += '<div class="dv-focus-card__actions">';
+      if (t.status === 'assigned') {
+        h += '<button type="button" class="btn-start-task dv-focus-btn dv-focus-btn--green" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Working</button>';
+      }
+      if (t.status === 'in_progress') {
+        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
+        h += '<button type="button" class="btn-submit-review dv-focus-btn dv-focus-btn--blue" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit for Review</button>';
+      }
+      if (t.status === 'changes_requested') {
+        if (t.reviewNotes) {
+          h += '<div class="dv-focus-card__revision-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><p>' + t.reviewNotes.replace(/</g, '&lt;').slice(0, 200) + '</p></div>';
+        }
+        h += '<div style="display:flex;align-items:center;gap:8px;">';
+        h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display:none;">';
+        h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
+        h += '<button type="button" class="btn-resubmit dv-focus-btn dv-focus-btn--red" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Resubmit</button>';
+        h += '</div>';
+      }
+      h += '</div>';
+      h += '</div>';
+      // Status badge on right
+      h += '<div class="dv-focus-card__right">';
+      h += '<span class="dv-status-badge" style="background:' + cfg.bgColor + ';color:' + cfg.textColor + ';border-color:' + cfg.borderColor + ';"><span style="font-size:10px;">' + cfg.icon + '</span> ' + cfg.label + '</span>';
+      h += '</div>';
+      h += '</div>';
+      h += '</div>';
+      h += '</div>';
+      return h;
+    }
+
+    // Status lane HTML (collapsible)
+    function dvStatusLane(status, laneTasks) {
+      if (!laneTasks || laneTasks.length === 0) return '';
+      var cfg = DESIGNER_STATUS_CONFIG[status];
+      if (!cfg) return '';
+      var isCollapsed = designerCollapsedStatuses[status] === true;
+      var h = '<div class="dv-status-lane">';
+      h += '<button type="button" class="dv-status-lane__header" data-status="' + status + '">';
+      h += '<span class="dv-status-lane__chevron' + (isCollapsed ? ' dv-status-lane__chevron--collapsed' : '') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>';
+      h += '<span class="dv-status-lane__bar" style="background:' + cfg.color + ';"></span>';
+      h += '<span class="dv-status-lane__label">' + cfg.label + '</span>';
+      h += '<span class="dv-status-lane__count" style="background:' + cfg.color + '18;color:' + cfg.color + ';">' + laneTasks.length + '</span>';
+      if (status === 'changes_requested' && laneTasks.length > 0) {
+        h += '<span class="dv-status-lane__attention">needs attention</span>';
+      }
+      h += '</button>';
+      if (!isCollapsed) {
+        h += '<div class="dv-status-lane__body">';
+        laneTasks.forEach(function(t) { h += dvTaskRow(t); });
+        h += '</div>';
+      }
+      h += '</div>';
+      return h;
+    }
+
+    // === BUILD HTML ===
+    var html = '<div class="dv-container">';
+
+    // Top bar
+    html += '<header class="dv-header">';
+    html += '<div class="dv-header__left"><h1 class="dv-header__title">My Tasks</h1><span class="dv-header__count">' + tasks.length + ' assigned</span></div>';
+    html += '<div class="dv-header__right">';
+    html += '<div class="dv-search-wrap"><svg class="dv-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>';
+    html += '<input type="text" class="dv-search-input" placeholder="Search tasks..." value="' + (designerSearchQuery || '').replace(/"/g, '&quot;') + '"></div>';
+    html += '</div></header>';
+
+    // Quick stats bar
+    html += '<div class="dv-stats-bar">';
+    html += progressRingSvg(completedCount, tasks.length, 56);
+    html += '<div class="dv-stats-bar__numbers">';
+    html += '<div class="dv-stat"><p class="dv-stat__value">' + (tasks.length - completedCount) + '</p><p class="dv-stat__label">remaining</p></div>';
+    if (overdueCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--red">' + overdueCount + '</p><p class="dv-stat__label dv-stat__label--red">overdue</p></div>';
+    if (changesCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--orange">' + changesCount + '</p><p class="dv-stat__label dv-stat__label--orange">revisions</p></div>';
+    if (todayCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--amber">' + todayCount + '</p><p class="dv-stat__label dv-stat__label--amber">due today</p></div>';
+    html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--green">' + completedCount + '</p><p class="dv-stat__label dv-stat__label--green">done</p></div>';
+    html += '</div>';
+    // View toggle
+    html += '<div class="dv-view-toggle">';
+    ['focus', 'list', 'clients'].forEach(function(key) {
+      var label = key === 'focus' ? 'Focus' : key === 'list' ? 'All Tasks' : 'By Client';
+      html += '<button type="button" class="dv-view-toggle__btn' + (designerViewMode === key ? ' dv-view-toggle__btn--active' : '') + '" data-view="' + key + '">' + label + '</button>';
+    });
+    html += '</div>';
     html += '</div>';
 
-    // Filter tabs
-    html += '<div style="display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap;">';
-    var filters = [
-      { key: 'cards', label: 'Cards view' },
-      { key: 'calendar', label: 'Calendar' },
-      { key: 'clients', label: 'By clients' },
-      { key: 'today', label: 'Do today' }
-    ];
-    filters.forEach(function(f) {
-      var isActive = activeFilter === f.key;
-      var count = f.key === 'today' ? todayTasks.length : (f.key === 'clients' ? Object.keys(clientGroups).length : '');
-      html += '<button type="button" class="designer-filter-tab" data-filter="' + f.key + '" style="' + filterTabStyle + ' background: ' + (isActive ? activeTabBg : inactiveTabBg) + '; color: ' + (isActive ? activeTabColor : inactiveTabColor) + ';">' + f.label + (count !== '' ? ' <span style="margin-left: 4px; font-size: 11px; opacity: 0.7;">(' + count + ')</span>' : '') + '</button>';
-    });
-    html += '</div>';
+    // Content area
+    html += '<div class="dv-content">';
 
     if (tasks.length === 0) {
-      html += '<div style="text-align: center; padding: 48px 24px; color: #64748b; font-size: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa;">No tasks assigned yet. New tasks will appear here.</div></div>';
-      container.innerHTML = html;
-      container.querySelectorAll('.designer-filter-tab').forEach(function(btn) {
-        btn.addEventListener('click', function() { window._designerFilter = btn.getAttribute('data-filter'); renderProductionView(); });
+      html += '<div class="dv-empty">No tasks assigned yet. New tasks will appear here.</div>';
+    } else if (designerViewMode === 'focus') {
+      // Focus card
+      if (focusTask) html += '<div style="margin-bottom:24px;">' + dvFocusCard(focusTask) + '</div>';
+      // Status lanes
+      html += '<div class="dv-card-panel">';
+      ['changes_requested', 'assigned', 'in_progress', 'review', 'approved', 'ready_to_post'].forEach(function(status) {
+        html += dvStatusLane(status, byStatus[status]);
       });
-      return;
-    }
-
-    // Card renderer helper
-    function renderDesignerCard(t) {
-      var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
-      var cardTitle = (t.title || t.caption || '').slice(0, 80) + ((t.title || t.caption || '').length > 80 ? '...' : '');
-      var deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '—';
-      var isOverdue = t.deadline && new Date(t.deadline) < new Date() && !['approved', 'ready_to_post'].includes(t.status);
-      var c = '';
-      c += '<div class="production-task-card" data-task-id="' + t.id + '" style="background: #fff; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s ease, transform 0.15s ease; cursor: pointer; display: flex; flex-direction: column; gap: 10px; position: relative;">';
-      c += '<button type="button" class="btn-delete-task" data-id="' + t.id + '" title="Delete task" style="position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: #94a3b8; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, color 0.2s; line-height: 1;" onmouseover="this.style.background=\'#fee2e2\';this.style.color=\'#dc2626\'" onmouseout="this.style.background=\'transparent\';this.style.color=\'#94a3b8\'">&times;</button>';
-      c += '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #1a56db;">' + (clientName || '—').replace(/</g, '&lt;') + '</div>';
-      c += '<div style="font-size: 15px; font-weight: 600; color: #1e293b; line-height: 1.4; padding-right: 24px;">' + (cardTitle || 'Untitled').replace(/</g, '&lt;') + '</div>';
-      c += '<div style="font-size: 12px; color: #94a3b8;">Deadline: <span style="' + (isOverdue ? 'color: #dc2626; font-weight: 600;' : 'color: #64748b;') + '">' + deadlineStr + '</span> &middot; Priority: <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:' + priorityColor(t.priority) + ';"></span>' + (t.priority || 'medium') + '</span></div>';
-      c += '<div style="margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">';
-      if (t.status === 'assigned') c += '<button type="button" class="btn-start-task" data-id="' + t.id + '" style="padding: 8px 18px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;">Start Working</button>';
-      if (t.status === 'in_progress' || t.status === 'changes_requested') {
-        c += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*" multiple style="display: none;">';
-        c += '<button type="button" class="btn-upload-art" data-id="' + t.id + '" style="padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Upload Art</button>';
-      }
-      if (t.status === 'in_progress') c += '<button type="button" class="btn-submit-review" data-id="' + t.id + '" style="padding: 8px 18px; background: #1a56db; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Submit for Review</button>';
-      if (t.status === 'changes_requested') c += '<button type="button" class="btn-resubmit" data-id="' + t.id + '" style="padding: 8px 18px; background: #dc2626; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Resubmit</button>';
-      if (t.status === 'approved' || t.status === 'ready_to_post') c += '<span style="color: #059669; font-weight: 600; font-size: 13px;">Approved</span>';
-      if (t.status === 'review') c += '<span style="color: #6366f1; font-weight: 600; font-size: 13px;">In Review</span>';
-      c += '</div>';
-      // Show change request notes on card
-      if (t.status === 'changes_requested' && t.reviewNotes && t.reviewNotes.trim()) {
-        c += '<div style="background:#fff7ed;border-left:3px solid #f97316;border-radius:0 6px 6px 0;padding:8px 10px;font-size:12px;color:#9a3412;line-height:1.4;margin-top:2px;"><strong style="color:#c2410c;">CHANGE REQUEST:</strong><br>' + t.reviewNotes.replace(/</g, '&lt;').replace(/\n/g, '<br>').slice(0, 200) + (t.reviewNotes.length > 200 ? '...' : '') + '</div>';
-      }
-      c += '</div>';
-      return c;
-    }
-
-    // Section renderer helper
-    function renderStatusSection(title, color, icon, taskList) {
-      if (taskList.length === 0) return '';
-      var s = '<div style="margin-bottom: 32px;">';
-      s += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
-      s += '<div style="width: 4px; height: 24px; border-radius: 2px; background: ' + color + ';"></div>';
-      s += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + title + '</h3>';
-      s += '<span style="background: ' + color + '22; color: ' + color + '; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + taskList.length + '</span>';
-      s += '</div>';
-      s += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
-      taskList.forEach(function(t) { s += renderDesignerCard(t); });
-      s += '</div></div>';
-      return s;
-    }
-
-    // Render based on active filter
-    if (activeFilter === 'cards') {
-      html += renderStatusSection('To do', '#059669', '', todoTasks);
-      html += renderStatusSection('Overview', '#f59e0b', '', overviewTasks);
-      html += renderStatusSection('In Review', '#6366f1', '', reviewTasks);
-      html += renderStatusSection('Changes Requested', '#dc2626', '', changesTasks);
-      html += renderStatusSection('Approved', '#10b981', '', approvedTasks);
-      if (todoTasks.length === 0 && overviewTasks.length === 0 && reviewTasks.length === 0 && approvedTasks.length === 0 && changesTasks.length === 0) {
-        html += '<div style="text-align: center; padding: 48px; color: #94a3b8; font-size: 14px;">All caught up! No tasks right now.</div>';
-      }
-    } else if (activeFilter === 'today') {
-      if (todayTasks.length === 0) {
-        html += '<div style="text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa;">No tasks due today. Enjoy your day!</div>';
+      html += '</div>';
+    } else if (designerViewMode === 'list') {
+      html += '<div class="dv-card-panel">';
+      // Header row
+      html += '<div class="dv-list-header">';
+      html += '<div style="width:24px;"></div>';
+      html += '<span class="dv-list-header__col" style="width:96px;text-align:center;">Client</span>';
+      html += '<span class="dv-list-header__col" style="flex:1;">Task</span>';
+      html += '<span class="dv-list-header__col" style="width:80px;text-align:right;">Due</span>';
+      html += '<span style="width:8px;"></span>';
+      html += '<span class="dv-list-header__col" style="width:88px;text-align:center;">Status</span>';
+      html += '<span style="width:80px;"></span>';
+      html += '</div>';
+      if (filtered.length === 0) {
+        html += '<div class="dv-empty" style="padding:48px;">No tasks match your search.</div>';
       } else {
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
-        todayTasks.forEach(function(t) { html += renderDesignerCard(t); });
-        html += '</div>';
+        filtered.forEach(function(t) { html += dvTaskRow(t); });
       }
-    } else if (activeFilter === 'clients') {
-      var clientNames = Object.keys(clientGroups).sort();
-      clientNames.forEach(function(cName) {
-        var cTasks = clientGroups[cName];
-        html += '<div style="margin-bottom: 32px;">';
-        html += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
-        html += '<div style="width: 4px; height: 24px; border-radius: 2px; background: #1a56db;"></div>';
-        html += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + cName.replace(/</g, '&lt;') + '</h3>';
-        html += '<span style="background: #dbeafe; color: #1a56db; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + cTasks.length + '</span>';
-        html += '</div>';
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
-        cTasks.forEach(function(t) { html += renderDesignerCard(t); });
+      html += '</div>';
+    } else if (designerViewMode === 'clients') {
+      clientEntries.forEach(function(group) {
+        html += '<div class="dv-card-panel" style="margin-bottom:16px;">';
+        html += '<div class="dv-client-group-header">';
+        html += '<div class="dv-client-group-header__avatar">' + group.name.charAt(0).toUpperCase() + '</div>';
+        html += '<div><h3 class="dv-client-group-header__name">' + group.name.replace(/</g, '&lt;') + '</h3>';
+        html += '<p class="dv-client-group-header__count">' + group.tasks.length + ' task' + (group.tasks.length !== 1 ? 's' : '') + '</p></div>';
+        // Status dots
+        html += '<div class="dv-client-group-header__dots">';
+        Object.keys(DESIGNER_STATUS_CONFIG).forEach(function(s) {
+          var n = group.tasks.filter(function(t) { return t.status === s; }).length;
+          if (n > 0) html += '<span style="width:8px;height:8px;border-radius:50%;background:' + DESIGNER_STATUS_CONFIG[s].color + ';" title="' + DESIGNER_STATUS_CONFIG[s].label + ': ' + n + '"></span>';
+        });
         html += '</div></div>';
-      });
-    } else if (activeFilter === 'calendar') {
-      // Calendar view — group by week
-      var weekGroups = {};
-      tasks.forEach(function(t) {
-        var d = t.deadline ? new Date(t.deadline) : null;
-        var label = d ? 'Week of ' + new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()).toLocaleDateString() : 'No deadline';
-        if (!weekGroups[label]) weekGroups[label] = [];
-        weekGroups[label].push(t);
-      });
-      var weekKeys = Object.keys(weekGroups).sort();
-      weekKeys.forEach(function(wk) {
-        html += '<div style="margin-bottom: 32px;">';
-        html += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">';
-        html += '<div style="width: 4px; height: 24px; border-radius: 2px; background: #8b5cf6;"></div>';
-        html += '<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">' + wk + '</h3>';
-        html += '<span style="background: #ede9fe; color: #8b5cf6; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 12px;">' + weekGroups[wk].length + '</span>';
+        group.tasks.forEach(function(t) { html += dvTaskRow(t); });
         html += '</div>';
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
-        weekGroups[wk].forEach(function(t) { html += renderDesignerCard(t); });
-        html += '</div></div>';
       });
     }
 
-    html += '</div>';
+    // Footer
+    html += '<div class="dv-footer">' + filtered.length + ' task' + (filtered.length !== 1 ? 's' : '') + ' &middot; ' + completedCount + ' completed &middot; ' + (tasks.length - completedCount) + ' remaining</div>';
+    html += '</div>'; // dv-content
+    html += '</div>'; // dv-container
     container.innerHTML = html;
 
-    // Bind filter tabs
-    container.querySelectorAll('.designer-filter-tab').forEach(function(btn) {
-      btn.addEventListener('click', function() { window._designerFilter = btn.getAttribute('data-filter'); renderProductionView(); });
+    // === BIND EVENTS ===
+
+    // Search
+    var searchInput = container.querySelector('.dv-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() { designerSearchQuery = searchInput.value; renderProductionView(); });
+      searchInput.focus();
+      searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+    }
+
+    // View toggle
+    container.querySelectorAll('.dv-view-toggle__btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { designerViewMode = btn.getAttribute('data-view'); renderProductionView(); });
     });
 
-    // Bind card clicks — open task workspace
-    container.querySelectorAll('.production-task-card').forEach(function(card) {
-      card.addEventListener('click', function(e) {
+    // Status lane collapse/expand
+    container.querySelectorAll('.dv-status-lane__header').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var st = btn.getAttribute('data-status');
+        designerCollapsedStatuses[st] = !designerCollapsedStatuses[st];
+        renderProductionView();
+      });
+    });
+
+    // Task row clicks — open task workspace
+    container.querySelectorAll('.dv-task-row').forEach(function(row) {
+      row.addEventListener('click', function(e) {
         if (e.target.closest('button') || e.target.closest('input')) return;
-        var id = card.getAttribute('data-task-id');
+        var id = row.getAttribute('data-task-id');
         if (id) { currentProductionTaskId = id; renderProductionView(); }
       });
     });
 
-    // Bind Start Working — change status to in_progress AND open workspace
+    // Start Working
     container.querySelectorAll('.btn-start-task').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const id = btn.getAttribute('data-id');
+        var id = btn.getAttribute('data-id');
         btn.disabled = true; btn.textContent = 'Starting...';
         fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'in_progress' }) })
-          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); })
-          .then(() => { currentProductionTaskId = id; renderProductionView(); })
-          .catch(e => { btn.disabled = false; btn.textContent = 'Start Working'; showToast(e.message, 'error'); });
+          .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); })
+          .then(function() { currentProductionTaskId = id; renderProductionView(); })
+          .catch(function(e) { btn.disabled = false; btn.textContent = 'Start Working'; showToast(e.message, 'error'); });
       });
     });
 
-    // Bind Submit for Review
+    // Submit for Review
     container.querySelectorAll('.btn-submit-review').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const id = btn.getAttribute('data-id');
+        var id = btn.getAttribute('data-id');
         fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
-          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+          .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
       });
     });
 
-    // Bind Resubmit
+    // Resubmit
     container.querySelectorAll('.btn-resubmit').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const id = btn.getAttribute('data-id');
+        var id = btn.getAttribute('data-id');
         fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
-          .then(r => r.json()).then(j => { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(() => renderProductionView()).catch(e => showToast(e.message, 'error'));
+          .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
       });
     });
 
-    // Bind Upload Art
+    // Upload Art
     container.querySelectorAll('.btn-upload-art').forEach(function(btn) {
       var taskId = btn.getAttribute('data-id');
       var input = container.querySelector('.upload-final-art-input[data-id="' + taskId + '"]');
       if (!input) return;
-      btn.addEventListener('click', function() { input.click(); });
+      btn.addEventListener('click', function(e) { e.stopPropagation(); input.click(); });
       input.addEventListener('change', function() {
         var files = input.files;
         if (!files || !files.length) return;
@@ -6457,22 +6602,6 @@ function renderProductionView() {
       });
     });
 
-    // Bind Delete Task
-    container.querySelectorAll('.btn-delete-task').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var id = btn.getAttribute('data-id');
-        var task = productionTasksCache.find(function(t) { return t.id === id; });
-        var taskName = (task && (task.title || task.caption)) ? (task.title || task.caption).slice(0, 40) : 'this task';
-        if (!confirm('Delete "' + taskName + '"?\n\nThis action cannot be undone.')) return;
-        btn.disabled = true;
-        fetch(getApiBaseUrl() + '/api/production/tasks/' + id, { method: 'DELETE', credentials: 'include' })
-          .then(function(r) { return r.json(); })
-          .then(function(j) { if (j.error) throw new Error(j.error); showToast('Task deleted'); return loadProductionTasks(); })
-          .then(function() { renderProductionView(); })
-          .catch(function(e) { btn.disabled = false; showToast(e.message || 'Delete failed', 'error'); });
-      });
-    });
     return;
   }
   // ─── AGENCY MANAGER: REDESIGNED DEMANDS VIEW ───────────────
