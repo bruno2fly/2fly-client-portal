@@ -7166,6 +7166,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     isDesigner = currentStaff.role === 'DESIGNER';
+    // Init AI Co-Pilot for designers
+    if (isDesigner) { initAICopilot(); }
     try {
       updateStaffHeader();
     } catch (e) {
@@ -7364,8 +7366,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     alert('An error occurred while loading the dashboard. Please check the console for details.');
   }
 
-  // ─── AI CO-PILOT (designer only) ────────────────────────────
-  if (isDesigner) { initAICopilot(); }
 });
 
 // ══════════════════════════════════════════════════════════════
