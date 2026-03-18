@@ -7379,6 +7379,76 @@ var copilotSavedPrompts = JSON.parse(localStorage.getItem('copilot_saved') || '[
 var copilotPendingImage = null; // { url, dataUrl, name }
 var copilotAutoSuggestionShown = false;
 
+var COPILOT_CHEERS_EN = [
+  "Hey, you're doing great! \u{1F525}",
+  "Looking good! Keep it up \u{1F4AA}",
+  "You're on fire today! \u{1F680}",
+  "Nice work! Almost there \u{2728}",
+  "Crushing it! \u{1F3AF}",
+  "That's some A+ work \u{1F31F}",
+  "Love the progress! \u{1F60D}",
+  "You got this! \u{1F4A5}",
+  "Smooth workflow today \u{1F3B6}",
+  "Creative genius at work \u{1F9E0}",
+  "Taking names today! \u{26A1}",
+  "Your work is \u{1F44C} chef's kiss",
+  "Need anything? I'm here! \u{1F44B}",
+  "Keep that momentum! \u{1F3C3}",
+  "Design magic happening \u{2728}\u{1F3A8}"
+];
+var COPILOT_CHEERS_PT = [
+  "Ei, voc\u00ea t\u00e1 mandando bem! \u{1F525}",
+  "T\u00e1 lindo! Continua assim \u{1F4AA}",
+  "Voc\u00ea t\u00e1 on fire hoje! \u{1F680}",
+  "\u00D3timo trabalho! Quase l\u00e1 \u{2728}",
+  "Arrasando! \u{1F3AF}",
+  "Trabalho nota 10 \u{1F31F}",
+  "Amei o progresso! \u{1F60D}",
+  "Voc\u00ea consegue! \u{1F4A5}",
+  "Fluxo suave hoje \u{1F3B6}",
+  "G\u00eanio criativo em a\u00e7\u00e3o \u{1F9E0}",
+  "Que workflow! \u{26A1}",
+  "Seu trabalho t\u00e1 \u{1F44C} demais",
+  "Precisa de algo? T\u00f4 aqui! \u{1F44B}",
+  "Mant\u00e9m o ritmo! \u{1F3C3}",
+  "Magia do design acontecendo \u{2728}\u{1F3A8}"
+];
+var copilotLastCheerIdx = -1;
+var copilotSpeechTimer = null;
+
+function showCopilotCheer() {
+  var panel = document.getElementById('copilot-panel');
+  if (panel && !panel.classList.contains('copilot-panel--hidden')) return; // don't show if chat is open
+  var speechEl = document.getElementById('copilot-speech');
+  if (!speechEl) return;
+  var cheers = copilotLang === 'pt' ? COPILOT_CHEERS_PT : COPILOT_CHEERS_EN;
+  var idx = copilotLastCheerIdx;
+  while (idx === copilotLastCheerIdx) { idx = Math.floor(Math.random() * cheers.length); }
+  copilotLastCheerIdx = idx;
+  speechEl.textContent = cheers[idx];
+  speechEl.style.display = 'block';
+  speechEl.style.animation = 'none';
+  void speechEl.offsetWidth; // reflow
+  speechEl.style.animation = 'copilotSpeechIn 4.5s ease forwards';
+  setTimeout(function() { speechEl.style.display = 'none'; }, 4600);
+}
+
+function startCopilotCheers() {
+  // First cheer after 15-25s, then every 45-90s
+  function scheduleNext() {
+    var delay = 45000 + Math.floor(Math.random() * 45000);
+    copilotSpeechTimer = setTimeout(function() {
+      showCopilotCheer();
+      scheduleNext();
+    }, delay);
+  }
+  // Initial cheer
+  setTimeout(function() {
+    showCopilotCheer();
+    scheduleNext();
+  }, 15000 + Math.floor(Math.random() * 10000));
+}
+
 function initAICopilot() {
   if (document.getElementById('copilot-bubble')) return;
   var wrapper = document.createElement('div');
@@ -7387,6 +7457,7 @@ function initAICopilot() {
   document.body.appendChild(wrapper);
   bindCopilotEvents();
   updateCopilotContext();
+  startCopilotCheers();
 }
 
 function getCopilotContextInfo() {
@@ -7465,42 +7536,65 @@ function getCopilotHTML() {
   var langBtnPt = copilotLang === 'pt' ? 'copilot-lang-btn--active' : '';
   return '' +
     '<button id="copilot-bubble" class="copilot-bubble" title="AI Co-Pilot">' +
-    '<svg class="copilot-avatar" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    /* chair/seat */
-    '<rect x="18" y="48" rx="4" width="28" height="6" fill="#7c3aed" opacity="0.85"/>' +
-    '<rect x="20" y="54" rx="2" width="4" height="8" fill="#6d28d9"/>' +
-    '<rect x="40" y="54" rx="2" width="4" height="8" fill="#6d28d9"/>' +
-    /* body - hoodie */
-    '<rect x="22" y="32" rx="6" width="20" height="18" fill="#2563eb"/>' +
-    '<rect x="24" y="34" rx="2" width="6" height="4" fill="#3b82f6" opacity="0.5"/>' +
-    /* head */
-    '<circle cx="32" cy="24" r="11" fill="#fbbf24"/>' +
-    /* hair */
-    '<path d="M21 22c0-7 5-12 11-12s11 5 11 12" fill="#4338ca" />' +
-    '<rect x="21" y="19" rx="2" width="22" height="5" fill="#4338ca"/>' +
-    /* face */
+    '<svg class="copilot-avatar" width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    /* chair */
+    '<rect x="24" y="72" rx="5" width="44" height="7" fill="#7c3aed" opacity="0.9"/>' +
+    '<rect x="22" y="68" rx="3" width="5" height="10" fill="#6d28d9"/>' +
+    '<rect x="65" y="68" rx="3" width="5" height="10" fill="#6d28d9"/>' +
+    '<rect x="26" y="79" rx="2" width="5" height="12" fill="#6d28d9"/>' +
+    '<rect x="61" y="79" rx="2" width="5" height="12" fill="#6d28d9"/>' +
+    /* dangling legs */
+    '<g class="copilot-avatar__leg-l"><rect x="36" y="72" rx="3" width="7" height="16" fill="#1e293b"/><rect x="35" y="85" rx="3" width="9" height="5" fill="#4338ca"/></g>' +
+    '<g class="copilot-avatar__leg-r"><rect x="51" y="72" rx="3" width="7" height="16" fill="#1e293b"/><rect x="50" y="85" rx="3" width="9" height="5" fill="#4338ca"/></g>' +
+    /* body hoodie */
+    '<rect x="32" y="46" rx="8" width="30" height="28" fill="#2563eb"/>' +
+    '<path d="M42 46 L47 56 L52 46" fill="#3b82f6" opacity="0.5"/>' +
+    '<circle cx="47" cy="50" r="1.5" fill="#93c5fd" opacity="0.6"/>' +
+    /* head group */
+    '<g class="copilot-avatar__head">' +
+    '<rect x="44" y="42" width="6" height="6" fill="#fbbf24" rx="2"/>' +
+    '<circle cx="47" cy="32" r="16" fill="#fbbf24"/>' +
+    '<path d="M31 30c0-10 7-17 16-17s16 7 16 17" fill="#4338ca"/>' +
+    '<ellipse cx="47" cy="18" rx="14" ry="5" fill="#4338ca"/>' +
+    '<path d="M33 26 Q31 20 34 16" stroke="#4338ca" stroke-width="4" fill="none" stroke-linecap="round"/>' +
     '<g class="copilot-avatar__eyes">' +
-    '<circle cx="28" cy="25" r="1.8" fill="#1e1b4b"/>' +
-    '<circle cx="36" cy="25" r="1.8" fill="#1e1b4b"/>' +
+    '<ellipse cx="41" cy="33" rx="2.5" ry="2.8" fill="#1e1b4b"/>' +
+    '<ellipse cx="53" cy="33" rx="2.5" ry="2.8" fill="#1e1b4b"/>' +
+    '<circle cx="40" cy="32" r="0.8" fill="#fff"/>' +
+    '<circle cx="52" cy="32" r="0.8" fill="#fff"/>' +
     '</g>' +
-    /* smile */
-    '<path d="M29 30 Q32 33 35 30" stroke="#1e1b4b" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+    '<path d="M38 28 Q41 26 43 28" stroke="#312e81" stroke-width="1.2" fill="none" stroke-linecap="round"/>' +
+    '<path d="M51 28 Q53 26 56 28" stroke="#312e81" stroke-width="1.2" fill="none" stroke-linecap="round"/>' +
+    '<path d="M42 39 Q47 44 52 39" stroke="#92400e" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+    '<ellipse cx="37" cy="37" rx="3" ry="2" fill="#f59e0b" opacity="0.3"/>' +
+    '<ellipse cx="57" cy="37" rx="3" ry="2" fill="#f59e0b" opacity="0.3"/>' +
+    '<path d="M31 30 Q29 22 31 17" stroke="#6d28d9" stroke-width="3.5" stroke-linecap="round" fill="none"/>' +
+    '<path d="M63 30 Q65 22 63 17" stroke="#6d28d9" stroke-width="3.5" stroke-linecap="round" fill="none"/>' +
+    '<rect x="27" y="27" rx="4" width="7" height="9" fill="#7c3aed"/>' +
+    '<rect x="60" y="27" rx="4" width="7" height="9" fill="#7c3aed"/>' +
+    '<rect x="28" y="29" rx="2" width="5" height="5" fill="#a78bfa" opacity="0.4"/>' +
+    '<rect x="61" y="29" rx="2" width="5" height="5" fill="#a78bfa" opacity="0.4"/>' +
+    '</g>' +
     /* laptop */
-    '<rect x="25" y="43" rx="2" width="14" height="2" fill="#a78bfa"/>' +
-    '<rect x="26" y="38" rx="1" width="12" height="6" fill="#c4b5fd"/>' +
-    '<rect x="28" y="39" rx="0.5" width="8" height="4" fill="#818cf8" opacity="0.5"/>' +
-    /* waving hand */
-    '<g class="copilot-avatar__hand">' +
-    '<circle cx="46" cy="32" r="4" fill="#fbbf24"/>' +
-    '<rect x="44" y="28" rx="1.5" width="3" height="5" fill="#fbbf24" transform="rotate(-15 45 30)"/>' +
+    '<rect x="34" y="64" rx="3" width="26" height="3" fill="#a78bfa"/>' +
+    '<rect x="35" y="56" rx="2" width="24" height="9" fill="#c4b5fd"/>' +
+    '<rect x="37" y="57" rx="1" width="20" height="7" fill="#818cf8" opacity="0.4"/>' +
+    '<rect x="39" y="58" rx="0.5" width="16" height="2" fill="#e0e7ff" opacity="0.6"/>' +
+    '<rect x="39" y="61" rx="0.5" width="10" height="1.5" fill="#e0e7ff" opacity="0.4"/>' +
+    /* typing hands */
+    '<g class="copilot-avatar__typing">' +
+    '<ellipse cx="39" cy="56" rx="4" ry="3" fill="#fbbf24"/>' +
+    '<ellipse cx="55" cy="56" rx="4" ry="3" fill="#fbbf24"/>' +
     '</g>' +
-    /* headphones */
-    '<path d="M21.5 22 Q21 18 21 15" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" fill="none"/>' +
-    '<path d="M42.5 22 Q43 18 43 15" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" fill="none"/>' +
-    '<rect x="19" y="21" rx="3" width="5" height="6" fill="#7c3aed"/>' +
-    '<rect x="40" y="21" rx="3" width="5" height="6" fill="#7c3aed"/>' +
+    /* wave hand */
+    '<g class="copilot-avatar__hand">' +
+    '<ellipse cx="72" cy="48" rx="5" ry="4.5" fill="#fbbf24"/>' +
+    '<rect x="70" y="41" rx="2" width="3.5" height="6" fill="#fbbf24" transform="rotate(-15 71 44)"/>' +
+    '<rect x="73" y="42" rx="2" width="3" height="5" fill="#fbbf24" transform="rotate(5 74 44)"/>' +
+    '</g>' +
     '</svg>' +
     '</button>' +
+    '<div id="copilot-speech" class="copilot-speech" style="display:none;"></div>' +
     '<div id="copilot-panel" class="copilot-panel copilot-panel--hidden">' +
     // Header
     '<div class="copilot-header">' +
@@ -7735,6 +7829,8 @@ function toggleCopilot(open) {
     }
   }
   if (bubble) bubble.style.display = open ? 'none' : 'flex';
+  var speechEl = document.getElementById('copilot-speech');
+  if (speechEl && open) { speechEl.style.display = 'none'; }
 }
 
 function appendCopilotMessage(role, content) {
