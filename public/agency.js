@@ -1551,32 +1551,40 @@ async function renderScheduledPostsConnectionSection() {
         try {
           var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/debug?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' });
           var d = await r.json();
-          if (d.canPost && d.pageValid) {
-            var hasPostPerm = d.permissions && d.permissions.indexOf('pages_manage_posts') !== -1;
-            var hasIgPerm = d.permissions && d.permissions.indexOf('instagram_content_publish') !== -1;
-            var declined = d.declinedPermissions || [];
-            if (hasPostPerm && hasIgPerm && declined.length === 0) {
-              resultEl.style.background = '#d1fae5';
-              resultEl.style.color = '#059669';
-              resultEl.innerHTML = '<strong>All good!</strong> Page token valid, can post, all permissions granted.<br>Permissions: ' + (d.permissions || []).join(', ');
-            } else {
-              resultEl.style.background = '#d1fae5';
-              resultEl.style.color = '#059669';
-              var msg = '<strong>Page token works!</strong> Can read and post to page.';
-              if (d.permissions && d.permissions.length > 0) msg += '<br>Permissions: ' + d.permissions.join(', ');
-              if (!d.hasUserToken) msg += '<br><span style="color:#b45309;">Note: No user token stored. Disconnect and reconnect for better diagnostics.</span>';
-              resultEl.innerHTML = msg;
-            }
+          var perms = d.permissions || [];
+          var declined = d.declinedPermissions || [];
+          var hasManage = d.hasManagePosts || perms.indexOf('pages_manage_posts') !== -1;
+          var hasIg = perms.indexOf('instagram_content_publish') !== -1;
+
+          if (d.pageValid && hasManage) {
+            resultEl.style.background = '#d1fae5';
+            resultEl.style.color = '#059669';
+            var msg = '<strong>Ready to post!</strong> Page token valid, pages_manage_posts granted.';
+            if (hasIg) msg += ' Instagram publishing enabled.';
+            else msg += '<br><span style="color:#b45309;">Instagram publishing not enabled — only Facebook posting will work.</span>';
+            if (perms.length > 0) msg += '<br>Permissions: ' + perms.join(', ');
+            if (declined.length > 0) msg += '<br><span style="color:#dc2626;">Declined: ' + declined.join(', ') + '</span>';
+            resultEl.innerHTML = msg;
+          } else if (d.pageValid && !hasManage && !d.hasUserToken) {
+            // Old connection without user token — can't verify permissions but page is accessible
+            resultEl.style.background = '#fef3c7';
+            resultEl.style.color = '#b45309';
+            resultEl.innerHTML = '<strong>Page accessible</strong> but cannot verify posting permissions (old connection).<br>Try posting — if it fails, do a full reconnect:<br>1. Click Disconnect below<br>2. Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" style="color:#1e40af;">Facebook Settings → Business Integrations</a><br>3. Remove "2Fly Marketing API"<br>4. Come back here and click Connect';
           } else {
             resultEl.style.background = '#fee2e2';
             resultEl.style.color = '#dc2626';
             var errMsg = '<strong>Connection issue:</strong><br>';
-            if (d.postError) errMsg += 'Post test: ' + d.postError + '<br>';
+            if (d.postError) errMsg += 'Page test: ' + d.postError + '<br>';
             if (d.pageError) errMsg += 'Page access: ' + d.pageError + '<br>';
             if (d.permError) errMsg += 'Permissions: ' + d.permError + '<br>';
-            if (!d.hasUserToken) errMsg += 'No user token stored (old connection).<br>';
-            if (d.tokenExpired) errMsg += 'Token has expired.<br>';
-            errMsg += '<br><strong>Fix: Click Disconnect, then Connect again. Make sure to approve ALL permissions in the Facebook dialog.</strong>';
+            if (d.tokenExpired) errMsg += 'Token expired.<br>';
+            if (declined.length > 0) errMsg += 'Declined permissions: ' + declined.join(', ') + '<br>';
+            errMsg += '<br><strong>To fix:</strong><br>';
+            errMsg += '1. Click Disconnect below<br>';
+            errMsg += '2. Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" style="color:#1e40af;">Facebook Settings → Business Integrations</a><br>';
+            errMsg += '3. Remove "2Fly Marketing API" from the list<br>';
+            errMsg += '4. Come back and click Connect Facebook & Instagram<br>';
+            errMsg += '5. Approve ALL permissions in the dialog';
             resultEl.innerHTML = errMsg;
           }
         } catch (e) {
