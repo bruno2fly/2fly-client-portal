@@ -6711,10 +6711,10 @@ function renderProductionView() {
         if (!isCollapsed) {
           html += '<table style="width: 100%; border-collapse: collapse;">';
           group.tasks.forEach(function(t, idx) {
-            var title = (t.caption || t.briefNotes || '').slice(0, 80);
+            var title = (t.title || t.caption || t.copyText || t.briefNotes || '').slice(0, 80);
             var isUntitled = !title || !title.trim();
             var displayTitle = isUntitled ? 'Untitled demand' : title.replace(/</g, '&lt;');
-            var fullTitle = (t.caption || t.briefNotes || '').replace(/</g, '&lt;');
+            var fullTitle = (t.title || t.caption || t.copyText || t.briefNotes || '').replace(/</g, '&lt;');
             var designerName = designerMap[t.designerId] || t.designerId || '—';
             var initial = (designerName + '').split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().slice(0, 2);
             var dueDate = t.deadline ? new Date(t.deadline) : null;
@@ -6774,7 +6774,7 @@ function renderProductionView() {
     container.querySelectorAll('.pv-task-row').forEach(function(row) {
       var id = row.getAttribute('data-task-id');
       var task = productionTasksCache.find(function(t) { return t.id === id; });
-      var text = ((task && (task.caption || '') + ' ' + (task.briefNotes || '')) || '').toLowerCase();
+      var text = ((task && (task.title || '') + ' ' + (task.caption || '') + ' ' + (task.copyText || '') + ' ' + (task.briefNotes || '')) || '').toLowerCase();
       var clientName = (task && clientsData && clientsData[task.clientId] && clientsData[task.clientId].name || '').toLowerCase();
       var dName = (task && (designerMap[task.designerId] || '')).toLowerCase();
       row.style.display = !q || text.indexOf(q) !== -1 || clientName.indexOf(q) !== -1 || dName.indexOf(q) !== -1 ? '' : 'none';
