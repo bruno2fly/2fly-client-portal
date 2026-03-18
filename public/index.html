@@ -143,26 +143,35 @@
   .client-notif-mark-all{font-size:14px;line-height:18px;font-weight:500;color:var(--text-secondary);cursor:pointer;text-decoration:none;}
   .client-notif-mark-all:hover{color:var(--text-primary);text-decoration:underline;}
   .client-notif-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:18px;font-weight:400;}
-  .action-required-card{
-    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:2px solid #1e3a8a;
-    border-radius:14px;padding:20px;margin-bottom:24px;
+  /* Alert Banner — primary attention component */
+  .alert-banner{
+    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);
+    border:2px solid #1e3a8a;
+    border-radius:16px;
+    padding:24px 28px;
+    margin:24px 24px 0;
     display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   }
-  body[data-theme="dark"] .action-required-card{
+  body[data-theme="dark"] .alert-banner{
     background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);border-color:#3b82f6;
   }
-  .action-required-card.all-clear{
-    background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border-color:#6ee7b7;
+  .alert-banner__left{display:flex;align-items:center;gap:14px;flex:1;}
+  .alert-banner__dot{width:28px;height:28px;min-width:28px;border-radius:50%;background:#1e3a8a;display:block;}
+  body[data-theme="dark"] .alert-banner__dot{background:#60a5fa;}
+  .alert-banner__text{font-size:18px;line-height:26px;font-weight:700;color:#0f172a;}
+  body[data-theme="dark"] .alert-banner__text{color:#e0eaff;}
+  .alert-banner__btn{
+    flex-shrink:0;
+    padding:12px 24px;
+    border-radius:12px;
+    font-size:15px;font-weight:600;
+    background:#1e3a8a;color:#ffffff;
+    border:none;cursor:pointer;
+    transition:background .15s;
   }
-  body[data-theme="dark"] .action-required-card.all-clear{
-    background:linear-gradient(135deg,#064e3b 0%,#047857 100%);border-color:#34d399;
-  }
-  .action-required-card__text{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
-  body[data-theme="dark"] .action-required-card__text{color:#93c5fd;}
-  .action-required-card.all-clear .action-required-card__text{color:#047857;}
-  body[data-theme="dark"] .action-required-card.all-clear .action-required-card__text{color:#6ee7b7;}
-  .action-required-card .btn.primary{flex-shrink:0;background:transparent !important;color:#1e3a8a !important;border:2px solid #1e3a8a !important;}
-  body[data-theme="dark"] .action-required-card .btn.primary{background:transparent !important;color:#93c5fd !important;border-color:#3b82f6 !important;}
+  .alert-banner__btn:hover{background:#1e40af;}
+  body[data-theme="dark"] .alert-banner__btn{background:#3b82f6;color:#ffffff;}
+  body[data-theme="dark"] .alert-banner__btn:hover{background:#2563eb;}
   /* Mobile header brand (2Fly logo + text) - hidden on desktop */
   .header-brand-mobile{display:none;}
   .logout-link{
@@ -756,7 +765,7 @@ body[data-theme="dark"]{
 .section-overview{
   background: #f8f9fb !important;
   border-radius: 16px;
-  padding: 24px !important;
+  padding: 28px 24px !important;
   box-shadow: none !important;
   border: none !important;
 }
@@ -776,17 +785,17 @@ body[data-theme="dark"] .section-overview h3{
 }
 .overview{
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: repeat(12, 1fr);
 }
 .kpi-card{
   grid-column: span 4;
   background: #ffffff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.05);
-  padding: 16px;
-  min-height: 100px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  padding: 24px;
+  min-height: 110px;
   position: relative;
   overflow: hidden;
 }
@@ -796,27 +805,27 @@ body[data-theme="dark"] .kpi-card{
   box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
 .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 500;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
   letter-spacing: 0;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin-bottom: 16px;
   display: block;
 }
 body[data-theme="dark"] .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
-  color: var(--text-secondary);
+  color: #e2e8f0;
 }
 .kpi-card .value{
-  font-size: 32px;
-  line-height: 42px;
-  font-weight: 600;
-  letter-spacing: 0;
-  margin: 0 0 12px;
-  color: var(--text-primary);
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  color: #0f172a;
 }
 body[data-theme="dark"] .kpi-card .value{
-  color: var(--text-primary);
+  color: #f1f5f9;
 }
 .kpi-card .sub{
   margin-top: 0;
@@ -824,37 +833,40 @@ body[data-theme="dark"] .kpi-card .value{
 .kpi-card .pill{
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 5px 12px;
   border-radius: 9999px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 18px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   border: none;
 }
-.kpi-card.success .pill{
+/* Default pill: blue/informational */
+.kpi-card .pill{
   background: #e8f0fe;
-  color: #5170b1;
+  color: #1e40af;
 }
-body[data-theme="dark"] .kpi-card.success .pill{
-  background: rgba(81,112,177,.25);
+body[data-theme="dark"] .kpi-card .pill{
+  background: rgba(59,130,246,.2);
   color: #93c5fd;
 }
-.kpi-card.warning .pill{
-  background: #faeed0;
-  color: #c88e07;
+/* Warning pill: amber — only when action needed */
+.kpi-card .pill.pill--warning{
+  background: #fef3c7;
+  color: #b45309;
 }
-body[data-theme="dark"] .kpi-card.warning .pill{
-  background: rgba(200,142,7,.2);
+body[data-theme="dark"] .kpi-card .pill.pill--warning{
+  background: rgba(245,158,11,.2);
   color: #fcd34d;
 }
-.kpi-card.approved .pill{
-  background: #e0f2f1;
-  color: #0d9488;
+/* Success pill: green — all clear */
+.kpi-card .pill.pill--success{
+  background: #ecfdf5;
+  color: #059669;
 }
-body[data-theme="dark"] .kpi-card.approved .pill{
-  background: rgba(13,148,136,.2);
-  color: #5eead4;
+body[data-theme="dark"] .kpi-card .pill.pill--success{
+  background: rgba(5,150,105,.2);
+  color: #6ee7b7;
 }
 .kpi-card .icon{
   display: none;
@@ -864,28 +876,33 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .kpi-card{ grid-column: span 6; }
 }
 @media (max-width: 768px){
-  .section-overview{ background: #f8f9fb !important; }
+  .alert-banner{
+    margin: 16px 16px 0;
+    padding: 20px 22px;
+    border-radius: 16px;
+  }
+  .alert-banner__text{ font-size: 16px; line-height: 22px; }
+  .alert-banner__dot{ width: 24px; height: 24px; min-width: 24px; }
+  .section-overview{ background: #f8f9fb !important; margin-top: 8px !important; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
     display: grid;
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 20px;
     overflow: visible;
     margin: 0;
     padding: 0;
   }
   #overviewRow .kpi-card{
     grid-column: span 1;
-    min-height: 100px;
-    padding: 16px;
-    border-radius: 12px;
+    min-height: 110px;
+    padding: 24px;
+    border-radius: 16px;
     min-width: 0;
     border: 1px solid #e2e8f0;
   }
-  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--text-primary); }
-  #overviewRow .kpi-card .value{ font-size: 32px; line-height: 42px; font-weight: 600; }
-  #overviewRow .kpi-card .pill{ background: #e8f0fe !important; color: #5170b1 !important; }
-  body[data-theme="dark"] #overviewRow .kpi-card .pill{ background: rgba(81,112,177,.25) !important; color: #93c5fd !important; }
+  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text-primary); }
+  #overviewRow .kpi-card .value{ font-size: 40px; line-height: 48px; font-weight: 700; }
 }
 
 /* --- MOBILE HEADER (pill style, 2Fly branding) --- */
@@ -1083,35 +1100,36 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     <main id="mainContent">
     <div class="main-content-area" id="mainContentArea">
     <div class="pull-refresh-zone hidden" id="pullRefreshZone"><div class="pull-refresh-spinner"></div><span style="font-size:14px;line-height:18px;color:var(--text-secondary);">Release to refresh</span></div>
-    <section class="panel section-overview" style="margin-top:24px;" aria-label="Overview" data-show-tabs="dashboard">
-      <h3>Overview</h3>
-
-      <div class="action-required-card" id="actionRequiredCard" aria-live="polite">
-        <div style="display:flex;align-items:center;gap:12px;flex:1;">
-          <span class="action-required-icon" style="width:24px;height:24px;min-width:24px;border-radius:50%;background:#1e3a8a;display:inline-block;"></span>
-          <span class="action-required-card__text" id="actionRequiredText">Nothing needed right now ✅</span>
-        </div>
-        <button type="button" class="btn primary" id="actionRequiredBtn" style="display:none;">Review now</button>
+    <!-- ALERT BANNER — above everything, not inside overview -->
+    <div class="alert-banner" id="actionRequiredCard" aria-live="polite" style="display:none;" data-show-tabs="dashboard">
+      <div class="alert-banner__left">
+        <span class="alert-banner__dot"></span>
+        <span class="alert-banner__text" id="actionRequiredText"></span>
       </div>
+      <button type="button" class="alert-banner__btn" id="actionRequiredBtn">Review now</button>
+    </div>
+
+    <section class="panel section-overview" style="margin-top:16px;" aria-label="Overview" data-show-tabs="dashboard">
+      <h3>Overview</h3>
 
       <div class="overview" id="overviewRow">
 
-        <article class="kpi-card success" id="cardScheduled">
-          <div class="label">Posts scheduled<br>(next 15 days)</div>
+        <article class="kpi-card" id="cardApproval">
+          <div class="label">Waiting for your approval</div>
+          <div class="value" id="kpiValApproval">0</div>
+          <div class="sub"><span class="pill" id="kpiSubApproval">All clear</span></div>
+        </article>
+
+        <article class="kpi-card" id="cardScheduled">
+          <div class="label">Posts scheduled (next 15 days)</div>
           <div class="value" id="kpiValScheduled">0</div>
           <div class="sub"><span class="pill" id="kpiSubScheduled">On track</span></div>
         </article>
 
-        <article class="kpi-card warning" id="cardApproval">
-          <div class="label">Waiting for your<br>approval</div>
-          <div class="value" id="kpiValApproval">0</div>
-          <div class="sub"><span class="pill" id="kpiSubApproval">Needs review</span></div>
-        </article>
-
-        <article class="kpi-card approved" id="cardMissing">
+        <article class="kpi-card" id="cardMissing">
           <div class="label">Approved for publication</div>
           <div class="value" id="kpiValMissing">0</div>
-          <div class="sub"><span class="pill" id="kpiSubMissing">Ready</span></div>
+          <div class="sub"><span class="pill" id="kpiSubMissing">None yet</span></div>
         </article>
 
       </div>
@@ -1944,18 +1962,19 @@ function renderActionRequiredCard() {
   const unreadAction = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id));
   const top = unreadAction[0];
 
-  const card = document.getElementById('actionRequiredCard');
+  const banner = document.getElementById('actionRequiredCard');
   const textEl = document.getElementById('actionRequiredText');
   const btn = document.getElementById('actionRequiredBtn');
-  if (!card || !textEl) return;
+  if (!banner || !textEl) return;
 
+  // Determine what needs attention — priority: approvals > requests > notifications
   if (pendingApprovals.length > 0) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = pendingApprovals.length === 1
       ? 'You have 1 item waiting for approval'
-      : 'You have ' + pendingApprovals.length + ' item(s) waiting for approval';
+      : 'You have ' + pendingApprovals.length + ' items waiting for approval';
     if (btn) {
-      btn.style.display = 'inline-flex';
+      btn.textContent = 'Review now';
       btn.onclick = function() {
         document.body.setAttribute('data-active-tab', 'content');
         var nav = document.getElementById('bottomNav');
@@ -1970,12 +1989,11 @@ function renderActionRequiredCard() {
       };
     }
   } else if (openRequests.length > 0) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = openRequests.length === 1
       ? 'You have 1 open request'
-      : 'You have ' + openRequests.length + ' open request(s)';
+      : 'You have ' + openRequests.length + ' open requests';
     if (btn) {
-      btn.style.display = 'inline-flex';
       btn.textContent = 'View requests';
       btn.onclick = function() {
         document.body.setAttribute('data-active-tab', 'requests');
@@ -1991,13 +2009,12 @@ function renderActionRequiredCard() {
       };
     }
   } else if (top) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = top.title + (top.message ? ': ' + top.message.slice(0, 50) + (top.message.length > 50 ? '…' : '') : '');
-    if (btn) { btn.style.display = 'inline-flex'; btn.textContent = 'Review now'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
+    if (btn) { btn.textContent = 'Review now'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
   } else {
-    card.classList.add('all-clear');
-    textEl.textContent = 'Nothing needed right now ✅';
-    if (btn) { btn.style.display = 'none'; btn.textContent = 'Review now'; }
+    // Nothing needs attention — hide the banner completely
+    banner.style.display = 'none';
   }
 }
 
@@ -2133,17 +2150,36 @@ function render(){
   
   const kpiSubScheduled = $("#kpiSubScheduled");
   if (kpiSubScheduled) {
-    if (state.kpis.scheduled >= 14) kpiSubScheduled.textContent = "On track";
-    else if (state.kpis.scheduled > 0) kpiSubScheduled.textContent = state.kpis.scheduled + " upcoming";
-    else kpiSubScheduled.textContent = "No posts upcoming";
-    kpiSubScheduled.className = "pill " + (state.kpis.scheduled >= 14 ? "chip ok" : state.kpis.scheduled > 0 ? "chip" : "chip warn");
+    if (scheduledCount > 0) {
+      kpiSubScheduled.textContent = scheduledCount + " upcoming";
+      kpiSubScheduled.className = "pill";
+    } else {
+      kpiSubScheduled.textContent = "No posts scheduled";
+      kpiSubScheduled.className = "pill pill--warning";
+    }
   }
   
   const kpiSubApproval = $("#kpiSubApproval");
-  if (kpiSubApproval) kpiSubApproval.textContent = pendingCount > 0 ? (pendingCount === 1 ? "1 needs review" : pendingCount + " need review") : "All clear";
+  if (kpiSubApproval) {
+    if (pendingCount > 0) {
+      kpiSubApproval.textContent = pendingCount === 1 ? "1 needs review" : pendingCount + " need review";
+      kpiSubApproval.className = "pill pill--warning";
+    } else {
+      kpiSubApproval.textContent = "All clear";
+      kpiSubApproval.className = "pill pill--success";
+    }
+  }
   
   const kpiSubMissing = $("#kpiSubMissing");
-  if (kpiSubMissing) kpiSubMissing.textContent = approvedCount > 0 ? "Ready to publish" : "None yet";
+  if (kpiSubMissing) {
+    if (approvedCount > 0) {
+      kpiSubMissing.textContent = "Ready to publish";
+      kpiSubMissing.className = "pill pill--success";
+    } else {
+      kpiSubMissing.textContent = "None yet";
+      kpiSubMissing.className = "pill";
+    }
+  }
 
   // WhatsApp link
   const whatsappLink = $("#whatsappLink");
