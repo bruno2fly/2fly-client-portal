@@ -144,7 +144,7 @@
   .client-notif-mark-all:hover{color:var(--text-primary);text-decoration:underline;}
   .client-notif-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:18px;font-weight:400;}
   .action-required-card{
-    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #93c5fd;
+    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:2px solid #1e3a8a;
     border-radius:14px;padding:20px;margin-bottom:24px;
     display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   }
@@ -161,7 +161,8 @@
   body[data-theme="dark"] .action-required-card__text{color:#93c5fd;}
   .action-required-card.all-clear .action-required-card__text{color:#047857;}
   body[data-theme="dark"] .action-required-card.all-clear .action-required-card__text{color:#6ee7b7;}
-  .action-required-card .btn.primary{flex-shrink:0;}
+  .action-required-card .btn.primary{flex-shrink:0;background:transparent !important;color:#1e3a8a !important;border:2px solid #1e3a8a !important;}
+  body[data-theme="dark"] .action-required-card .btn.primary{background:transparent !important;color:#93c5fd !important;border-color:#3b82f6 !important;}
   /* Mobile header brand (2Fly logo + text) - hidden on desktop */
   .header-brand-mobile{display:none;}
   .logout-link{
@@ -753,7 +754,7 @@ body[data-theme="dark"]{
 
 /* --- OVERVIEW SECTION (Reference A) --- */
 .section-overview{
-  background: #f1f5f9 !important;
+  background: #f8f9fb !important;
   border-radius: 16px;
   padding: 24px !important;
   box-shadow: none !important;
@@ -863,11 +864,11 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .kpi-card{ grid-column: span 6; }
 }
 @media (max-width: 768px){
-  .section-overview{ background: #f1f5f9 !important; }
+  .section-overview{ background: #f8f9fb !important; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 16px;
     overflow: visible;
     margin: 0;
@@ -879,15 +880,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     padding: 16px;
     border-radius: 12px;
     min-width: 0;
+    border: 1px solid #e2e8f0;
   }
-  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 14px; line-height: 18px; font-weight: 500; }
+  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--text-primary); }
   #overviewRow .kpi-card .value{ font-size: 32px; line-height: 42px; font-weight: 600; }
-  #overviewRow .kpi-card:nth-child(3){ grid-column: 1 / -1; }
-}
-@media (max-width: 400px){
-  #overviewRow.overview{ grid-template-columns: 1fr; }
-  #overviewRow .kpi-card{ grid-column: span 1; }
-  #overviewRow .kpi-card:nth-child(3){ grid-column: span 1; }
+  #overviewRow .kpi-card .pill{ background: #e8f0fe !important; color: #5170b1 !important; }
+  body[data-theme="dark"] #overviewRow .kpi-card .pill{ background: rgba(81,112,177,.25) !important; color: #93c5fd !important; }
 }
 
 /* --- MOBILE HEADER (pill style, 2Fly branding) --- */
@@ -1089,7 +1087,10 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       <h3>Overview</h3>
 
       <div class="action-required-card" id="actionRequiredCard" aria-live="polite">
-        <span class="action-required-card__text" id="actionRequiredText">Nothing needed right now ✅</span>
+        <div style="display:flex;align-items:center;gap:12px;flex:1;">
+          <span class="action-required-icon" style="width:24px;height:24px;min-width:24px;border-radius:50%;background:#1e3a8a;display:inline-block;"></span>
+          <span class="action-required-card__text" id="actionRequiredText">Nothing needed right now ✅</span>
+        </div>
         <button type="button" class="btn primary" id="actionRequiredBtn" style="display:none;">Review now</button>
       </div>
 
