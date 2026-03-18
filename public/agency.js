@@ -7465,7 +7465,41 @@ function getCopilotHTML() {
   var langBtnPt = copilotLang === 'pt' ? 'copilot-lang-btn--active' : '';
   return '' +
     '<button id="copilot-bubble" class="copilot-bubble" title="AI Co-Pilot">' +
-    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><path d="M8.5 13.5c0 0 1.5 2 3.5 2s3.5-2 3.5-2"/></svg>' +
+    '<svg class="copilot-avatar" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    /* chair/seat */
+    '<rect x="18" y="48" rx="4" width="28" height="6" fill="#7c3aed" opacity="0.85"/>' +
+    '<rect x="20" y="54" rx="2" width="4" height="8" fill="#6d28d9"/>' +
+    '<rect x="40" y="54" rx="2" width="4" height="8" fill="#6d28d9"/>' +
+    /* body - hoodie */
+    '<rect x="22" y="32" rx="6" width="20" height="18" fill="#2563eb"/>' +
+    '<rect x="24" y="34" rx="2" width="6" height="4" fill="#3b82f6" opacity="0.5"/>' +
+    /* head */
+    '<circle cx="32" cy="24" r="11" fill="#fbbf24"/>' +
+    /* hair */
+    '<path d="M21 22c0-7 5-12 11-12s11 5 11 12" fill="#4338ca" />' +
+    '<rect x="21" y="19" rx="2" width="22" height="5" fill="#4338ca"/>' +
+    /* face */
+    '<g class="copilot-avatar__eyes">' +
+    '<circle cx="28" cy="25" r="1.8" fill="#1e1b4b"/>' +
+    '<circle cx="36" cy="25" r="1.8" fill="#1e1b4b"/>' +
+    '</g>' +
+    /* smile */
+    '<path d="M29 30 Q32 33 35 30" stroke="#1e1b4b" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+    /* laptop */
+    '<rect x="25" y="43" rx="2" width="14" height="2" fill="#a78bfa"/>' +
+    '<rect x="26" y="38" rx="1" width="12" height="6" fill="#c4b5fd"/>' +
+    '<rect x="28" y="39" rx="0.5" width="8" height="4" fill="#818cf8" opacity="0.5"/>' +
+    /* waving hand */
+    '<g class="copilot-avatar__hand">' +
+    '<circle cx="46" cy="32" r="4" fill="#fbbf24"/>' +
+    '<rect x="44" y="28" rx="1.5" width="3" height="5" fill="#fbbf24" transform="rotate(-15 45 30)"/>' +
+    '</g>' +
+    /* headphones */
+    '<path d="M21.5 22 Q21 18 21 15" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" fill="none"/>' +
+    '<path d="M42.5 22 Q43 18 43 15" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" fill="none"/>' +
+    '<rect x="19" y="21" rx="3" width="5" height="6" fill="#7c3aed"/>' +
+    '<rect x="40" y="21" rx="3" width="5" height="6" fill="#7c3aed"/>' +
+    '</svg>' +
     '</button>' +
     '<div id="copilot-panel" class="copilot-panel copilot-panel--hidden">' +
     // Header
