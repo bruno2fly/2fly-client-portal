@@ -1491,9 +1491,15 @@ async function renderScheduledPostsConnectionSection() {
     let html = '<div style="font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px;">' + (client.name || currentClientId) + ' — Social Accounts</div>';
     if (j.connected) {
       html += '<div style="display: flex; flex-direction: column; gap: 12px;">';
-      html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Instagram: Connected' + (j.instagramUsername ? ' (@' + j.instagramUsername + ')' : '') + ' <button type="button" class="btn btn--sm btn-secondary" id="scheduledMetaDisconnectBtn" style="margin-left: auto;">Disconnect</button></div>';
+      html += '<div style="display: flex; align-items: center; gap: 12px;flex-wrap:wrap;"><span style="color: #059669;">●</span> Instagram: Connected' + (j.instagramUsername ? ' (@' + j.instagramUsername + ')' : '') + '</div>';
       html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Facebook: Connected' + (j.pageName ? ' (' + j.pageName + ')' : '') + '</div>';
       html += '</div>';
+      html += '<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">';
+      html += '<button type="button" class="btn btn-secondary" id="scheduledMetaTestBtn" style="padding:8px 18px;font-size:13px;">Test Connection</button>';
+      html += '<button type="button" class="btn btn-secondary" id="scheduledMetaReconnectBtn" style="padding:8px 18px;font-size:13px;">Reconnect</button>';
+      html += '<button type="button" class="btn btn-secondary" id="scheduledMetaDisconnectBtn" style="padding:8px 18px;font-size:13px;color:#dc2626;border-color:#fecaca;">Disconnect</button>';
+      html += '</div>';
+      html += '<div id="scheduledMetaTestResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;"></div>';
     } else {
       html += '<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">';
       html += '<div><span style="color: #94a3b8;">○</span> Instagram: Not connected</div>';
@@ -1504,31 +1510,80 @@ async function renderScheduledPostsConnectionSection() {
     }
     content.innerHTML = html;
 
-    const connectBtn = $('#scheduledMetaConnectBtn');
-    const disconnectBtn = $('#scheduledMetaDisconnectBtn');
-    if (connectBtn && !connectBtn._bound) {
-      connectBtn._bound = true;
-      connectBtn.addEventListener('click', async () => {
-        try {
-          const authRes = await fetch(`${getApiBaseUrl()}/api/auth/meta?clientId=${encodeURIComponent(currentClientId)}`, { credentials: 'include' });
-          const authJ = await authRes.json();
-          if (authJ.authUrl) window.open(authJ.authUrl, 'meta_oauth', 'width=600,height=700');
-        } catch (e) { console.error('Meta connect:', e); }
-      });
+    // Connect button
+    var connectBtn = $('#scheduledMetaConnectBtn');
+    var reconnectBtn = $('#scheduledMetaReconnectBtn');
+    var disconnectBtn = $('#scheduledMetaDisconnectBtn');
+    var testBtn = $('#scheduledMetaTestBtn');
+
+    function openMetaOAuth() {
+      fetch(getApiBaseUrl() + '/api/auth/meta?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.authUrl) window.open(d.authUrl, 'meta_oauth', 'width=600,height=700'); })
+        .catch(function(e) { console.error('Meta connect:', e); });
     }
-    if (disconnectBtn && !disconnectBtn._bound) {
-      disconnectBtn._bound = true;
-      disconnectBtn.addEventListener('click', async () => {
+
+    if (connectBtn) connectBtn.addEventListener('click', openMetaOAuth);
+    if (reconnectBtn) reconnectBtn.addEventListener('click', openMetaOAuth);
+
+    if (disconnectBtn) {
+      disconnectBtn.addEventListener('click', async function() {
+        if (!confirm('Disconnect Meta for this client?')) return;
         try {
-          const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/disconnect`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+          var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
             body: JSON.stringify({ clientId: currentClientId })
           });
-          const j = await r.json();
-          if (j.success) { renderScheduledPostsConnectionSection(); renderScheduledPostsTab(); }
+          var d = await r.json();
+          if (d.success) { renderScheduledPostsConnectionSection(); renderScheduledPostsTab(); }
         } catch (e) { console.error('Meta disconnect:', e); }
+      });
+    }
+
+    if (testBtn) {
+      testBtn.addEventListener('click', async function() {
+        var resultEl = $('#scheduledMetaTestResult');
+        if (!resultEl) return;
+        resultEl.style.display = 'block';
+        resultEl.style.background = '#f8fafc';
+        resultEl.style.color = '#475569';
+        resultEl.textContent = 'Testing connection...';
+        try {
+          var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/debug?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' });
+          var d = await r.json();
+          if (d.pageValid && d.permissions && d.permissions.length > 0) {
+            var hasPostPerm = d.permissions.indexOf('pages_manage_posts') !== -1;
+            var hasIgPerm = d.permissions.indexOf('instagram_content_publish') !== -1;
+            var declined = d.declinedPermissions || [];
+            if (hasPostPerm && hasIgPerm && declined.length === 0) {
+              resultEl.style.background = '#d1fae5';
+              resultEl.style.color = '#059669';
+              resultEl.innerHTML = '<strong>All good!</strong> Token valid, page accessible, all permissions granted.<br>Permissions: ' + d.permissions.join(', ');
+            } else {
+              resultEl.style.background = '#fef3c7';
+              resultEl.style.color = '#b45309';
+              var msg = '<strong>Partial:</strong> Page accessible but some permissions may be missing.<br>';
+              msg += 'Granted: ' + d.permissions.join(', ');
+              if (declined.length > 0) msg += '<br><span style="color:#dc2626;">Declined: ' + declined.join(', ') + '</span> — Please reconnect and approve all permissions.';
+              if (!hasPostPerm) msg += '<br><span style="color:#dc2626;">Missing: pages_manage_posts</span>';
+              if (!hasIgPerm) msg += '<br><span style="color:#dc2626;">Missing: instagram_content_publish</span>';
+              resultEl.innerHTML = msg;
+            }
+          } else {
+            resultEl.style.background = '#fee2e2';
+            resultEl.style.color = '#dc2626';
+            var errMsg = '<strong>Connection issue:</strong><br>';
+            if (d.permError) errMsg += 'Token error: ' + d.permError + '<br>';
+            if (d.pageError) errMsg += 'Page error: ' + d.pageError + '<br>';
+            if (!d.permissions || d.permissions.length === 0) errMsg += 'No permissions found. Please disconnect and reconnect.<br>';
+            if (d.tokenExpired) errMsg += 'Token has expired. Please reconnect.';
+            resultEl.innerHTML = errMsg;
+          }
+        } catch (e) {
+          resultEl.style.background = '#fee2e2';
+          resultEl.style.color = '#dc2626';
+          resultEl.textContent = 'Test failed: ' + (e.message || 'Unknown error');
+        }
       });
     }
   } catch (e) {

@@ -292,7 +292,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     saveScheduledPost(post);
 
     if (error) {
-      return res.status(500).json({ error, post });
+      // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
+      return res.status(422).json({ error, post });
     }
     res.json({ success: true, post });
   } catch (e: any) {

@@ -77,7 +77,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     }
 
     // Exchange code for short-lived token
-    const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&client_secret=${META_APP_SECRET}&code=${code}`;
+    const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&client_secret=${META_APP_SECRET}&code=${code}`;
     const tokenRes = await fetch(tokenUrl);
     const tokenData: any = await tokenRes.json();
     if (tokenData.error) {
@@ -88,7 +88,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     const { access_token: longToken, expires_in } = await exchangeForLongLivedToken(shortToken);
 
     // Verify granted permissions
-    const permRes = await fetch(`https://graph.facebook.com/v19.0/me/permissions?access_token=${longToken}`);
+    const permRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${longToken}`);
     const permData: any = await permRes.json();
     const granted = (permData.data || []).filter((p: any) => p.status === 'granted').map((p: any) => p.permission);
     const declined = (permData.data || []).filter((p: any) => p.status === 'declined').map((p: any) => p.permission);

@@ -92,7 +92,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
 
     const tokenExpired = integration.tokenExpiresAt < Date.now();
     // Check token permissions via Graph API
-    const permUrl = `https://graph.facebook.com/v19.0/me/permissions?access_token=${integration.metaAccessToken}`;
+    const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${integration.metaAccessToken}`;
     let permissions: any[] = [];
     let permError: string | undefined;
     try {
@@ -106,7 +106,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
     let pageValid = false;
     let pageError: string | undefined;
     try {
-      const pageUrl = `https://graph.facebook.com/v19.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`;
+      const pageUrl = `https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`;
       const pageRes = await fetch(pageUrl);
       const pageData: any = await pageRes.json();
       if (pageData.error) pageError = pageData.error.message;

@@ -3,7 +3,7 @@
  * Graph API v19.0+
  */
 
-const META_GRAPH_BASE = 'https://graph.facebook.com/v19.0';
+const META_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
 export interface MetaPage {
   id: string;
