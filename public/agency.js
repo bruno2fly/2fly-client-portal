@@ -6733,7 +6733,7 @@ function renderProductionView() {
             // Priority dot
             html += '<td style="width: 40px; padding-left: 12px;"><span class="pv-priority-dot" style="background: ' + priorityDotColor + ';" title="' + (t.priority || 'medium') + '"></span></td>';
             // Task title
-            html += '<td style="padding: 12px 16px 12px 0; max-width: 0;"><div class="pv-task-title' + (isUntitled ? ' pv-task-title--untitled' : '') + '" title="' + fullTitle + '">' + displayTitle + '</div>';
+            html += '<td style="padding: 12px 16px 12px 0;"><div class="pv-task-title' + (isUntitled ? ' pv-task-title--untitled' : '') + '" title="' + fullTitle + '">' + displayTitle + '</div>';
             if (reviewNote) html += '<div class="pv-task-review-note">↳ ' + reviewNote + '</div>';
             html += '</td>';
             // Timeline
