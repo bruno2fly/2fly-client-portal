@@ -81,6 +81,7 @@ let demandFilterAssignee = '';
 let designerViewMode = 'focus'; // focus | list | clients
 let designerSearchQuery = '';
 let designerCollapsedStatuses = {};
+let designerStatFilter = ''; // '' | 'remaining' | 'overdue' | 'revisions' | 'due_today' | 'done'
 
 // Agency-scoped data from API (dashboard is agencyId-scoped; only prefs use userId).
 let clientsRegistryCache = {};
@@ -6239,6 +6240,19 @@ function renderProductionView() {
       });
     }
 
+    // Filter by stat click
+    if (designerStatFilter === 'remaining') {
+      filtered = filtered.filter(function(t) { return !['approved', 'ready_to_post', 'review'].includes(t.status); });
+    } else if (designerStatFilter === 'overdue') {
+      filtered = filtered.filter(function(t) { return t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status); });
+    } else if (designerStatFilter === 'revisions') {
+      filtered = filtered.filter(function(t) { return t.status === 'changes_requested'; });
+    } else if (designerStatFilter === 'due_today') {
+      filtered = filtered.filter(function(t) { return t.deadline && t.deadline.slice(0,10) <= todayStr && !['approved','ready_to_post'].includes(t.status); });
+    } else if (designerStatFilter === 'done') {
+      filtered = filtered.filter(function(t) { return ['approved', 'ready_to_post', 'review'].includes(t.status); });
+    }
+
     // Group by status
     var byStatus = {};
     Object.keys(DESIGNER_STATUS_CONFIG).forEach(function(k) { byStatus[k] = []; });
@@ -6286,10 +6300,35 @@ function renderProductionView() {
         '<span style="font-size:12px;font-weight:700;color:#334155;">' + pct + '%</span></div></div>';
     }
 
+    // Client color palette — consistent color per clientId
+    var CLIENT_COLORS = [
+      { bg: '#dbeafe', text: '#1e40af' },  // blue
+      { bg: '#fce7f3', text: '#9d174d' },  // pink
+      { bg: '#d1fae5', text: '#065f46' },  // green
+      { bg: '#fef3c7', text: '#92400e' },  // amber
+      { bg: '#e0e7ff', text: '#3730a3' },  // indigo
+      { bg: '#ffe4e6', text: '#9f1239' },  // rose
+      { bg: '#ccfbf1', text: '#115e59' },  // teal
+      { bg: '#fae8ff', text: '#86198f' },  // fuchsia
+      { bg: '#fed7aa', text: '#9a3412' },  // orange
+      { bg: '#e2e8f0', text: '#334155' },  // slate
+    ];
+    var clientColorMap = {};
+    var clientColorIndex = 0;
+    function getClientColor(clientId) {
+      if (!clientId) return CLIENT_COLORS[0];
+      if (!clientColorMap[clientId]) {
+        clientColorMap[clientId] = CLIENT_COLORS[clientColorIndex % CLIENT_COLORS.length];
+        clientColorIndex++;
+      }
+      return clientColorMap[clientId];
+    }
+
     // Task row HTML helper
     function dvTaskRow(t) {
       var cfg = DESIGNER_STATUS_CONFIG[t.status] || DESIGNER_STATUS_CONFIG.assigned;
       var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+      var cc = getClientColor(t.clientId);
       var isOverdue = t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status);
       var deadlineLabel = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
       var taskTitle = (t.title || t.caption || t.briefNotes || 'Untitled').replace(/</g, '&lt;');
@@ -6298,8 +6337,8 @@ function renderProductionView() {
       r += '<div class="dv-task-row" data-task-id="' + t.id + '">';
       // Status dot
       r += '<div class="dv-task-row__dot" style="background:' + cfg.color + ';"></div>';
-      // Client chip
-      r += '<span class="dv-task-row__client">' + (clientName.split(' ')[0] || '—').replace(/</g, '&lt;') + '</span>';
+      // Client chip with unique color
+      r += '<span class="dv-task-row__client" style="background:' + cc.bg + ';color:' + cc.text + ';">' + (clientName.split(' ')[0] || '—').replace(/</g, '&lt;') + '</span>';
       // Title + review notes
       r += '<div class="dv-task-row__title-wrap">';
       r += '<p class="dv-task-row__title">' + taskTitle + '</p>';
@@ -6337,6 +6376,7 @@ function renderProductionView() {
       if (!t) return '';
       var cfg = DESIGNER_STATUS_CONFIG[t.status] || DESIGNER_STATUS_CONFIG.assigned;
       var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '';
+      var cc = getClientColor(t.clientId);
       var isOverdue = t.deadline && t.deadline < todayStr && !['approved','ready_to_post'].includes(t.status);
       var deadlineLabel = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
       var taskTitle = (t.title || t.caption || t.briefNotes || 'Untitled').replace(/</g, '&lt;');
@@ -6347,7 +6387,7 @@ function renderProductionView() {
       h += '<div class="dv-focus-card__label">' + (isOverdue ? '&#9889; OVERDUE — DO THIS NOW' : 'UP NEXT') + '</div>';
       h += '<div class="dv-focus-card__body">';
       h += '<div class="dv-focus-card__left">';
-      h += '<p class="dv-focus-card__client">' + clientName.replace(/</g, '&lt;') + '</p>';
+      h += '<p class="dv-focus-card__client" style="color:' + cc.text + ';">' + clientName.replace(/</g, '&lt;') + '</p>';
       h += '<h3 class="dv-focus-card__title">' + taskTitle + '</h3>';
       h += '<div class="dv-focus-card__meta">';
       h += '<span class="dv-focus-card__meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> <span' + (isOverdue ? ' style="color:#dc2626;font-weight:600;"' : '') + '>' + deadlineLabel + '</span>';
@@ -6427,11 +6467,11 @@ function renderProductionView() {
     html += '<div class="dv-stats-bar">';
     html += progressRingSvg(completedCount, tasks.length, 56);
     html += '<div class="dv-stats-bar__numbers">';
-    html += '<div class="dv-stat"><p class="dv-stat__value">' + (tasks.length - completedCount) + '</p><p class="dv-stat__label">remaining</p></div>';
-    if (overdueCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--red">' + overdueCount + '</p><p class="dv-stat__label dv-stat__label--red">overdue</p></div>';
-    if (changesCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--orange">' + changesCount + '</p><p class="dv-stat__label dv-stat__label--orange">revisions</p></div>';
-    if (todayCount > 0) html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--amber">' + todayCount + '</p><p class="dv-stat__label dv-stat__label--amber">due today</p></div>';
-    html += '<div class="dv-stat"><p class="dv-stat__value dv-stat__value--green">' + completedCount + '</p><p class="dv-stat__label dv-stat__label--green">done</p></div>';
+    html += '<div class="dv-stat dv-stat--clickable' + (designerStatFilter === 'remaining' ? ' dv-stat--active' : '') + '" data-stat-filter="remaining"><p class="dv-stat__value">' + (tasks.length - completedCount) + '</p><p class="dv-stat__label">remaining</p></div>';
+    if (overdueCount > 0) html += '<div class="dv-stat dv-stat--clickable' + (designerStatFilter === 'overdue' ? ' dv-stat--active' : '') + '" data-stat-filter="overdue"><p class="dv-stat__value dv-stat__value--red">' + overdueCount + '</p><p class="dv-stat__label dv-stat__label--red">overdue</p></div>';
+    if (changesCount > 0) html += '<div class="dv-stat dv-stat--clickable' + (designerStatFilter === 'revisions' ? ' dv-stat--active' : '') + '" data-stat-filter="revisions"><p class="dv-stat__value dv-stat__value--orange">' + changesCount + '</p><p class="dv-stat__label dv-stat__label--orange">revisions</p></div>';
+    if (todayCount > 0) html += '<div class="dv-stat dv-stat--clickable' + (designerStatFilter === 'due_today' ? ' dv-stat--active' : '') + '" data-stat-filter="due_today"><p class="dv-stat__value dv-stat__value--amber">' + todayCount + '</p><p class="dv-stat__label dv-stat__label--amber">due today</p></div>';
+    html += '<div class="dv-stat dv-stat--clickable' + (designerStatFilter === 'done' ? ' dv-stat--active' : '') + '" data-stat-filter="done"><p class="dv-stat__value dv-stat__value--green">' + completedCount + '</p><p class="dv-stat__label dv-stat__label--green">done</p></div>';
     html += '</div>';
     // View toggle
     html += '<div class="dv-view-toggle">';
@@ -6476,9 +6516,10 @@ function renderProductionView() {
       html += '</div>';
     } else if (designerViewMode === 'clients') {
       clientEntries.forEach(function(group) {
+        var gcc = getClientColor(group.id);
         html += '<div class="dv-card-panel" style="margin-bottom:16px;">';
         html += '<div class="dv-client-group-header">';
-        html += '<div class="dv-client-group-header__avatar">' + group.name.charAt(0).toUpperCase() + '</div>';
+        html += '<div class="dv-client-group-header__avatar" style="background:' + gcc.text + ';">' + group.name.charAt(0).toUpperCase() + '</div>';
         html += '<div><h3 class="dv-client-group-header__name">' + group.name.replace(/</g, '&lt;') + '</h3>';
         html += '<p class="dv-client-group-header__count">' + group.tasks.length + ' task' + (group.tasks.length !== 1 ? 's' : '') + '</p></div>';
         // Status dots
@@ -6512,6 +6553,15 @@ function renderProductionView() {
     // View toggle
     container.querySelectorAll('.dv-view-toggle__btn').forEach(function(btn) {
       btn.addEventListener('click', function() { designerViewMode = btn.getAttribute('data-view'); renderProductionView(); });
+    });
+
+    // Stat filter clicks (toggle on/off)
+    container.querySelectorAll('.dv-stat--clickable').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var filter = el.getAttribute('data-stat-filter');
+        designerStatFilter = (designerStatFilter === filter) ? '' : filter;
+        renderProductionView();
+      });
     });
 
     // Status lane collapse/expand
