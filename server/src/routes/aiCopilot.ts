@@ -25,7 +25,7 @@ function getOpenAI(): OpenAI | null {
 }
 
 // System prompt for the designer co-pilot
-const SYSTEM_PROMPT = `You are 2Fly Co-Pilot, an AI assistant embedded inside a design production tool for social media agencies.
+const DESIGNER_SYSTEM_PROMPT = `You are 2Fly Co-Pilot, an AI assistant embedded inside a design production tool for social media agencies.
 You help designers move faster with less thinking. You do NOT replace them.
 
 RULES:
@@ -45,6 +45,27 @@ CAPABILITIES:
 3. Improve Copy — Enhance captions, translate, shorten
 4. References — Suggest visual styles and composition ideas
 5. Variations — Multiple versions of an idea or prompt`;
+
+// System prompt for the agency/manager co-pilot
+const AGENCY_SYSTEM_PROMPT = `You are 2Fly Co-Pilot, an AI assistant embedded inside a social media management platform for agencies.
+You help social media managers, strategists, and account managers work faster and create better content. You do NOT replace them.
+
+RULES:
+- Responses must be SHORT and actionable (max 2-3 paragraphs)
+- No long explanations — prioritize outputs they can copy-paste and use immediately
+- Use bullet points for lists, keep them concise
+- When writing captions, match the brand voice and platform best practices
+- When suggesting hashtags, mix popular + niche for reach and targeting
+- When creating content strategy, think about the client's industry and audience
+- Speak like a senior social media strategist giving quick, confident advice
+- Use simple language, be trendy but professional
+
+CAPABILITIES:
+1. Write Caption — Create engaging post captions for any platform
+2. Hashtag Strategy — Generate optimized hashtag sets
+3. Content Ideas — Suggest content themes and post ideas
+4. Improve Copy — Enhance, shorten, translate existing copy
+5. Strategy Tips — Quick wins for engagement and growth`;
 
 // Quick action system prompts
 const ACTION_PROMPTS: Record<string, string> = {
@@ -88,6 +109,47 @@ Generate 3 different takes:
 For each, briefly describe the visual approach and any copy adjustments.`,
 };
 
+// Agency-specific action prompts
+const AGENCY_ACTION_PROMPTS: Record<string, string> = {
+  write_caption: `The social media manager wants an engaging caption for a post.
+Based on the task/client context provided, create:
+- A main caption (engaging hook + body + CTA)
+- A shorter version for Stories/Reels
+- Suggest 2-3 emoji placements
+Match the brand voice. Optimize for the platform (Instagram, Facebook, LinkedIn, TikTok).`,
+
+  hashtag_strategy: `The social media manager needs hashtags for this post.
+Provide:
+- 5 high-volume hashtags (broad reach)
+- 5 niche/targeted hashtags (specific audience)
+- 3 branded or campaign hashtags suggestions
+- Quick tip on hashtag placement for the platform
+Format them ready to copy-paste.`,
+
+  content_ideas: `The social media manager needs content ideas for this client.
+Suggest exactly 3-5 post ideas. For each:
+- Content type (carousel, reel, story, static, etc.)
+- Hook/concept (1 sentence)
+- Why it works for this audience
+- Best day/time to post suggestion
+Keep each idea to 2-3 lines max.`,
+
+  improve_copy: `The social media manager wants to improve the caption/copy for this post.
+Provide:
+- Improved version (same language, stronger hook and CTA)
+- Shorter version (for stories/reels)
+- English translation (if original is not English)
+Keep the brand voice. Be concise. Focus on engagement.`,
+
+  strategy_tips: `The social media manager wants quick strategy tips for this client.
+Provide:
+- 2-3 quick wins they can implement this week
+- Engagement tip specific to their industry
+- Trending format or feature they should try
+- One metric to focus on improving
+Keep it actionable — things they can do today.`,
+};
+
 // POST /api/ai-copilot/chat
 router.post('/chat', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
@@ -96,7 +158,8 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
       return res.status(503).json({ error: 'AI Co-Pilot not configured. Set OPENAI_API_KEY in environment.' });
     }
 
-    const { message, action, taskId, clientId, conversationHistory, imageUrl, language } = req.body;
+    const { message, action, taskId, clientId, conversationHistory, imageUrl, language, role } = req.body;
+    const isAgency = role === 'agency';
 
     if (!message && !action) {
       return res.status(400).json({ error: 'Message or action required.' });
@@ -145,7 +208,7 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
     }
 
     // Build system prompt with language support
-    let effectiveSystemPrompt = SYSTEM_PROMPT;
+    let effectiveSystemPrompt = isAgency ? AGENCY_SYSTEM_PROMPT : DESIGNER_SYSTEM_PROMPT;
     if (language === 'pt') {
       effectiveSystemPrompt += '\n\nIMPORTANT: Always respond in Brazilian Portuguese (pt-BR).';
     }
@@ -159,15 +222,16 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
     if (contextParts.length > 0) {
       messages.push({
         role: 'system',
-        content: `CONTEXT (auto-injected from the designer's current workspace):\n${contextParts.join('\n')}`,
+        content: `CONTEXT (auto-injected from the user's current workspace):\n${contextParts.join('\n')}`,
       });
     }
 
     // Add action-specific instruction if quick action
-    if (action && ACTION_PROMPTS[action]) {
+    const allActions = isAgency ? { ...ACTION_PROMPTS, ...AGENCY_ACTION_PROMPTS } : ACTION_PROMPTS;
+    if (action && allActions[action]) {
       messages.push({
         role: 'system',
-        content: ACTION_PROMPTS[action],
+        content: allActions[action],
       });
     }
 

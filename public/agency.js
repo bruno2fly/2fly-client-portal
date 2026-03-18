@@ -7166,8 +7166,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     isDesigner = currentStaff.role === 'DESIGNER';
-    // Init AI Co-Pilot for designers
-    if (isDesigner) { initAICopilot(); }
+    // Init AI Co-Pilot for all staff
+    initAICopilot();
     try {
       updateStaffHeader();
     } catch (e) {
@@ -7600,7 +7600,7 @@ function getCopilotHTML() {
     '<div class="copilot-header">' +
     '<div class="copilot-header__left">' +
     '<div class="copilot-header__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></div>' +
-    '<div><p class="copilot-header__title">2Fly Co-Pilot</p><p class="copilot-header__sub">AI assistant for designers</p></div>' +
+    '<div><p class="copilot-header__title">2Fly Co-Pilot</p><p class="copilot-header__sub">AI assistant for ' + (isDesigner ? 'designers' : 'your team') + '</p></div>' +
     '</div>' +
     '<div class="copilot-header__right-btns">' +
     // #6: Language toggle
@@ -7616,20 +7616,30 @@ function getCopilotHTML() {
     '</div></div>' +
     // #2: Context indicator
     '<div id="copilot-context" class="copilot-context"></div>' +
-    // Quick actions
+    // Quick actions (role-aware)
     '<div class="copilot-actions">' +
-    '<button class="copilot-action-btn" data-action="generate_prompt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Prompt</button>' +
-    '<button class="copilot-action-btn" data-action="give_ideas"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Give Ideas</button>' +
-    '<button class="copilot-action-btn" data-action="improve_copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Improve Copy</button>' +
-    '<button class="copilot-action-btn" data-action="references"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> References</button>' +
-    '<button class="copilot-action-btn" data-action="variations"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="6" height="10" rx="1"/><rect x="9" y="4" width="6" height="16" rx="1"/><rect x="16" y="7" width="6" height="10" rx="1"/></svg> Variations</button>' +
+    (isDesigner ?
+      '<button class="copilot-action-btn" data-action="generate_prompt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Prompt</button>' +
+      '<button class="copilot-action-btn" data-action="give_ideas"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Give Ideas</button>' +
+      '<button class="copilot-action-btn" data-action="improve_copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Improve Copy</button>' +
+      '<button class="copilot-action-btn" data-action="references"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> References</button>' +
+      '<button class="copilot-action-btn" data-action="variations"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="6" height="10" rx="1"/><rect x="9" y="4" width="6" height="16" rx="1"/><rect x="16" y="7" width="6" height="10" rx="1"/></svg> Variations</button>'
+    :
+      '<button class="copilot-action-btn" data-action="write_caption"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Write Caption</button>' +
+      '<button class="copilot-action-btn" data-action="hashtag_strategy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg> Hashtags</button>' +
+      '<button class="copilot-action-btn" data-action="content_ideas"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Content Ideas</button>' +
+      '<button class="copilot-action-btn" data-action="improve_copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Improve Copy</button>' +
+      '<button class="copilot-action-btn" data-action="strategy_tips"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Strategy Tips</button>'
+    ) +
     '</div>' +
     // Messages
     '<div id="copilot-messages" class="copilot-messages">' +
     '<div class="copilot-welcome">' +
     '<p class="copilot-welcome__emoji">&#9889;</p>' +
     '<p class="copilot-welcome__title">Hey! I\'m your Co-Pilot.</p>' +
-    '<p class="copilot-welcome__sub">Ask me anything or hit a quick action. I already know your current task and client.</p>' +
+    '<p class="copilot-welcome__sub">' + (isDesigner
+      ? 'Ask me anything or hit a quick action. I already know your current task and client.'
+      : 'Write captions, get hashtags, brainstorm content ideas, or ask me anything about social media strategy.') + '</p>' +
     '</div></div>' +
     // #3: Image preview area
     '<div id="copilot-image-preview" class="copilot-image-preview" style="display:none;"></div>' +
@@ -7900,12 +7910,18 @@ function sendCopilotMessage(action) {
   var message = input ? input.value.trim() : '';
 
   if (action && !message) {
-    var actionLabels = {
+    var actionLabels = isDesigner ? {
       generate_prompt: 'Generate a prompt for this task',
       give_ideas: 'Give me visual ideas for this task',
       improve_copy: 'Improve the copy for this task',
       references: 'Suggest visual references for this task',
       variations: 'Create variations of this concept'
+    } : {
+      write_caption: 'Write a caption for this post',
+      hashtag_strategy: 'Create a hashtag strategy for this post',
+      content_ideas: 'Give me content ideas for this client',
+      improve_copy: 'Improve the copy for this post',
+      strategy_tips: 'Give me strategy tips for this client'
     };
     message = actionLabels[action] || 'Help me with this task';
   }
@@ -7934,6 +7950,7 @@ function sendCopilotMessage(action) {
     taskId: ctx.taskId,
     clientId: ctx.task ? ctx.task.clientId : null,
     language: copilotLang,
+    role: isDesigner ? 'designer' : 'agency',
     conversationHistory: copilotConversation.slice(-8)
   };
   // #3: Attach image URL if present
