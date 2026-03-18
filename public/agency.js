@@ -7363,5 +7363,231 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Fatal error during agency dashboard initialization:', e);
     alert('An error occurred while loading the dashboard. Please check the console for details.');
   }
+
+  // ─── AI CO-PILOT (designer only) ────────────────────────────
+  if (isDesigner) { initAICopilot(); }
 });
+
+// ══════════════════════════════════════════════════════════════
+// AI CO-PILOT — floating chat for designers
+// ══════════════════════════════════════════════════════════════
+var copilotConversation = [];
+var copilotOpen = false;
+var copilotLoading = false;
+
+function initAICopilot() {
+  // Check if already injected
+  if (document.getElementById('copilot-bubble')) return;
+
+  // Inject the floating bubble + panel into body
+  var wrapper = document.createElement('div');
+  wrapper.id = 'copilot-wrapper';
+  wrapper.innerHTML = getCopilotHTML();
+  document.body.appendChild(wrapper);
+
+  // Bind events
+  bindCopilotEvents();
+}
+
+function getCopilotHTML() {
+  return '' +
+    // Floating bubble
+    '<button id="copilot-bubble" class="copilot-bubble" title="AI Co-Pilot">' +
+    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><path d="M8.5 13.5c0 0 1.5 2 3.5 2s3.5-2 3.5-2"/></svg>' +
+    '</button>' +
+    // Chat panel
+    '<div id="copilot-panel" class="copilot-panel copilot-panel--hidden">' +
+    // Header
+    '<div class="copilot-header">' +
+    '<div class="copilot-header__left">' +
+    '<div class="copilot-header__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></div>' +
+    '<div><p class="copilot-header__title">2Fly Co-Pilot</p><p class="copilot-header__sub">AI assistant for designers</p></div>' +
+    '</div>' +
+    '<button id="copilot-close" class="copilot-close">&times;</button>' +
+    '</div>' +
+    // Quick actions
+    '<div class="copilot-actions">' +
+    '<button class="copilot-action-btn" data-action="generate_prompt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Prompt</button>' +
+    '<button class="copilot-action-btn" data-action="give_ideas"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Give Ideas</button>' +
+    '<button class="copilot-action-btn" data-action="improve_copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Improve Copy</button>' +
+    '<button class="copilot-action-btn" data-action="references"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> References</button>' +
+    '<button class="copilot-action-btn" data-action="variations"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="6" height="10" rx="1"/><rect x="9" y="4" width="6" height="16" rx="1"/><rect x="16" y="7" width="6" height="10" rx="1"/></svg> Variations</button>' +
+    '</div>' +
+    // Messages area
+    '<div id="copilot-messages" class="copilot-messages">' +
+    '<div class="copilot-welcome">' +
+    '<p class="copilot-welcome__emoji">&#9889;</p>' +
+    '<p class="copilot-welcome__title">Hey! I\'m your Co-Pilot.</p>' +
+    '<p class="copilot-welcome__sub">Ask me anything or hit a quick action above. I already know your current task and client context.</p>' +
+    '</div>' +
+    '</div>' +
+    // Input area
+    '<div class="copilot-input-area">' +
+    '<div class="copilot-input-wrap">' +
+    '<input type="text" id="copilot-input" class="copilot-input" placeholder="Ask anything..." />' +
+    '<button id="copilot-send" class="copilot-send" title="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>' +
+    '</div>' +
+    '</div>' +
+    '</div>';
+}
+
+function bindCopilotEvents() {
+  var bubble = document.getElementById('copilot-bubble');
+  var panel = document.getElementById('copilot-panel');
+  var closeBtn = document.getElementById('copilot-close');
+  var input = document.getElementById('copilot-input');
+  var sendBtn = document.getElementById('copilot-send');
+
+  if (bubble) bubble.addEventListener('click', function() { toggleCopilot(true); });
+  if (closeBtn) closeBtn.addEventListener('click', function() { toggleCopilot(false); });
+
+  // Send on enter
+  if (input) input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCopilotMessage(); }
+  });
+  if (sendBtn) sendBtn.addEventListener('click', function() { sendCopilotMessage(); });
+
+  // Quick action buttons
+  document.querySelectorAll('.copilot-action-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var action = btn.getAttribute('data-action');
+      sendCopilotMessage(action);
+    });
+  });
+}
+
+function toggleCopilot(open) {
+  copilotOpen = open;
+  var panel = document.getElementById('copilot-panel');
+  var bubble = document.getElementById('copilot-bubble');
+  if (panel) {
+    if (open) {
+      panel.classList.remove('copilot-panel--hidden');
+      panel.classList.add('copilot-panel--visible');
+      var inp = document.getElementById('copilot-input');
+      if (inp) setTimeout(function() { inp.focus(); }, 100);
+    } else {
+      panel.classList.add('copilot-panel--hidden');
+      panel.classList.remove('copilot-panel--visible');
+    }
+  }
+  if (bubble) bubble.style.display = open ? 'none' : 'flex';
+}
+
+function appendCopilotMessage(role, content) {
+  var messagesEl = document.getElementById('copilot-messages');
+  if (!messagesEl) return;
+  // Remove welcome if first message
+  var welcome = messagesEl.querySelector('.copilot-welcome');
+  if (welcome) welcome.remove();
+
+  var msgDiv = document.createElement('div');
+  msgDiv.className = 'copilot-msg copilot-msg--' + role;
+
+  if (role === 'assistant') {
+    // Simple markdown: **bold**, `code`, \n -> <br>, - bullets
+    var html = content
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/^- (.+)$/gm, '<span class="copilot-bullet">•</span> $1')
+      .replace(/^\d+\. (.+)$/gm, function(m, p1, offset, str) { return '<span class="copilot-bullet">' + m.split('.')[0] + '.</span> ' + p1; })
+      .replace(/\n/g, '<br>');
+    msgDiv.innerHTML = html;
+  } else {
+    msgDiv.textContent = content;
+  }
+
+  messagesEl.appendChild(msgDiv);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showCopilotLoading() {
+  var messagesEl = document.getElementById('copilot-messages');
+  if (!messagesEl) return;
+  var loader = document.createElement('div');
+  loader.className = 'copilot-msg copilot-msg--assistant copilot-msg--loading';
+  loader.id = 'copilot-loader';
+  loader.innerHTML = '<span class="copilot-typing"><span></span><span></span><span></span></span>';
+  messagesEl.appendChild(loader);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function hideCopilotLoading() {
+  var loader = document.getElementById('copilot-loader');
+  if (loader) loader.remove();
+}
+
+function sendCopilotMessage(action) {
+  if (copilotLoading) return;
+  var input = document.getElementById('copilot-input');
+  var message = input ? input.value.trim() : '';
+
+  // For quick actions, use a default message if empty
+  if (action && !message) {
+    var actionLabels = {
+      generate_prompt: 'Generate a prompt for this task',
+      give_ideas: 'Give me visual ideas for this task',
+      improve_copy: 'Improve the copy for this task',
+      references: 'Suggest visual references for this task',
+      variations: 'Create variations of this concept'
+    };
+    message = actionLabels[action] || 'Help me with this task';
+  }
+
+  if (!message) return;
+  if (input) input.value = '';
+
+  // Show user message
+  appendCopilotMessage('user', message);
+  copilotConversation.push({ role: 'user', content: message });
+
+  // Get current context
+  var taskId = currentProductionTaskId || null;
+  var clientId = null;
+  if (taskId && productionTasksCache) {
+    var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+    if (task) clientId = task.clientId;
+  }
+
+  // Show loading
+  copilotLoading = true;
+  showCopilotLoading();
+
+  // Disable quick action buttons while loading
+  document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = true; });
+
+  fetch(getApiBaseUrl() + '/api/ai-copilot/chat', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: message,
+      action: action || null,
+      taskId: taskId,
+      clientId: clientId,
+      conversationHistory: copilotConversation.slice(-8)
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    hideCopilotLoading();
+    copilotLoading = false;
+    document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = false; });
+
+    if (data.error) {
+      appendCopilotMessage('assistant', '⚠️ ' + data.error);
+      return;
+    }
+    var reply = data.reply || 'No response.';
+    appendCopilotMessage('assistant', reply);
+    copilotConversation.push({ role: 'assistant', content: reply });
+  })
+  .catch(function(err) {
+    hideCopilotLoading();
+    copilotLoading = false;
+    document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = false; });
+    appendCopilotMessage('assistant', '⚠️ Connection error. Check your internet.');
+  });
+}
 
