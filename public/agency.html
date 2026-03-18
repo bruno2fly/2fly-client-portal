@@ -3174,10 +3174,10 @@
     .dv-task-row__title-wrap { flex: 1; min-width: 0; }
     .dv-task-row__title { margin: 0; font-size: 13px; font-weight: 500; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dv-task-row__review-note { margin: 2px 0 0; font-size: 11px; color: #ea580c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dv-task-row__deadline { font-size: 12px; color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .dv-task-row__deadline { font-size: 12px; color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; width: 90px; text-align: right; white-space: nowrap; }
     .dv-task-row__deadline--late { color: #dc2626; font-weight: 600; }
     .dv-task-row__priority-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .dv-task-row__actions { display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+    .dv-task-row__actions { display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; min-width: 120px; justify-content: flex-end; }
     .dv-task-row:hover .dv-task-row__actions { opacity: 1; }
 
     /* Action buttons in rows */
@@ -3185,7 +3185,7 @@
     .dv-action-btn:hover { filter: brightness(0.92); }
 
     /* Status badge */
-    .dv-status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid; flex-shrink: 0; min-width: 72px; justify-content: center; }
+    .dv-status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid; flex-shrink: 0; width: 88px; justify-content: center; box-sizing: border-box; }
 
     /* Late badge */
     .dv-late-badge { font-size: 9px; font-weight: 700; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 1px 4px; border-radius: 3px; }
@@ -3218,7 +3218,7 @@
     .dv-footer { text-align: center; padding: 24px 0 8px; font-size: 12px; color: #94a3b8; }
   </style>
 
-  <script src="/agency.js?v=43"></script>
+  <script src="/agency.js?v=44"></script>
 </body>
 </html>
 
