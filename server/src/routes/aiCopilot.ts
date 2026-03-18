@@ -96,7 +96,7 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
       return res.status(503).json({ error: 'AI Co-Pilot not configured. Set OPENAI_API_KEY in environment.' });
     }
 
-    const { message, action, taskId, clientId, conversationHistory } = req.body;
+    const { message, action, taskId, clientId, conversationHistory, imageUrl, language } = req.body;
 
     if (!message && !action) {
       return res.status(400).json({ error: 'Message or action required.' });
@@ -144,9 +144,15 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
       }
     }
 
+    // Build system prompt with language support
+    let effectiveSystemPrompt = SYSTEM_PROMPT;
+    if (language === 'pt') {
+      effectiveSystemPrompt += '\n\nIMPORTANT: Always respond in Brazilian Portuguese (pt-BR).';
+    }
+
     // Build messages array
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: effectiveSystemPrompt },
     ];
 
     // Add context if available
@@ -175,16 +181,28 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
       });
     }
 
-    // Add current message
+    // Add current message with optional image
     const userMessage = action
       ? `[Quick Action: ${action.replace(/_/g, ' ').toUpperCase()}] ${message || 'Help me with this task.'}`
       : message;
 
-    messages.push({ role: 'user', content: userMessage });
+    if (imageUrl) {
+      // Build message with image (GPT-4o vision format)
+      const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+        { type: 'text', text: userMessage },
+        { type: 'image_url', image_url: { url: imageUrl } },
+      ];
+      messages.push({ role: 'user', content: userContent });
+    } else {
+      messages.push({ role: 'user', content: userMessage });
+    }
+
+    // Choose model: use gpt-4o when image is present (vision), otherwise gpt-4o-mini
+    const model = imageUrl ? 'gpt-4o' : 'gpt-4o-mini';
 
     // Call OpenAI
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages,
       max_tokens: 800,
       temperature: 0.7,

@@ -7374,28 +7374,99 @@ document.addEventListener('DOMContentLoaded', async () => {
 var copilotConversation = [];
 var copilotOpen = false;
 var copilotLoading = false;
+var copilotLang = localStorage.getItem('copilot_lang') || 'en'; // 'en' | 'pt'
+var copilotSavedPrompts = JSON.parse(localStorage.getItem('copilot_saved') || '[]');
+var copilotPendingImage = null; // { url, dataUrl, name }
+var copilotAutoSuggestionShown = false;
 
 function initAICopilot() {
-  // Check if already injected
   if (document.getElementById('copilot-bubble')) return;
-
-  // Inject the floating bubble + panel into body
   var wrapper = document.createElement('div');
   wrapper.id = 'copilot-wrapper';
   wrapper.innerHTML = getCopilotHTML();
   document.body.appendChild(wrapper);
-
-  // Bind events
   bindCopilotEvents();
+  updateCopilotContext();
+}
+
+function getCopilotContextInfo() {
+  var taskId = currentProductionTaskId || null;
+  var task = null, clientName = '';
+  if (taskId && productionTasksCache) {
+    task = productionTasksCache.find(function(t) { return t.id === taskId; });
+  }
+  if (task) {
+    var cd = loadClientsRegistry ? loadClientsRegistry() : null;
+    clientName = (cd && cd[task.clientId] && cd[task.clientId].name) || task.clientId || '';
+  }
+  return { task: task, clientName: clientName, taskId: taskId };
+}
+
+function updateCopilotContext() {
+  var ctx = getCopilotContextInfo();
+  var el = document.getElementById('copilot-context');
+  if (!el) return;
+  if (ctx.task) {
+    var caption = (ctx.task.title || ctx.task.caption || 'Untitled').slice(0, 35);
+    if ((ctx.task.title || ctx.task.caption || '').length > 35) caption += '...';
+    el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' +
+      '<span>' + (ctx.clientName || '').replace(/</g, '&lt;') + '</span> &middot; ' +
+      '<span>' + caption.replace(/</g, '&lt;') + '</span>';
+    el.style.display = 'flex';
+    // #5: Auto-suggestion for revision tasks
+    checkCopilotAutoSuggestion(ctx.task);
+  } else {
+    el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> No task selected — open a task for full context';
+    el.style.display = 'flex';
+  }
+}
+
+// #5: Smart auto-suggestion for revision tasks
+function checkCopilotAutoSuggestion(task) {
+  if (copilotAutoSuggestionShown) return;
+  if (task.status === 'changes_requested' && task.reviewNotes && task.reviewNotes.trim()) {
+    copilotAutoSuggestionShown = true;
+    // Pulse the bubble
+    var bubble = document.getElementById('copilot-bubble');
+    if (bubble && !copilotOpen) {
+      bubble.classList.add('copilot-bubble--pulse');
+      // Add suggestion badge
+      var badge = document.createElement('span');
+      badge.className = 'copilot-bubble__badge';
+      badge.textContent = '!';
+      bubble.appendChild(badge);
+    }
+    // If panel is open, show auto-suggestion
+    if (copilotOpen) { showAutoSuggestion(task); }
+    // Save for when panel opens
+    window._copilotPendingSuggestion = task;
+  }
+}
+
+function showAutoSuggestion(task) {
+  var messagesEl = document.getElementById('copilot-messages');
+  if (!messagesEl) return;
+  if (messagesEl.querySelector('.copilot-auto-suggest')) return;
+  var suggest = document.createElement('div');
+  suggest.className = 'copilot-auto-suggest';
+  suggest.innerHTML = '<p class="copilot-auto-suggest__text">I see revision notes on this task:</p>' +
+    '<p class="copilot-auto-suggest__note">"' + (task.reviewNotes || '').replace(/</g, '&lt;').slice(0, 120) + '"</p>' +
+    '<button class="copilot-auto-suggest__btn" data-action="address_revision">Help me address this feedback</button>';
+  messagesEl.appendChild(suggest);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  suggest.querySelector('.copilot-auto-suggest__btn').addEventListener('click', function() {
+    suggest.remove();
+    sendCopilotMessage('improve_copy');
+  });
 }
 
 function getCopilotHTML() {
+  var langBtnEn = copilotLang === 'en' ? 'copilot-lang-btn--active' : '';
+  var langBtnPt = copilotLang === 'pt' ? 'copilot-lang-btn--active' : '';
   return '' +
-    // Floating bubble
     '<button id="copilot-bubble" class="copilot-bubble" title="AI Co-Pilot">' +
     '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><path d="M8.5 13.5c0 0 1.5 2 3.5 2s3.5-2 3.5-2"/></svg>' +
     '</button>' +
-    // Chat panel
     '<div id="copilot-panel" class="copilot-panel copilot-panel--hidden">' +
     // Header
     '<div class="copilot-header">' +
@@ -7403,8 +7474,20 @@ function getCopilotHTML() {
     '<div class="copilot-header__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-3 3-3-3c-2-1.5-4-4-4-7a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></div>' +
     '<div><p class="copilot-header__title">2Fly Co-Pilot</p><p class="copilot-header__sub">AI assistant for designers</p></div>' +
     '</div>' +
-    '<button id="copilot-close" class="copilot-close">&times;</button>' +
+    '<div class="copilot-header__right-btns">' +
+    // #6: Language toggle
+    '<div class="copilot-lang-toggle">' +
+    '<button class="copilot-lang-btn ' + langBtnEn + '" data-lang="en">EN</button>' +
+    '<button class="copilot-lang-btn ' + langBtnPt + '" data-lang="pt">PT</button>' +
     '</div>' +
+    // #4: Saved prompts button
+    '<button id="copilot-saved-btn" class="copilot-header-btn" title="Saved Prompts"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
+    (copilotSavedPrompts.length > 0 ? '<span class="copilot-saved-count">' + copilotSavedPrompts.length + '</span>' : '') +
+    '</button>' +
+    '<button id="copilot-close" class="copilot-close">&times;</button>' +
+    '</div></div>' +
+    // #2: Context indicator
+    '<div id="copilot-context" class="copilot-context"></div>' +
     // Quick actions
     '<div class="copilot-actions">' +
     '<button class="copilot-action-btn" data-action="generate_prompt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Prompt</button>' +
@@ -7413,35 +7496,46 @@ function getCopilotHTML() {
     '<button class="copilot-action-btn" data-action="references"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> References</button>' +
     '<button class="copilot-action-btn" data-action="variations"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="6" height="10" rx="1"/><rect x="9" y="4" width="6" height="16" rx="1"/><rect x="16" y="7" width="6" height="10" rx="1"/></svg> Variations</button>' +
     '</div>' +
-    // Messages area
+    // Messages
     '<div id="copilot-messages" class="copilot-messages">' +
     '<div class="copilot-welcome">' +
     '<p class="copilot-welcome__emoji">&#9889;</p>' +
     '<p class="copilot-welcome__title">Hey! I\'m your Co-Pilot.</p>' +
-    '<p class="copilot-welcome__sub">Ask me anything or hit a quick action above. I already know your current task and client context.</p>' +
-    '</div>' +
-    '</div>' +
+    '<p class="copilot-welcome__sub">Ask me anything or hit a quick action. I already know your current task and client.</p>' +
+    '</div></div>' +
+    // #3: Image preview area
+    '<div id="copilot-image-preview" class="copilot-image-preview" style="display:none;"></div>' +
+    // #4: Saved prompts dropdown
+    '<div id="copilot-saved-panel" class="copilot-saved-panel" style="display:none;"></div>' +
     // Input area
     '<div class="copilot-input-area">' +
     '<div class="copilot-input-wrap">' +
+    // #3: Image upload button
+    '<button id="copilot-img-btn" class="copilot-img-btn" title="Attach image"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>' +
+    '<input type="file" id="copilot-img-input" accept="image/*" style="display:none;" />' +
     '<input type="text" id="copilot-input" class="copilot-input" placeholder="Ask anything..." />' +
     '<button id="copilot-send" class="copilot-send" title="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>' +
-    '</div>' +
-    '</div>' +
-    '</div>';
+    '</div></div></div>';
 }
 
 function bindCopilotEvents() {
   var bubble = document.getElementById('copilot-bubble');
-  var panel = document.getElementById('copilot-panel');
   var closeBtn = document.getElementById('copilot-close');
   var input = document.getElementById('copilot-input');
   var sendBtn = document.getElementById('copilot-send');
 
-  if (bubble) bubble.addEventListener('click', function() { toggleCopilot(true); });
+  if (bubble) bubble.addEventListener('click', function() {
+    toggleCopilot(true);
+    // Show pending auto-suggestion
+    if (window._copilotPendingSuggestion) {
+      showAutoSuggestion(window._copilotPendingSuggestion);
+      window._copilotPendingSuggestion = null;
+      bubble.classList.remove('copilot-bubble--pulse');
+      var badge = bubble.querySelector('.copilot-bubble__badge');
+      if (badge) badge.remove();
+    }
+  });
   if (closeBtn) closeBtn.addEventListener('click', function() { toggleCopilot(false); });
-
-  // Send on enter
   if (input) input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCopilotMessage(); }
   });
@@ -7449,11 +7543,143 @@ function bindCopilotEvents() {
 
   // Quick action buttons
   document.querySelectorAll('.copilot-action-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { sendCopilotMessage(btn.getAttribute('data-action')); });
+  });
+
+  // #6: Language toggle
+  document.querySelectorAll('.copilot-lang-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      var action = btn.getAttribute('data-action');
-      sendCopilotMessage(action);
+      copilotLang = btn.getAttribute('data-lang');
+      localStorage.setItem('copilot_lang', copilotLang);
+      document.querySelectorAll('.copilot-lang-btn').forEach(function(b) { b.classList.remove('copilot-lang-btn--active'); });
+      btn.classList.add('copilot-lang-btn--active');
     });
   });
+
+  // #3: Image upload
+  var imgBtn = document.getElementById('copilot-img-btn');
+  var imgInput = document.getElementById('copilot-img-input');
+  if (imgBtn && imgInput) {
+    imgBtn.addEventListener('click', function() { imgInput.click(); });
+    imgInput.addEventListener('change', function() {
+      var file = imgInput.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      var reader = new FileReader();
+      reader.onload = function() {
+        // Upload to get URL
+        fetch(getApiBaseUrl() + '/api/upload/image', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: reader.result })
+        }).then(function(r) { return r.json(); }).then(function(j) {
+          if (j.url) {
+            copilotPendingImage = { url: j.url, dataUrl: reader.result, name: file.name };
+            showImagePreview();
+          }
+        }).catch(function() { showToast('Image upload failed', 'error'); });
+      };
+      reader.readAsDataURL(file);
+      imgInput.value = '';
+    });
+  }
+
+  // #4: Saved prompts button
+  var savedBtn = document.getElementById('copilot-saved-btn');
+  if (savedBtn) savedBtn.addEventListener('click', function() { toggleSavedPrompts(); });
+}
+
+// #3: Image preview
+function showImagePreview() {
+  var el = document.getElementById('copilot-image-preview');
+  if (!el || !copilotPendingImage) return;
+  el.style.display = 'flex';
+  el.innerHTML = '<img src="' + copilotPendingImage.dataUrl + '" class="copilot-image-preview__img" />' +
+    '<span class="copilot-image-preview__name">' + (copilotPendingImage.name || 'image').replace(/</g, '&lt;') + '</span>' +
+    '<button class="copilot-image-preview__remove" title="Remove">&times;</button>';
+  el.querySelector('.copilot-image-preview__remove').addEventListener('click', function() {
+    copilotPendingImage = null;
+    el.style.display = 'none';
+    el.innerHTML = '';
+  });
+}
+
+// #4: Saved prompts panel
+function toggleSavedPrompts() {
+  var panel = document.getElementById('copilot-saved-panel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    renderSavedPrompts();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function renderSavedPrompts() {
+  var panel = document.getElementById('copilot-saved-panel');
+  if (!panel) return;
+  if (copilotSavedPrompts.length === 0) {
+    panel.innerHTML = '<div class="copilot-saved-empty">No saved prompts yet. Click the &#9734; on any AI response to save it.</div>';
+    return;
+  }
+  var h = '<div class="copilot-saved-header"><span>Saved Prompts</span><button class="copilot-saved-close">&times;</button></div>';
+  copilotSavedPrompts.forEach(function(p, i) {
+    h += '<div class="copilot-saved-item" data-idx="' + i + '">' +
+      '<p class="copilot-saved-item__text">' + (p.text || '').replace(/</g, '&lt;').slice(0, 80) + (p.text.length > 80 ? '...' : '') + '</p>' +
+      '<div class="copilot-saved-item__actions">' +
+      '<button class="copilot-saved-item__use" data-idx="' + i + '" title="Use this prompt">Use</button>' +
+      '<button class="copilot-saved-item__copy" data-idx="' + i + '" title="Copy">Copy</button>' +
+      '<button class="copilot-saved-item__del" data-idx="' + i + '" title="Delete">&times;</button>' +
+      '</div></div>';
+  });
+  panel.innerHTML = h;
+  // Bind
+  panel.querySelector('.copilot-saved-close').addEventListener('click', function() { panel.style.display = 'none'; });
+  panel.querySelectorAll('.copilot-saved-item__use').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.getAttribute('data-idx'));
+      var inp = document.getElementById('copilot-input');
+      if (inp && copilotSavedPrompts[idx]) { inp.value = copilotSavedPrompts[idx].text; inp.focus(); }
+      panel.style.display = 'none';
+    });
+  });
+  panel.querySelectorAll('.copilot-saved-item__copy').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.getAttribute('data-idx'));
+      if (copilotSavedPrompts[idx]) {
+        navigator.clipboard.writeText(copilotSavedPrompts[idx].text).then(function() { showToast('Copied!'); });
+      }
+    });
+  });
+  panel.querySelectorAll('.copilot-saved-item__del').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.getAttribute('data-idx'));
+      copilotSavedPrompts.splice(idx, 1);
+      localStorage.setItem('copilot_saved', JSON.stringify(copilotSavedPrompts));
+      renderSavedPrompts();
+      updateSavedCount();
+    });
+  });
+}
+
+function saveCopilotPrompt(text) {
+  copilotSavedPrompts.push({ text: text, date: new Date().toISOString() });
+  localStorage.setItem('copilot_saved', JSON.stringify(copilotSavedPrompts));
+  updateSavedCount();
+  showToast('Prompt saved!');
+}
+
+function updateSavedCount() {
+  var btn = document.getElementById('copilot-saved-btn');
+  if (!btn) return;
+  var existing = btn.querySelector('.copilot-saved-count');
+  if (existing) existing.remove();
+  if (copilotSavedPrompts.length > 0) {
+    var sp = document.createElement('span');
+    sp.className = 'copilot-saved-count';
+    sp.textContent = copilotSavedPrompts.length;
+    btn.appendChild(sp);
+  }
 }
 
 function toggleCopilot(open) {
@@ -7464,11 +7690,14 @@ function toggleCopilot(open) {
     if (open) {
       panel.classList.remove('copilot-panel--hidden');
       panel.classList.add('copilot-panel--visible');
+      updateCopilotContext();
       var inp = document.getElementById('copilot-input');
       if (inp) setTimeout(function() { inp.focus(); }, 100);
     } else {
       panel.classList.add('copilot-panel--hidden');
       panel.classList.remove('copilot-panel--visible');
+      var savedPanel = document.getElementById('copilot-saved-panel');
+      if (savedPanel) savedPanel.style.display = 'none';
     }
   }
   if (bubble) bubble.style.display = open ? 'none' : 'flex';
@@ -7477,7 +7706,6 @@ function toggleCopilot(open) {
 function appendCopilotMessage(role, content) {
   var messagesEl = document.getElementById('copilot-messages');
   if (!messagesEl) return;
-  // Remove welcome if first message
   var welcome = messagesEl.querySelector('.copilot-welcome');
   if (welcome) welcome.remove();
 
@@ -7485,15 +7713,33 @@ function appendCopilotMessage(role, content) {
   msgDiv.className = 'copilot-msg copilot-msg--' + role;
 
   if (role === 'assistant') {
-    // Simple markdown: **bold**, `code`, \n -> <br>, - bullets
     var html = content
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/^- (.+)$/gm, '<span class="copilot-bullet">•</span> $1')
-      .replace(/^\d+\. (.+)$/gm, function(m, p1, offset, str) { return '<span class="copilot-bullet">' + m.split('.')[0] + '.</span> ' + p1; })
+      .replace(/^- (.+)$/gm, '<span class="copilot-bullet">&bull;</span> $1')
+      .replace(/^\d+\. (.+)$/gm, function(m, p1) { return '<span class="copilot-bullet">' + m.split('.')[0] + '.</span> ' + p1; })
       .replace(/\n/g, '<br>');
-    msgDiv.innerHTML = html;
+    // #1: Copy + #4: Save buttons
+    msgDiv.innerHTML = '<div class="copilot-msg__content">' + html + '</div>' +
+      '<div class="copilot-msg__toolbar">' +
+      '<button class="copilot-msg__copy" title="Copy to clipboard"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>' +
+      '<button class="copilot-msg__save" title="Save prompt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Save</button>' +
+      '</div>';
+    // Bind copy + save
+    var rawText = content;
+    msgDiv.querySelector('.copilot-msg__copy').addEventListener('click', function() {
+      navigator.clipboard.writeText(rawText).then(function() {
+        var btn = msgDiv.querySelector('.copilot-msg__copy');
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+        setTimeout(function() { btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy'; }, 2000);
+      });
+    });
+    msgDiv.querySelector('.copilot-msg__save').addEventListener('click', function() {
+      saveCopilotPrompt(rawText);
+      var btn = msgDiv.querySelector('.copilot-msg__save');
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#2563eb" stroke="#2563eb" stroke-width="2" stroke-linecap="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved!';
+    });
   } else {
     msgDiv.textContent = content;
   }
@@ -7523,7 +7769,6 @@ function sendCopilotMessage(action) {
   var input = document.getElementById('copilot-input');
   var message = input ? input.value.trim() : '';
 
-  // For quick actions, use a default message if empty
   if (action && !message) {
     var actionLabels = {
       generate_prompt: 'Generate a prompt for this task',
@@ -7534,51 +7779,52 @@ function sendCopilotMessage(action) {
     };
     message = actionLabels[action] || 'Help me with this task';
   }
-
-  if (!message) return;
+  if (!message && !copilotPendingImage) return;
+  if (!message && copilotPendingImage) message = 'Analyze this image and suggest improvements';
   if (input) input.value = '';
 
-  // Show user message
-  appendCopilotMessage('user', message);
+  // Show user message (with image thumbnail if attached)
+  if (copilotPendingImage) {
+    appendCopilotMessage('user', '📎 [Image attached] ' + message);
+  } else {
+    appendCopilotMessage('user', message);
+  }
   copilotConversation.push({ role: 'user', content: message });
 
-  // Get current context
-  var taskId = currentProductionTaskId || null;
-  var clientId = null;
-  if (taskId && productionTasksCache) {
-    var task = productionTasksCache.find(function(t) { return t.id === taskId; });
-    if (task) clientId = task.clientId;
-  }
+  // Context
+  var ctx = getCopilotContextInfo();
 
-  // Show loading
   copilotLoading = true;
   showCopilotLoading();
-
-  // Disable quick action buttons while loading
   document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = true; });
 
+  var requestBody = {
+    message: message,
+    action: action || null,
+    taskId: ctx.taskId,
+    clientId: ctx.task ? ctx.task.clientId : null,
+    language: copilotLang,
+    conversationHistory: copilotConversation.slice(-8)
+  };
+  // #3: Attach image URL if present
+  if (copilotPendingImage) {
+    requestBody.imageUrl = copilotPendingImage.url;
+    copilotPendingImage = null;
+    var imgPreview = document.getElementById('copilot-image-preview');
+    if (imgPreview) { imgPreview.style.display = 'none'; imgPreview.innerHTML = ''; }
+  }
+
   fetch(getApiBaseUrl() + '/api/ai-copilot/chat', {
-    method: 'POST',
-    credentials: 'include',
+    method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: message,
-      action: action || null,
-      taskId: taskId,
-      clientId: clientId,
-      conversationHistory: copilotConversation.slice(-8)
-    })
+    body: JSON.stringify(requestBody)
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     hideCopilotLoading();
     copilotLoading = false;
     document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = false; });
-
-    if (data.error) {
-      appendCopilotMessage('assistant', '⚠️ ' + data.error);
-      return;
-    }
+    if (data.error) { appendCopilotMessage('assistant', '⚠️ ' + data.error); return; }
     var reply = data.reply || 'No response.';
     appendCopilotMessage('assistant', reply);
     copilotConversation.push({ role: 'assistant', content: reply });
@@ -7589,5 +7835,13 @@ function sendCopilotMessage(action) {
     document.querySelectorAll('.copilot-action-btn').forEach(function(b) { b.disabled = false; });
     appendCopilotMessage('assistant', '⚠️ Connection error. Check your internet.');
   });
+}
+
+// Update context whenever task changes
+var _origRenderProdView = typeof renderProductionView === 'function' ? renderProductionView : null;
+if (_origRenderProdView) {
+  var _origRPVRef = renderProductionView;
+  // We patch via a post-render hook instead of overriding to avoid breaking the function
+  setInterval(function() { if (copilotOpen) updateCopilotContext(); }, 2000);
 }
 
