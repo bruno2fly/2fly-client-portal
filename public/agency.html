@@ -384,7 +384,7 @@
     /* Kanban board container (dark card) */
     .production-demands-wrap.demands-main-table:not(.production-light-canvas) .production-kanban-wrap,
     .production-kanban-wrap.production-dark-container {
-      background: #1a2332 !important;
+      background: #0a53cc !important;
       border-radius: 12px;
     }
     .production-kanban {
@@ -394,7 +394,7 @@
     }
     .kanban-column {
       min-width: 180px;
-      background: #1a2332;
+      background: #0a53cc;
       border-radius: 12px;
       padding: 16px;
       display: flex;
@@ -405,7 +405,7 @@
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #94a3b8;
+      color: #ffffff;
       margin-bottom: 4px;
     }
     .kanban-card {
@@ -453,25 +453,26 @@
       justify-content: center;
     }
     .kanban-column-empty {
-      border: 2px dashed #334155;
+      border: 2px dashed rgba(255,255,255,0.3);
       border-radius: 10px;
       padding: 24px;
       text-align: center;
-      color: #64748b;
+      color: rgba(255,255,255,0.6);
       font-size: 13px;
     }
     .kanban-column-add-btn {
       margin-top: 8px;
       width: 100%;
       padding: 10px;
-      border: 1px dashed #475569;
-      background: transparent;
-      color: #94a3b8;
+      border: 2px dashed rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.1);
+      color: #ffffff;
       border-radius: 8px;
       cursor: pointer;
       font-size: 14px;
+      font-weight: 600;
     }
-    .kanban-column-add-btn:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+    .kanban-column-add-btn:hover { background: rgba(255,255,255,0.2); color: #ffffff; }
 
     /* Demands table view */
     .demands-group {
@@ -3091,7 +3092,7 @@
     }
   </style>
 
-  <script src="/agency.js?v=40"></script>
+  <script src="/agency.js?v=41"></script>
 </body>
 </html>
 
