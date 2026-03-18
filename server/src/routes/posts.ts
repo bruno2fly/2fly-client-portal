@@ -12,12 +12,14 @@ import {
   deleteScheduledPost,
   getClient,
 } from '../db.js';
-import { getMetaIntegrationByClient } from '../db.js';
+import { getMetaIntegrationByClient, saveMetaIntegration } from '../db.js';
 import {
   publishToFacebook,
   publishPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
+  getPages,
+  getInstagramAccount,
 } from '../lib/meta-api.js';
 
 const router = Router();
@@ -222,6 +224,31 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     const integration = getMetaIntegrationByClient(agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
+    }
+
+    // Refresh page token from user token if available (ensures fresh permissions)
+    const userToken = (integration as any).metaUserAccessToken;
+    if (userToken) {
+      try {
+        const freshPages = await getPages(userToken);
+        const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
+        if (freshPage && freshPage.access_token !== integration.metaAccessToken) {
+          console.log(`[publish-now] Refreshed page token for ${integration.metaPageId}`);
+          integration.metaAccessToken = freshPage.access_token;
+          integration.updatedAt = Date.now();
+          // Also refresh IG account
+          if (freshPage.id) {
+            const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
+            if (igAcct) {
+              integration.metaInstagramAccountId = igAcct.id;
+              integration.metaInstagramUsername = igAcct.username;
+            }
+          }
+          saveMetaIntegration(integration);
+        }
+      } catch (refreshErr: any) {
+        console.log(`[publish-now] Token refresh failed (will try with existing): ${refreshErr.message}`);
+      }
     }
 
     post.status = 'publishing';

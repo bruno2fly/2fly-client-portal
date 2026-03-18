@@ -40,7 +40,7 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
   const { agencyId } = getAgencyScope(req);
   const state = Buffer.from(JSON.stringify({ agencyId, clientId, userId: req.userId })).toString('base64');
   // auth_type=rerequest forces Meta to re-ask for permissions if previously declined
-  const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code&auth_type=rerequest`;
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code&auth_type=rerequest`;
   res.json({ authUrl });
 });
 
@@ -116,6 +116,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       agencyId,
       clientId,
       metaAccessToken: page.access_token,
+      metaUserAccessToken: longToken,  // Store user token for permission checks & token refresh
       metaPageId: page.id,
       metaPageName: page.name,
       metaInstagramAccountId: igAccount?.id,

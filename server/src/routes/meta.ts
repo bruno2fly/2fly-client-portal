@@ -91,18 +91,24 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
     if (!integration) return res.json({ connected: false, message: 'No integration found' });
 
     const tokenExpired = integration.tokenExpiresAt < Date.now();
-    // Check token permissions via Graph API
-    const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${integration.metaAccessToken}`;
+    const userToken = (integration as any).metaUserAccessToken;
+    const hasUserToken = !!userToken;
+
+    // Check permissions using USER token (page tokens can't call /me/permissions)
     let permissions: any[] = [];
     let permError: string | undefined;
-    try {
-      const permRes = await fetch(permUrl);
-      const permData: any = await permRes.json();
-      if (permData.error) permError = permData.error.message;
-      else permissions = permData.data || [];
-    } catch (e: any) { permError = e.message; }
+    if (userToken) {
+      try {
+        const permRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${userToken}`);
+        const permData: any = await permRes.json();
+        if (permData.error) permError = permData.error.message;
+        else permissions = permData.data || [];
+      } catch (e: any) { permError = e.message; }
+    } else {
+      permError = 'No user token stored. Please disconnect and reconnect to fix.';
+    }
 
-    // Check page access
+    // Check page token validity by trying to read the page
     let pageValid = false;
     let pageError: string | undefined;
     try {
@@ -113,9 +119,21 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
       else pageValid = true;
     } catch (e: any) { pageError = e.message; }
 
+    // Test if page token can actually post (dry run - just check access)
+    let canPost = false;
+    let postError: string | undefined;
+    try {
+      const testUrl = `https://graph.facebook.com/v21.0/${integration.metaPageId}/feed?limit=0&access_token=${integration.metaAccessToken}`;
+      const testRes = await fetch(testUrl);
+      const testData: any = await testRes.json();
+      if (testData.error) postError = testData.error.message;
+      else canPost = true;
+    } catch (e: any) { postError = e.message; }
+
     res.json({
       connected: !tokenExpired,
       tokenExpired,
+      hasUserToken,
       expiresAt: new Date(integration.tokenExpiresAt).toISOString(),
       pageId: integration.metaPageId,
       pageName: integration.metaPageName,
@@ -126,6 +144,8 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
       permError,
       pageValid,
       pageError,
+      canPost,
+      postError,
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -136,13 +156,26 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
  * POST /api/integrations/meta/disconnect
  * Disconnect Meta for the client. Body: { clientId: string }
  */
-router.post('/disconnect', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const clientId = req.body?.clientId;
     if (!clientId) {
       return res.status(400).json({ error: 'clientId is required in request body' });
     }
     const { agencyId } = getAgencyScope(req);
+
+    // Try to revoke the token on Facebook's side so reconnect gets a fresh auth
+    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    if (integration) {
+      const tokenToRevoke = (integration as any).metaUserAccessToken || integration.metaAccessToken;
+      try {
+        await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${tokenToRevoke}`, { method: 'DELETE' });
+        console.log(`[Meta disconnect] Revoked token for client ${clientId}`);
+      } catch (e: any) {
+        console.log(`[Meta disconnect] Token revocation failed (non-critical): ${e.message}`);
+      }
+    }
+
     deleteMetaIntegrationByClient(agencyId, clientId);
     res.json({ success: true });
   } catch (e: any) {

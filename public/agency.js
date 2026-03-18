@@ -1551,32 +1551,32 @@ async function renderScheduledPostsConnectionSection() {
         try {
           var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/debug?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' });
           var d = await r.json();
-          if (d.pageValid && d.permissions && d.permissions.length > 0) {
-            var hasPostPerm = d.permissions.indexOf('pages_manage_posts') !== -1;
-            var hasIgPerm = d.permissions.indexOf('instagram_content_publish') !== -1;
+          if (d.canPost && d.pageValid) {
+            var hasPostPerm = d.permissions && d.permissions.indexOf('pages_manage_posts') !== -1;
+            var hasIgPerm = d.permissions && d.permissions.indexOf('instagram_content_publish') !== -1;
             var declined = d.declinedPermissions || [];
             if (hasPostPerm && hasIgPerm && declined.length === 0) {
               resultEl.style.background = '#d1fae5';
               resultEl.style.color = '#059669';
-              resultEl.innerHTML = '<strong>All good!</strong> Token valid, page accessible, all permissions granted.<br>Permissions: ' + d.permissions.join(', ');
+              resultEl.innerHTML = '<strong>All good!</strong> Page token valid, can post, all permissions granted.<br>Permissions: ' + (d.permissions || []).join(', ');
             } else {
-              resultEl.style.background = '#fef3c7';
-              resultEl.style.color = '#b45309';
-              var msg = '<strong>Partial:</strong> Page accessible but some permissions may be missing.<br>';
-              msg += 'Granted: ' + d.permissions.join(', ');
-              if (declined.length > 0) msg += '<br><span style="color:#dc2626;">Declined: ' + declined.join(', ') + '</span> — Please reconnect and approve all permissions.';
-              if (!hasPostPerm) msg += '<br><span style="color:#dc2626;">Missing: pages_manage_posts</span>';
-              if (!hasIgPerm) msg += '<br><span style="color:#dc2626;">Missing: instagram_content_publish</span>';
+              resultEl.style.background = '#d1fae5';
+              resultEl.style.color = '#059669';
+              var msg = '<strong>Page token works!</strong> Can read and post to page.';
+              if (d.permissions && d.permissions.length > 0) msg += '<br>Permissions: ' + d.permissions.join(', ');
+              if (!d.hasUserToken) msg += '<br><span style="color:#b45309;">Note: No user token stored. Disconnect and reconnect for better diagnostics.</span>';
               resultEl.innerHTML = msg;
             }
           } else {
             resultEl.style.background = '#fee2e2';
             resultEl.style.color = '#dc2626';
             var errMsg = '<strong>Connection issue:</strong><br>';
-            if (d.permError) errMsg += 'Token error: ' + d.permError + '<br>';
-            if (d.pageError) errMsg += 'Page error: ' + d.pageError + '<br>';
-            if (!d.permissions || d.permissions.length === 0) errMsg += 'No permissions found. Please disconnect and reconnect.<br>';
-            if (d.tokenExpired) errMsg += 'Token has expired. Please reconnect.';
+            if (d.postError) errMsg += 'Post test: ' + d.postError + '<br>';
+            if (d.pageError) errMsg += 'Page access: ' + d.pageError + '<br>';
+            if (d.permError) errMsg += 'Permissions: ' + d.permError + '<br>';
+            if (!d.hasUserToken) errMsg += 'No user token stored (old connection).<br>';
+            if (d.tokenExpired) errMsg += 'Token has expired.<br>';
+            errMsg += '<br><strong>Fix: Click Disconnect, then Connect again. Make sure to approve ALL permissions in the Facebook dialog.</strong>';
             resultEl.innerHTML = errMsg;
           }
         } catch (e) {

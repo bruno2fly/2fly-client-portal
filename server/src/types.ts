@@ -168,7 +168,8 @@ export interface MetaIntegration {
   id: string;
   agencyId: string;
   clientId: string;
-  metaAccessToken: string;
+  metaAccessToken: string;       // Page access token (for publishing)
+  metaUserAccessToken?: string;  // Long-lived user token (for permission checks & refreshing page tokens)
   metaPageId: string;
   metaPageName?: string;
   metaInstagramAccountId?: string;
