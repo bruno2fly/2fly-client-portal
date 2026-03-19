@@ -6089,11 +6089,11 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     html += '<h2 class="section-title">Design Upload</h2>';
     if (hasArt) {
       if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px;">';
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
-        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
@@ -6104,11 +6104,11 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     html += '<h2 class="section-title">Your Design</h2>';
     if (hasArt) {
       if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">';
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
-        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
@@ -6118,11 +6118,11 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
   } else if ((task.status === 'approved' || task.status === 'ready_to_post') && hasArt) {
     html += '<h2 class="section-title">Design</h2>';
     if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">';
     task.finalArt.forEach(function(url, i) {
       var safe = (url || '').replace(/"/g, '&quot;');
-      html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-      html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
+      html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+      html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
       if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
       html += '</div>';
     });
@@ -6156,11 +6156,11 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     }
     // Image grid
     if (hasArt) {
-      html += '<div class="upload-image-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px;">';
+      html += '<div class="upload-image-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:12px;">';
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
-        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:2px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:2px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
         html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '<button type="button" class="workspace-remove-image" data-task-id="' + task.id + '" data-index="' + i + '" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
         html += '</div>';
@@ -6178,11 +6178,11 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     html += '<h2 class="section-title">Design Upload</h2>';
     if (hasArt) {
       if (task.finalArt.length > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;margin-bottom:10px;display:inline-block;">Carousel (' + task.finalArt.length + ' slides)</span>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;">';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px;">';
       task.finalArt.forEach(function(url, i) {
         var safe = (url || '').replace(/"/g, '&quot;');
-        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:1;background:#f1f5f9;">';
-        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:cover;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
         if (task.finalArt.length > 1) html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
         html += '</div>';
       });
