@@ -2466,6 +2466,9 @@ function renderApprovalsTab() {
       container.querySelectorAll('.schedule-section-connected').forEach(function(el) { el.style.display = connected ? 'block' : 'none'; });
       container.querySelectorAll('.schedule-section-not-connected').forEach(function(el) { el.style.display = connected ? 'none' : 'block'; });
     });
+  }
+  // Inject production badges on ALL approval cards (not just when approved section has items)
+  if (currentClientId) {
     injectProductionBadgesOnApprovals(container);
   }
 
