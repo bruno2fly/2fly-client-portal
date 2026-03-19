@@ -6435,6 +6435,73 @@ var PRODUCTION_STATUS_CONFIG = {
   ready_to_post:     { label: 'Ready',      short: 'Ready',    bgColor: '#f0fdfa',  textColor: '#0d9488', borderColor: '#99f6e4', dotColor: '#14b8a6', icon: '▸' }
 };
 
+function showDeleteTaskConfirm(taskId, taskTitle) {
+  // Remove existing modal if any
+  var existing = document.getElementById('deleteTaskModal');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'deleteTaskModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:16px;padding:28px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;animation:slideUp 0.2s ease-out;';
+
+  modal.innerHTML = '<div style="width:48px;height:48px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
+    + '</div>'
+    + '<h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a;">Delete Task</h3>'
+    + '<p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.5;">Are you sure you want to delete <strong style="color:#0f172a;">"' + (taskTitle || 'this task').replace(/</g, '&lt;') + '"</strong>? This action cannot be undone.</p>'
+    + '<div style="display:flex;gap:10px;justify-content:center;">'
+    + '<button type="button" id="deleteTaskCancel" style="flex:1;padding:10px 20px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>'
+    + '<button type="button" id="deleteTaskConfirm" style="flex:1;padding:10px 20px;border-radius:10px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Delete</button>'
+    + '</div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Cancel
+  document.getElementById('deleteTaskCancel').addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  // Confirm delete
+  document.getElementById('deleteTaskConfirm').addEventListener('click', async function() {
+    var confirmBtn = document.getElementById('deleteTaskConfirm');
+    confirmBtn.textContent = 'Deleting...';
+    confirmBtn.style.opacity = '0.6';
+    confirmBtn.disabled = true;
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/production/tasks/' + encodeURIComponent(taskId), {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed to delete');
+      overlay.remove();
+      // Remove from cache
+      productionTasksCache = productionTasksCache.filter(function(t) { return t.id !== taskId; });
+      if (currentProductionTaskId === taskId) currentProductionTaskId = null;
+      renderProductionView();
+      showToast('Task deleted', 'success');
+    } catch (err) {
+      confirmBtn.textContent = 'Delete';
+      confirmBtn.style.opacity = '1';
+      confirmBtn.disabled = false;
+      showToast(err.message || 'Failed to delete task', 'error');
+    }
+  });
+
+  // Escape key
+  function onEsc(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); } }
+  document.addEventListener('keydown', onEsc);
+}
+
 function renderProductionView() {
   const container = document.getElementById('productionViewInner');
   if (!container) return;
@@ -7184,6 +7251,8 @@ function renderProductionView() {
             html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 160px;"><div class="pv-assignee"><span class="pv-assignee-avatar">' + initial + '</span><span class="pv-assignee-name">' + (designerName + '').replace(/</g, '&lt;') + '</span></div></td>';
             // Status
             html += '<td style="padding: 12px 16px 12px 0; width: 130px;"><span class="pv-status-badge" style="background: ' + cfg.bgColor + '; color: ' + cfg.textColor + '; border-color: ' + cfg.borderColor + ';"><span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + '</span></td>';
+            // Delete button
+            html += '<td style="padding: 12px 4px 12px 0; width: 36px;"><button type="button" class="pv-delete-task-btn" data-task-id="' + t.id + '" data-task-title="' + displayTitle.replace(/"/g, '&quot;') + '" title="Delete task" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s;" onmouseenter="this.style.color=\'#dc2626\';this.style.background=\'#fee2e2\'" onmouseleave="this.style.color=\'#94a3b8\';this.style.background=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>';
             html += '</tr>';
           });
           html += '</table>';
@@ -7264,6 +7333,15 @@ function renderProductionView() {
       var cid = btn.getAttribute('data-client-id');
       productionCollapsedClients[cid] = !productionCollapsedClients[cid];
       renderProductionView();
+    });
+  });
+  // Delete task buttons
+  container.querySelectorAll('.pv-delete-task-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var taskId = btn.getAttribute('data-task-id');
+      var taskTitle = btn.getAttribute('data-task-title') || 'this task';
+      showDeleteTaskConfirm(taskId, taskTitle);
     });
   });
   // Task row click → open workspace
