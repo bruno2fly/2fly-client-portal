@@ -68,16 +68,16 @@ router.post('/generate-image', authenticate, requireProductionAccess, async (req
 
     console.log(`[ai-image] Generating image. Prompt length: ${fullPrompt.length}`);
 
-    // Call Gemini API for image generation using Imagen 3
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`, {
+    // Use Gemini 2.0 Flash with image generation via generateContent
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        instances: [{ prompt: fullPrompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: '1:1',
-          safetyFilterLevel: 'block_few',
+        contents: [{
+          parts: [{ text: `Generate an image: ${fullPrompt}` }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
         },
       }),
     });
@@ -89,14 +89,22 @@ router.post('/generate-image', authenticate, requireProductionAccess, async (req
       return res.status(422).json({ error: geminiData.error.message || 'Image generation failed' });
     }
 
-    // Extract base64 image from response
-    const predictions = geminiData.predictions;
-    if (!predictions || predictions.length === 0) {
+    // Extract image from Gemini response parts
+    const candidates = geminiData.candidates;
+    if (!candidates || candidates.length === 0) {
       return res.status(422).json({ error: 'No image generated. Try a different prompt.' });
     }
 
-    const imageBase64 = predictions[0].bytesBase64Encoded;
-    const mimeType = predictions[0].mimeType || 'image/png';
+    const parts = candidates[0]?.content?.parts || [];
+    const imagePart = parts.find((p: any) => p.inlineData && p.inlineData.mimeType?.startsWith('image/'));
+    if (!imagePart) {
+      // Return text response if no image was generated
+      const textPart = parts.find((p: any) => p.text);
+      return res.status(422).json({ error: textPart?.text || 'No image generated. Try a more descriptive prompt.' });
+    }
+
+    const imageBase64 = imagePart.inlineData.data;
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
 
     // Upload to Vercel Blob for a persistent URL
     const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
