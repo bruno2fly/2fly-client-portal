@@ -368,10 +368,10 @@ router.post('/overview-summary', authenticate, requireCanViewDashboard, async (r
     const summaryCompletion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You are a social media agency assistant. Write a brief 3-4 sentence executive summary of this client\'s current status. Be direct, actionable, and highlight what needs attention. No bullet points, just flowing text. Keep it under 80 words.' },
+        { role: 'system', content: 'You are a social media agency assistant. Write exactly 4-5 bullet lines summarizing this client\'s status. Each line MUST start with one severity emoji: 🔴 = needs immediate action, 🟡 = needs attention soon, 🟢 = on track. After the emoji, one short sentence (max 15 words). No numbering; one bullet per line. Example line: 🔴 Four approvals waiting on client over five days' },
         { role: 'user', content: contextLines.join('\n') }
       ],
-      max_tokens: 200,
+      max_tokens: 220,
       temperature: 0.5,
     });
 

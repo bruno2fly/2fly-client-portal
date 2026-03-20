@@ -1011,6 +1011,63 @@ function calculateScheduledPosts(approvals) {
   }).length;
 }
 
+/** Relative time for overview request rows */
+function overviewRelativeTime(ts) {
+  if (ts == null || ts === '') return '';
+  var diff = Date.now() - (typeof ts === 'number' ? ts : new Date(ts).getTime());
+  if (isNaN(diff) || diff < 0) return '';
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  var days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd ago';
+  var wks = Math.floor(days / 7);
+  return wks + 'w ago';
+}
+
+/** Open client requests (status open or legacy without done) */
+function isClientRequestOpen(r) {
+  if (!r) return false;
+  if (r.status === 'done' || r.status === 'closed' || r.done === true) return false;
+  return r.status === 'open' || r.status == null || r.status === '';
+}
+
+/** Red count badges on Approvals / Requests / Agency Needs tabs */
+function updateTabCountBadges() {
+  var badgeStyle = 'display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;';
+  function setBadge(tabName, count) {
+    var tab = document.querySelector('.tab[data-tab="' + tabName + '"]');
+    if (!tab) return;
+    var existing = tab.querySelector('.tab-count-badge');
+    if (count > 0) {
+      if (!existing) {
+        existing = document.createElement('span');
+        existing.className = 'tab-count-badge';
+        existing.setAttribute('aria-label', count + ' items');
+        existing.style.cssText = badgeStyle;
+        tab.appendChild(existing);
+      }
+      existing.textContent = String(count);
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+  if (!currentClientId) {
+    document.querySelectorAll('.tab-count-badge').forEach(function(b) { b.remove(); });
+    return;
+  }
+  var state = load();
+  var approvals = state.approvals || [];
+  var pendingApprovals = approvals.filter(function(a) { return !a.status || a.status === 'pending'; });
+  var openReqs = (state.requests || []).filter(isClientRequestOpen);
+  var openNeeds = (state.needs || []).filter(function(n) { return !n.status || n.status === 'open'; });
+  setBadge('approvals', pendingApprovals.length);
+  setBadge('requests', openReqs.length);
+  setBadge('needs', openNeeds.length);
+}
+
 // Pipeline stage counts for Approvals page
 function getApprovalPipelineCounts(approvals) {
   const list = approvals || [];
@@ -1618,6 +1675,19 @@ function injectCalendarStyles() {
 async function renderScheduledPostsTab() {
   await renderScheduledPostsConnectionSection();
 
+  if (window.__scheduledFilterDate) {
+    var fd = window.__scheduledFilterDate;
+    var fp = typeof fd === 'string' ? fd.split('-') : [];
+    if (fp.length === 3) {
+      var y = parseInt(fp[0], 10);
+      var mo = parseInt(fp[1], 10) - 1;
+      if (!isNaN(y) && !isNaN(mo)) {
+        currentCalendarMonth = new Date(y, mo, 1);
+      }
+    }
+    window.__scheduledFilterDate = null;
+  }
+
   const container = $('#scheduledPostsList');
   const filterClient = $('#scheduledFilterClient');
   const filterPlatform = $('#scheduledFilterPlatform');
@@ -1861,8 +1931,8 @@ function renderOverviewTab() {
   var copyApproved = approvals.filter(function(a) { return a.status === 'copy_approved'; });
   var approvedPosts = approvals.filter(function(a) { return a.status === 'approved'; });
   var missingCount = state.kpis ? state.kpis.missingAssets || 0 : 0;
-  var openRequests = requests.filter(function(r) { return !r.done; });
-  var openNeeds = needs.filter(function(n) { return !n.done; });
+  var openRequests = requests.filter(isClientRequestOpen);
+  var openNeeds = needs.filter(function(n) { return !n.status || n.status === 'open'; });
 
   // Production tasks for this client
   var prodTasks = (typeof productionTasksCache !== 'undefined' ? productionTasksCache : []).filter(function(t) { return t.clientId === currentClientId; });
@@ -1897,47 +1967,58 @@ function renderOverviewTab() {
   var h = '';
   var prodCount = inProduction.length + inReview.length + prodChanges.length;
 
-  // ─── KPI STRIP ───
-  h += '<div style="display:flex;background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:18px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  var kpis = [
-    { label: 'Scheduled', val: scheduledCount, color: scheduledCount > 0 ? '#059669' : '#94a3b8', active: scheduledCount > 0 },
-    { label: 'In Production', val: prodCount, color: prodCount > 0 ? '#2563eb' : '#94a3b8', active: prodCount > 0 },
-    { label: 'Awaiting Approval', val: pendingApprovals.length, color: pendingApprovals.length > 0 ? '#d97706' : '#94a3b8', active: pendingApprovals.length > 0 },
-    { label: 'Requests', val: openRequests.length, color: openRequests.length > 0 ? '#7c3aed' : '#94a3b8', active: openRequests.length > 0 },
-    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8', active: missingCount > 0 },
+  function kpiColorScheduled(v) {
+    if (v >= 7) return '#059669';
+    if (v >= 3) return '#d97706';
+    return '#dc2626';
+  }
+  function kpiColorInProd(v) {
+    return v > 0 ? '#2563eb' : '#94a3b8';
+  }
+  function kpiColorAwaiting(v) {
+    if (v === 0) return '#059669';
+    if (v <= 3) return '#d97706';
+    return '#dc2626';
+  }
+  function kpiColorRequests(v) {
+    if (v === 0) return '#059669';
+    if (v <= 3) return '#d97706';
+    return '#dc2626';
+  }
+  function kpiColorMissing(v) {
+    return v === 0 ? '#059669' : '#dc2626';
+  }
+
+  // ─── KPI STRIP (clickable, severity colors) ───
+  h += '<div style="display:flex;background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:12px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  var kpiDefs = [
+    { label: 'Scheduled', val: scheduledCount, color: kpiColorScheduled(scheduledCount), action: 'scheduled' },
+    { label: 'In Production', val: prodCount, color: kpiColorInProd(prodCount), action: 'production' },
+    { label: 'Awaiting Approval', val: pendingApprovals.length, color: kpiColorAwaiting(pendingApprovals.length), action: 'approvals' },
+    { label: 'Requests', val: openRequests.length, color: kpiColorRequests(openRequests.length), action: 'requests' },
+    { label: 'Missing Assets', val: missingCount, color: kpiColorMissing(missingCount), action: 'needs' },
   ];
-  kpis.forEach(function(k, i) {
-    h += '<div style="flex:1;min-width:95px;padding:14px 10px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #f1f5f9;' : '') + '">';
+  kpiDefs.forEach(function(k, i) {
+    h += '<div class="ov-kpi" data-kpi-action="' + k.action + '" style="flex:1;min-width:95px;padding:12px 10px;text-align:center;cursor:pointer;transition:background 0.12s;border-radius:10px;' + (i < kpiDefs.length - 1 ? 'border-right:1px solid #f1f5f9;' : '') + '">';
     h += '<div style="font-size:26px;font-weight:900;color:' + k.color + ';line-height:1;">' + k.val + '</div>';
-    h += '<div style="font-size:9px;font-weight:800;color:' + (k.active ? '#475569' : '#94a3b8') + ';text-transform:uppercase;letter-spacing:0.7px;margin-top:4px;">' + k.label + '</div>';
+    h += '<div style="font-size:9px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:0.7px;margin-top:4px;">' + k.label + '</div>';
     h += '</div>';
   });
   h += '</div>';
 
-  // ─── ROW 2: AI SUMMARY + AI IDEAS + LINKS (3 columns) ───
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr 280px;gap:14px;margin-bottom:18px;" class="ov-row2">';
+  // ─── ROW 2: AI SUMMARY + IMPORTANT LINKS (compact) ───
+  h += '<div style="display:grid;grid-template-columns:1fr 300px;gap:10px;margin-bottom:12px;" class="ov-row2">';
 
   // AI Summary Card
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;display:flex;flex-direction:column;min-height:140px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
   h += '<div style="display:flex;align-items:center;gap:8px;">';
   h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#dbeafe,#c7d2fe);display:flex;align-items:center;justify-content:center;font-size:14px;">🧠</div>';
   h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Summary</span></div>';
   h += '<button type="button" class="ov-ai-refresh" data-type="summary" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Refresh</button>';
   h += '</div>';
-  h += '<div id="ovAiSummary" style="flex:1;font-size:13px;color:#475569;line-height:1.6;">';
+  h += '<div id="ovAiSummary" style="flex:1;font-size:12px;color:#475569;line-height:1.55;">';
   h += '<div style="color:#94a3b8;font-style:italic;">Loading summary...</div></div></div>';
-
-  // AI Ideas Card
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
-  h += '<div style="display:flex;align-items:center;gap:8px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:14px;">💡</div>';
-  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Ideas</span></div>';
-  h += '<button type="button" class="ov-ai-refresh" data-type="ideas" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Refresh</button>';
-  h += '</div>';
-  h += '<div id="ovAiIdeas" style="flex:1;font-size:13px;color:#475569;line-height:1.6;">';
-  h += '<div style="color:#94a3b8;font-style:italic;">Loading ideas...</div></div></div>';
 
   // Important Links Card
   var cLinks = client.clientLinks || {};
@@ -1950,47 +2031,56 @@ function renderOverviewTab() {
   if (cLinks.adsManager) linkItems.push({ icon: '📊', label: 'Ads Manager', url: cLinks.adsManager });
   if (client.assetsLink && !cLinks.drive) linkItems.push({ icon: '📁', label: 'Assets', url: client.assetsLink });
 
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;display:flex;flex-direction:column;min-height:140px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
   h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Important Links</span>';
   h += '<button type="button" class="ov-edit-links" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Edit</button>';
   h += '</div>';
   if (linkItems.length === 0) {
-    h += '<div style="flex:1;display:flex;align-items:center;justify-content:center;">';
-    h += '<button type="button" class="ov-edit-links" style="padding:10px 20px;border-radius:10px;border:1.5px dashed #cbd5e1;background:#fff;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;">+ Add Links</button></div>';
+    h += '<button type="button" class="ov-edit-links" style="width:100%;text-align:left;padding:8px 0;background:none;border:none;color:#1e40af;font-size:12px;font-weight:700;cursor:pointer;">Add links →</button>';
   } else {
-    h += '<div style="flex:1;display:flex;flex-direction:column;gap:2px;">';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">';
     linkItems.forEach(function(lnk) {
       var domain = '';
       try { domain = new URL(lnk.url).hostname.replace('www.', ''); } catch(e) { domain = lnk.label; }
-      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;text-decoration:none;color:#0f172a;transition:background 0.1s;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'transparent\'">';
-      h += '<span style="font-size:18px;">' + lnk.icon + '</span>';
-      h += '<span style="font-size:12px;font-weight:600;color:#0f172a;">' + domain.replace(/</g, '&lt;') + '</span>';
+      var fav = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domain) + '&sz=32';
+      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" title="' + domain.replace(/"/g, '&quot;') + '" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid #e2e8f0;background:#f8fafc;overflow:hidden;text-decoration:none;">';
+      h += '<img src="' + fav + '" alt="" width="20" height="20" style="display:block;object-fit:contain;"/>';
       h += '</a>';
     });
     h += '</div>';
   }
   h += '</div></div>';
 
-  // ─── ROW 3: REQUESTS + CALENDAR + DESIGNER RING (3 columns) ───
-  h += '<div style="display:grid;grid-template-columns:280px 1fr 200px;gap:14px;" class="ov-row3">';
+  // ─── ROW 3: REQUESTS + CALENDAR + DESIGNER (3 columns) ───
+  h += '<div style="display:grid;grid-template-columns:minmax(260px,300px) 1fr minmax(200px,240px);gap:10px;margin-bottom:12px;" class="ov-row3">';
 
   // Requests Card
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;display:flex;flex-direction:column;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
   h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Requests</span>';
   if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:800;">' + openRequests.length + '</span>';
   h += '</div>';
   if (openRequests.length === 0) {
     h += '<div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:#94a3b8;">No open requests</div>';
   } else {
-    h += '<div style="flex:1;overflow-y:auto;">';
-    openRequests.slice(0, 6).forEach(function(r) {
-      h += '<div style="padding:8px 0;border-bottom:1px solid #f8fafc;">';
-      h += '<div style="font-size:12px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</div>';
-      if (r.details) h += '<div style="font-size:11px;color:#64748b;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 80) + '</div>';
-      if (r.createdAt) h += '<div style="font-size:10px;color:#94a3b8;margin-top:3px;">' + fmtDate(r.createdAt) + '</div>';
-      h += '</div>';
+    h += '<div style="flex:1;overflow-y:auto;max-height:320px;">';
+    openRequests.slice(0, 6).forEach(function(r, ri) {
+      var blob = ((r.type || '') + ' ' + (r.details || '') + ' ' + (r.title || '')).toLowerCase();
+      var isUrgent = /urgent|asap|important|rush|emergency/.test(blob);
+      h += '<div style="padding:8px 0;border-bottom:1px solid #f8fafc;display:flex;gap:8px;align-items:flex-start;">';
+      h += '<div style="flex:1;min-width:0;">';
+      h += '<div style="font-size:12px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:4px;">';
+      if (isUrgent) h += '<span style="padding:1px 6px;border-radius:4px;background:#fecaca;color:#dc2626;font-size:9px;font-weight:800;flex-shrink:0;">URGENT</span>';
+      h += '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</span></div>';
+      if (r.details) h += '<div style="font-size:11px;color:#64748b;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35;">' + (r.details || '').replace(/</g, '&lt;') + '</div>';
+      h += '<div style="font-size:10px;color:#94a3b8;margin-top:3px;">' + (r.createdAt ? overviewRelativeTime(r.createdAt) : '') + '</div></div>';
+      h += '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">';
+      if (r.id) {
+        h += '<button type="button" class="ov-req-assign" data-req-id="' + String(r.id).replace(/"/g, '&quot;') + '" style="padding:2px 8px;border-radius:4px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:10px;font-weight:600;cursor:pointer;">Assign</button>';
+        h += '<button type="button" class="ov-req-done" data-req-id="' + String(r.id).replace(/"/g, '&quot;') + '" style="padding:2px 8px;border-radius:4px;border:1px solid #e2e8f0;background:#fff;color:#059669;font-size:10px;font-weight:600;cursor:pointer;">Done</button>';
+      }
+      h += '</div></div>';
     });
     h += '</div>';
     if (openRequests.length > 6) h += '<div style="font-size:11px;color:#1e40af;padding-top:8px;cursor:pointer;font-weight:700;text-align:center;" class="ov-show-all-requests">View all ' + openRequests.length + ' requests</div>';
@@ -1998,7 +2088,7 @@ function renderOverviewTab() {
   h += '</div>';
 
   // Calendar Card (mini month)
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
   h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Content Calendar</span>';
   h += '<div style="display:flex;gap:4px;">';
@@ -2009,15 +2099,40 @@ function renderOverviewTab() {
   h += '<div id="ovCalGrid"></div>';
   h += '</div>';
 
-  // Designer Completion Ring
+  // Designer Completion Ring + recent tasks
+  function designerInitials(designerId) {
+    var d = (typeof designersCache !== 'undefined' ? designersCache : []).find(function(x) { return x.id === designerId; });
+    var name = (d && (d.name || d.email)) || '';
+    if (!name) return '?';
+    var parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    return (parts[0].charAt(0) + (parts[1] ? parts[1].charAt(0) : '')).toUpperCase();
+  }
   var totalTasks = prodTasks.length;
   var completedTasks = prodTasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; }).length;
   var pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   var circumference = 2 * Math.PI * 54;
   var dashOffset = circumference - (circumference * pct / 100);
+  var overdueCount = prodTasks.filter(function(t) {
+    if (!t.deadline) return false;
+    if (t.status === 'approved' || t.status === 'ready_to_post') return false;
+    return String(t.deadline).slice(0, 10) < todayStr;
+  }).length;
+  var recentTasks = prodTasks.filter(function(t) {
+    return t.status !== 'approved' && t.status !== 'ready_to_post';
+  }).sort(function(a, b) {
+    return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+  }).slice(0, 3);
+  var statusColors = {
+    assigned: { bg: '#f1f5f9', color: '#475569', label: 'Assigned' },
+    in_progress: { bg: '#dbeafe', color: '#1d4ed8', label: 'Working' },
+    review: { bg: '#fef3c7', color: '#d97706', label: 'Review' },
+    changes_requested: { bg: '#fee2e2', color: '#dc2626', label: 'Changes' },
+  };
 
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<span style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:12px;text-align:center;">Designer Tasks<br>Completion</span>';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;display:flex;flex-direction:column;align-items:stretch;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<span style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:8px;text-align:center;">Designer Tasks<br>Completion</span>';
+  h += '<div style="display:flex;justify-content:center;">';
   h += '<div style="position:relative;width:120px;height:120px;">';
   h += '<svg width="120" height="120" viewBox="0 0 120 120">';
   h += '<circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" stroke-width="8"/>';
@@ -2025,13 +2140,46 @@ function renderOverviewTab() {
   h += '</svg>';
   h += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">';
   h += '<div style="font-size:28px;font-weight:900;color:' + (pct >= 80 ? '#059669' : pct >= 40 ? '#2563eb' : '#d97706') + ';">' + pct + '%</div>';
+  h += '</div></div></div>';
+  h += '<div style="font-size:11px;color:#64748b;margin-top:6px;text-align:center;">' + completedTasks + ' of ' + totalTasks + ' tasks done</div>';
+  if (overdueCount > 0) {
+    h += '<div style="font-size:10px;font-weight:800;color:#dc2626;text-align:center;margin-top:4px;">' + overdueCount + ' overdue</div>';
+  }
+  if (recentTasks.length > 0) {
+    h += '<div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:8px;">';
+    recentTasks.forEach(function(t) {
+      var sc = statusColors[t.status] || statusColors.assigned;
+      var title = (t.title || 'Task').replace(/</g, '&lt;');
+      if (title.length > 28) title = title.substring(0, 28) + '…';
+      h += '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f8fafc;">';
+      h += '<span style="padding:2px 6px;border-radius:4px;background:' + sc.bg + ';color:' + sc.color + ';font-size:9px;font-weight:700;flex-shrink:0;">' + sc.label + '</span>';
+      h += '<span style="font-size:10px;color:#0f172a;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + title + '</span>';
+      h += '<span style="font-size:9px;font-weight:800;color:#64748b;flex-shrink:0;">' + designerInitials(t.designerId) + '</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+  h += '<button type="button" class="ov-view-production" style="margin-top:auto;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e40af;font-size:11px;font-weight:700;cursor:pointer;">View Production →</button>';
   h += '</div></div>';
-  h += '<div style="font-size:11px;color:#64748b;margin-top:10px;text-align:center;">' + completedTasks + ' of ' + totalTasks + ' tasks done</div>';
+
+  // ─── ROW 4: AI Ideas (collapsed by default) ───
+  h += '<div style="margin-bottom:12px;" class="ov-row4">';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">';
+  h += '<button type="button" class="ov-ideas-toggle" aria-expanded="false" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:0;text-align:left;">';
+  h += '<span style="font-size:11px;color:#64748b;font-weight:800;">▶</span>';
+  h += '<div style="display:flex;align-items:center;gap:8px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:14px;">💡</div>';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Ideas</span></div></button>';
+  h += '<button type="button" class="ov-ai-refresh" data-type="ideas" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;">Refresh</button>';
+  h += '</div>';
+  h += '<div id="ovAiIdeas" class="ov-ideas-body" style="display:none;margin-top:10px;font-size:12px;color:#475569;line-height:1.55;">';
+  h += '<div style="color:#94a3b8;font-style:italic;">Loading ideas...</div></div>';
   h += '</div></div>';
 
   // Blockers (only if exists)
   if (openNeeds.length > 0) {
-    h += '<div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border-radius:14px;border:1.5px solid #fecaca;padding:14px 16px;margin-top:14px;">';
+    h += '<div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border-radius:14px;border:1.5px solid #fecaca;padding:12px 14px;margin-top:10px;">';
     h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">';
     h += '<span style="font-size:13px;font-weight:800;color:#dc2626;">Blockers & Missing</span></div>';
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
@@ -2043,29 +2191,71 @@ function renderOverviewTab() {
 
   // Responsive
   h += '<style>';
-  h += '@media(max-width:1100px){.ov-row2{grid-template-columns:1fr 1fr !important;}.ov-row3{grid-template-columns:1fr 1fr !important;}}';
+  h += '.ov-kpi:hover{background:#f8fafc!important;}';
+  h += '@media(max-width:1100px){.ov-row2{grid-template-columns:1fr !important;}.ov-row3{grid-template-columns:1fr 1fr !important;}}';
   h += '@media(max-width:768px){.ov-row2{grid-template-columns:1fr !important;}.ov-row3{grid-template-columns:1fr !important;}}';
   h += '</style>';
 
   overviewContent.innerHTML = h;
 
   // ── Bind events ──
+  overviewContent.querySelectorAll('.ov-kpi').forEach(function(kpi) {
+    kpi.addEventListener('click', function() {
+      var act = kpi.getAttribute('data-kpi-action');
+      if (act === 'scheduled') switchTab('scheduled');
+      else if (act === 'production') switchToProductionView();
+      else if (act === 'approvals') switchTab('approvals');
+      else if (act === 'requests') switchTab('requests');
+      else if (act === 'needs') switchTab('needs');
+    });
+  });
+
   var showAllReqs = overviewContent.querySelector('.ov-show-all-requests');
   if (showAllReqs) showAllReqs.addEventListener('click', function() { switchTab('requests'); });
 
-  // Edit links
   overviewContent.querySelectorAll('.ov-edit-links').forEach(function(btn) {
     btn.addEventListener('click', function() { openLinksEditorModal(currentClientId); });
   });
 
-  // AI refresh buttons
+  var ideasToggle = overviewContent.querySelector('.ov-ideas-toggle');
+  var ideasBody = document.getElementById('ovAiIdeas');
+  if (ideasToggle && ideasBody) {
+    ideasToggle.addEventListener('click', function() {
+      var open = ideasBody.style.display !== 'none';
+      ideasBody.style.display = open ? 'none' : 'block';
+      ideasToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      var caret = ideasToggle.querySelector('span');
+      if (caret) caret.textContent = open ? '▶' : '▼';
+    });
+  }
+
   overviewContent.querySelectorAll('.ov-ai-refresh').forEach(function(btn) {
     btn.addEventListener('click', function() { loadOverviewAI(true); });
   });
 
+  var viewProdBtn = overviewContent.querySelector('.ov-view-production');
+  if (viewProdBtn) viewProdBtn.addEventListener('click', function() { switchToProductionView(); });
+
   // ── Mini Calendar ──
   var calMonth = new Date().getMonth();
   var calYear = new Date().getFullYear();
+  var calApiByDay = null;
+
+  function mergeApprovalDayStats() {
+    var postDates = {};
+    var reviewSt = { pending: 1, changes: 1, copy_pending: 1, copy_approved: 1, copy_changes: 1 };
+    approvals.forEach(function(a) {
+      var d = a.postDate || a.date;
+      if (!d || typeof d !== 'string') return;
+      var key = d.substring(0, 10);
+      if (!postDates[key]) postDates[key] = { count: 0, review: false, planned: false };
+      postDates[key].count++;
+      var st = a.status || 'pending';
+      if (reviewSt[st]) postDates[key].review = true;
+      if (st === 'approved') postDates[key].planned = true;
+    });
+    return postDates;
+  }
 
   function renderMiniCal() {
     var grid = document.getElementById('ovCalGrid');
@@ -2074,16 +2264,17 @@ function renderOverviewTab() {
     var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     monthLabel.textContent = months[calMonth] + ' ' + calYear;
 
-    // Collect post dates from approvals
-    var postDates = {};
-    approvals.forEach(function(a) {
-      var d = a.postDate || a.date;
-      if (d && typeof d === 'string') {
-        var key = d.substring(0, 10);
-        if (!postDates[key]) postDates[key] = { planned: 0, scheduled: 0 };
-        postDates[key].planned++;
-      }
-    });
+    var postDates = mergeApprovalDayStats();
+    if (calApiByDay) {
+      Object.keys(calApiByDay).forEach(function(key) {
+        var api = calApiByDay[key];
+        if (!postDates[key]) postDates[key] = { count: 0, review: false, planned: false, pub: 0, sch: 0 };
+        postDates[key].count = Math.max(postDates[key].count, api.n || 0);
+        postDates[key].pub = api.pub || 0;
+        postDates[key].sch = api.sch || 0;
+        if (api.pub > 0) postDates[key].hasPublished = true;
+      });
+    }
 
     var firstDay = new Date(calYear, calMonth, 1).getDay();
     var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -2096,42 +2287,171 @@ function renderOverviewTab() {
     for (var e = 0; e < firstDay; e++) ch += '<div></div>';
     for (var d = 1; d <= daysInMonth; d++) {
       var dateKey = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-      var hasPost = postDates[dateKey];
+      var dayInfo = postDates[dateKey];
       var isToday = dateKey === todayKey;
       var bg = 'transparent';
       var textColor = '#475569';
       var dotHtml = '';
-      if (hasPost) {
-        bg = '#dbeafe';
-        textColor = '#1e40af';
-        var count = hasPost.planned;
-        if (count > 1) dotHtml = '<div style="font-size:7px;color:#2563eb;font-weight:800;line-height:1;">' + count + '</div>';
-        else dotHtml = '<div style="width:4px;height:4px;border-radius:50%;background:#2563eb;margin:1px auto 0;"></div>';
+      var count = dayInfo ? dayInfo.count : 0;
+      if (dayInfo && count > 0) {
+        var tone = 'blue';
+        if (dayInfo.hasPublished || (dayInfo.pub && dayInfo.pub > 0)) tone = 'green';
+        else if (dayInfo.review) tone = 'orange';
+        if (tone === 'green') { bg = '#dcfce7'; textColor = '#166534'; }
+        else if (tone === 'orange') { bg = '#ffedd5'; textColor = '#c2410c'; }
+        else { bg = '#dbeafe'; textColor = '#1e40af'; }
+        var dotColor = tone === 'green' ? '#059669' : tone === 'orange' ? '#d97706' : '#2563eb';
+        if (count === 1) dotHtml = '<div style="width:4px;height:4px;border-radius:50%;background:' + dotColor + ';margin:1px auto 0;"></div>';
+        else dotHtml = '<div style="font-size:7px;color:' + dotColor + ';font-weight:900;line-height:1;">' + count + '</div>';
       }
-      if (isToday) { bg = '#1e40af'; textColor = '#fff'; if (hasPost) dotHtml = dotHtml.replace('#2563eb', '#93c5fd'); }
-      ch += '<div style="padding:3px 0;border-radius:6px;background:' + bg + ';cursor:default;">';
-      ch += '<div style="font-size:11px;font-weight:' + (isToday || hasPost ? '700' : '500') + ';color:' + textColor + ';line-height:1.3;">' + d + '</div>';
+      if (isToday) {
+        bg = '#1e40af';
+        textColor = '#fff';
+        if (dayInfo && count > 0) dotHtml = dotHtml.replace(/#059669|#d97706|#2563eb/g, '#e0e7ff');
+      }
+      ch += '<div class="ov-cal-day" data-date="' + dateKey + '" style="padding:3px 0;border-radius:6px;background:' + bg + ';cursor:pointer;">';
+      ch += '<div style="font-size:11px;font-weight:' + (isToday || count > 0 ? '700' : '500') + ';color:' + textColor + ';line-height:1.3;">' + d + '</div>';
       ch += dotHtml + '</div>';
     }
     ch += '</div>';
 
-    // Legend
-    ch += '<div style="display:flex;gap:12px;margin-top:8px;justify-content:center;">';
-    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dbeafe;border:1px solid #93c5fd;"></div> Post planned</div>';
+    ch += '<div style="display:flex;gap:10px;margin-top:8px;justify-content:center;flex-wrap:wrap;">';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dbeafe;"></div> Planned</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#ffedd5;"></div> In review</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dcfce7;"></div> Published</div>';
     ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:50%;background:#1e40af;"></div> Today</div>';
     ch += '</div>';
 
     grid.innerHTML = ch;
+
+    grid.querySelectorAll('.ov-cal-day').forEach(function(day) {
+      day.addEventListener('click', function() {
+        var dk = day.getAttribute('data-date');
+        if (!dk) return;
+        window.__scheduledFilterDate = dk;
+        switchTab('scheduled');
+      });
+    });
   }
 
   renderMiniCal();
+
+  if (currentClientId) {
+    fetch(getApiBaseUrl() + '/api/posts/scheduled?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        var posts = (j && j.posts) || [];
+        var byDay = {};
+        posts.forEach(function(p) {
+          if (!p.scheduledAt) return;
+          var key = new Date(p.scheduledAt).toISOString().slice(0, 10);
+          if (!byDay[key]) byDay[key] = { n: 0, pub: 0, sch: 0 };
+          byDay[key].n++;
+          if (p.status === 'published') byDay[key].pub++;
+          else byDay[key].sch++;
+        });
+        calApiByDay = byDay;
+        renderMiniCal();
+      })
+      .catch(function() {});
+  }
 
   var calPrev = overviewContent.querySelector('.ov-cal-prev');
   var calNext = overviewContent.querySelector('.ov-cal-next');
   if (calPrev) calPrev.addEventListener('click', function() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderMiniCal(); });
   if (calNext) calNext.addEventListener('click', function() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderMiniCal(); });
 
-  // ── Load AI Summary ──
+  function bindSummaryRows(container) {
+    if (!container) return;
+    container.querySelectorAll('.ov-sum-row').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var t = (row.textContent || '').toLowerCase();
+        if (t.indexOf('request') !== -1) switchTab('requests');
+        else if (t.indexOf('approv') !== -1 || t.indexOf('client') !== -1) switchTab('approvals');
+        else if (t.indexOf('schedul') !== -1 || t.indexOf('post') !== -1 || t.indexOf('calendar') !== -1) switchTab('scheduled');
+        else if (t.indexOf('production') !== -1 || t.indexOf('design') !== -1) switchToProductionView();
+        else if (t.indexOf('asset') !== -1 || t.indexOf('missing') !== -1 || t.indexOf('need') !== -1) switchTab('needs');
+        else switchTab('overview');
+      });
+    });
+  }
+
+  function applyOverviewSummaryHtml(summaryText, summaryEl) {
+    if (!summaryEl) return;
+    var raw = (summaryText || '').trim();
+    if (!raw) {
+      summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">No summary yet.</div>';
+      return;
+    }
+    var lines = raw.split(/\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length === 1 && lines[0].indexOf('•') === -1 && lines[0].indexOf('🔴') !== 0 && lines[0].indexOf('🟡') !== 0 && lines[0].indexOf('🟢') !== 0) {
+      summaryEl.innerHTML = '<div style="line-height:1.55;">' + lines[0].replace(/</g, '&lt;') + '</div>';
+      return;
+    }
+    var esc = function(s) { return s.replace(/</g, '&lt;'); };
+    var visible = lines.slice(0, 2);
+    var rest = lines.slice(2);
+    var mkRow = function(line) {
+      var border = '#e2e8f0';
+      if (line.indexOf('🔴') === 0) border = '#dc2626';
+      else if (line.indexOf('🟡') === 0) border = '#d97706';
+      else if (line.indexOf('🟢') === 0) border = '#059669';
+      return '<div class="ov-sum-row" style="border-left:3px solid ' + border + ';padding:6px 8px;margin-bottom:6px;border-radius:0 8px 8px 0;background:#fafafa;cursor:pointer;">' + esc(line) + '</div>';
+    };
+    var html = '<div id="ovSumVisible">' + visible.map(mkRow).join('') + '</div>';
+    if (rest.length > 0) {
+      html += '<div id="ovSumMore" style="display:none;">' + rest.map(mkRow).join('') + '</div>';
+      html += '<button type="button" id="ovSumToggle" style="margin-top:6px;padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#1e40af;font-size:10px;font-weight:700;cursor:pointer;">Show more</button>';
+    }
+    summaryEl.innerHTML = html;
+    bindSummaryRows(summaryEl);
+    var toggle = document.getElementById('ovSumToggle');
+    var more = document.getElementById('ovSumMore');
+    if (toggle && more) {
+      toggle.addEventListener('click', function() {
+        var open = more.style.display !== 'none';
+        more.style.display = open ? 'none' : 'block';
+        toggle.textContent = open ? 'Show more' : 'Show less';
+      });
+    }
+  }
+
+  function applyOverviewIdeasHtml(ideasText, ideasEl) {
+    if (!ideasEl) return;
+    window.__overviewIdeaLines = [];
+    var raw = (ideasText || '').trim();
+    if (!raw) {
+      ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">No ideas yet.</div>';
+      return;
+    }
+    var lines = raw.split(/\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+    var esc = function(s) { return s.replace(/</g, '&lt;'); };
+    var htm = '';
+    lines.forEach(function(line, idx) {
+      var ideaText = line.replace(/^[•\-\*]\s*/, '').trim();
+      window.__overviewIdeaLines.push(ideaText);
+      htm += '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;">';
+      htm += '<span style="color:#d97706;font-weight:800;flex-shrink:0;">•</span>';
+      htm += '<span style="flex:1;font-size:12px;line-height:1.45;">' + esc(line.replace(/^[•\-\*]\s*/, '')) + '</span>';
+      htm += '<button type="button" class="ov-create-from-idea" data-idea-index="' + idx + '" style="padding:3px 8px;border-radius:4px;border:1px solid #e2e8f0;background:#fff;color:#1e40af;font-size:10px;font-weight:600;cursor:pointer;flex-shrink:0;">Create Post</button>';
+      htm += '</div>';
+    });
+    ideasEl.innerHTML = htm || '<div style="color:#94a3b8;font-size:12px;">No ideas yet.</div>';
+    ideasEl.querySelectorAll('.ov-create-from-idea').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var ix = parseInt(btn.getAttribute('data-idea-index'), 10);
+        var text = (window.__overviewIdeaLines && window.__overviewIdeaLines[ix]) || '';
+        switchTab('approvals');
+        setTimeout(function() {
+          var captionField = document.getElementById('approvalCaption') || document.getElementById('approvalCopyText');
+          if (captionField) captionField.value = text;
+        }, 200);
+      });
+    });
+  }
+
+  // ── Load AI Summary + Ideas ──
   function loadOverviewAI(force) {
     var summaryEl = document.getElementById('ovAiSummary');
     var ideasEl = document.getElementById('ovAiIdeas');
@@ -2144,19 +2464,39 @@ function renderOverviewTab() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
       body: JSON.stringify({ clientId: currentClientId, forceRefresh: !!force })
     }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.summary && summaryEl) summaryEl.innerHTML = (d.summary || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
-      if (d.ideas && ideasEl) ideasEl.innerHTML = (d.ideas || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').replace(/•/g, '<span style="color:#d97706;font-weight:700;">•</span>');
       if (d.error) {
-        if (summaryEl) summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
-        if (ideasEl) ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
+        summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
+        ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
+        return;
       }
+      if (d.summary) applyOverviewSummaryHtml(d.summary, summaryEl);
+      if (d.ideas) applyOverviewIdeasHtml(d.ideas, ideasEl);
     }).catch(function() {
-      if (summaryEl) summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI summary</div>';
-      if (ideasEl) ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI ideas</div>';
+      summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI summary</div>';
+      ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI ideas</div>';
     });
   }
 
+  overviewContent.querySelectorAll('.ov-req-done').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-req-id');
+      if (id) markRequestDone(id);
+    });
+  });
+  overviewContent.querySelectorAll('.ov-req-assign').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-req-id');
+      var state = load();
+      var req = (state.requests || []).find(function(x) { return String(x.id) === String(id); });
+      if (req && typeof openRequestDetail === 'function') openRequestDetail(req);
+      else switchTab('requests');
+    });
+  });
+
   loadOverviewAI(false);
+  updateTabCountBadges();
   setupClientManagementButtons();
 }
 
@@ -3887,6 +4227,8 @@ function markRequestDone(id) {
   
   save(state);
   renderRequestsTab();
+  updateTabCountBadges();
+  if (currentTab === 'overview' && typeof renderOverviewTab === 'function') renderOverviewTab();
 }
 
 function setupRequestsHandlers() {
@@ -4054,9 +4396,11 @@ function markNeedDone(id) {
     when: Date.now(),
     text: `Marked need as done: ${need.text.substring(0, 50)}${need.text.length > 50 ? '...' : ''}`
   });
-  
+
   save(state);
   renderNeedsTab();
+  updateTabCountBadges();
+  if (currentTab === 'overview' && typeof renderOverviewTab === 'function') renderOverviewTab();
 }
 
 function removeNeed(id) {
@@ -5565,6 +5909,7 @@ function renderAll() {
   renderClientHeader();
   updateGlobalStatusSummary();
   renderNotificationBell();
+  updateTabCountBadges();
   switchTab(currentTab);
 }
 
