@@ -68,19 +68,51 @@ router.post('/generate-image', authenticate, requireProductionAccess, async (req
 
     console.log(`[ai-image] Generating image. Prompt length: ${fullPrompt.length}`);
 
-    // Use Gemini 2.0 Flash with image generation via generateContent
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: `Generate an image: ${fullPrompt}` }]
-        }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
-      }),
-    });
+    // Try models in order of preference for native image generation
+    const IMAGE_MODELS = [
+      'gemini-2.0-flash-preview-image-generation',
+      'gemini-2.0-flash-exp-image-generation',
+      'gemini-2.0-flash',
+    ];
+
+    let geminiRes: Response | null = null;
+    let usedModel = '';
+
+    for (const model of IMAGE_MODELS) {
+      console.log(`[ai-image] Trying model: ${model}`);
+      const tryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `Generate an image: ${fullPrompt}` }]
+          }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
+        }),
+      });
+
+      const peek: any = await tryRes.json();
+
+      // If model not found, try next
+      if (peek.error && (peek.error.message || '').includes('is not found')) {
+        console.log(`[ai-image] Model ${model} not available, trying next...`);
+        continue;
+      }
+
+      // Model exists — use this response
+      usedModel = model;
+      // Re-wrap the already-parsed JSON into something we can use below
+      geminiRes = new Response(JSON.stringify(peek), { status: tryRes.status, headers: { 'Content-Type': 'application/json' } });
+      break;
+    }
+
+    if (!geminiRes) {
+      return res.status(422).json({ error: 'No image generation model available. Check your Gemini API key permissions.' });
+    }
+
+    console.log(`[ai-image] Using model: ${usedModel}`);
 
     const geminiData: any = await geminiRes.json();
 
@@ -225,6 +257,31 @@ router.get('/status', authenticate, (req, res) => {
     geminiEnabled: !!process.env.GEMINI_API_KEY,
     openaiEnabled: !!process.env.OPENAI_API_KEY,
   });
+});
+
+/**
+ * GET /api/ai/models — list available Gemini models (debug)
+ */
+router.get('/models', authenticate, async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: 'No GEMINI_API_KEY' });
+
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const data: any = await r.json();
+    if (data.error) return res.status(422).json({ error: data.error.message });
+
+    // Filter for models that might support image generation
+    const models = (data.models || []).map((m: any) => ({
+      name: m.name,
+      displayName: m.displayName,
+      methods: m.supportedGenerationMethods,
+    }));
+
+    res.json({ models });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;
