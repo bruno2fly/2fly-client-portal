@@ -71,6 +71,22 @@ export interface Client {
   riskLevel?: string;
   internalNotes?: string;
   logoUrl?: string;
+  // Quick links for overview
+  clientLinks?: {
+    instagram?: string;
+    facebook?: string;
+    website?: string;
+    googleBusiness?: string;
+    drive?: string;
+    adsManager?: string;
+    other?: { label: string; url: string }[];
+  };
+  // AI summary cache
+  aiSummaryCache?: {
+    summary?: string;
+    ideas?: string;
+    generatedAt?: number;
+  };
 }
 
 export interface InviteToken {

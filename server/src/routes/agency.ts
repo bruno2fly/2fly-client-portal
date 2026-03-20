@@ -149,6 +149,7 @@ router.patch('/clients/:id', (req: AuthenticatedRequest, res) => {
       riskLevel: body.riskLevel !== undefined ? body.riskLevel : client.riskLevel,
       internalNotes: body.internalNotes !== undefined ? body.internalNotes : client.internalNotes,
       logoUrl: body.logoUrl !== undefined ? body.logoUrl : client.logoUrl,
+      clientLinks: body.clientLinks !== undefined ? body.clientLinks : client.clientLinks,
     };
     saveClient(updated);
     const pwd = (body.password || '').toString();

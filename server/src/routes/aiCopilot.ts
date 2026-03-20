@@ -5,13 +5,15 @@
  */
 
 import { Router } from 'express';
-import { authenticate, requireProductionAccess } from '../middleware/auth.js';
+import { authenticate, requireProductionAccess, getAgencyScope, requireCanViewDashboard } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import {
   getProductionTasksByDesigner,
   getProductionTaskById,
   getClient,
   getPortalState,
+  saveClient,
+  getProductionTasksByClient,
 } from '../db.js';
 import OpenAI from 'openai';
 
@@ -297,6 +299,105 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
 router.get('/status', authenticate, (req, res) => {
   const hasKey = !!process.env.OPENAI_API_KEY;
   res.json({ enabled: hasKey });
+});
+
+// POST /api/ai-copilot/overview-summary
+// Generates AI summary + ideas for a client's overview page
+// Caches results for 24 hours
+router.post('/overview-summary', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
+  try {
+    const openai = getOpenAI();
+    if (!openai) {
+      return res.status(503).json({ error: 'AI not configured. Set OPENAI_API_KEY.' });
+    }
+
+    const { agencyId } = getAgencyScope(req);
+    const { clientId, forceRefresh } = req.body;
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+
+    const client = getClient(clientId);
+    if (!client || client.agencyId !== agencyId) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Check cache (24 hours)
+    const cache = (client as any).aiSummaryCache;
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    if (!forceRefresh && cache && cache.generatedAt && (Date.now() - cache.generatedAt < ONE_DAY)) {
+      return res.json({ success: true, summary: cache.summary || '', ideas: cache.ideas || '', cached: true });
+    }
+
+    // Build context from all available data
+    const portalState = getPortalState(agencyId, clientId);
+    const approvals = (portalState?.approvals || []) as any[];
+    const requests = (portalState?.requests || []) as any[];
+    const needs = (portalState?.needs || []) as any[];
+    const activity = (portalState?.activity || []) as any[];
+
+    // Get production tasks
+    const prodTasks = getProductionTasksByClient(agencyId, clientId);
+
+    const contextLines: string[] = [];
+    contextLines.push(`Client: ${client.name}`);
+    if (client.category) contextLines.push(`Industry: ${client.category}`);
+    contextLines.push(`Approvals: ${approvals.length} total`);
+    const pending = approvals.filter((a: any) => !a.status || a.status === 'pending').length;
+    const approved = approvals.filter((a: any) => a.status === 'approved').length;
+    const changes = approvals.filter((a: any) => a.status === 'changes').length;
+    const copyPending = approvals.filter((a: any) => a.status === 'copy_pending').length;
+    const copyApproved = approvals.filter((a: any) => a.status === 'copy_approved').length;
+    contextLines.push(`  - ${pending} awaiting client approval, ${approved} approved, ${changes} changes requested`);
+    contextLines.push(`  - ${copyPending} copy pending, ${copyApproved} copy approved`);
+    contextLines.push(`Open requests: ${requests.filter((r: any) => !r.done).length}`);
+    requests.filter((r: any) => !r.done).slice(0, 5).forEach((r: any) => {
+      contextLines.push(`  - ${r.type || r.title || 'Request'}: ${(r.details || '').substring(0, 80)}`);
+    });
+    contextLines.push(`Missing assets/needs: ${needs.filter((n: any) => !n.done).length}`);
+    contextLines.push(`Production tasks: ${prodTasks.length} total`);
+    const inProgress = prodTasks.filter((t: any) => t.status === 'in_progress' || t.status === 'assigned').length;
+    const inReview = prodTasks.filter((t: any) => t.status === 'review').length;
+    const prodApproved = prodTasks.filter((t: any) => t.status === 'approved' || t.status === 'ready_to_post').length;
+    contextLines.push(`  - ${inProgress} in progress, ${inReview} in review, ${prodApproved} approved`);
+    const recentActivity = activity.slice(-5).reverse();
+    if (recentActivity.length > 0) {
+      contextLines.push('Recent activity:');
+      recentActivity.forEach((a: any) => contextLines.push(`  - ${a.text || 'Activity'}`));
+    }
+
+    // Generate summary
+    const summaryCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a social media agency assistant. Write a brief 3-4 sentence executive summary of this client\'s current status. Be direct, actionable, and highlight what needs attention. No bullet points, just flowing text. Keep it under 80 words.' },
+        { role: 'user', content: contextLines.join('\n') }
+      ],
+      max_tokens: 200,
+      temperature: 0.5,
+    });
+
+    // Generate ideas
+    const ideasCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a creative social media strategist. Based on this client\'s current pipeline, suggest 2-3 quick content ideas or strategic actions. Be specific to their industry. Format as short bullet points (use • prefix). Keep under 60 words total.' },
+        { role: 'user', content: contextLines.join('\n') }
+      ],
+      max_tokens: 150,
+      temperature: 0.8,
+    });
+
+    const summary = summaryCompletion.choices[0]?.message?.content || '';
+    const ideas = ideasCompletion.choices[0]?.message?.content || '';
+
+    // Cache results on the client object
+    (client as any).aiSummaryCache = { summary, ideas, generatedAt: Date.now() };
+    saveClient(client);
+
+    res.json({ success: true, summary, ideas, cached: false });
+  } catch (err: any) {
+    console.error('[AI Overview] Error:', err.message);
+    res.status(500).json({ error: 'AI summary failed: ' + (err.message || 'Unknown error') });
+  }
 });
 
 export default router;

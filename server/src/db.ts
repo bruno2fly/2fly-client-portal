@@ -487,6 +487,10 @@ export function getProductionTasksByDesigner(designerId: string): ProductionTask
   return getProductionTasks().filter(t => t.designerId === designerId);
 }
 
+export function getProductionTasksByClient(agencyId: string, clientId: string): ProductionTask[] {
+  return getProductionTasks().filter(t => t.agencyId === agencyId && t.clientId === clientId);
+}
+
 export function saveProductionTask(task: ProductionTask): void {
   const tasks = getProductionTasks();
   const idx = tasks.findIndex(t => t.id === task.id);

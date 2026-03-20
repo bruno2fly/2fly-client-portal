@@ -1772,6 +1772,71 @@ function setupScheduledPostsFilters() {
 }
 
 /* ================== Overview Tab ================== */
+// ── Links editor modal ──
+function openLinksEditorModal(clientId) {
+  var existing = document.getElementById('linksEditorModal');
+  if (existing) existing.remove();
+  var clients = loadClientsRegistry();
+  var client = clients[clientId] || {};
+  var links = client.clientLinks || {};
+
+  var overlay = document.createElement('div');
+  overlay.id = 'linksEditorModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:16px;max-width:480px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:24px;animation:slideUp 0.2s ease-out;';
+
+  var fields = [
+    { key: 'instagram', label: 'Instagram', ph: 'https://instagram.com/...', icon: '📷' },
+    { key: 'facebook', label: 'Facebook', ph: 'https://facebook.com/...', icon: '📘' },
+    { key: 'website', label: 'Website', ph: 'https://...', icon: '🌐' },
+    { key: 'googleBusiness', label: 'Google Business', ph: 'https://business.google.com/...', icon: '📍' },
+    { key: 'drive', label: 'Drive / Assets', ph: 'https://drive.google.com/...', icon: '📁' },
+    { key: 'adsManager', label: 'Ads Manager', ph: 'https://...', icon: '📊' },
+  ];
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
+  html += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Client Links</h3>';
+  html += '<button type="button" id="linksEditorClose" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:22px;">&times;</button></div>';
+  fields.forEach(function(f) {
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">' + f.icon + ' ' + f.label + '</label>';
+    html += '<input type="url" id="link_' + f.key + '" value="' + ((links[f.key] || '').replace(/"/g, '&quot;')) + '" placeholder="' + f.ph + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
+    html += '</div>';
+  });
+  html += '<div style="display:flex;gap:10px;margin-top:16px;">';
+  html += '<button type="button" id="linksEditorSave" style="flex:1;padding:11px;border-radius:10px;border:none;background:#1e40af;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Save Links</button>';
+  html += '<button type="button" id="linksEditorCancel" style="padding:11px 20px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>';
+  html += '</div>';
+
+  modal.innerHTML = html;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('linksEditorClose').addEventListener('click', function() { overlay.remove(); });
+  document.getElementById('linksEditorCancel').addEventListener('click', function() { overlay.remove(); });
+  document.getElementById('linksEditorSave').addEventListener('click', async function() {
+    var btn = document.getElementById('linksEditorSave');
+    btn.textContent = 'Saving...'; btn.disabled = true;
+    var newLinks = {};
+    fields.forEach(function(f) { var v = document.getElementById('link_' + f.key).value.trim(); if (v) newLinks[f.key] = v; });
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/agency/clients/' + encodeURIComponent(clientId), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ clientLinks: newLinks })
+      });
+      if (!r.ok) throw new Error('Failed to save');
+      // Update local cache
+      if (clients[clientId]) clients[clientId].clientLinks = newLinks;
+      overlay.remove();
+      showToast('Links saved!', 'success');
+      renderOverviewTab();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); btn.textContent = 'Save Links'; btn.disabled = false; }
+  });
+}
+
 function renderOverviewTab() {
   var state = load();
   var clients = loadClientsRegistry();
@@ -1832,239 +1897,266 @@ function renderOverviewTab() {
   var h = '';
   var prodCount = inProduction.length + inReview.length + prodChanges.length;
 
-  // ─── ACTION CENTER (4 cards) ───
-  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;" class="ov-cards-grid">';
-
-  // Card 1: Needs Attention
-  var attCount = attentionItems.length;
-  var attBorder = attCount > 0 ? '#ef4444' : '#e2e8f0';
-  var attBg = attCount > 0 ? 'linear-gradient(135deg,#fef2f2,#fff1f2)' : '#fff';
-  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + attBorder + ';background:' + attBg + ';position:relative;overflow:hidden;">';
-  if (attCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444;"></div>';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (attCount > 0 ? '#fecaca' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">' + (attCount > 0 ? '!' : '✓') + '</div>';
-  h += '<span style="font-size:12px;font-weight:700;color:' + (attCount > 0 ? '#dc2626' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Attention</span>';
-  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (attCount > 0 ? '#dc2626' : '#cbd5e1') + ';line-height:1;">' + attCount + '</span></div>';
-  if (attCount > 0) {
-    h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
-    attentionItems.slice(0, 3).forEach(function(item) {
-      var iconMap = { 'change': '↩', 'revision': '✎', 'missing': '□', 'request': '✉' };
-      var icon = '•';
-      Object.keys(iconMap).forEach(function(k) { if (item.toLowerCase().indexOf(k) !== -1) icon = iconMap[k]; });
-      h += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:rgba(239,68,68,0.08);font-size:11px;color:#991b1b;font-weight:600;white-space:nowrap;">' + icon + ' ' + item.replace(/</g, '&lt;') + '</span>';
-    });
-    h += '</div>';
-  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">All clear</div>'; }
-  h += '</div>';
-
-  // Card 2: Waiting on Client
-  var waitCount = pendingApprovals.length;
-  var waitBorder = waitCount > 0 ? '#f59e0b' : '#e2e8f0';
-  var waitBg = waitCount > 0 ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#fff';
-  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + waitBorder + ';background:' + waitBg + ';position:relative;overflow:hidden;">';
-  if (waitCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#f59e0b;"></div>';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (waitCount > 0 ? '#fde68a' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">⏳</div>';
-  h += '<span style="font-size:12px;font-weight:700;color:' + (waitCount > 0 ? '#b45309' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Client</span>';
-  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (waitCount > 0 ? '#d97706' : '#cbd5e1') + ';line-height:1;">' + waitCount + '</span></div>';
-  if (waitCount > 0) {
-    waitingItems.slice(0, 3).forEach(function(item) {
-      h += '<div style="font-size:11px;color:#92400e;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">tag: ' + item.replace(/</g, '&lt;') + '</div>';
-    });
-  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Nothing pending</div>'; }
-  h += '</div>';
-
-  // Card 3: In Production
-  var prodBorder = prodCount > 0 ? '#3b82f6' : '#e2e8f0';
-  var prodBgCard = prodCount > 0 ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fff';
-  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + prodBorder + ';background:' + prodBgCard + ';position:relative;overflow:hidden;">';
-  if (prodCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#3b82f6;"></div>';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (prodCount > 0 ? '#bfdbfe' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">⚡</div>';
-  h += '<span style="font-size:12px;font-weight:700;color:' + (prodCount > 0 ? '#1d4ed8' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Production</span>';
-  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (prodCount > 0 ? '#1d4ed8' : '#cbd5e1') + ';line-height:1;">' + prodCount + '</span></div>';
-  if (prodCount > 0) {
-    if (inProduction.length > 0) h += '<div style="font-size:11px;color:#1e40af;padding:1px 0;">' + inProduction.length + ' Active Tasks</div>';
-    if (inReview.length > 0) h += '<div style="font-size:11px;color:#1e40af;padding:1px 0;">' + inReview.length + ' In Review</div>';
-    if (prodChanges.length > 0) h += '<div style="font-size:11px;color:#dc2626;padding:1px 0;">' + prodChanges.length + ' Revisions</div>';
-  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">0 Active Tasks</div>'; }
-  h += '</div>';
-
-  // Card 4: Upcoming Deadlines
-  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid #e2e8f0;background:#fff;position:relative;overflow:hidden;">';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:14px;">📅</div>';
-  h += '<span style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Deadlines</span>';
-  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (upcoming.length > 0 ? '#475569' : '#cbd5e1') + ';line-height:1;">' + upcoming.length + '</span></div>';
-  if (upcoming.length > 0) {
-    upcoming.slice(0, 3).forEach(function(t) {
-      var dl = new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      var isToday = t.deadline === todayStr;
-      h += '<div style="font-size:11px;color:' + (isToday ? '#dc2626' : '#475569') + ';padding:1px 0;">' + dl + (isToday ? ' TODAY' : '') + ' — ' + (t.title || 'Task').replace(/</g, '&lt;').substring(0, 25) + '</div>';
-    });
-  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">0 Deadlines This Week</div>'; }
-  h += '</div></div>';
-
   // ─── KPI STRIP ───
-  h += '<div style="display:flex;background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:16px;overflow-x:auto;">';
+  h += '<div style="display:flex;background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:18px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
   var kpis = [
-    { label: 'Scheduled', val: scheduledCount, color: '#059669', icon: '📋' },
-    { label: 'In Production', val: prodCount, color: '#1d4ed8', icon: '⚙' },
-    { label: 'Awaiting Approval', val: pendingApprovals.length, color: '#d97706', icon: '⏳' },
-    { label: 'Requests', val: openRequests.length, color: '#7c3aed', icon: '✉' },
-    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8', icon: '!' },
+    { label: 'Scheduled', val: scheduledCount, color: scheduledCount > 0 ? '#059669' : '#94a3b8', active: scheduledCount > 0 },
+    { label: 'In Production', val: prodCount, color: prodCount > 0 ? '#2563eb' : '#94a3b8', active: prodCount > 0 },
+    { label: 'Awaiting Approval', val: pendingApprovals.length, color: pendingApprovals.length > 0 ? '#d97706' : '#94a3b8', active: pendingApprovals.length > 0 },
+    { label: 'Requests', val: openRequests.length, color: openRequests.length > 0 ? '#7c3aed' : '#94a3b8', active: openRequests.length > 0 },
+    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8', active: missingCount > 0 },
   ];
   kpis.forEach(function(k, i) {
-    h += '<div style="flex:1;min-width:90px;padding:10px 12px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #f1f5f9;' : '') + '">';
-    h += '<div style="font-size:22px;font-weight:900;color:' + k.color + ';line-height:1.1;">' + k.val + '</div>';
-    h += '<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;">' + k.label + '</div>';
+    h += '<div style="flex:1;min-width:95px;padding:14px 10px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #f1f5f9;' : '') + '">';
+    h += '<div style="font-size:26px;font-weight:900;color:' + k.color + ';line-height:1;">' + k.val + '</div>';
+    h += '<div style="font-size:9px;font-weight:800;color:' + (k.active ? '#475569' : '#94a3b8') + ';text-transform:uppercase;letter-spacing:0.7px;margin-top:4px;">' + k.label + '</div>';
     h += '</div>';
   });
   h += '</div>';
 
-  // ─── MAIN 2-COLUMN LAYOUT ───
-  h += '<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;" class="ov-main-grid">';
+  // ─── ROW 2: AI SUMMARY + AI IDEAS + LINKS (3 columns) ───
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr 280px;gap:14px;margin-bottom:18px;" class="ov-row2">';
 
-  // ═══ LEFT COLUMN ═══
-  h += '<div style="display:flex;flex-direction:column;gap:12px;">';
+  // AI Summary Card
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="display:flex;align-items:center;gap:8px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#dbeafe,#c7d2fe);display:flex;align-items:center;justify-content:center;font-size:14px;">🧠</div>';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Summary</span></div>';
+  h += '<button type="button" class="ov-ai-refresh" data-type="summary" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Refresh</button>';
+  h += '</div>';
+  h += '<div id="ovAiSummary" style="flex:1;font-size:13px;color:#475569;line-height:1.6;">';
+  h += '<div style="color:#94a3b8;font-style:italic;">Loading summary...</div></div></div>';
 
-  // A. Content Pipeline (flow with arrows)
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:12px 14px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Content Pipeline</div>';
-  var pipeline = [
-    { label: 'Copy Pending', count: copyPending.length, color: '#64748b', bg: '#f1f5f9' },
-    { label: 'Copy Approved', count: copyApproved.length, color: '#7c3aed', bg: '#f5f3ff' },
-    { label: 'In Production', count: inProduction.length, color: '#1d4ed8', bg: '#dbeafe' },
-    { label: 'In Review', count: inReview.length + pendingApprovals.length, color: '#d97706', bg: '#fef3c7' },
-    { label: 'Approved', count: approvedPosts.length, color: '#059669', bg: '#dcfce7' },
-    { label: 'Scheduled', count: scheduledCount, color: '#0891b2', bg: '#cffafe' },
-  ];
-  h += '<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;">';
-  pipeline.forEach(function(p, i) {
-    h += '<div style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;background:' + p.bg + ';border:1px solid ' + p.color + '25;">';
-    h += '<span style="font-size:14px;font-weight:900;color:' + p.color + ';">' + p.count + '</span>';
-    h += '<span style="font-size:10px;font-weight:700;color:' + p.color + ';white-space:nowrap;">' + p.label + '</span>';
+  // AI Ideas Card
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="display:flex;align-items:center;gap:8px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:14px;">💡</div>';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Ideas</span></div>';
+  h += '<button type="button" class="ov-ai-refresh" data-type="ideas" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Refresh</button>';
+  h += '</div>';
+  h += '<div id="ovAiIdeas" style="flex:1;font-size:13px;color:#475569;line-height:1.6;">';
+  h += '<div style="color:#94a3b8;font-style:italic;">Loading ideas...</div></div></div>';
+
+  // Important Links Card
+  var cLinks = client.clientLinks || {};
+  var linkItems = [];
+  if (cLinks.instagram) linkItems.push({ icon: '📷', label: 'Instagram', url: cLinks.instagram });
+  if (cLinks.facebook) linkItems.push({ icon: '📘', label: 'Facebook', url: cLinks.facebook });
+  if (cLinks.website) linkItems.push({ icon: '🌐', label: 'Website', url: cLinks.website });
+  if (cLinks.googleBusiness) linkItems.push({ icon: '📍', label: 'Google Business', url: cLinks.googleBusiness });
+  if (cLinks.drive) linkItems.push({ icon: '📁', label: 'Drive', url: cLinks.drive });
+  if (cLinks.adsManager) linkItems.push({ icon: '📊', label: 'Ads Manager', url: cLinks.adsManager });
+  if (client.assetsLink && !cLinks.drive) linkItems.push({ icon: '📁', label: 'Assets', url: client.assetsLink });
+
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:180px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Important Links</span>';
+  h += '<button type="button" class="ov-edit-links" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Edit</button>';
+  h += '</div>';
+  if (linkItems.length === 0) {
+    h += '<div style="flex:1;display:flex;align-items:center;justify-content:center;">';
+    h += '<button type="button" class="ov-edit-links" style="padding:10px 20px;border-radius:10px;border:1.5px dashed #cbd5e1;background:#fff;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;">+ Add Links</button></div>';
+  } else {
+    h += '<div style="flex:1;display:flex;flex-direction:column;gap:2px;">';
+    linkItems.forEach(function(lnk) {
+      var domain = '';
+      try { domain = new URL(lnk.url).hostname.replace('www.', ''); } catch(e) { domain = lnk.label; }
+      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;text-decoration:none;color:#0f172a;transition:background 0.1s;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'transparent\'">';
+      h += '<span style="font-size:18px;">' + lnk.icon + '</span>';
+      h += '<span style="font-size:12px;font-weight:600;color:#0f172a;">' + domain.replace(/</g, '&lt;') + '</span>';
+      h += '</a>';
+    });
     h += '</div>';
-    if (i < pipeline.length - 1) h += '<span style="color:#cbd5e1;font-size:11px;font-weight:700;">›</span>';
-  });
+  }
   h += '</div></div>';
 
-  // B. Requests
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
+  // ─── ROW 3: REQUESTS + CALENDAR + DESIGNER RING (3 columns) ───
+  h += '<div style="display:grid;grid-template-columns:280px 1fr 200px;gap:14px;" class="ov-row3">';
+
+  // Requests Card
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;">Requests</div>';
-  if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:800;">' + openRequests.length + ' open</span>';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Requests</span>';
+  if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:800;">' + openRequests.length + '</span>';
   h += '</div>';
   if (openRequests.length === 0) {
-    h += '<div style="font-size:12px;color:#94a3b8;padding:4px 0;">No open requests</div>';
+    h += '<div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:#94a3b8;">No open requests</div>';
   } else {
-    openRequests.slice(0, 5).forEach(function(r) {
-      h += '<div style="padding:7px 0;border-bottom:1px solid #f8fafc;display:flex;align-items:flex-start;gap:8px;">';
-      h += '<div style="width:6px;height:6px;border-radius:50%;background:#7c3aed;margin-top:5px;flex-shrink:0;"></div>';
-      h += '<div style="flex:1;min-width:0;">';
+    h += '<div style="flex:1;overflow-y:auto;">';
+    openRequests.slice(0, 6).forEach(function(r) {
+      h += '<div style="padding:8px 0;border-bottom:1px solid #f8fafc;">';
       h += '<div style="font-size:12px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</div>';
-      if (r.details) h += '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 60) + '</div>';
-      h += '</div>';
-      if (r.createdAt) h += '<span style="font-size:10px;color:#94a3b8;white-space:nowrap;">' + fmtDate(r.createdAt) + '</span>';
+      if (r.details) h += '<div style="font-size:11px;color:#64748b;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 80) + '</div>';
+      if (r.createdAt) h += '<div style="font-size:10px;color:#94a3b8;margin-top:3px;">' + fmtDate(r.createdAt) + '</div>';
       h += '</div>';
     });
-    if (openRequests.length > 5) h += '<div style="font-size:11px;color:#1e40af;padding-top:6px;cursor:pointer;font-weight:600;" class="ov-show-all-requests">+ ' + (openRequests.length - 5) + ' more</div>';
+    h += '</div>';
+    if (openRequests.length > 6) h += '<div style="font-size:11px;color:#1e40af;padding-top:8px;cursor:pointer;font-weight:700;text-align:center;" class="ov-show-all-requests">View all ' + openRequests.length + ' requests</div>';
   }
   h += '</div>';
 
-  // C. Blockers
+  // Calendar Card (mini month)
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">Content Calendar</span>';
+  h += '<div style="display:flex;gap:4px;">';
+  h += '<button type="button" class="ov-cal-prev" style="width:24px;height:24px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-size:12px;color:#475569;">‹</button>';
+  h += '<span id="ovCalMonth" style="font-size:12px;font-weight:700;color:#475569;padding:0 6px;line-height:24px;"></span>';
+  h += '<button type="button" class="ov-cal-next" style="width:24px;height:24px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-size:12px;color:#475569;">›</button>';
+  h += '</div></div>';
+  h += '<div id="ovCalGrid"></div>';
+  h += '</div>';
+
+  // Designer Completion Ring
+  var totalTasks = prodTasks.length;
+  var completedTasks = prodTasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; }).length;
+  var pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  var circumference = 2 * Math.PI * 54;
+  var dashOffset = circumference - (circumference * pct / 100);
+
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:280px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+  h += '<span style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:12px;text-align:center;">Designer Tasks<br>Completion</span>';
+  h += '<div style="position:relative;width:120px;height:120px;">';
+  h += '<svg width="120" height="120" viewBox="0 0 120 120">';
+  h += '<circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" stroke-width="8"/>';
+  h += '<circle cx="60" cy="60" r="54" fill="none" stroke="' + (pct >= 80 ? '#059669' : pct >= 40 ? '#2563eb' : '#d97706') + '" stroke-width="8" stroke-linecap="round" stroke-dasharray="' + circumference + '" stroke-dashoffset="' + dashOffset + '" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset 0.8s ease;"/>';
+  h += '</svg>';
+  h += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">';
+  h += '<div style="font-size:28px;font-weight:900;color:' + (pct >= 80 ? '#059669' : pct >= 40 ? '#2563eb' : '#d97706') + ';">' + pct + '%</div>';
+  h += '</div></div>';
+  h += '<div style="font-size:11px;color:#64748b;margin-top:10px;text-align:center;">' + completedTasks + ' of ' + totalTasks + ' tasks done</div>';
+  h += '</div></div>';
+
+  // Blockers (only if exists)
   if (openNeeds.length > 0) {
-    h += '<div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border-radius:12px;border:1.5px solid #fecaca;padding:14px 16px;">';
+    h += '<div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border-radius:14px;border:1.5px solid #fecaca;padding:14px 16px;margin-top:14px;">';
     h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">';
-    h += '<div style="width:20px;height:20px;border-radius:6px;background:#fecaca;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#dc2626;">!</div>';
-    h += '<span style="font-size:13px;font-weight:700;color:#dc2626;">Blockers & Missing</span></div>';
-    openNeeds.slice(0, 5).forEach(function(n) {
-      h += '<div style="padding:4px 0;display:flex;align-items:center;gap:6px;">';
-      h += '<span style="color:#ef4444;font-size:11px;">✖</span>';
-      h += '<span style="font-size:12px;color:#7f1d1d;font-weight:500;">' + (n.label || n.text || 'Missing item').replace(/</g, '&lt;') + '</span>';
-      h += '</div>';
-    });
-    h += '</div>';
-  }
-
-  h += '</div>'; // end left column
-
-  // ═══ RIGHT COLUMN ═══
-  h += '<div style="display:flex;flex-direction:column;gap:12px;">';
-
-  // A. Brand & Goals
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Brand & Goals</div>';
-  var brandRows = [];
-  if (client.primaryGoal) brandRows.push(['Primary Goal', client.primaryGoal]);
-  if (client.secondaryGoal) brandRows.push(['Secondary Goal', client.secondaryGoal]);
-  if (client.internalBehaviorType) brandRows.push(['Behavior', client.internalBehaviorType]);
-  if (client.riskLevel) brandRows.push(['Risk', client.riskLevel]);
-  if (brandRows.length === 0) {
-    h += '<div style="font-size:11px;color:#94a3b8;">No brand info. Edit client to add.</div>';
-  } else {
-    brandRows.forEach(function(row) {
-      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f8fafc;">';
-      h += '<span style="font-size:11px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
-      h += '<span style="font-size:11px;color:#0f172a;font-weight:600;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
-      h += '</div>';
-    });
-  }
-  if (client.internalNotes) {
-    h += '<div style="margin-top:8px;padding:8px;background:#f8fafc;border-radius:8px;font-size:11px;color:#475569;line-height:1.4;">';
-    h += '<div style="font-weight:700;margin-bottom:3px;color:#0f172a;">Notes</div>';
-    h += (client.internalNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').substring(0, 200);
-    h += '</div>';
-  }
-  h += '</div>';
-
-  // B. Links & Assets
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Links & Assets</div>';
-  var links = [];
-  if (client.assetsLink) links.push({ label: 'Assets / Drive', url: client.assetsLink });
-  if (client.brandGuidelinesLink) links.push({ label: 'Brand Guidelines', url: client.brandGuidelinesLink });
-  if (links.length === 0) {
+    h += '<span style="font-size:13px;font-weight:800;color:#dc2626;">Blockers & Missing</span></div>';
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
-    h += '<button type="button" class="ov-add-link" data-type="asset" style="padding:6px 14px;border-radius:8px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer;">+ Add Asset</button>';
-    h += '<button type="button" class="ov-add-link" data-type="guideline" style="padding:6px 14px;border-radius:8px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer;">+ Add Guideline</button>';
-    h += '</div>';
-  } else {
-    links.forEach(function(lnk) {
-      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #f8fafc;color:#1e40af;font-size:12px;font-weight:600;text-decoration:none;">';
-      h += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
-      h += lnk.label.replace(/</g, '&lt;') + '</a>';
+    openNeeds.slice(0, 5).forEach(function(n) {
+      h += '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;background:rgba(220,38,38,0.08);font-size:12px;color:#991b1b;font-weight:600;">✖ ' + (n.label || n.text || 'Missing').replace(/</g, '&lt;') + '</span>';
     });
+    h += '</div></div>';
   }
-  h += '</div>';
-
-  // C. Next Best Action
-  h += '<div style="background:linear-gradient(135deg,#1e3a8a,#312e81);border-radius:12px;padding:14px 16px;color:#fff;">';
-  h += '<div style="font-size:11px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Next Best Action</div>';
-  var nextAction = '';
-  var nextIcon = '→';
-  if (changesRequested.length > 0) { nextAction = 'Address ' + changesRequested.length + ' change request' + (changesRequested.length > 1 ? 's' : '') + ' from client'; nextIcon = '↩'; }
-  else if (prodChanges.length > 0) { nextAction = 'Review ' + prodChanges.length + ' design revision' + (prodChanges.length > 1 ? 's' : ''); nextIcon = '✎'; }
-  else if (missingCount > 0) { nextAction = 'Follow up on ' + missingCount + ' missing asset' + (missingCount > 1 ? 's' : ''); nextIcon = '□'; }
-  else if (openRequests.length > 0) { nextAction = 'Handle ' + openRequests.length + ' open request' + (openRequests.length > 1 ? 's' : ''); nextIcon = '✉'; }
-  else if (scheduledCount === 0) { nextAction = 'Schedule posts — nothing queued'; nextIcon = '📅'; }
-  else if (copyPending.length > 0) { nextAction = 'Review ' + copyPending.length + ' copy pending'; nextIcon = '📝'; }
-  else { nextAction = 'Looking good! Keep creating.'; nextIcon = '✓'; }
-  h += '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + nextAction + ' ' + nextIcon + '</div>';
-  h += '</div>';
-
-  h += '</div>'; // end right column
-  h += '</div>'; // end main grid
 
   // Responsive
-  h += '<style>.ov-cards-grid{gap:10px;}@media(max-width:900px){.ov-main-grid{grid-template-columns:1fr !important;}.ov-cards-grid{grid-template-columns:repeat(2,1fr) !important;}}</style>';
+  h += '<style>';
+  h += '@media(max-width:1100px){.ov-row2{grid-template-columns:1fr 1fr !important;}.ov-row3{grid-template-columns:1fr 1fr !important;}}';
+  h += '@media(max-width:768px){.ov-row2{grid-template-columns:1fr !important;}.ov-row3{grid-template-columns:1fr !important;}}';
+  h += '</style>';
 
   overviewContent.innerHTML = h;
 
-  // ── Bind clicks ──
+  // ── Bind events ──
   var showAllReqs = overviewContent.querySelector('.ov-show-all-requests');
   if (showAllReqs) showAllReqs.addEventListener('click', function() { switchTab('requests'); });
 
+  // Edit links
+  overviewContent.querySelectorAll('.ov-edit-links').forEach(function(btn) {
+    btn.addEventListener('click', function() { openLinksEditorModal(currentClientId); });
+  });
+
+  // AI refresh buttons
+  overviewContent.querySelectorAll('.ov-ai-refresh').forEach(function(btn) {
+    btn.addEventListener('click', function() { loadOverviewAI(true); });
+  });
+
+  // ── Mini Calendar ──
+  var calMonth = new Date().getMonth();
+  var calYear = new Date().getFullYear();
+
+  function renderMiniCal() {
+    var grid = document.getElementById('ovCalGrid');
+    var monthLabel = document.getElementById('ovCalMonth');
+    if (!grid || !monthLabel) return;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    monthLabel.textContent = months[calMonth] + ' ' + calYear;
+
+    // Collect post dates from approvals
+    var postDates = {};
+    approvals.forEach(function(a) {
+      var d = a.postDate || a.date;
+      if (d && typeof d === 'string') {
+        var key = d.substring(0, 10);
+        if (!postDates[key]) postDates[key] = { planned: 0, scheduled: 0 };
+        postDates[key].planned++;
+      }
+    });
+
+    var firstDay = new Date(calYear, calMonth, 1).getDay();
+    var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    var todayKey = new Date().toISOString().slice(0, 10);
+
+    var ch = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;">';
+    ['S','M','T','W','T','F','S'].forEach(function(d) {
+      ch += '<div style="font-size:9px;font-weight:700;color:#94a3b8;padding:4px 0;">' + d + '</div>';
+    });
+    for (var e = 0; e < firstDay; e++) ch += '<div></div>';
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateKey = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      var hasPost = postDates[dateKey];
+      var isToday = dateKey === todayKey;
+      var bg = 'transparent';
+      var textColor = '#475569';
+      var dotHtml = '';
+      if (hasPost) {
+        bg = '#dbeafe';
+        textColor = '#1e40af';
+        var count = hasPost.planned;
+        if (count > 1) dotHtml = '<div style="font-size:7px;color:#2563eb;font-weight:800;line-height:1;">' + count + '</div>';
+        else dotHtml = '<div style="width:4px;height:4px;border-radius:50%;background:#2563eb;margin:1px auto 0;"></div>';
+      }
+      if (isToday) { bg = '#1e40af'; textColor = '#fff'; if (hasPost) dotHtml = dotHtml.replace('#2563eb', '#93c5fd'); }
+      ch += '<div style="padding:3px 0;border-radius:6px;background:' + bg + ';cursor:default;">';
+      ch += '<div style="font-size:11px;font-weight:' + (isToday || hasPost ? '700' : '500') + ';color:' + textColor + ';line-height:1.3;">' + d + '</div>';
+      ch += dotHtml + '</div>';
+    }
+    ch += '</div>';
+
+    // Legend
+    ch += '<div style="display:flex;gap:12px;margin-top:8px;justify-content:center;">';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dbeafe;border:1px solid #93c5fd;"></div> Post planned</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:50%;background:#1e40af;"></div> Today</div>';
+    ch += '</div>';
+
+    grid.innerHTML = ch;
+  }
+
+  renderMiniCal();
+
+  var calPrev = overviewContent.querySelector('.ov-cal-prev');
+  var calNext = overviewContent.querySelector('.ov-cal-next');
+  if (calPrev) calPrev.addEventListener('click', function() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderMiniCal(); });
+  if (calNext) calNext.addEventListener('click', function() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderMiniCal(); });
+
+  // ── Load AI Summary ──
+  function loadOverviewAI(force) {
+    var summaryEl = document.getElementById('ovAiSummary');
+    var ideasEl = document.getElementById('ovAiIdeas');
+    if (!summaryEl || !ideasEl) return;
+    if (force) {
+      summaryEl.innerHTML = '<div style="color:#94a3b8;font-style:italic;">Generating...</div>';
+      ideasEl.innerHTML = '<div style="color:#94a3b8;font-style:italic;">Generating...</div>';
+    }
+    fetch(getApiBaseUrl() + '/api/ai-copilot/overview-summary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ clientId: currentClientId, forceRefresh: !!force })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.summary && summaryEl) summaryEl.innerHTML = (d.summary || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+      if (d.ideas && ideasEl) ideasEl.innerHTML = (d.ideas || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').replace(/•/g, '<span style="color:#d97706;font-weight:700;">•</span>');
+      if (d.error) {
+        if (summaryEl) summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
+        if (ideasEl) ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">AI not available</div>';
+      }
+    }).catch(function() {
+      if (summaryEl) summaryEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI summary</div>';
+      if (ideasEl) ideasEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">Could not load AI ideas</div>';
+    });
+  }
+
+  loadOverviewAI(false);
   setupClientManagementButtons();
 }
 
