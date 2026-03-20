@@ -1831,38 +1831,6 @@ function renderOverviewTab() {
   // ── Build HTML ──
   var h = '';
 
-  // ─── STICKY CLIENT HEADER ───
-  var initials = (client.name || 'C').split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().slice(0, 2);
-  var logoHtml = client.logoUrl
-    ? '<img src="' + (client.logoUrl || '').replace(/"/g, '&quot;') + '" style="width:40px;height:40px;border-radius:10px;object-fit:contain;">'
-    : '<div style="width:40px;height:40px;border-radius:10px;background:#1e40af;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">' + initials + '</div>';
-
-  h += '<div class="ov-header" style="display:flex;align-items:center;gap:14px;padding:16px 0 20px;border-bottom:1px solid #e2e8f0;margin-bottom:20px;flex-wrap:wrap;">';
-  h += logoHtml;
-  h += '<div style="flex:1;min-width:200px;">';
-  h += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">';
-  h += '<h2 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">' + (client.name || '').replace(/</g, '&lt;') + '</h2>';
-  h += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + healthBg + ';color:' + healthColor + ';">' + healthLabel + '</span>';
-  h += '</div>';
-  var metaLine = [];
-  if (client.category) metaLine.push(client.category);
-  if (client.primaryContactEmail) metaLine.push(client.primaryContactEmail);
-  if (metaLine.length > 0) h += '<div style="font-size:13px;color:#64748b;margin-top:2px;">' + metaLine.join(' · ').replace(/</g, '&lt;') + '</div>';
-  h += '</div>';
-  // Quick action links
-  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-  var quickLinks = [
-    { label: 'Approvals', tab: 'approvals' },
-    { label: 'Requests', tab: 'requests' },
-    { label: 'Scheduled', tab: 'scheduled' },
-    { label: 'Production', action: 'production' },
-  ];
-  quickLinks.forEach(function(ql) {
-    h += '<button type="button" class="ov-quick-link" data-tab="' + (ql.tab || '') + '" data-action="' + (ql.action || '') + '" style="padding:5px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;font-weight:600;cursor:pointer;">' + ql.label + '</button>';
-  });
-  if (client.assetsLink) h += '<a href="' + (client.assetsLink || '').replace(/"/g, '&quot;') + '" target="_blank" style="padding:5px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;font-weight:600;text-decoration:none;">Assets</a>';
-  h += '</div></div>';
-
   // ─── ACTION CENTER (4 cards) ───
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px;">';
 
@@ -1942,9 +1910,9 @@ function renderOverviewTab() {
   // ═══ LEFT COLUMN ═══
   h += '<div style="display:flex;flex-direction:column;gap:16px;">';
 
-  // A. Content Pipeline
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Content Pipeline</div>';
+  // A. Content Pipeline (compact horizontal pills)
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
+  h += '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;">Content Pipeline</div>';
   var pipeline = [
     { label: 'Copy Pending', count: copyPending.length, color: '#94a3b8', bg: '#f1f5f9' },
     { label: 'Copy Approved', count: copyApproved.length, color: '#7c3aed', bg: '#f5f3ff' },
@@ -1953,14 +1921,11 @@ function renderOverviewTab() {
     { label: 'Approved', count: approvedPosts.length, color: '#059669', bg: '#dcfce7' },
     { label: 'Scheduled', count: scheduledCount, color: '#0891b2', bg: '#cffafe' },
   ];
-  h += '<div style="display:flex;gap:4px;align-items:end;margin-bottom:8px;">';
-  var maxPipeline = Math.max.apply(null, pipeline.map(function(p) { return p.count; }).concat([1]));
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
   pipeline.forEach(function(p) {
-    var barH = Math.max(4, (p.count / maxPipeline) * 48);
-    h += '<div style="flex:1;text-align:center;">';
-    h += '<div style="font-size:14px;font-weight:800;color:' + p.color + ';">' + p.count + '</div>';
-    h += '<div style="height:' + barH + 'px;background:' + p.bg + ';border-radius:4px;margin:4px auto;width:100%;border:1px solid ' + p.color + '20;"></div>';
-    h += '<div style="font-size:10px;color:#64748b;font-weight:600;line-height:1.2;">' + p.label + '</div>';
+    h += '<div style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;background:' + p.bg + ';border:1px solid ' + p.color + '30;">';
+    h += '<span style="font-size:14px;font-weight:800;color:' + p.color + ';">' + p.count + '</span>';
+    h += '<span style="font-size:11px;font-weight:600;color:' + p.color + ';">' + p.label + '</span>';
     h += '</div>';
   });
   h += '</div></div>';
@@ -2001,49 +1966,12 @@ function renderOverviewTab() {
     h += '</div>';
   }
 
-  // D. Recent Activity (compact)
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Recent Activity</div>';
-  if (activity.length === 0) {
-    h += '<div style="font-size:13px;color:#94a3b8;">No activity yet</div>';
-  } else {
-    activity.slice(-8).reverse().forEach(function(a) {
-      h += '<div style="padding:5px 0;border-bottom:1px solid #f8fafc;display:flex;align-items:center;gap:8px;">';
-      h += '<span style="width:4px;height:4px;border-radius:50%;background:#cbd5e1;flex-shrink:0;"></span>';
-      h += '<span style="font-size:12px;color:#475569;flex:1;">' + (a.text || '').replace(/</g, '&lt;').substring(0, 60) + '</span>';
-      if (a.when) h += '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;">' + fmtDate(a.when) + '</span>';
-      h += '</div>';
-    });
-  }
-  h += '</div>';
-
   h += '</div>'; // end left column
 
   // ═══ RIGHT COLUMN ═══
   h += '<div style="display:flex;flex-direction:column;gap:16px;">';
 
-  // A. Client Info Card
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Client Info</div>';
-  var infoRows = [];
-  if (client.category) infoRows.push(['Industry', client.category]);
-  if (client.primaryContactName) infoRows.push(['Contact', client.primaryContactName]);
-  if (client.primaryContactEmail) infoRows.push(['Email', client.primaryContactEmail]);
-  if (client.primaryContactWhatsApp) infoRows.push(['WhatsApp', client.primaryContactWhatsApp]);
-  if (client.language) infoRows.push(['Language', client.language]);
-  if (client.preferredChannel) infoRows.push(['Pref. Channel', client.preferredChannel]);
-  if (client.postingFrequency) infoRows.push(['Frequency', client.postingFrequency + (client.postingFrequencyNote ? ' (' + client.postingFrequencyNote + ')' : '')]);
-  if (client.platformsManaged && client.platformsManaged.length > 0) infoRows.push(['Platforms', client.platformsManaged.join(', ')]);
-  if (infoRows.length === 0) infoRows.push(['No info saved yet', '—']);
-  infoRows.forEach(function(row) {
-    h += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f8fafc;">';
-    h += '<span style="font-size:12px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
-    h += '<span style="font-size:12px;color:#0f172a;text-align:right;max-width:180px;overflow:hidden;text-overflow:ellipsis;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
-    h += '</div>';
-  });
-  h += '</div>';
-
-  // B. Brand & Content Rules
+  // A. Brand & Content Rules
   h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
   h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Brand & Goals</div>';
   var brandRows = [];
@@ -2108,15 +2036,7 @@ function renderOverviewTab() {
 
   overviewContent.innerHTML = h;
 
-  // ── Bind quick link clicks ──
-  overviewContent.querySelectorAll('.ov-quick-link').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var tab = btn.getAttribute('data-tab');
-      var action = btn.getAttribute('data-action');
-      if (tab) switchTab(tab);
-      else if (action === 'production') { if (typeof switchToProductionView === 'function') switchToProductionView(); }
-    });
-  });
+  // ── Bind clicks ──
   var showAllReqs = overviewContent.querySelector('.ov-show-all-requests');
   if (showAllReqs) showAllReqs.addEventListener('click', function() { switchTab('requests'); });
 
@@ -2268,6 +2188,59 @@ function _setupKebabMenuOnce() {
       if (m) m.style.display = 'none';
     });
   }
+  const kebabActivity = document.getElementById('kebabRecentActivity');
+  if (kebabActivity) {
+    kebabActivity.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openRecentActivityModal();
+      const m = document.getElementById('clientKebabMenu');
+      if (m) m.style.display = 'none';
+    });
+  }
+}
+
+function openRecentActivityModal() {
+  var existing = document.getElementById('recentActivityModal');
+  if (existing) existing.remove();
+  var state = load();
+  var activity = (state && state.activity) || [];
+
+  var overlay = document.createElement('div');
+  overlay.id = 'recentActivityModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:16px;max-width:560px;width:95%;max-height:80vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column;animation:slideUp 0.2s ease-out;';
+
+  var headerHtml = '<div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">';
+  headerHtml += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Recent Activity</h3>';
+  headerHtml += '<button type="button" id="activityModalClose" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:22px;line-height:1;">&times;</button>';
+  headerHtml += '</div>';
+
+  var bodyHtml = '<div style="padding:16px 24px;overflow-y:auto;flex:1;">';
+  if (activity.length === 0) {
+    bodyHtml += '<div style="text-align:center;padding:32px 0;color:#94a3b8;font-size:14px;">No activity recorded yet.</div>';
+  } else {
+    activity.slice().reverse().forEach(function(a) {
+      bodyHtml += '<div style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;gap:10px;">';
+      bodyHtml += '<div style="width:8px;height:8px;border-radius:50%;background:#cbd5e1;margin-top:6px;flex-shrink:0;"></div>';
+      bodyHtml += '<div style="flex:1;">';
+      bodyHtml += '<div style="font-size:13px;color:#0f172a;">' + (a.text || 'Activity').replace(/</g, '&lt;') + '</div>';
+      if (a.when) bodyHtml += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + fmtDate(a.when) + '</div>';
+      bodyHtml += '</div></div>';
+    });
+  }
+  bodyHtml += '</div>';
+
+  modal.innerHTML = headerHtml + bodyHtml;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('activityModalClose').addEventListener('click', function() { overlay.remove(); });
+  function onEsc(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); } }
+  document.addEventListener('keydown', onEsc);
 }
 
 // Setup edit and delete client buttons (and kebab menu)
