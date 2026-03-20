@@ -6157,10 +6157,6 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     if (canAddMore) {
       html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '" style="' + (hasArt ? 'padding:16px;min-height:auto;' : '') + '"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm" multiple style="display:none;"><div class="upload-drop-content">' + (hasArt ? '<p style="margin:0;font-size:13px;">+ Add more files <span style="color:#94a3b8;">(' + (maxImages - artCount) + ' remaining)</span></p>' : '<span style="font-size:32px;">📁</span><p>Drop files here or click to browse</p><p style="font-size:12px;color:#94a3b8;">JPG, PNG, MP4, MOV, WebM · Up to ' + maxImages + ' files for carousel</p>') + '</div></div>';
     }
-    // AI Generate button
-    html += '<button type="button" class="workspace-btn workspace-btn-ai-generate" data-task-id="' + task.id + '" data-client-id="' + task.clientId + '" style="width:100%;margin-top:12px;padding:12px 20px;border-radius:10px;border:2px solid #7c3aed;background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.15s;" onmouseenter="this.style.background=\'linear-gradient(135deg,#ede9fe,#ddd6fe)\'" onmouseleave="this.style.background=\'linear-gradient(135deg,#f5f3ff,#ede9fe)\'">'
-      + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
-      + 'Generate with AI</button>';
     // Image grid
     if (hasArt) {
       html += '<div class="upload-image-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:12px;">';
@@ -6307,15 +6303,6 @@ function bindWorkspaceEvents(container, task) {
     });
   });
 
-  // AI Generate button
-  var aiGenBtn = container.querySelector('.workspace-btn-ai-generate[data-task-id="' + taskId + '"]');
-  if (aiGenBtn) {
-    aiGenBtn.addEventListener('click', function() {
-      var cId = aiGenBtn.getAttribute('data-client-id');
-      openAiImageGenModal(taskId, cId);
-    });
-  }
-
   var fileInput = document.getElementById('workspaceFileInput' + taskId);
 
   var dropZone = document.getElementById('workspaceDropZone' + taskId);
@@ -6451,240 +6438,6 @@ var PRODUCTION_STATUS_CONFIG = {
   ready_to_post:     { label: 'Ready',      short: 'Ready',    bgColor: '#f0fdfa',  textColor: '#0d9488', borderColor: '#99f6e4', dotColor: '#14b8a6', icon: '▸' }
 };
 
-// ── AI Image Generation Modal ──
-function openAiImageGenModal(taskId, clientId) {
-  var existing = document.getElementById('aiImageGenModal');
-  if (existing) existing.remove();
-
-  var overlay = document.createElement('div');
-  overlay.id = 'aiImageGenModal';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out;';
-
-  var modal = document.createElement('div');
-  modal.style.cssText = 'background:#fff;border-radius:16px;max-width:560px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp 0.2s ease-out;';
-
-  modal.innerHTML = ''
-    + '<div style="padding:24px 24px 0;display:flex;align-items:center;justify-content:space-between;">'
-    + '<div style="display:flex;align-items:center;gap:10px;">'
-    + '<div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;">'
-    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>'
-    + '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Generate with AI</h3></div>'
-    + '<button type="button" id="aiGenClose" style="background:none;border:none;cursor:pointer;padding:4px;color:#94a3b8;font-size:20px;">&times;</button></div>'
-    // Prompt input
-    + '<div style="padding:20px 24px;">'
-    + '<label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;">Describe the image you want</label>'
-    + '<textarea id="aiGenPrompt" rows="4" placeholder="e.g. A modern flat-lay photo of a coffee cup on a marble table with flowers, warm lighting, Instagram-ready..." style="width:100%;border:1px solid #e2e8f0;border-radius:10px;padding:12px;font-size:14px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;">'
-    + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;cursor:pointer;">'
-    + '<input type="checkbox" id="aiGenUseBrand" checked style="accent-color:#7c3aed;"> Use brand profile</label>'
-    + '<a href="#" id="aiGenEditProfile" style="font-size:12px;color:#7c3aed;text-decoration:none;margin-left:auto;">Edit Brand Profile</a></div>'
-    + '<button type="button" id="aiGenBtn" style="width:100%;margin-top:14px;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">'
-    + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Image</button>'
-    + '</div>'
-    // Preview area
-    + '<div id="aiGenPreview" style="padding:0 24px 24px;display:none;">'
-    + '<div style="border-top:1px solid #e2e8f0;padding-top:16px;">'
-    + '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:10px;">Generated Image</div>'
-    + '<div id="aiGenImageWrap" style="border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc;text-align:center;">'
-    + '<img id="aiGenImage" src="" style="max-width:100%;display:block;margin:0 auto;">'
-    + '</div>'
-    + '<div style="display:flex;gap:8px;margin-top:12px;">'
-    + '<button type="button" id="aiGenDownload" style="flex:1;padding:10px;border-radius:8px;border:none;background:#059669;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Download Image</button>'
-    + '<button type="button" id="aiGenRegenerate" style="flex:1;padding:10px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;">Regenerate</button>'
-    + '</div></div></div>';
-
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  // Close
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('aiGenClose').addEventListener('click', function() { overlay.remove(); });
-  function onEsc(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); } }
-  document.addEventListener('keydown', onEsc);
-
-  // Edit brand profile
-  document.getElementById('aiGenEditProfile').addEventListener('click', function(e) {
-    e.preventDefault();
-    overlay.remove();
-    openBrandProfileEditor(clientId);
-  });
-
-  // Generate
-  var generating = false;
-  var genTimer = null;
-  async function doGenerate() {
-    if (generating) return;
-    var prompt = document.getElementById('aiGenPrompt').value.trim();
-    if (!prompt) { showToast('Enter a prompt to generate an image', 'error'); return; }
-    generating = true;
-    var btn = document.getElementById('aiGenBtn');
-    var seconds = 0;
-    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating... 0s';
-    btn.style.opacity = '0.7';
-    btn.style.pointerEvents = 'none';
-    genTimer = setInterval(function() { seconds++; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating... ' + seconds + 's'; }, 1000);
-    try {
-      var useBrand = document.getElementById('aiGenUseBrand').checked;
-      var r = await fetch(getApiBaseUrl() + '/api/ai/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ prompt: prompt, taskId: taskId, clientId: clientId, enhanceWithBrand: useBrand })
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Generation failed');
-      document.getElementById('aiGenImage').src = d.imageUrl;
-      document.getElementById('aiGenPreview').style.display = 'block';
-      document.getElementById('aiGenPreview').setAttribute('data-image-url', d.imageUrl);
-      showToast('Image generated in ' + seconds + 's!', 'success');
-    } catch (err) {
-      showToast(err.message || 'Failed to generate image. Try a simpler prompt.', 'error');
-    }
-    clearInterval(genTimer);
-    generating = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Image';
-    btn.style.opacity = '1';
-    btn.style.pointerEvents = 'auto';
-  }
-
-  document.getElementById('aiGenBtn').addEventListener('click', doGenerate);
-  document.getElementById('aiGenRegenerate').addEventListener('click', doGenerate);
-
-  // Download
-  document.getElementById('aiGenDownload').addEventListener('click', function() {
-    var url = document.getElementById('aiGenPreview').getAttribute('data-image-url');
-    if (!url) return;
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'ai-generated-' + Date.now() + '.png';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('Image downloaded! Upload it to your task.', 'success');
-  });
-
-  // Focus prompt
-  setTimeout(function() { document.getElementById('aiGenPrompt').focus(); }, 100);
-}
-
-// ── Brand Profile Editor Modal ──
-function openBrandProfileEditor(clientId) {
-  var existing = document.getElementById('brandProfileModal');
-  if (existing) existing.remove();
-
-  var overlay = document.createElement('div');
-  overlay.id = 'brandProfileModal';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out;';
-
-  var modal = document.createElement('div');
-  modal.style.cssText = 'background:#fff;border-radius:16px;max-width:600px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:24px;animation:slideUp 0.2s ease-out;';
-
-  modal.innerHTML = ''
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">'
-    + '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">AI Brand Profile</h3>'
-    + '<button type="button" id="bpClose" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button></div>'
-    + '<p style="margin:0 0 16px;font-size:13px;color:#64748b;">This profile helps Gemini generate on-brand images. The more details, the better the results.</p>'
-    + '<div id="bpForm" style="display:flex;flex-direction:column;gap:14px;">'
-    + bpField('brandName', 'Brand Name', 'text', 'e.g. Super Crisp')
-    + bpField('industry', 'Industry', 'text', 'e.g. Food & Beverage')
-    + bpField('brandDescription', 'Brand Description', 'textarea', 'Brief description of what the brand does and stands for...')
-    + '<div style="font-size:14px;font-weight:600;color:#0f172a;margin-top:4px;">Visual Identity</div>'
-    + bpField('primaryColors', 'Primary Colors (hex)', 'text', 'e.g. #FF5733, #1e40af')
-    + bpField('secondaryColors', 'Secondary Colors (hex)', 'text', 'e.g. #f1f5f9, #fbbf24')
-    + bpField('fontStyle', 'Font / Typography Style', 'text', 'e.g. Modern sans-serif, clean and bold')
-    + bpField('logoDescription', 'Logo Description', 'text', 'Describe the logo so AI understands it')
-    + '<div style="font-size:14px;font-weight:600;color:#0f172a;margin-top:4px;">Tone & Style</div>'
-    + bpField('brandVoice', 'Brand Voice', 'text', 'e.g. Professional yet friendly, fun and casual')
-    + bpField('visualStyle', 'Visual Style', 'text', 'e.g. Clean minimalist, Bold and vibrant')
-    + bpField('targetAudience', 'Target Audience', 'text', 'e.g. Women 25-45, health-conscious')
-    + '<div style="font-size:14px;font-weight:600;color:#0f172a;margin-top:4px;">Content Guidelines</div>'
-    + bpField('doList', 'Always Include (comma-separated)', 'text', 'e.g. Brand colors, lifestyle imagery, warm tones')
-    + bpField('dontList', 'Always Avoid (comma-separated)', 'text', 'e.g. Dark themes, stock photo look, competitors')
-    + bpField('additionalNotes', 'Additional Notes', 'textarea', 'Any other brand details the AI should know...')
-    + '</div>'
-    + '<div style="display:flex;gap:10px;margin-top:20px;">'
-    + '<button type="button" id="bpSave" style="flex:1;padding:12px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Save Profile</button>'
-    + '<button type="button" id="bpCancel" style="padding:12px 20px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>'
-    + '</div>';
-
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('bpClose').addEventListener('click', function() { overlay.remove(); });
-  document.getElementById('bpCancel').addEventListener('click', function() { overlay.remove(); });
-
-  // Load existing profile
-  fetch(getApiBaseUrl() + '/api/ai/brand-profile?clientId=' + encodeURIComponent(clientId), { credentials: 'include' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.profile) {
-        var p = d.profile;
-        setBpVal('brandName', p.brandName);
-        setBpVal('industry', p.industry);
-        setBpVal('brandDescription', p.brandDescription);
-        setBpVal('primaryColors', (p.primaryColors || []).join(', '));
-        setBpVal('secondaryColors', (p.secondaryColors || []).join(', '));
-        setBpVal('fontStyle', p.fontStyle);
-        setBpVal('logoDescription', p.logoDescription);
-        setBpVal('brandVoice', p.brandVoice);
-        setBpVal('visualStyle', p.visualStyle);
-        setBpVal('targetAudience', p.targetAudience);
-        setBpVal('doList', (p.doList || []).join(', '));
-        setBpVal('dontList', (p.dontList || []).join(', '));
-        setBpVal('additionalNotes', p.additionalNotes);
-      }
-    }).catch(function() {});
-
-  // Save
-  document.getElementById('bpSave').addEventListener('click', async function() {
-    var btn = document.getElementById('bpSave');
-    btn.textContent = 'Saving...';
-    btn.disabled = true;
-    try {
-      var body = {
-        clientId: clientId,
-        brandName: getBpVal('brandName'),
-        industry: getBpVal('industry'),
-        brandDescription: getBpVal('brandDescription'),
-        primaryColors: getBpVal('primaryColors').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-        secondaryColors: getBpVal('secondaryColors').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-        fontStyle: getBpVal('fontStyle'),
-        logoDescription: getBpVal('logoDescription'),
-        brandVoice: getBpVal('brandVoice'),
-        visualStyle: getBpVal('visualStyle'),
-        targetAudience: getBpVal('targetAudience'),
-        doList: getBpVal('doList').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-        dontList: getBpVal('dontList').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
-        additionalNotes: getBpVal('additionalNotes'),
-        samplePostDescriptions: [],
-        referenceImageUrls: [],
-      };
-      var r = await fetch(getApiBaseUrl() + '/api/ai/brand-profile', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify(body)
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Failed to save');
-      overlay.remove();
-      showToast('Brand profile saved!', 'success');
-    } catch (err) {
-      showToast(err.message || 'Failed to save', 'error');
-      btn.textContent = 'Save Profile';
-      btn.disabled = false;
-    }
-  });
-}
-
-function bpField(name, label, type, placeholder) {
-  var inputHtml = type === 'textarea'
-    ? '<textarea id="bp_' + name + '" rows="3" placeholder="' + placeholder + '" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>'
-    : '<input type="text" id="bp_' + name + '" placeholder="' + placeholder + '" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;box-sizing:border-box;">';
-  return '<div><label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">' + label + '</label>' + inputHtml + '</div>';
-}
-function getBpVal(name) { var el = document.getElementById('bp_' + name); return el ? el.value.trim() : ''; }
-function setBpVal(name, val) { var el = document.getElementById('bp_' + name); if (el) el.value = val || ''; }
 
 function showDeleteTaskConfirm(taskId, taskTitle) {
   // Remove existing modal if any
@@ -6937,7 +6690,6 @@ function renderProductionView() {
       if (t.status === 'in_progress' || t.status === 'changes_requested') {
         r += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         r += '<button type="button" class="btn-upload-art dv-action-btn" data-id="' + t.id + '" style="background:#f1f5f9;color:#475569;">Upload</button>';
-        r += '<button type="button" class="btn-ai-generate dv-action-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1px solid #c4b5fd;">AI</button>';
       }
       if (cfg.action) {
         var btnClass = 'btn-start-task';
@@ -6982,7 +6734,6 @@ function renderProductionView() {
       if (t.status === 'in_progress') {
         h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
-        h += '<button type="button" class="btn-ai-generate dv-focus-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1.5px solid #7c3aed;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> AI Generate</button>';
         h += '<button type="button" class="btn-submit-review dv-focus-btn dv-focus-btn--blue" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit for Review</button>';
       }
       if (t.status === 'changes_requested') {
@@ -6992,7 +6743,6 @@ function renderProductionView() {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
         h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
-        h += '<button type="button" class="btn-ai-generate dv-focus-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1.5px solid #7c3aed;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> AI Generate</button>';
         h += '<button type="button" class="btn-resubmit dv-focus-btn dv-focus-btn--red" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Resubmit</button>';
         h += '</div>';
       }
@@ -7230,16 +6980,6 @@ function renderProductionView() {
             .then(function() { renderProductionView(); showToast('Art uploaded'); })
             .catch(function(e) { showToast(e.message || 'Upload failed', 'error'); });
         });
-      });
-    });
-
-    // AI Generate buttons (designer focus card + task rows)
-    container.querySelectorAll('.btn-ai-generate').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var taskId = btn.getAttribute('data-id');
-        var clientId = btn.getAttribute('data-client-id');
-        openAiImageGenModal(taskId, clientId);
       });
     });
 

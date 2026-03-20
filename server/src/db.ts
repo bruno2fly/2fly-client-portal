@@ -21,8 +21,7 @@ import type {
   PortalStateData,
   MetaIntegration,
   ScheduledPost,
-  ProductionTask,
-  BrandProfile
+  ProductionTask
 } from './types.js';
 
 const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
@@ -42,7 +41,6 @@ const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 const META_INTEGRATIONS_FILE = join(DB_DIR, 'meta-integrations.json');
 const SCHEDULED_POSTS_FILE = join(DB_DIR, 'scheduled-posts.json');
 const PRODUCTION_TASKS_FILE = join(DB_DIR, 'production-tasks.json');
-const BRAND_PROFILES_FILE = join(DB_DIR, 'brand-profiles.json');
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
   mkdirSync(DB_DIR, { recursive: true });
@@ -500,31 +498,6 @@ export function saveProductionTask(task: ProductionTask): void {
 export function deleteProductionTask(id: string): void {
   const tasks = getProductionTasks().filter(t => t.id !== id);
   writeJSON(PRODUCTION_TASKS_FILE, tasks);
-}
-
-// Brand Profiles
-export function getBrandProfiles(): Record<string, BrandProfile> {
-  return readJSON<Record<string, BrandProfile>>(BRAND_PROFILES_FILE, {});
-}
-
-export function getBrandProfileByClient(agencyId: string, clientId: string): BrandProfile | null {
-  const all = getBrandProfiles();
-  const key = `${agencyId}:${clientId}`;
-  return all[key] || null;
-}
-
-export function saveBrandProfile(profile: BrandProfile): void {
-  const all = getBrandProfiles();
-  const key = `${profile.agencyId}:${profile.clientId}`;
-  all[key] = profile;
-  writeJSON(BRAND_PROFILES_FILE, all);
-}
-
-export function deleteBrandProfile(agencyId: string, clientId: string): void {
-  const all = getBrandProfiles();
-  const key = `${agencyId}:${clientId}`;
-  delete all[key];
-  writeJSON(BRAND_PROFILES_FILE, all);
 }
 
 
