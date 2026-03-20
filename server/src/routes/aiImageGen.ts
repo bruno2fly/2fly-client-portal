@@ -68,51 +68,22 @@ router.post('/generate-image', authenticate, requireProductionAccess, async (req
 
     console.log(`[ai-image] Generating image. Prompt length: ${fullPrompt.length}`);
 
-    // Try models in order of preference for native image generation
-    const IMAGE_MODELS = [
-      'gemini-2.0-flash-preview-image-generation',
-      'gemini-2.0-flash-exp-image-generation',
-      'gemini-2.0-flash',
-    ];
+    // Use gemini-2.5-flash-image for native image generation
+    const model = 'gemini-2.5-flash-image';
+    console.log(`[ai-image] Using model: ${model}`);
 
-    let geminiRes: Response | null = null;
-    let usedModel = '';
-
-    for (const model of IMAGE_MODELS) {
-      console.log(`[ai-image] Trying model: ${model}`);
-      const tryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `Generate an image: ${fullPrompt}` }]
-          }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-          },
-        }),
-      });
-
-      const peek: any = await tryRes.json();
-
-      // If model not found, try next
-      if (peek.error && (peek.error.message || '').includes('is not found')) {
-        console.log(`[ai-image] Model ${model} not available, trying next...`);
-        continue;
-      }
-
-      // Model exists — use this response
-      usedModel = model;
-      // Re-wrap the already-parsed JSON into something we can use below
-      geminiRes = new Response(JSON.stringify(peek), { status: tryRes.status, headers: { 'Content-Type': 'application/json' } });
-      break;
-    }
-
-    if (!geminiRes) {
-      return res.status(422).json({ error: 'No image generation model available. Check your Gemini API key permissions.' });
-    }
-
-    console.log(`[ai-image] Using model: ${usedModel}`);
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: `Generate an image: ${fullPrompt}` }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      }),
+    });
 
     const geminiData: any = await geminiRes.json();
 
