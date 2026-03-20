@@ -1773,68 +1773,353 @@ function setupScheduledPostsFilters() {
 
 /* ================== Overview Tab ================== */
 function renderOverviewTab() {
-  const state = load();
-  const clients = loadClientsRegistry();
-  const hasClients = Object.keys(clients).length > 0;
-  const overviewEmpty = $('#overviewEmptyNoClient');
-  const overviewContent = $('#overviewContent');
+  var state = load();
+  var clients = loadClientsRegistry();
+  var hasClients = Object.keys(clients).length > 0;
+  var overviewEmpty = $('#overviewEmptyNoClient');
+  var overviewContent = $('#overviewContent');
   if (overviewEmpty) overviewEmpty.style.display = !hasClients ? 'block' : 'none';
   if (overviewContent) overviewContent.style.display = hasClients ? 'block' : 'none';
+  if (!hasClients || !overviewContent || !currentClientId) return;
 
-  // Calculate scheduled posts from approvals with postDate within next 15 days
-  const scheduledCount = calculateScheduledPosts(state.approvals || []);
-  if (state.kpis) {
-    const prevScheduled = state.kpis.scheduled;
-    state.kpis.scheduled = scheduledCount;
-    if (prevScheduled !== scheduledCount && portalStateFetched.has(currentClientId)) {
-      save(state);
-    }
+  var client = clients[currentClientId] || {};
+  var approvals = state.approvals || [];
+  var needs = state.needs || [];
+  var requests = state.requests || [];
+  var activity = state.activity || [];
+
+  // ── Calculate metrics ──
+  var scheduledCount = calculateScheduledPosts(approvals);
+  var pendingApprovals = approvals.filter(function(a) { return !a.status || a.status === 'pending'; });
+  var changesRequested = approvals.filter(function(a) { return a.status === 'changes'; });
+  var copyPending = approvals.filter(function(a) { return a.status === 'copy_pending'; });
+  var copyApproved = approvals.filter(function(a) { return a.status === 'copy_approved'; });
+  var approvedPosts = approvals.filter(function(a) { return a.status === 'approved'; });
+  var missingCount = state.kpis ? state.kpis.missingAssets || 0 : 0;
+  var openRequests = requests.filter(function(r) { return !r.done; });
+  var openNeeds = needs.filter(function(n) { return !n.done; });
+
+  // Production tasks for this client
+  var prodTasks = (typeof productionTasksCache !== 'undefined' ? productionTasksCache : []).filter(function(t) { return t.clientId === currentClientId; });
+  var inProduction = prodTasks.filter(function(t) { return t.status === 'in_progress' || t.status === 'assigned'; });
+  var inReview = prodTasks.filter(function(t) { return t.status === 'review'; });
+  var prodChanges = prodTasks.filter(function(t) { return t.status === 'changes_requested'; });
+
+  // Health calculation
+  var attentionItems = [];
+  if (changesRequested.length > 0) attentionItems.push(changesRequested.length + ' change request' + (changesRequested.length > 1 ? 's' : ''));
+  if (prodChanges.length > 0) attentionItems.push(prodChanges.length + ' design revision' + (prodChanges.length > 1 ? 's' : ''));
+  if (missingCount > 0) attentionItems.push(missingCount + ' missing asset' + (missingCount > 1 ? 's' : ''));
+  if (openRequests.length > 0) attentionItems.push(openRequests.length + ' client request' + (openRequests.length > 1 ? 's' : ''));
+
+  var waitingItems = [];
+  pendingApprovals.forEach(function(a) { waitingItems.push((a.title || a.caption || 'Post').substring(0, 40)); });
+
+  var healthStatus = 'healthy';
+  var healthLabel = 'Healthy';
+  var healthColor = '#059669';
+  var healthBg = '#dcfce7';
+  if (attentionItems.length > 2 || missingCount > 3) { healthStatus = 'at-risk'; healthLabel = 'At Risk'; healthColor = '#dc2626'; healthBg = '#fee2e2'; }
+  else if (attentionItems.length > 0) { healthStatus = 'attention'; healthLabel = 'Needs Attention'; healthColor = '#d97706'; healthBg = '#fef3c7'; }
+
+  // Upcoming deadlines
+  var todayStr = new Date().toISOString().slice(0, 10);
+  var upcoming = prodTasks.filter(function(t) {
+    return t.deadline && t.deadline >= todayStr && ['approved', 'ready_to_post'].indexOf(t.status) === -1;
+  }).sort(function(a, b) { return (a.deadline || '').localeCompare(b.deadline || ''); }).slice(0, 5);
+
+  // ── Build HTML ──
+  var h = '';
+
+  // ─── STICKY CLIENT HEADER ───
+  var initials = (client.name || 'C').split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().slice(0, 2);
+  var logoHtml = client.logoUrl
+    ? '<img src="' + (client.logoUrl || '').replace(/"/g, '&quot;') + '" style="width:40px;height:40px;border-radius:10px;object-fit:contain;">'
+    : '<div style="width:40px;height:40px;border-radius:10px;background:#1e40af;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">' + initials + '</div>';
+
+  h += '<div class="ov-header" style="display:flex;align-items:center;gap:14px;padding:16px 0 20px;border-bottom:1px solid #e2e8f0;margin-bottom:20px;flex-wrap:wrap;">';
+  h += logoHtml;
+  h += '<div style="flex:1;min-width:200px;">';
+  h += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">';
+  h += '<h2 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">' + (client.name || '').replace(/</g, '&lt;') + '</h2>';
+  h += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + healthBg + ';color:' + healthColor + ';">' + healthLabel + '</span>';
+  h += '</div>';
+  var metaLine = [];
+  if (client.category) metaLine.push(client.category);
+  if (client.primaryContactEmail) metaLine.push(client.primaryContactEmail);
+  if (metaLine.length > 0) h += '<div style="font-size:13px;color:#64748b;margin-top:2px;">' + metaLine.join(' · ').replace(/</g, '&lt;') + '</div>';
+  h += '</div>';
+  // Quick action links
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+  var quickLinks = [
+    { label: 'Approvals', tab: 'approvals' },
+    { label: 'Requests', tab: 'requests' },
+    { label: 'Scheduled', tab: 'scheduled' },
+    { label: 'Production', action: 'production' },
+  ];
+  quickLinks.forEach(function(ql) {
+    h += '<button type="button" class="ov-quick-link" data-tab="' + (ql.tab || '') + '" data-action="' + (ql.action || '') + '" style="padding:5px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;font-weight:600;cursor:pointer;">' + ql.label + '</button>';
+  });
+  if (client.assetsLink) h += '<a href="' + (client.assetsLink || '').replace(/"/g, '&quot;') + '" target="_blank" style="padding:5px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;font-weight:600;text-decoration:none;">Assets</a>';
+  h += '</div></div>';
+
+  // ─── ACTION CENTER (4 cards) ───
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px;">';
+
+  // Card 1: Needs Attention
+  var attCount = attentionItems.length;
+  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (attCount > 0 ? '#fecaca' : '#e2e8f0') + ';background:' + (attCount > 0 ? '#fff5f5' : '#fff') + ';">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  h += '<span style="font-size:13px;font-weight:700;color:' + (attCount > 0 ? '#dc2626' : '#64748b') + ';">Needs Attention</span>';
+  h += '<span style="font-size:22px;font-weight:800;color:' + (attCount > 0 ? '#dc2626' : '#94a3b8') + ';">' + attCount + '</span></div>';
+  if (attCount > 0) {
+    attentionItems.slice(0, 3).forEach(function(item) {
+      h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + item.replace(/</g, '&lt;') + '</div>';
+    });
+  } else { h += '<div style="font-size:12px;color:#94a3b8;">All clear</div>'; }
+  h += '</div>';
+
+  // Card 2: Waiting on Client
+  var waitCount = pendingApprovals.length;
+  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (waitCount > 0 ? '#fde68a' : '#e2e8f0') + ';background:' + (waitCount > 0 ? '#fffbeb' : '#fff') + ';">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  h += '<span style="font-size:13px;font-weight:700;color:' + (waitCount > 0 ? '#d97706' : '#64748b') + ';">Waiting on Client</span>';
+  h += '<span style="font-size:22px;font-weight:800;color:' + (waitCount > 0 ? '#d97706' : '#94a3b8') + ';">' + waitCount + '</span></div>';
+  if (waitCount > 0) {
+    waitingItems.slice(0, 3).forEach(function(item) {
+      h += '<div style="font-size:12px;color:#64748b;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">· ' + item.replace(/</g, '&lt;') + '</div>';
+    });
+  } else { h += '<div style="font-size:12px;color:#94a3b8;">Nothing pending</div>'; }
+  h += '</div>';
+
+  // Card 3: In Production
+  var prodCount = inProduction.length + inReview.length + prodChanges.length;
+  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (prodCount > 0 ? '#bfdbfe' : '#e2e8f0') + ';background:' + (prodCount > 0 ? '#eff6ff' : '#fff') + ';">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  h += '<span style="font-size:13px;font-weight:700;color:' + (prodCount > 0 ? '#1d4ed8' : '#64748b') + ';">In Production</span>';
+  h += '<span style="font-size:22px;font-weight:800;color:' + (prodCount > 0 ? '#1d4ed8' : '#94a3b8') + ';">' + prodCount + '</span></div>';
+  if (prodCount > 0) {
+    if (inProduction.length > 0) h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + inProduction.length + ' in progress</div>';
+    if (inReview.length > 0) h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + inReview.length + ' in review</div>';
+    if (prodChanges.length > 0) h += '<div style="font-size:12px;color:#dc2626;padding:2px 0;">· ' + prodChanges.length + ' need revisions</div>';
+  } else { h += '<div style="font-size:12px;color:#94a3b8;">No active tasks</div>'; }
+  h += '</div>';
+
+  // Card 4: Upcoming Deadlines
+  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid #e2e8f0;background:#fff;">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  h += '<span style="font-size:13px;font-weight:700;color:#475569;">Upcoming Deadlines</span>';
+  h += '<span style="font-size:22px;font-weight:800;color:' + (upcoming.length > 0 ? '#475569' : '#94a3b8') + ';">' + upcoming.length + '</span></div>';
+  if (upcoming.length > 0) {
+    upcoming.slice(0, 3).forEach(function(t) {
+      var dl = new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      var isToday = t.deadline === todayStr;
+      h += '<div style="font-size:12px;color:' + (isToday ? '#dc2626' : '#64748b') + ';padding:2px 0;">· ' + dl + (isToday ? ' TODAY' : '') + ' — ' + (t.title || 'Task').replace(/</g, '&lt;').substring(0, 30) + '</div>';
+    });
+  } else { h += '<div style="font-size:12px;color:#94a3b8;">No deadlines this week</div>'; }
+  h += '</div></div>';
+
+  // ─── KPI STRIP ───
+  h += '<div style="display:flex;gap:0;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;overflow-x:auto;">';
+  var kpis = [
+    { label: 'Scheduled', val: scheduledCount, color: '#059669' },
+    { label: 'In Production', val: prodCount, color: '#1d4ed8' },
+    { label: 'Awaiting Approval', val: pendingApprovals.length, color: '#d97706' },
+    { label: 'Requests', val: openRequests.length, color: '#7c3aed' },
+    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8' },
+  ];
+  kpis.forEach(function(k, i) {
+    h += '<div style="flex:1;min-width:100px;padding:12px 16px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #e2e8f0;' : '') + '">';
+    h += '<div style="font-size:20px;font-weight:800;color:' + k.color + ';">' + k.val + '</div>';
+    h += '<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">' + k.label + '</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  // ─── MAIN 2-COLUMN LAYOUT ───
+  h += '<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;" class="ov-main-grid">';
+
+  // ═══ LEFT COLUMN ═══
+  h += '<div style="display:flex;flex-direction:column;gap:16px;">';
+
+  // A. Content Pipeline
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Content Pipeline</div>';
+  var pipeline = [
+    { label: 'Copy Pending', count: copyPending.length, color: '#94a3b8', bg: '#f1f5f9' },
+    { label: 'Copy Approved', count: copyApproved.length, color: '#7c3aed', bg: '#f5f3ff' },
+    { label: 'In Production', count: inProduction.length, color: '#1d4ed8', bg: '#dbeafe' },
+    { label: 'In Review', count: inReview.length + pendingApprovals.length, color: '#d97706', bg: '#fef3c7' },
+    { label: 'Approved', count: approvedPosts.length, color: '#059669', bg: '#dcfce7' },
+    { label: 'Scheduled', count: scheduledCount, color: '#0891b2', bg: '#cffafe' },
+  ];
+  h += '<div style="display:flex;gap:4px;align-items:end;margin-bottom:8px;">';
+  var maxPipeline = Math.max.apply(null, pipeline.map(function(p) { return p.count; }).concat([1]));
+  pipeline.forEach(function(p) {
+    var barH = Math.max(4, (p.count / maxPipeline) * 48);
+    h += '<div style="flex:1;text-align:center;">';
+    h += '<div style="font-size:14px;font-weight:800;color:' + p.color + ';">' + p.count + '</div>';
+    h += '<div style="height:' + barH + 'px;background:' + p.bg + ';border-radius:4px;margin:4px auto;width:100%;border:1px solid ' + p.color + '20;"></div>';
+    h += '<div style="font-size:10px;color:#64748b;font-weight:600;line-height:1.2;">' + p.label + '</div>';
+    h += '</div>';
+  });
+  h += '</div></div>';
+
+  // B. Requests & Notifications
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;">Requests</div>';
+  if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:700;">' + openRequests.length + ' open</span>';
+  h += '</div>';
+  if (openRequests.length === 0) {
+    h += '<div style="font-size:13px;color:#94a3b8;padding:8px 0;">No open requests</div>';
+  } else {
+    openRequests.slice(0, 5).forEach(function(r) {
+      h += '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;gap:8px;">';
+      h += '<span style="width:6px;height:6px;border-radius:50%;background:#7c3aed;margin-top:6px;flex-shrink:0;"></span>';
+      h += '<div style="flex:1;min-width:0;">';
+      h += '<div style="font-size:13px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</div>';
+      if (r.details) h += '<div style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 60) + '</div>';
+      h += '</div>';
+      if (r.createdAt) h += '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;">' + fmtDate(r.createdAt) + '</span>';
+      h += '</div>';
+    });
+    if (openRequests.length > 5) h += '<div style="font-size:12px;color:#1e40af;padding-top:8px;cursor:pointer;" class="ov-show-all-requests">+ ' + (openRequests.length - 5) + ' more</div>';
+  }
+  h += '</div>';
+
+  // C. Agency Needs / Blockers
+  if (openNeeds.length > 0) {
+    h += '<div style="background:#fff;border-radius:12px;border:1px solid #fecaca;padding:16px;">';
+    h += '<div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:12px;">Blockers & Missing</div>';
+    openNeeds.slice(0, 5).forEach(function(n) {
+      h += '<div style="padding:6px 0;display:flex;align-items:center;gap:8px;">';
+      h += '<span style="color:#dc2626;font-size:14px;">!</span>';
+      h += '<span style="font-size:13px;color:#0f172a;">' + (n.label || n.text || 'Missing item').replace(/</g, '&lt;') + '</span>';
+      h += '</div>';
+    });
+    h += '</div>';
   }
 
-  const kpiScheduled = $('#kpiScheduled');
-  if (kpiScheduled) kpiScheduled.textContent = scheduledCount;
-  const cardScheduledSub = $('#cardScheduled')?.querySelector('.card__sub');
-  if (cardScheduledSub) {
-    if (scheduledCount === 0) cardScheduledSub.textContent = '⚠️ Nothing scheduled — create posts now';
-    else if (scheduledCount <= 3) cardScheduledSub.textContent = 'Light schedule — add more content';
-    else cardScheduledSub.textContent = 'Good coverage for next 15 days';
+  // D. Recent Activity (compact)
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Recent Activity</div>';
+  if (activity.length === 0) {
+    h += '<div style="font-size:13px;color:#94a3b8;">No activity yet</div>';
+  } else {
+    activity.slice(-8).reverse().forEach(function(a) {
+      h += '<div style="padding:5px 0;border-bottom:1px solid #f8fafc;display:flex;align-items:center;gap:8px;">';
+      h += '<span style="width:4px;height:4px;border-radius:50%;background:#cbd5e1;flex-shrink:0;"></span>';
+      h += '<span style="font-size:12px;color:#475569;flex:1;">' + (a.text || '').replace(/</g, '&lt;').substring(0, 60) + '</span>';
+      if (a.when) h += '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;">' + fmtDate(a.when) + '</span>';
+      h += '</div>';
+    });
   }
-  const emptyScheduled = $('#emptyScheduled');
-  if (emptyScheduled) emptyScheduled.style.display = scheduledCount === 0 && hasClients ? 'block' : 'none';
+  h += '</div>';
 
-  const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
-  const kpiWaiting = $('#kpiWaiting');
-  if (kpiWaiting) kpiWaiting.textContent = pendingCount;
-  const awaitingList = (state.approvals || []).filter(a => !a.status || a.status === 'pending');
-  const lastApprovalRequestAt = awaitingList.length ? Math.max(...awaitingList.map(a => a.updatedAt || a.createdAt || 0).filter(Boolean)) : null;
-  const approvalStaleDays = lastApprovalRequestAt ? daysSince(lastApprovalRequestAt) : 0;
-  const cardWaitingSub = $('#cardWaiting')?.querySelector('.card__sub');
-  if (cardWaitingSub) {
-    if (pendingCount === 0) cardWaitingSub.textContent = '✅ Nothing waiting';
-    else if (approvalStaleDays >= APPROVALS_STALE_DAYS_THRESHOLD) cardWaitingSub.textContent = `⏳ Stuck ${approvalStaleDays} days — send reminder`;
-    else cardWaitingSub.textContent = 'On client review';
+  h += '</div>'; // end left column
+
+  // ═══ RIGHT COLUMN ═══
+  h += '<div style="display:flex;flex-direction:column;gap:16px;">';
+
+  // A. Client Info Card
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Client Info</div>';
+  var infoRows = [];
+  if (client.category) infoRows.push(['Industry', client.category]);
+  if (client.primaryContactName) infoRows.push(['Contact', client.primaryContactName]);
+  if (client.primaryContactEmail) infoRows.push(['Email', client.primaryContactEmail]);
+  if (client.primaryContactWhatsApp) infoRows.push(['WhatsApp', client.primaryContactWhatsApp]);
+  if (client.language) infoRows.push(['Language', client.language]);
+  if (client.preferredChannel) infoRows.push(['Pref. Channel', client.preferredChannel]);
+  if (client.postingFrequency) infoRows.push(['Frequency', client.postingFrequency + (client.postingFrequencyNote ? ' (' + client.postingFrequencyNote + ')' : '')]);
+  if (client.platformsManaged && client.platformsManaged.length > 0) infoRows.push(['Platforms', client.platformsManaged.join(', ')]);
+  if (infoRows.length === 0) infoRows.push(['No info saved yet', '—']);
+  infoRows.forEach(function(row) {
+    h += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f8fafc;">';
+    h += '<span style="font-size:12px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
+    h += '<span style="font-size:12px;color:#0f172a;text-align:right;max-width:180px;overflow:hidden;text-overflow:ellipsis;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  // B. Brand & Content Rules
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Brand & Goals</div>';
+  var brandRows = [];
+  if (client.primaryGoal) brandRows.push(['Primary Goal', client.primaryGoal]);
+  if (client.secondaryGoal) brandRows.push(['Secondary Goal', client.secondaryGoal]);
+  if (client.internalBehaviorType) brandRows.push(['Behavior Type', client.internalBehaviorType]);
+  if (client.riskLevel) brandRows.push(['Risk Level', client.riskLevel]);
+  if (brandRows.length === 0) {
+    h += '<div style="font-size:12px;color:#94a3b8;">No brand info saved yet. Edit client to add goals and brand details.</div>';
+  } else {
+    brandRows.forEach(function(row) {
+      h += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f8fafc;">';
+      h += '<span style="font-size:12px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
+      h += '<span style="font-size:12px;color:#0f172a;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
+      h += '</div>';
+    });
   }
-
-  const missingCount = state.kpis?.missingAssets || 0;
-  const kpiMissing = $('#kpiMissing');
-  if (kpiMissing) kpiMissing.textContent = missingCount;
-  const cardMissingSub = $('#cardMissing')?.querySelector('.card__sub');
-  if (cardMissingSub) {
-    if (missingCount === 0) cardMissingSub.textContent = '✅ All set';
-    else cardMissingSub.textContent = '❌ Missing info from client';
+  if (client.internalNotes) {
+    h += '<div style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:8px;font-size:12px;color:#475569;line-height:1.5;">';
+    h += '<div style="font-weight:600;margin-bottom:4px;">Internal Notes</div>';
+    h += (client.internalNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').substring(0, 300);
+    h += '</div>';
   }
-  const emptyMissingCta = $('#emptyMissingCta');
-  if (emptyMissingCta) emptyMissingCta.style.display = missingCount > 0 && hasClients ? 'block' : 'none';
+  h += '</div>';
 
-  const lastActivity = $('#lastActivity');
-  if (lastActivity && state.activity && state.activity.length > 0) {
-    const latest = state.activity[state.activity.length - 1];
-    lastActivity.textContent = `Last portal activity: ${latest.text} (${fmtDate(latest.when)})`;
-  } else if (lastActivity) {
-    lastActivity.textContent = 'Last portal activity: None';
+  // C. Quick Links & Assets
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Links & Assets</div>';
+  var links = [];
+  if (client.assetsLink) links.push({ label: 'Assets / Drive', url: client.assetsLink });
+  if (client.brandGuidelinesLink) links.push({ label: 'Brand Guidelines', url: client.brandGuidelinesLink });
+  if (links.length === 0) {
+    h += '<div style="font-size:12px;color:#94a3b8;">No links saved. Edit client to add asset and guideline links.</div>';
+  } else {
+    links.forEach(function(lnk) {
+      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f8fafc;color:#1e40af;font-size:13px;font-weight:600;text-decoration:none;">';
+      h += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+      h += lnk.label.replace(/</g, '&lt;') + '</a>';
+    });
   }
+  h += '</div>';
 
-  renderActivityLog(state.activity);
+  // D. Next Best Action
+  h += '<div style="background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-radius:12px;border:1px solid #c7d2fe;padding:16px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#4338ca;margin-bottom:8px;">Next Best Action</div>';
+  var nextAction = '';
+  if (changesRequested.length > 0) nextAction = 'Address ' + changesRequested.length + ' change request' + (changesRequested.length > 1 ? 's' : '') + ' from client';
+  else if (prodChanges.length > 0) nextAction = 'Review ' + prodChanges.length + ' design revision' + (prodChanges.length > 1 ? 's' : '') + ' in production';
+  else if (missingCount > 0) nextAction = 'Follow up on ' + missingCount + ' missing asset' + (missingCount > 1 ? 's' : '');
+  else if (openRequests.length > 0) nextAction = 'Handle ' + openRequests.length + ' open request' + (openRequests.length > 1 ? 's' : '');
+  else if (scheduledCount === 0) nextAction = 'Schedule some posts — nothing is queued';
+  else if (copyPending.length > 0) nextAction = 'Review ' + copyPending.length + ' copy pending approval';
+  else nextAction = 'Looking good! Keep creating content.';
+  h += '<div style="font-size:14px;color:#1e1b4b;font-weight:600;">' + nextAction + '</div>';
+  h += '</div>';
+
+  h += '</div>'; // end right column
+  h += '</div>'; // end main grid
+
+  // Mobile responsive override
+  h += '<style>.ov-main-grid{gap:20px;}@media(max-width:900px){.ov-main-grid{grid-template-columns:1fr !important;}}</style>';
+
+  overviewContent.innerHTML = h;
+
+  // ── Bind quick link clicks ──
+  overviewContent.querySelectorAll('.ov-quick-link').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var tab = btn.getAttribute('data-tab');
+      var action = btn.getAttribute('data-action');
+      if (tab) switchTab(tab);
+      else if (action === 'production') { if (typeof switchToProductionView === 'function') switchToProductionView(); }
+    });
+  });
+  var showAllReqs = overviewContent.querySelector('.ov-show-all-requests');
+  if (showAllReqs) showAllReqs.addEventListener('click', function() { switchTab('requests'); });
+
   setupClientManagementButtons();
 }
 

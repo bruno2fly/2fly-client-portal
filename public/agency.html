@@ -1937,32 +1937,7 @@
           <p class="empty-state__text">Welcome to your agency dashboard. Add your first client to get started.</p>
           <button type="button" class="btn btn-primary btn-primary-cta" id="overviewAddFirstClientBtn" style="margin-top: 16px; padding: 14px 28px; font-size: 16px;">Add your first client</button>
         </div>
-        <div id="overviewContent" class="overview-content">
-        <div class="cards-grid cards-grid--primary">
-          <div class="card card--cta" id="cardScheduled">
-            <div class="card__title">Scheduled Posts</div>
-            <div class="card__value" id="kpiScheduled">0</div>
-            <div class="card__sub">Next 15 days</div>
-            <div id="emptyScheduled" class="empty-state-inline" style="display: none;">No scheduled posts yet — create one to see it here.</div>
-          </div>
-          <div class="card card--cta" id="cardWaiting">
-            <div class="card__title">Awaiting Approval</div>
-            <div class="card__value" id="kpiWaiting">0</div>
-            <div class="card__sub">On client review</div>
-          </div>
-          <div class="card" id="cardMissing">
-            <div class="card__title">Agency Needs (missing)</div>
-            <div class="card__value" id="kpiMissing">0</div>
-            <div class="card__sub">From client</div>
-            <div id="emptyMissingCta" class="empty-state-inline empty-state-inline--cta" style="display: none;"><button type="button" class="btn btn-primary btn-small" id="requestMissingAssetsBtn">Request missing assets from client</button></div>
-          </div>
-        </div>
-        <div class="activity-section card" id="activitySection">
-          <div class="card__title">Activity</div>
-          <div id="activityLogList" class="activity-log-list">Last portal activity: None</div>
-        </div>
-        <div class="activity-line" id="lastActivity">Last portal activity: None</div>
-        </div>
+        <div id="overviewContent" class="overview-content" style="max-width:100%;"></div>
       </div>
 
       <div id="tabApprovals" class="tab-content">
@@ -3554,7 +3529,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 
-  <script src="/agency.js?v=65"></script>
+  <script src="/agency.js?v=66"></script>
 </body>
 </html>
 
