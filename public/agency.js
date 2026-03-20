@@ -6931,6 +6931,7 @@ function renderProductionView() {
       if (t.status === 'in_progress' || t.status === 'changes_requested') {
         r += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         r += '<button type="button" class="btn-upload-art dv-action-btn" data-id="' + t.id + '" style="background:#f1f5f9;color:#475569;">Upload</button>';
+        r += '<button type="button" class="btn-ai-generate dv-action-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1px solid #c4b5fd;">AI</button>';
       }
       if (cfg.action) {
         var btnClass = 'btn-start-task';
@@ -6975,15 +6976,17 @@ function renderProductionView() {
       if (t.status === 'in_progress') {
         h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
+        h += '<button type="button" class="btn-ai-generate dv-focus-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1.5px solid #7c3aed;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> AI Generate</button>';
         h += '<button type="button" class="btn-submit-review dv-focus-btn dv-focus-btn--blue" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit for Review</button>';
       }
       if (t.status === 'changes_requested') {
         if (t.reviewNotes) {
           h += '<div class="dv-focus-card__revision-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><p>' + t.reviewNotes.replace(/</g, '&lt;').slice(0, 200) + '</p></div>';
         }
-        h += '<div style="display:flex;align-items:center;gap:8px;">';
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
         h += '<input type="file" class="upload-final-art-input" data-id="' + t.id + '" accept="image/*,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
         h += '<button type="button" class="btn-upload-art dv-focus-btn dv-focus-btn--gray" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Art</button>';
+        h += '<button type="button" class="btn-ai-generate dv-focus-btn" data-id="' + t.id + '" data-client-id="' + t.clientId + '" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#7c3aed;border:1.5px solid #7c3aed;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> AI Generate</button>';
         h += '<button type="button" class="btn-resubmit dv-focus-btn dv-focus-btn--red" data-id="' + t.id + '"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Resubmit</button>';
         h += '</div>';
       }
@@ -7221,6 +7224,16 @@ function renderProductionView() {
             .then(function() { renderProductionView(); showToast('Art uploaded'); })
             .catch(function(e) { showToast(e.message || 'Upload failed', 'error'); });
         });
+      });
+    });
+
+    // AI Generate buttons (designer focus card + task rows)
+    container.querySelectorAll('.btn-ai-generate').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var taskId = btn.getAttribute('data-id');
+        var clientId = btn.getAttribute('data-client-id');
+        openAiImageGenModal(taskId, clientId);
       });
     });
 
