@@ -1830,137 +1830,158 @@ function renderOverviewTab() {
 
   // ── Build HTML ──
   var h = '';
+  var prodCount = inProduction.length + inReview.length + prodChanges.length;
 
   // ─── ACTION CENTER (4 cards) ───
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px;">';
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;" class="ov-cards-grid">';
 
   // Card 1: Needs Attention
   var attCount = attentionItems.length;
-  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (attCount > 0 ? '#fecaca' : '#e2e8f0') + ';background:' + (attCount > 0 ? '#fff5f5' : '#fff') + ';">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-  h += '<span style="font-size:13px;font-weight:700;color:' + (attCount > 0 ? '#dc2626' : '#64748b') + ';">Needs Attention</span>';
-  h += '<span style="font-size:22px;font-weight:800;color:' + (attCount > 0 ? '#dc2626' : '#94a3b8') + ';">' + attCount + '</span></div>';
+  var attBorder = attCount > 0 ? '#ef4444' : '#e2e8f0';
+  var attBg = attCount > 0 ? 'linear-gradient(135deg,#fef2f2,#fff1f2)' : '#fff';
+  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + attBorder + ';background:' + attBg + ';position:relative;overflow:hidden;">';
+  if (attCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444;"></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (attCount > 0 ? '#fecaca' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">' + (attCount > 0 ? '!' : '✓') + '</div>';
+  h += '<span style="font-size:12px;font-weight:700;color:' + (attCount > 0 ? '#dc2626' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Attention</span>';
+  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (attCount > 0 ? '#dc2626' : '#cbd5e1') + ';line-height:1;">' + attCount + '</span></div>';
   if (attCount > 0) {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
     attentionItems.slice(0, 3).forEach(function(item) {
-      h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + item.replace(/</g, '&lt;') + '</div>';
+      var iconMap = { 'change': '↩', 'revision': '✎', 'missing': '□', 'request': '✉' };
+      var icon = '•';
+      Object.keys(iconMap).forEach(function(k) { if (item.toLowerCase().indexOf(k) !== -1) icon = iconMap[k]; });
+      h += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:rgba(239,68,68,0.08);font-size:11px;color:#991b1b;font-weight:600;white-space:nowrap;">' + icon + ' ' + item.replace(/</g, '&lt;') + '</span>';
     });
-  } else { h += '<div style="font-size:12px;color:#94a3b8;">All clear</div>'; }
+    h += '</div>';
+  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">All clear</div>'; }
   h += '</div>';
 
   // Card 2: Waiting on Client
   var waitCount = pendingApprovals.length;
-  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (waitCount > 0 ? '#fde68a' : '#e2e8f0') + ';background:' + (waitCount > 0 ? '#fffbeb' : '#fff') + ';">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-  h += '<span style="font-size:13px;font-weight:700;color:' + (waitCount > 0 ? '#d97706' : '#64748b') + ';">Waiting on Client</span>';
-  h += '<span style="font-size:22px;font-weight:800;color:' + (waitCount > 0 ? '#d97706' : '#94a3b8') + ';">' + waitCount + '</span></div>';
+  var waitBorder = waitCount > 0 ? '#f59e0b' : '#e2e8f0';
+  var waitBg = waitCount > 0 ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#fff';
+  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + waitBorder + ';background:' + waitBg + ';position:relative;overflow:hidden;">';
+  if (waitCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#f59e0b;"></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (waitCount > 0 ? '#fde68a' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">⏳</div>';
+  h += '<span style="font-size:12px;font-weight:700;color:' + (waitCount > 0 ? '#b45309' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Client</span>';
+  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (waitCount > 0 ? '#d97706' : '#cbd5e1') + ';line-height:1;">' + waitCount + '</span></div>';
   if (waitCount > 0) {
     waitingItems.slice(0, 3).forEach(function(item) {
-      h += '<div style="font-size:12px;color:#64748b;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">· ' + item.replace(/</g, '&lt;') + '</div>';
+      h += '<div style="font-size:11px;color:#92400e;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">tag: ' + item.replace(/</g, '&lt;') + '</div>';
     });
-  } else { h += '<div style="font-size:12px;color:#94a3b8;">Nothing pending</div>'; }
+  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Nothing pending</div>'; }
   h += '</div>';
 
   // Card 3: In Production
-  var prodCount = inProduction.length + inReview.length + prodChanges.length;
-  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid ' + (prodCount > 0 ? '#bfdbfe' : '#e2e8f0') + ';background:' + (prodCount > 0 ? '#eff6ff' : '#fff') + ';">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-  h += '<span style="font-size:13px;font-weight:700;color:' + (prodCount > 0 ? '#1d4ed8' : '#64748b') + ';">In Production</span>';
-  h += '<span style="font-size:22px;font-weight:800;color:' + (prodCount > 0 ? '#1d4ed8' : '#94a3b8') + ';">' + prodCount + '</span></div>';
+  var prodBorder = prodCount > 0 ? '#3b82f6' : '#e2e8f0';
+  var prodBgCard = prodCount > 0 ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fff';
+  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid ' + prodBorder + ';background:' + prodBgCard + ';position:relative;overflow:hidden;">';
+  if (prodCount > 0) h += '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:#3b82f6;"></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:' + (prodCount > 0 ? '#bfdbfe' : '#f1f5f9') + ';display:flex;align-items:center;justify-content:center;font-size:14px;">⚡</div>';
+  h += '<span style="font-size:12px;font-weight:700;color:' + (prodCount > 0 ? '#1d4ed8' : '#64748b') + ';text-transform:uppercase;letter-spacing:0.5px;">Production</span>';
+  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (prodCount > 0 ? '#1d4ed8' : '#cbd5e1') + ';line-height:1;">' + prodCount + '</span></div>';
   if (prodCount > 0) {
-    if (inProduction.length > 0) h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + inProduction.length + ' in progress</div>';
-    if (inReview.length > 0) h += '<div style="font-size:12px;color:#64748b;padding:2px 0;">· ' + inReview.length + ' in review</div>';
-    if (prodChanges.length > 0) h += '<div style="font-size:12px;color:#dc2626;padding:2px 0;">· ' + prodChanges.length + ' need revisions</div>';
-  } else { h += '<div style="font-size:12px;color:#94a3b8;">No active tasks</div>'; }
+    if (inProduction.length > 0) h += '<div style="font-size:11px;color:#1e40af;padding:1px 0;">' + inProduction.length + ' Active Tasks</div>';
+    if (inReview.length > 0) h += '<div style="font-size:11px;color:#1e40af;padding:1px 0;">' + inReview.length + ' In Review</div>';
+    if (prodChanges.length > 0) h += '<div style="font-size:11px;color:#dc2626;padding:1px 0;">' + prodChanges.length + ' Revisions</div>';
+  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">0 Active Tasks</div>'; }
   h += '</div>';
 
   // Card 4: Upcoming Deadlines
-  h += '<div class="ov-action-card" style="border-radius:12px;padding:16px;border:1px solid #e2e8f0;background:#fff;">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-  h += '<span style="font-size:13px;font-weight:700;color:#475569;">Upcoming Deadlines</span>';
-  h += '<span style="font-size:22px;font-weight:800;color:' + (upcoming.length > 0 ? '#475569' : '#94a3b8') + ';">' + upcoming.length + '</span></div>';
+  h += '<div style="border-radius:14px;padding:14px 16px;border:1.5px solid #e2e8f0;background:#fff;position:relative;overflow:hidden;">';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+  h += '<div style="width:28px;height:28px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:14px;">📅</div>';
+  h += '<span style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Deadlines</span>';
+  h += '<span style="margin-left:auto;font-size:24px;font-weight:900;color:' + (upcoming.length > 0 ? '#475569' : '#cbd5e1') + ';line-height:1;">' + upcoming.length + '</span></div>';
   if (upcoming.length > 0) {
     upcoming.slice(0, 3).forEach(function(t) {
       var dl = new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       var isToday = t.deadline === todayStr;
-      h += '<div style="font-size:12px;color:' + (isToday ? '#dc2626' : '#64748b') + ';padding:2px 0;">· ' + dl + (isToday ? ' TODAY' : '') + ' — ' + (t.title || 'Task').replace(/</g, '&lt;').substring(0, 30) + '</div>';
+      h += '<div style="font-size:11px;color:' + (isToday ? '#dc2626' : '#475569') + ';padding:1px 0;">' + dl + (isToday ? ' TODAY' : '') + ' — ' + (t.title || 'Task').replace(/</g, '&lt;').substring(0, 25) + '</div>';
     });
-  } else { h += '<div style="font-size:12px;color:#94a3b8;">No deadlines this week</div>'; }
+  } else { h += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">0 Deadlines This Week</div>'; }
   h += '</div></div>';
 
   // ─── KPI STRIP ───
-  h += '<div style="display:flex;gap:0;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;overflow-x:auto;">';
+  h += '<div style="display:flex;background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:16px;overflow-x:auto;">';
   var kpis = [
-    { label: 'Scheduled', val: scheduledCount, color: '#059669' },
-    { label: 'In Production', val: prodCount, color: '#1d4ed8' },
-    { label: 'Awaiting Approval', val: pendingApprovals.length, color: '#d97706' },
-    { label: 'Requests', val: openRequests.length, color: '#7c3aed' },
-    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8' },
+    { label: 'Scheduled', val: scheduledCount, color: '#059669', icon: '📋' },
+    { label: 'In Production', val: prodCount, color: '#1d4ed8', icon: '⚙' },
+    { label: 'Awaiting Approval', val: pendingApprovals.length, color: '#d97706', icon: '⏳' },
+    { label: 'Requests', val: openRequests.length, color: '#7c3aed', icon: '✉' },
+    { label: 'Missing Assets', val: missingCount, color: missingCount > 0 ? '#dc2626' : '#94a3b8', icon: '!' },
   ];
   kpis.forEach(function(k, i) {
-    h += '<div style="flex:1;min-width:100px;padding:12px 16px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #e2e8f0;' : '') + '">';
-    h += '<div style="font-size:20px;font-weight:800;color:' + k.color + ';">' + k.val + '</div>';
-    h += '<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">' + k.label + '</div>';
+    h += '<div style="flex:1;min-width:90px;padding:10px 12px;text-align:center;' + (i < kpis.length - 1 ? 'border-right:1px solid #f1f5f9;' : '') + '">';
+    h += '<div style="font-size:22px;font-weight:900;color:' + k.color + ';line-height:1.1;">' + k.val + '</div>';
+    h += '<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;">' + k.label + '</div>';
     h += '</div>';
   });
   h += '</div>';
 
   // ─── MAIN 2-COLUMN LAYOUT ───
-  h += '<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;" class="ov-main-grid">';
+  h += '<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;" class="ov-main-grid">';
 
   // ═══ LEFT COLUMN ═══
-  h += '<div style="display:flex;flex-direction:column;gap:16px;">';
+  h += '<div style="display:flex;flex-direction:column;gap:12px;">';
 
-  // A. Content Pipeline (compact horizontal pills)
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
-  h += '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px;">Content Pipeline</div>';
+  // A. Content Pipeline (flow with arrows)
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:12px 14px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Content Pipeline</div>';
   var pipeline = [
-    { label: 'Copy Pending', count: copyPending.length, color: '#94a3b8', bg: '#f1f5f9' },
+    { label: 'Copy Pending', count: copyPending.length, color: '#64748b', bg: '#f1f5f9' },
     { label: 'Copy Approved', count: copyApproved.length, color: '#7c3aed', bg: '#f5f3ff' },
     { label: 'In Production', count: inProduction.length, color: '#1d4ed8', bg: '#dbeafe' },
     { label: 'In Review', count: inReview.length + pendingApprovals.length, color: '#d97706', bg: '#fef3c7' },
     { label: 'Approved', count: approvedPosts.length, color: '#059669', bg: '#dcfce7' },
     { label: 'Scheduled', count: scheduledCount, color: '#0891b2', bg: '#cffafe' },
   ];
-  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-  pipeline.forEach(function(p) {
-    h += '<div style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;background:' + p.bg + ';border:1px solid ' + p.color + '30;">';
-    h += '<span style="font-size:14px;font-weight:800;color:' + p.color + ';">' + p.count + '</span>';
-    h += '<span style="font-size:11px;font-weight:600;color:' + p.color + ';">' + p.label + '</span>';
+  h += '<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;">';
+  pipeline.forEach(function(p, i) {
+    h += '<div style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;background:' + p.bg + ';border:1px solid ' + p.color + '25;">';
+    h += '<span style="font-size:14px;font-weight:900;color:' + p.color + ';">' + p.count + '</span>';
+    h += '<span style="font-size:10px;font-weight:700;color:' + p.color + ';white-space:nowrap;">' + p.label + '</span>';
     h += '</div>';
+    if (i < pipeline.length - 1) h += '<span style="color:#cbd5e1;font-size:11px;font-weight:700;">›</span>';
   });
   h += '</div></div>';
 
-  // B. Requests & Notifications
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;">Requests</div>';
-  if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:700;">' + openRequests.length + ' open</span>';
+  // B. Requests
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;">Requests</div>';
+  if (openRequests.length > 0) h += '<span style="padding:2px 8px;border-radius:10px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:800;">' + openRequests.length + ' open</span>';
   h += '</div>';
   if (openRequests.length === 0) {
-    h += '<div style="font-size:13px;color:#94a3b8;padding:8px 0;">No open requests</div>';
+    h += '<div style="font-size:12px;color:#94a3b8;padding:4px 0;">No open requests</div>';
   } else {
     openRequests.slice(0, 5).forEach(function(r) {
-      h += '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;gap:8px;">';
-      h += '<span style="width:6px;height:6px;border-radius:50%;background:#7c3aed;margin-top:6px;flex-shrink:0;"></span>';
+      h += '<div style="padding:7px 0;border-bottom:1px solid #f8fafc;display:flex;align-items:flex-start;gap:8px;">';
+      h += '<div style="width:6px;height:6px;border-radius:50%;background:#7c3aed;margin-top:5px;flex-shrink:0;"></div>';
       h += '<div style="flex:1;min-width:0;">';
-      h += '<div style="font-size:13px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</div>';
-      if (r.details) h += '<div style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 60) + '</div>';
+      h += '<div style="font-size:12px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (r.type || r.title || 'Request').replace(/</g, '&lt;') + '</div>';
+      if (r.details) h += '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">' + (r.details || '').replace(/</g, '&lt;').substring(0, 60) + '</div>';
       h += '</div>';
-      if (r.createdAt) h += '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;">' + fmtDate(r.createdAt) + '</span>';
+      if (r.createdAt) h += '<span style="font-size:10px;color:#94a3b8;white-space:nowrap;">' + fmtDate(r.createdAt) + '</span>';
       h += '</div>';
     });
-    if (openRequests.length > 5) h += '<div style="font-size:12px;color:#1e40af;padding-top:8px;cursor:pointer;" class="ov-show-all-requests">+ ' + (openRequests.length - 5) + ' more</div>';
+    if (openRequests.length > 5) h += '<div style="font-size:11px;color:#1e40af;padding-top:6px;cursor:pointer;font-weight:600;" class="ov-show-all-requests">+ ' + (openRequests.length - 5) + ' more</div>';
   }
   h += '</div>';
 
-  // C. Agency Needs / Blockers
+  // C. Blockers
   if (openNeeds.length > 0) {
-    h += '<div style="background:#fff;border-radius:12px;border:1px solid #fecaca;padding:16px;">';
-    h += '<div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:12px;">Blockers & Missing</div>';
+    h += '<div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border-radius:12px;border:1.5px solid #fecaca;padding:14px 16px;">';
+    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">';
+    h += '<div style="width:20px;height:20px;border-radius:6px;background:#fecaca;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#dc2626;">!</div>';
+    h += '<span style="font-size:13px;font-weight:700;color:#dc2626;">Blockers & Missing</span></div>';
     openNeeds.slice(0, 5).forEach(function(n) {
-      h += '<div style="padding:6px 0;display:flex;align-items:center;gap:8px;">';
-      h += '<span style="color:#dc2626;font-size:14px;">!</span>';
-      h += '<span style="font-size:13px;color:#0f172a;">' + (n.label || n.text || 'Missing item').replace(/</g, '&lt;') + '</span>';
+      h += '<div style="padding:4px 0;display:flex;align-items:center;gap:6px;">';
+      h += '<span style="color:#ef4444;font-size:11px;">✖</span>';
+      h += '<span style="font-size:12px;color:#7f1d1d;font-weight:500;">' + (n.label || n.text || 'Missing item').replace(/</g, '&lt;') + '</span>';
       h += '</div>';
     });
     h += '</div>';
@@ -1969,70 +1990,74 @@ function renderOverviewTab() {
   h += '</div>'; // end left column
 
   // ═══ RIGHT COLUMN ═══
-  h += '<div style="display:flex;flex-direction:column;gap:16px;">';
+  h += '<div style="display:flex;flex-direction:column;gap:12px;">';
 
-  // A. Brand & Content Rules
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Brand & Goals</div>';
+  // A. Brand & Goals
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Brand & Goals</div>';
   var brandRows = [];
   if (client.primaryGoal) brandRows.push(['Primary Goal', client.primaryGoal]);
   if (client.secondaryGoal) brandRows.push(['Secondary Goal', client.secondaryGoal]);
-  if (client.internalBehaviorType) brandRows.push(['Behavior Type', client.internalBehaviorType]);
-  if (client.riskLevel) brandRows.push(['Risk Level', client.riskLevel]);
+  if (client.internalBehaviorType) brandRows.push(['Behavior', client.internalBehaviorType]);
+  if (client.riskLevel) brandRows.push(['Risk', client.riskLevel]);
   if (brandRows.length === 0) {
-    h += '<div style="font-size:12px;color:#94a3b8;">No brand info saved yet. Edit client to add goals and brand details.</div>';
+    h += '<div style="font-size:11px;color:#94a3b8;">No brand info. Edit client to add.</div>';
   } else {
     brandRows.forEach(function(row) {
-      h += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f8fafc;">';
-      h += '<span style="font-size:12px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
-      h += '<span style="font-size:12px;color:#0f172a;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f8fafc;">';
+      h += '<span style="font-size:11px;color:#64748b;font-weight:600;">' + row[0] + '</span>';
+      h += '<span style="font-size:11px;color:#0f172a;font-weight:600;">' + (row[1] || '').replace(/</g, '&lt;') + '</span>';
       h += '</div>';
     });
   }
   if (client.internalNotes) {
-    h += '<div style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:8px;font-size:12px;color:#475569;line-height:1.5;">';
-    h += '<div style="font-weight:600;margin-bottom:4px;">Internal Notes</div>';
-    h += (client.internalNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').substring(0, 300);
+    h += '<div style="margin-top:8px;padding:8px;background:#f8fafc;border-radius:8px;font-size:11px;color:#475569;line-height:1.4;">';
+    h += '<div style="font-weight:700;margin-bottom:3px;color:#0f172a;">Notes</div>';
+    h += (client.internalNotes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>').substring(0, 200);
     h += '</div>';
   }
   h += '</div>';
 
-  // C. Quick Links & Assets
-  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px;">';
-  h += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">Links & Assets</div>';
+  // B. Links & Assets
+  h += '<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Links & Assets</div>';
   var links = [];
   if (client.assetsLink) links.push({ label: 'Assets / Drive', url: client.assetsLink });
   if (client.brandGuidelinesLink) links.push({ label: 'Brand Guidelines', url: client.brandGuidelinesLink });
   if (links.length === 0) {
-    h += '<div style="font-size:12px;color:#94a3b8;">No links saved. Edit client to add asset and guideline links.</div>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    h += '<button type="button" class="ov-add-link" data-type="asset" style="padding:6px 14px;border-radius:8px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer;">+ Add Asset</button>';
+    h += '<button type="button" class="ov-add-link" data-type="guideline" style="padding:6px 14px;border-radius:8px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer;">+ Add Guideline</button>';
+    h += '</div>';
   } else {
     links.forEach(function(lnk) {
-      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f8fafc;color:#1e40af;font-size:13px;font-weight:600;text-decoration:none;">';
-      h += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+      h += '<a href="' + (lnk.url || '').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #f8fafc;color:#1e40af;font-size:12px;font-weight:600;text-decoration:none;">';
+      h += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
       h += lnk.label.replace(/</g, '&lt;') + '</a>';
     });
   }
   h += '</div>';
 
-  // D. Next Best Action
-  h += '<div style="background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-radius:12px;border:1px solid #c7d2fe;padding:16px;">';
-  h += '<div style="font-size:13px;font-weight:700;color:#4338ca;margin-bottom:8px;">Next Best Action</div>';
+  // C. Next Best Action
+  h += '<div style="background:linear-gradient(135deg,#1e3a8a,#312e81);border-radius:12px;padding:14px 16px;color:#fff;">';
+  h += '<div style="font-size:11px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Next Best Action</div>';
   var nextAction = '';
-  if (changesRequested.length > 0) nextAction = 'Address ' + changesRequested.length + ' change request' + (changesRequested.length > 1 ? 's' : '') + ' from client';
-  else if (prodChanges.length > 0) nextAction = 'Review ' + prodChanges.length + ' design revision' + (prodChanges.length > 1 ? 's' : '') + ' in production';
-  else if (missingCount > 0) nextAction = 'Follow up on ' + missingCount + ' missing asset' + (missingCount > 1 ? 's' : '');
-  else if (openRequests.length > 0) nextAction = 'Handle ' + openRequests.length + ' open request' + (openRequests.length > 1 ? 's' : '');
-  else if (scheduledCount === 0) nextAction = 'Schedule some posts — nothing is queued';
-  else if (copyPending.length > 0) nextAction = 'Review ' + copyPending.length + ' copy pending approval';
-  else nextAction = 'Looking good! Keep creating content.';
-  h += '<div style="font-size:14px;color:#1e1b4b;font-weight:600;">' + nextAction + '</div>';
+  var nextIcon = '→';
+  if (changesRequested.length > 0) { nextAction = 'Address ' + changesRequested.length + ' change request' + (changesRequested.length > 1 ? 's' : '') + ' from client'; nextIcon = '↩'; }
+  else if (prodChanges.length > 0) { nextAction = 'Review ' + prodChanges.length + ' design revision' + (prodChanges.length > 1 ? 's' : ''); nextIcon = '✎'; }
+  else if (missingCount > 0) { nextAction = 'Follow up on ' + missingCount + ' missing asset' + (missingCount > 1 ? 's' : ''); nextIcon = '□'; }
+  else if (openRequests.length > 0) { nextAction = 'Handle ' + openRequests.length + ' open request' + (openRequests.length > 1 ? 's' : ''); nextIcon = '✉'; }
+  else if (scheduledCount === 0) { nextAction = 'Schedule posts — nothing queued'; nextIcon = '📅'; }
+  else if (copyPending.length > 0) { nextAction = 'Review ' + copyPending.length + ' copy pending'; nextIcon = '📝'; }
+  else { nextAction = 'Looking good! Keep creating.'; nextIcon = '✓'; }
+  h += '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + nextAction + ' ' + nextIcon + '</div>';
   h += '</div>';
 
   h += '</div>'; // end right column
   h += '</div>'; // end main grid
 
-  // Mobile responsive override
-  h += '<style>.ov-main-grid{gap:20px;}@media(max-width:900px){.ov-main-grid{grid-template-columns:1fr !important;}}</style>';
+  // Responsive
+  h += '<style>.ov-cards-grid{gap:10px;}@media(max-width:900px){.ov-main-grid{grid-template-columns:1fr !important;}.ov-cards-grid{grid-template-columns:repeat(2,1fr) !important;}}</style>';
 
   overviewContent.innerHTML = h;
 
