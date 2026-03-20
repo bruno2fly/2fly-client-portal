@@ -3550,9 +3550,11 @@
       transition: all 0.15s; flex-shrink: 0;
     }
     .copilot-send:hover { filter: brightness(1.1); transform: scale(1.05); }
+    @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 
-  <script src="/agency.js?v=61"></script>
+  <script src="/agency.js?v=62"></script>
 </body>
 </html>
 

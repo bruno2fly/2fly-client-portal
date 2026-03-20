@@ -259,3 +259,32 @@ export interface PortalStateData {
   seen: boolean;
 }
 
+/** AI Brand Profile for Gemini image generation - per client */
+export interface BrandProfile {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  // Brand basics
+  brandName: string;
+  industry: string;
+  brandDescription: string;
+  // Visual identity
+  primaryColors: string[];    // hex codes
+  secondaryColors: string[];  // hex codes
+  fontStyle: string;          // e.g. "Modern sans-serif", "Classic serif"
+  logoDescription: string;    // describe the logo for AI context
+  // Tone & style
+  brandVoice: string;         // e.g. "Professional yet friendly"
+  visualStyle: string;        // e.g. "Clean minimalist", "Bold and vibrant"
+  targetAudience: string;     // e.g. "Women 25-45, health-conscious"
+  // Content guidelines
+  doList: string[];           // things to always include
+  dontList: string[];         // things to avoid
+  samplePostDescriptions: string[];  // describe 2-3 ideal posts
+  referenceImageUrls: string[];      // uploaded brand reference images
+  // Extra notes
+  additionalNotes: string;
+  updatedAt: number;
+  createdAt: number;
+}
+
