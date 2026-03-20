@@ -360,6 +360,10 @@ const server = app.listen(PORT, () => {
   console.log(`💾 Data directory: ${join(process.cwd(), 'data')}`);
 });
 
+// Increase server timeouts for long-running requests (AI image generation)
+server.timeout = 120000;       // 2 minutes
+server.keepAliveTimeout = 120000;
+
 server.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use.`);

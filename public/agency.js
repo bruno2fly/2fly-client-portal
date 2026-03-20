@@ -6511,14 +6511,18 @@ function openAiImageGenModal(taskId, clientId) {
 
   // Generate
   var generating = false;
+  var genTimer = null;
   async function doGenerate() {
     if (generating) return;
     var prompt = document.getElementById('aiGenPrompt').value.trim();
     if (!prompt) { showToast('Enter a prompt to generate an image', 'error'); return; }
     generating = true;
     var btn = document.getElementById('aiGenBtn');
-    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating...';
+    var seconds = 0;
+    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating... 0s';
     btn.style.opacity = '0.7';
+    btn.style.pointerEvents = 'none';
+    genTimer = setInterval(function() { seconds++; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating... ' + seconds + 's'; }, 1000);
     try {
       var useBrand = document.getElementById('aiGenUseBrand').checked;
       var r = await fetch(getApiBaseUrl() + '/api/ai/generate-image', {
@@ -6531,14 +6535,16 @@ function openAiImageGenModal(taskId, clientId) {
       if (!r.ok) throw new Error(d.error || 'Generation failed');
       document.getElementById('aiGenImage').src = d.imageUrl;
       document.getElementById('aiGenPreview').style.display = 'block';
-      // Store URL for download
       document.getElementById('aiGenPreview').setAttribute('data-image-url', d.imageUrl);
+      showToast('Image generated in ' + seconds + 's!', 'success');
     } catch (err) {
-      showToast(err.message || 'Failed to generate image', 'error');
+      showToast(err.message || 'Failed to generate image. Try a simpler prompt.', 'error');
     }
+    clearInterval(genTimer);
     generating = false;
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Image';
     btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
   }
 
   document.getElementById('aiGenBtn').addEventListener('click', doGenerate);

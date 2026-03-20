@@ -68,22 +68,40 @@ router.post('/generate-image', authenticate, requireProductionAccess, async (req
 
     console.log(`[ai-image] Generating image. Prompt length: ${fullPrompt.length}`);
 
+    // Extend response timeout to 120s (image gen can take 30-60s)
+    if (res.req?.socket) res.req.socket.setTimeout(120000);
+
     // Use gemini-2.5-flash-image for native image generation
     const model = 'gemini-2.5-flash-image';
     console.log(`[ai-image] Using model: ${model}`);
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: `Generate an image: ${fullPrompt}` }]
-        }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
-      }),
-    });
+    // 90s timeout for the Gemini API call
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
+
+    let geminiRes: globalThis.Response;
+    try {
+      geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `Generate an image: ${fullPrompt}` }]
+          }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
+        }),
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeout);
+      if (fetchErr.name === 'AbortError') {
+        return res.status(504).json({ error: 'Image generation timed out. Try a simpler prompt.' });
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeout);
 
     const geminiData: any = await geminiRes.json();
 
