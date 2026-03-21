@@ -6021,14 +6021,37 @@ function setupReportsHandlers() {
 
 /* ================== Render All ================== */
 function updateGlobalStatusSummary() {
-  const elStatus = $('#headerSystemStatus');
-  const elText = $('.header-status__text');
-  const elDot = $('.header-status__dot');
+  var elStatus = $('#headerSystemStatus');
+  var elText = $('.header-status__text');
+  var elDot = $('.header-status__dot');
   if (!elText) return;
-  const summary = getGlobalStatusSummary();
-  elText.textContent = summary.text;
+  var summary = getGlobalStatusSummary();
+
+  // Count total actions needed across all clients
+  var totalActions = 0;
+  var clients = loadClientsRegistry();
+  Object.keys(clients).forEach(function(id) {
+    var s = portalStateCache[id];
+    if (s) {
+      totalActions += (s.approvals || []).filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'changes' || a.status === 'copy_pending'; }).length;
+      totalActions += (s.requests || []).filter(function(r) { return !r.done; }).length;
+      totalActions += (s.needs || []).filter(function(n) { return !n.done; }).length;
+    }
+  });
+
+  if (totalActions > 0) {
+    elText.innerHTML = '<strong>' + totalActions + '</strong> Actions Needed';
+    if (elStatus) elStatus.style.background = 'rgba(239,68,68,0.2)';
+  } else {
+    elText.textContent = 'All Clear';
+    if (elStatus) elStatus.style.background = 'rgba(255,255,255,0.1)';
+  }
+
   if (elDot) {
     elDot.className = 'header-status__dot header-status__dot--' + summary.state.toLowerCase();
+    if (totalActions > 10) elDot.style.background = '#ef4444';
+    else if (totalActions > 0) elDot.style.background = '#f59e0b';
+    else elDot.style.background = '#059669';
   }
   if (elStatus) elStatus.title = summary.text;
 }
