@@ -3908,7 +3908,7 @@ async function initializeApp() {
 
     // Force re-subscribe to fix old subscriptions saved with wrong userId
     // This runs once per device — after re-subscribing, the flag prevents repeated unsubscribe
-    var resubKey = '2fly_push_resub_v2';
+    var resubKey = '2fly_push_resub_v3';
     if (!localStorage.getItem(resubKey)) {
       reg.pushManager.getSubscription().then(function(oldSub) {
         if (oldSub) {
@@ -4020,12 +4020,23 @@ async function initializeApp() {
 
   function registerClientPush(sub) {
     var apiBase = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? 'https://api.2flyflow.com' : 'http://localhost:3004';
-    var token = localStorage.getItem('clientToken');
+    var token = '';
+    try {
+      var session = JSON.parse(localStorage.getItem('2fly_client_session') || '{}');
+      token = session.token || '';
+    } catch(e) {}
+    if (!token) { pushDebug('No auth token — cannot register push'); return; }
+    pushDebug('Registering push with server...');
     fetch(apiBase + '/api/notifications/subscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ subscription: sub.toJSON() })
-    }).catch(function() {});
+    }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) pushDebug('Subscribed! You will now receive notifications.');
+        else pushDebug('Failed: ' + (d.error || 'unknown'));
+      })
+      .catch(function(e) { pushDebug('Registration error: ' + e.message); });
   }
 </script>
 </body>
