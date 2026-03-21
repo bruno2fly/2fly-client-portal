@@ -3868,11 +3868,52 @@ async function initializeApp() {
     }
   })();
 
-  // PWA: register service worker
+  // PWA: register service worker + push notifications
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/sw.js').catch(function () {});
+      navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        // Init push after 3 seconds
+        setTimeout(function() { initClientPush(reg); }, 3000);
+      }).catch(function () {});
     });
+  }
+
+  function initClientPush(reg) {
+    if (!('PushManager' in window)) return;
+    reg.pushManager.getSubscription().then(function(sub) {
+      if (sub) { registerClientPush(sub); return; }
+      if (Notification.permission === 'granted') { subscribeClientPush(reg); }
+      else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(function(p) { if (p === 'granted') subscribeClientPush(reg); });
+      }
+    });
+  }
+
+  function subscribeClientPush(reg) {
+    var apiBase = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? 'https://api.2flyflow.com' : 'http://localhost:3004';
+    fetch(apiBase + '/api/notifications/vapid-public-key')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.publicKey) return;
+        var padding = '='.repeat((4 - d.publicKey.length % 4) % 4);
+        var b64 = (d.publicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var raw = atob(b64);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+      })
+      .then(function(sub) { if (sub) registerClientPush(sub); })
+      .catch(function() {});
+  }
+
+  function registerClientPush(sub) {
+    var apiBase = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? 'https://api.2flyflow.com' : 'http://localhost:3004';
+    var token = localStorage.getItem('clientToken');
+    fetch(apiBase + '/api/notifications/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    }).catch(function() {});
   }
 </script>
 </body>

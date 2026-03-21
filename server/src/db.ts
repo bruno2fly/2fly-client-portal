@@ -21,7 +21,8 @@ import type {
   PortalStateData,
   MetaIntegration,
   ScheduledPost,
-  ProductionTask
+  ProductionTask,
+  PushSubscriptionRecord
 } from './types.js';
 
 const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || join(process.cwd(), 'data');
@@ -41,6 +42,7 @@ const CLIENT_CREDENTIALS_FILE = join(DB_DIR, 'client-credentials.json');
 const META_INTEGRATIONS_FILE = join(DB_DIR, 'meta-integrations.json');
 const SCHEDULED_POSTS_FILE = join(DB_DIR, 'scheduled-posts.json');
 const PRODUCTION_TASKS_FILE = join(DB_DIR, 'production-tasks.json');
+const PUSH_SUBSCRIPTIONS_FILE = join(DB_DIR, 'push-subscriptions.json');
 // Ensure data directory exists
 if (!existsSync(DB_DIR)) {
   mkdirSync(DB_DIR, { recursive: true });
@@ -504,4 +506,27 @@ export function deleteProductionTask(id: string): void {
   writeJSON(PRODUCTION_TASKS_FILE, tasks);
 }
 
+// Push Subscriptions
+export function getPushSubscriptions(): Record<string, PushSubscriptionRecord> {
+  return readJSON<Record<string, PushSubscriptionRecord>>(PUSH_SUBSCRIPTIONS_FILE, {});
+}
+
+export function savePushSubscription(sub: PushSubscriptionRecord): void {
+  const all = getPushSubscriptions();
+  // Use endpoint as key to prevent duplicates
+  const key = Buffer.from(sub.endpoint).toString('base64').substring(0, 64);
+  all[key] = sub;
+  writeJSON(PUSH_SUBSCRIPTIONS_FILE, all);
+}
+
+export function deletePushSubscription(endpoint: string): void {
+  const all = getPushSubscriptions();
+  const key = Buffer.from(endpoint).toString('base64').substring(0, 64);
+  delete all[key];
+  // Also search by endpoint value
+  Object.keys(all).forEach(k => {
+    if (all[k].endpoint === endpoint) delete all[k];
+  });
+  writeJSON(PUSH_SUBSCRIPTIONS_FILE, all);
+}
 

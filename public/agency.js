@@ -5906,6 +5906,67 @@ function updateGlobalStatusSummary() {
   if (elStatus) elStatus.title = summary.text;
 }
 
+// ── Push Notifications ──
+function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  // Wait a few seconds so the page loads first
+  setTimeout(function() {
+    navigator.serviceWorker.ready.then(function(reg) {
+      // Check if already subscribed
+      reg.pushManager.getSubscription().then(function(existingSub) {
+        if (existingSub) {
+          // Already subscribed, register with server (in case server lost it)
+          registerPushWithServer(existingSub);
+          return;
+        }
+        // Ask permission
+        if (Notification.permission === 'granted') {
+          subscribeToPush(reg);
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(function(perm) {
+            if (perm === 'granted') subscribeToPush(reg);
+          });
+        }
+      });
+    });
+  }, 3000);
+}
+
+function subscribeToPush(reg) {
+  fetch(getApiBaseUrl() + '/api/notifications/vapid-public-key', { credentials: 'include' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.publicKey) return;
+      var key = urlBase64ToUint8Array(d.publicKey);
+      return reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: key,
+      });
+    })
+    .then(function(sub) {
+      if (sub) registerPushWithServer(sub);
+    })
+    .catch(function(e) { console.log('[push] Subscription failed:', e.message); });
+}
+
+function registerPushWithServer(sub) {
+  fetch(getApiBaseUrl() + '/api/notifications/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ subscription: sub.toJSON() })
+  }).catch(function() {});
+}
+
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = window.atob(base64);
+  var arr = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 function renderAll() {
   ensureScheduledTabExists();
   renderClientsSidebar();
@@ -5914,6 +5975,8 @@ function renderAll() {
   renderNotificationBell();
   updateTabCountBadges();
   switchTab(currentTab);
+  // Init push on first render
+  if (!window.__pushInitDone) { window.__pushInitDone = true; initPushNotifications(); }
 }
 
 /* ================== Staff Header ================== */

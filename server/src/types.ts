@@ -275,4 +275,15 @@ export interface PortalStateData {
   seen: boolean;
 }
 
+/** Push notification subscription */
+export interface PushSubscriptionRecord {
+  id: string;
+  userId: string;
+  agencyId: string;
+  role: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  createdAt: number;
+}
+
 

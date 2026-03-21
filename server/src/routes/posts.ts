@@ -22,6 +22,7 @@ import {
   getInstagramAccount,
   refreshLongLivedToken,
 } from '../lib/meta-api.js';
+import { sendPushToRole, NOTIFY } from '../lib/pushService.js';
 
 const router = Router();
 
@@ -334,6 +335,12 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
       return res.status(422).json({ error, post });
     }
+    // Fire-and-forget push notification for successful publish
+    const clientName = getClient(post.clientId)?.name || 'Client';
+    sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
+      clientName,
+      post.platforms.join(' & ')
+    )).catch(() => {});
     res.json({ success: true, post });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to publish' });

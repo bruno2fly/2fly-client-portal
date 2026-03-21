@@ -1,5 +1,5 @@
-/* 2FlyFlow PWA — network-first service worker v4 */
-const CACHE = '2flyflow-v4';
+/* 2FlyFlow PWA — network-first service worker v5 + Push Notifications */
+const CACHE = '2flyflow-v5';
 
 const URLS = [
   '/',
@@ -27,9 +27,6 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-
-  // Only handle same-origin GET requests
-  // Never intercept API calls or cross-origin requests
   if (e.request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
@@ -42,5 +39,54 @@ self.addEventListener('fetch', (e) => {
       }
       return res;
     }).catch(() => caches.match(e.request))
+  );
+});
+
+// ── Push Notification Handler ──
+self.addEventListener('push', (e) => {
+  if (!e.data) return;
+
+  let payload;
+  try {
+    payload = e.data.json();
+  } catch {
+    payload = { title: '2FlyFlow', body: e.data.text() };
+  }
+
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icons/icon-192.png',
+    badge: payload.badge || '/icons/icon-192.png',
+    tag: payload.tag || 'default',
+    renotify: true,
+    vibrate: [100, 50, 100],
+    data: payload.data || {},
+    actions: payload.actions || [],
+  };
+
+  e.waitUntil(
+    self.registration.showNotification(payload.title || '2FlyFlow', options)
+  );
+});
+
+// ── Notification Click Handler ──
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  const action = e.action;
+
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Try to focus an existing window
+      for (const client of clientList) {
+        if (client.url.includes('2flyflow') && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      // Open new window if none found
+      return clients.openWindow(url);
+    })
   );
 });

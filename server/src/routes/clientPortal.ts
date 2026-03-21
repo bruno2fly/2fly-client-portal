@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask } from '../db.js';
 import type { PortalStateData } from '../types.js';
+import { sendPushToRole, sendPushToUser, NOTIFY } from '../lib/pushService.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production-use-strong-secret';
@@ -117,6 +118,19 @@ router.post('/request-changes', (req, res) => {
       linkedTask.reviewNotes = 'Client change request: ' + String(note).slice(0, 2000);
       linkedTask.updatedAt = new Date().toISOString();
       saveProductionTask(linkedTask);
+      // Fire-and-forget push to agency staff about client change request
+      const clientName = getClient(ctx.clientId)?.name || 'Client';
+      sendPushToRole(ctx.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.clientChanges(
+        clientName,
+        linkedTask.title || 'Task'
+      )).catch(() => {});
+      // Also notify the designer if there's a linked production task
+      if (linkedTask && linkedTask.designerId) {
+        sendPushToUser(linkedTask.designerId, NOTIFY.designRevision(
+          linkedTask.title || 'Task',
+          clientName
+        )).catch(() => {});
+      }
     }
     res.json({ success: true, taskUpdated: true, taskId: linkedTask.id });
   } catch (e: any) {

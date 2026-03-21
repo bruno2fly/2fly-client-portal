@@ -19,6 +19,7 @@ import {
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
 import type { ProductionTask, ProductionTaskStatus, ProductionTaskPriority, ProductionTaskComment, ProductionTaskCommentAuthorRole } from '../types.js';
+import { sendPushToUser, sendPushToRole, NOTIFY } from '../lib/pushService.js';
 
 const router = Router();
 
@@ -214,6 +215,12 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
       approvedAt: '',
     };
     saveProductionTask(task);
+    // Fire-and-forget push notification for task assignment
+    sendPushToUser(task.designerId, NOTIFY.taskAssigned(
+      client?.name || 'Client',
+      task.title || task.caption || 'New task',
+      task.deadline || 'TBD'
+    )).catch(() => {});
     const result: any = { success: true, task };
     res.status(201).json(result);
   } catch (e: any) {
@@ -373,7 +380,15 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, (req: A
       }
       task.status = statusChange as ProductionTaskStatus;
       if (statusChange === 'in_progress' && !task.startedAt) task.startedAt = now;
-      if (statusChange === 'review') task.submittedAt = now;
+      if (statusChange === 'review') {
+        task.submittedAt = now;
+        // Fire-and-forget push notification to agency staff when designer submits
+        sendPushToRole(task.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.designerSubmitted(
+          user.name || user.email || 'Designer',
+          task.title || task.caption || 'Task',
+          getClient(task.clientId)?.name || 'Client'
+        )).catch(() => {});
+      }
       if (statusChange === 'approved') {
         task.approvedAt = now;
         task.reviewNotes = '';
@@ -419,9 +434,19 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, (req: Authenti
       } catch (autoErr: any) {
         console.error('[production] Failed to update original item with art:', autoErr?.message);
       }
+      // Fire-and-forget push notification for approval
+      sendPushToUser(task.designerId, NOTIFY.designApproved(
+        task.title || 'Task',
+        getClient(task.clientId)?.name || 'Client'
+      )).catch(() => {});
     } else if (action === 'request_changes') {
       task.status = 'changes_requested';
       task.reviewNotes = String(reviewNotes || '').slice(0, 2000);
+      // Fire-and-forget push notification for revision request
+      sendPushToUser(task.designerId, NOTIFY.designRevision(
+        task.title || 'Task',
+        getClient(task.clientId)?.name || 'Client'
+      )).catch(() => {});
     } else {
       return res.status(400).json({ error: 'action must be approve or request_changes' });
     }
