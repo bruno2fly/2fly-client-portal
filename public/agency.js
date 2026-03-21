@@ -2658,6 +2658,30 @@ function _setupKebabMenuOnce() {
       if (m) m.style.display = 'none';
     });
   }
+  const kebabTestNotif = document.getElementById('kebabTestNotification');
+  if (kebabTestNotif) {
+    kebabTestNotif.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const m = document.getElementById('clientKebabMenu');
+      if (m) m.style.display = 'none';
+      if (!currentClientId) { showToast('Select a client first', 'error'); return; }
+      var clients = loadClientsRegistry();
+      var clientName = (clients[currentClientId] && clients[currentClientId].name) || 'Client';
+      // Send test notification to the client's portal users
+      fetch(getApiBaseUrl() + '/api/notifications/send-to-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ clientId: currentClientId, title: 'Fresh content ready! ✨', body: 'Your team just prepared new content for ' + clientName + '. Take a quick look and approve!' })
+      }).then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.success) showToast('Test notification sent to ' + clientName + ' portal users!', 'success');
+          else showToast(d.error || 'Failed to send', 'error');
+        })
+        .catch(function() { showToast('Failed to send notification', 'error'); });
+    });
+  }
 }
 
 function openRecentActivityModal() {

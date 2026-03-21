@@ -1100,6 +1100,15 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 
     <main id="mainContent">
     <div class="main-content-area" id="mainContentArea">
+    <!-- Push notification opt-in banner -->
+    <div id="pushOptInBanner" style="display:none;margin:12px 16px 0;padding:14px 18px;border-radius:14px;background:linear-gradient(135deg,#1e3a8a,#312e81);color:#fff;display:none;align-items:center;gap:12px;cursor:pointer;" onclick="requestPushPermission()">
+      <span style="font-size:24px;">🔔</span>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:700;">Never miss an update!</div>
+        <div style="font-size:12px;opacity:0.8;margin-top:2px;">Tap to enable notifications when your content is ready</div>
+      </div>
+      <span style="font-size:18px;">→</span>
+    </div>
     <div class="pull-refresh-zone hidden" id="pullRefreshZone"><div class="pull-refresh-spinner"></div><span style="font-size:14px;line-height:18px;color:var(--text-secondary);">Release to refresh</span></div>
     <!-- ALERT BANNER — first element on screen, above everything -->
     <div class="alert-banner" id="actionRequiredCard" aria-live="polite" style="display:none;" data-show-tabs="dashboard">
@@ -3878,13 +3887,37 @@ async function initializeApp() {
     });
   }
 
+  var __pushReg = null;
+
   function initClientPush(reg) {
+    __pushReg = reg;
     if (!('PushManager' in window)) return;
     reg.pushManager.getSubscription().then(function(sub) {
-      if (sub) { registerClientPush(sub); return; }
-      if (Notification.permission === 'granted') { subscribeClientPush(reg); }
-      else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(function(p) { if (p === 'granted') subscribeClientPush(reg); });
+      if (sub) { registerClientPush(sub); hidePushBanner(); return; }
+      if (Notification.permission === 'granted') { subscribeClientPush(reg); hidePushBanner(); }
+      else if (Notification.permission === 'denied') { hidePushBanner(); }
+      else { showPushBanner(); }
+    });
+  }
+
+  function showPushBanner() {
+    var banner = document.getElementById('pushOptInBanner');
+    if (banner) banner.style.display = 'flex';
+  }
+
+  function hidePushBanner() {
+    var banner = document.getElementById('pushOptInBanner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  function requestPushPermission() {
+    if (!__pushReg) return;
+    Notification.requestPermission().then(function(perm) {
+      if (perm === 'granted') {
+        subscribeClientPush(__pushReg);
+        hidePushBanner();
+      } else {
+        hidePushBanner();
       }
     });
   }
