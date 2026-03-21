@@ -80,6 +80,60 @@ router.post('/test', authenticate, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// GET /api/notifications/debug-subs — list all subscriptions (debug)
+router.get('/debug-subs', authenticate, (req: AuthenticatedRequest, res) => {
+  const subs = getPushSubscriptions();
+  const list = Object.values(subs).map(s => ({
+    userId: s.userId,
+    role: s.role,
+    agencyId: s.agencyId,
+    endpoint: s.endpoint.substring(0, 60) + '...',
+    createdAt: new Date(s.createdAt).toISOString(),
+  }));
+  res.json({ total: list.length, subscriptions: list });
+});
+
+// POST /api/notifications/send-to-all — send to ALL subscriptions (for testing)
+router.post('/send-to-all', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, body } = req.body;
+    const subs = getPushSubscriptions();
+    const allSubs = Object.values(subs);
+    let sent = 0;
+
+    for (const sub of allSubs) {
+      try {
+        const webpush = await import('web-push');
+        const publicKey = process.env.VAPID_PUBLIC_KEY;
+        const privateKey = process.env.VAPID_PRIVATE_KEY;
+        if (publicKey && privateKey) {
+          webpush.default.setVapidDetails('mailto:2flydigitalmarketing@gmail.com', publicKey, privateKey);
+          await webpush.default.sendNotification(
+            { endpoint: sub.endpoint, keys: sub.keys as any },
+            JSON.stringify({
+              title: title || 'Test from 2FlyFlow 🔔',
+              body: body || 'This is a test notification sent to all devices!',
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              tag: 'test-all-' + Date.now(),
+              data: { url: '/' },
+            })
+          );
+          sent++;
+        }
+      } catch (err: any) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          deletePushSubscription(sub.endpoint);
+        }
+      }
+    }
+
+    res.json({ success: true, sent, total: allSubs.length });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/notifications/send-to-client — send push to all subscribers for a client
 router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
