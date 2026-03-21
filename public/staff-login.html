@@ -39,20 +39,43 @@
       margin-bottom: 32px;
     }
     
+    /* Same app-icon mark as client login — tile matches app shell #0B0F14 */
     .login-logo {
-      width: 64px;
-      height: 64px;
+      width: 72px;
+      height: 72px;
       margin: 0 auto 16px;
-      background: #0052CC;
+      background: #0B0F14;
       display: flex;
       align-items: center;
       justify-content: center;
       border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
-      color: white;
-      font-size: 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .login-logo-mark {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .login-logo-line1,
+    .login-logo-line2 {
+      font-size: 13px;
       font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .login-logo-line1 {
+      color: #ffffff;
+    }
+
+    .login-logo-line2 {
+      color: #5eb3ff;
+      margin-top: 2px;
     }
     
     .login-title {
@@ -223,7 +246,12 @@
 <body>
   <div class="login-container">
     <div class="login-header">
-      <div class="login-logo">2F</div>
+      <div class="login-logo" role="img" aria-label="2FlyFlow">
+        <div class="login-logo-mark">
+          <span class="login-logo-line1">2Fly</span>
+          <span class="login-logo-line2">Flow</span>
+        </div>
+      </div>
       <h1 class="login-title">Agency Staff Portal</h1>
       <p class="login-subtitle" id="subtitle">Sign in to access the dashboard</p>
     </div>
