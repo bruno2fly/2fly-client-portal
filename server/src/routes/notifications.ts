@@ -86,26 +86,21 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
     const { clientId, title, body } = req.body;
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-    // Find all push subscriptions — client users have role CLIENT
-    // and their userId maps to a user with clientId matching
-    const { getUsers } = await import('../db.js');
     const { sendPushToUser } = await import('../lib/pushService.js');
-    const users = getUsers();
     const subs = getPushSubscriptions();
-
-    // Find client users for this clientId
-    const clientUserIds = Object.values(users)
-      .filter(u => u.role === 'CLIENT' && u.clientId === clientId)
-      .map(u => u.id);
-
-    // Also send to any subscription where the userId is the clientId itself
-    // (some client portal logins store clientId as userId)
-    let sent = 0;
     const allSubs = Object.values(subs);
 
+    // Client portal subscriptions have userId = clientId (set by authenticate middleware)
+    // Also check for role = CLIENT
+    let sent = 0;
+
+    console.log(`[send-to-client] Looking for subs matching clientId: ${clientId}`);
+    console.log(`[send-to-client] Total subs in DB: ${allSubs.length}`);
+    allSubs.forEach(s => console.log(`  - userId: ${s.userId}, role: ${s.role}, endpoint: ${s.endpoint.substring(0, 50)}...`));
+
     for (const sub of allSubs) {
-      const isClientUser = clientUserIds.includes(sub.userId) || sub.userId === clientId;
-      if (isClientUser) {
+      // Match: userId equals clientId, or role is CLIENT and userId matches
+      if (sub.userId === clientId || (sub.role === 'CLIENT' && sub.userId === clientId)) {
         try {
           const webpush = await import('web-push');
           const publicKey = process.env.VAPID_PUBLIC_KEY;
@@ -124,8 +119,10 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
               })
             );
             sent++;
+            console.log(`[send-to-client] Sent to ${sub.userId} successfully`);
           }
         } catch (err: any) {
+          console.error(`[send-to-client] Failed: ${err.message}`);
           if (err.statusCode === 404 || err.statusCode === 410) {
             deletePushSubscription(sub.endpoint);
           }
@@ -133,38 +130,8 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
       }
     }
 
-    // If no client-specific subs found, try sending to all subs (for testing)
-    if (sent === 0 && allSubs.length > 0) {
-      // Send to ALL subscribers as fallback for testing
-      for (const sub of allSubs) {
-        try {
-          const webpush = await import('web-push');
-          const publicKey = process.env.VAPID_PUBLIC_KEY;
-          const privateKey = process.env.VAPID_PRIVATE_KEY;
-          if (publicKey && privateKey) {
-            webpush.default.setVapidDetails('mailto:2flydigitalmarketing@gmail.com', publicKey, privateKey);
-            await webpush.default.sendNotification(
-              { endpoint: sub.endpoint, keys: sub.keys as any },
-              JSON.stringify({
-                title: title || 'Fresh content ready! ✨',
-                body: body || 'New content is waiting for your review!',
-                icon: '/icons/icon-192.png',
-                badge: '/icons/icon-192.png',
-                tag: 'client-' + Date.now(),
-                data: { url: '/' },
-              })
-            );
-            sent++;
-          }
-        } catch (err: any) {
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            deletePushSubscription(sub.endpoint);
-          }
-        }
-      }
-    }
-
-    res.json({ success: true, sent });
+    console.log(`[send-to-client] Total sent: ${sent}`);
+    res.json({ success: true, sent, totalSubs: allSubs.length });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

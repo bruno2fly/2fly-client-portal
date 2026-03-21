@@ -68,8 +68,25 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET) as any;
-        
-        // Get user from database
+
+        // Handle client portal tokens (purpose: 'client-portal')
+        if (decoded.purpose === 'client-portal' && decoded.clientId) {
+          req.userId = decoded.clientId; // Use clientId as userId for client tokens
+          req.agencyId = decoded.agencyId;
+          req.user = {
+            id: decoded.clientId,
+            agencyId: decoded.agencyId,
+            email: '',
+            name: decoded.clientId,
+            role: 'CLIENT' as UserRole,
+            clientId: decoded.clientId,
+          };
+          req.workspaceId = decoded.agencyId;
+          req.auth = { userId: decoded.clientId, agencyId: decoded.agencyId, role: 'CLIENT' as UserRole };
+          return next();
+        }
+
+        // Get user from database (staff/admin tokens)
         const user = getUser(decoded.userId);
         if (!user || user.agencyId !== decoded.agencyId) {
           return res.status(401).json({ error: 'Invalid session' });
