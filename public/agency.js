@@ -3898,6 +3898,23 @@ function setupApprovalHandlers() {
     var clientName = (loadClientsRegistry() && loadClientsRegistry()[currentClientId] && loadClientsRegistry()[currentClientId].name) || 'Client';
     if (approvalData.status === 'approved') createNotification({ type: 'ACTION', title: 'Post approved', message: approvalData.title + ' is approved.', clientId: currentClientId, action: { label: 'View approvals', href: '#approvals' } });
     if (approvalData.postDate) createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: approvalData.title + ' is on the calendar.', clientId: currentClientId, action: { label: 'Approvals', href: '#approvals' } });
+    // Push notifications to client
+    if (currentClientId) {
+      if (approvalData.status === 'pending') {
+        // Content sent for client approval
+        fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ clientId: currentClientId, type: 'content_ready', postTitle: approvalData.title || approvalData.caption || 'New content' })
+        }).catch(function() {});
+      }
+      if (approvalData.status === 'copy_pending') {
+        // Copy sent for client review
+        fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ clientId: currentClientId, type: 'copy_ready', postTitle: approvalData.title || approvalData.copyText || 'New copy' })
+        }).catch(function() {});
+      }
+    }
     var approvalsForClient = (state.approvals || []).filter(function(a) { return a.clientId === currentClientId; });
     var pendingForClient = approvalsForClient.filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'copy_pending'; });
     if (approvalsForClient.length > 0 && pendingForClient.length === 0) createNotification({ type: 'REWARD', title: 'All clear for ' + clientName, message: 'No pending approvals for this client.', clientId: currentClientId, action: { label: 'Overview', href: '#overview' } });
@@ -4241,18 +4258,23 @@ function markRequestDone(id) {
   if (!req) return;
   
   req.status = 'done';
-  req.doneAt = Date.now(); // Use doneAt instead of completedAt
-  // Ensure createdAt exists (for backward compatibility)
+  req.doneAt = Date.now();
   if (!req.createdAt) req.createdAt = Date.now();
-  
-  // Log activity
+
   if (!state.activity) state.activity = [];
   state.activity.push({
     when: Date.now(),
     text: `Marked request as done: ${req.type}`
   });
-  
+
   save(state);
+  // Notify client their request was completed
+  if (currentClientId) {
+    fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ clientId: currentClientId, type: 'request_done', requestTitle: req.type || req.title || 'Your request' })
+    }).catch(function() {});
+  }
   renderRequestsTab();
   updateTabCountBadges();
   if (currentTab === 'overview' && typeof renderOverviewTab === 'function') renderOverviewTab();
@@ -7169,12 +7191,31 @@ function bindWorkspaceEvents(container, task) {
 
   var approveBtn = container.querySelector('.workspace-btn-approve[data-id="' + taskId + '"]');
   if (approveBtn) approveBtn.addEventListener('click', function() {
-    postCommentAndRefresh('Approved', 'approved').then(function() { showToast('Design approved! Sent to client approvals for review.'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    postCommentAndRefresh('Approved', 'approved').then(function() {
+      showToast('Design approved! Sent to client approvals for review.');
+      // Notify client that new content is ready
+      var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+      if (task && task.clientId) {
+        fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ clientId: task.clientId, type: 'content_ready', postTitle: task.title || task.caption || 'New design' })
+        }).catch(function() {});
+      }
+    }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
   });
 
   var approveCommentBtn = container.querySelector('.workspace-btn-approve-comment[data-id="' + taskId + '"]');
   if (approveCommentBtn) approveCommentBtn.addEventListener('click', function() {
-    postCommentAndRefresh('Approved', 'approved').then(function() { showToast('Design approved! Sent to client approvals for review.'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    postCommentAndRefresh('Approved', 'approved').then(function() {
+      showToast('Design approved! Sent to client approvals for review.');
+      var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+      if (task && task.clientId) {
+        fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ clientId: task.clientId, type: 'content_ready', postTitle: task.title || task.caption || 'New design' })
+        }).catch(function() {});
+      }
+    }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
   });
 
   var requestChangesBtn = container.querySelector('.workspace-btn-request-changes[data-id="' + taskId + '"]');
