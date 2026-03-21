@@ -1363,17 +1363,27 @@ function updateFlowCatState() {
   // Remove all state classes
   wrap.className = '';
 
+  // Reset hidden elements
+  var eyesNormal = document.getElementById('flowEyes');
+  var eyesSleepy = document.getElementById('flowEyesSleepy');
+  var eyesExcited = document.getElementById('flowEyesExcited');
+  var zzz = document.getElementById('flowZzz');
+  if (eyesNormal) eyesNormal.style.display = '';
+  if (eyesSleepy) eyesSleepy.style.display = 'none';
+  if (eyesExcited) eyesExcited.style.display = 'none';
+  if (zzz) zzz.style.display = 'none';
+
   // Set Flow's mood
   var tooltip = '';
   if (total === 0) {
     wrap.classList.add('flow-state-sleep');
-    tooltip = 'Flow is sleeping... all clear!';
+    tooltip = 'Flow is napping... everything is done! 💤';
   } else if (total <= 3) {
     wrap.classList.add('flow-state-relax');
-    tooltip = 'Flow is chilling. ' + total + ' thing' + (total > 1 ? 's' : '') + ' on the list.';
+    tooltip = 'Flow is vibing. ' + total + ' thing' + (total > 1 ? 's' : '') + ' to do. Easy day!';
   } else if (total <= 8) {
     wrap.classList.add('flow-state-alert');
-    tooltip = 'Flow is alert! ' + total + ' items need attention.';
+    tooltip = 'Flow is on it! ' + total + ' items need attention 👀';
   } else {
     wrap.classList.add('flow-state-busy');
     tooltip = 'Flow is fired up! ' + total + ' things to handle!';
