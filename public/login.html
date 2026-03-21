@@ -19,74 +19,108 @@
       padding: 0;
       box-sizing: border-box;
     }
-    
+
     body {
       font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #0B0F14;
+      background-image: radial-gradient(ellipse 120% 80% at 50% -20%, #1a1f3d 0%, #0B0F14 60%);
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
     }
-    
+
     .login-container {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      padding: 40px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+      padding: 40px 36px;
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
     }
-    
+
     .login-header {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
-    
+
     .login-logo {
-      width: 64px;
-      height: 64px;
+      width: 72px;
+      height: 72px;
       margin: 0 auto 16px;
-      background: #000000;
       display: flex;
       align-items: center;
       justify-content: center;
       border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 4px 12px rgba(124, 92, 255, 0.3);
+      background: #0B0F14;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
-    
+
     .login-logo img {
       width: 100%;
       height: 100%;
       object-fit: contain;
     }
-    
+
     .login-title {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 700;
       color: #0f172a;
-      margin-bottom: 8px;
+      margin-bottom: 0;
     }
-    
+
     .login-subtitle {
       font-size: 14px;
       color: #64748b;
+      margin-top: 6px;
+      line-height: 1.45;
     }
-    
+
+    .error-message {
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fef2f2;
+      color: #991b1b;
+      border-left: 3px solid #dc2626;
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+
+    .error-message.show {
+      display: flex;
+    }
+
+    .error-banner-icon {
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+
     .form-group {
       margin-bottom: 20px;
     }
-    
+
     .form-label {
       display: block;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      color: #0f172a;
+      color: #374151;
       margin-bottom: 8px;
     }
-    
+
+    .form-helper {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
     .form-input {
       width: 100%;
       padding: 12px 16px;
@@ -94,14 +128,78 @@
       border-radius: 8px;
       font-size: 14px;
       font-family: inherit;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, background-color 0.2s;
     }
-    
+
     .form-input:focus {
       outline: none;
-      border-color: #7c5cff;
+      border-color: #1e40af;
     }
-    
+
+    .form-input:focus-visible {
+      outline: 2px solid #1e40af;
+      outline-offset: 2px;
+    }
+
+    .form-input.input-error {
+      border-color: #dc2626;
+      background: #fef2f2;
+    }
+
+    .password-wrap {
+      position: relative;
+    }
+
+    .password-wrap .form-input {
+      padding-right: 48px;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 6px;
+      color: #64748b;
+    }
+
+    .password-toggle:hover {
+      color: #0f172a;
+    }
+
+    .password-toggle:focus-visible {
+      outline: 2px solid #1e40af;
+      outline-offset: 2px;
+    }
+
+    .forgot-row {
+      text-align: right;
+      margin-bottom: 16px;
+      margin-top: -8px;
+    }
+
+    .forgot-link {
+      font-size: 13px;
+      color: #1e40af;
+      text-decoration: none;
+    }
+
+    .forgot-link:hover {
+      text-decoration: underline;
+    }
+
+    .forgot-link:focus-visible {
+      outline: 2px solid #1e40af;
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+
     .btn {
       width: 100%;
       padding: 12px 24px;
@@ -110,43 +208,100 @@
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
     }
-    
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.75;
+      transform: none;
+      box-shadow: none;
+    }
+
     .btn-primary {
-      background: linear-gradient(180deg, #7c5cff, #6246ff);
+      background: linear-gradient(180deg, #1e40af, #1a3690);
       color: white;
     }
-    
-    .btn-primary:hover {
-      background: linear-gradient(180deg, #6b4ce6, #5638d9);
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, #1a3690, #152e7a);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(124, 92, 255, 0.3);
+      box-shadow: 0 4px 14px rgba(30, 64, 175, 0.35);
     }
-    
-    .btn-primary:active {
+
+    .btn-primary:active:not(:disabled) {
       transform: translateY(0);
     }
-    
-    .error-message {
-      background: #fee2e2;
-      color: #991b1b;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-bottom: 20px;
-      display: none;
+
+    .btn-primary:focus-visible {
+      outline: 2px solid #1e40af;
+      outline-offset: 3px;
     }
-    
-    .error-message.show {
-      display: block;
+
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      flex-shrink: 0;
     }
-    
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .trust-line {
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 16px;
+    }
+
     .login-footer {
       text-align: center;
       margin-top: 24px;
       font-size: 13px;
       color: #64748b;
+      line-height: 1.5;
+    }
+
+    .staff-link {
+      display: block;
+      margin-top: 8px;
+      color: #1e40af;
+      font-size: 12px;
+      text-decoration: none;
+    }
+
+    .staff-link:hover {
+      text-decoration: underline;
+    }
+
+    .staff-link:focus-visible {
+      outline: 2px solid #1e40af;
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+
+    @media (max-width: 480px) {
+      .login-container {
+        padding: 28px 20px;
+        border-radius: 16px;
+        margin: 12px;
+      }
+
+      .login-title {
+        font-size: 22px;
+      }
     }
   </style>
 </head>
@@ -154,58 +309,117 @@
   <div class="login-container">
     <div class="login-header">
       <div class="login-logo">
-        <img src="images/logo.png" alt="2Fly Logo">
+        <img src="/images/logowhite.png" alt="2FlyFlow">
       </div>
-      <h1 class="login-title">Welcome Back</h1>
-      <p class="login-subtitle">Sign in to your client portal</p>
+      <h1 class="login-title">Welcome back</h1>
+      <p class="login-subtitle">Sign in to view your content, approvals, and updates</p>
     </div>
-    
-    <div id="errorMessage" class="error-message"></div>
-    
-    <form id="loginForm">
+
+    <div id="errorMessage" class="error-message" role="alert" aria-live="polite" aria-atomic="true">
+      <span class="error-banner-icon" aria-hidden="true">⚠</span>
+      <span id="errorMessageText"></span>
+    </div>
+
+    <form id="loginForm" autocomplete="on">
       <div class="form-group">
         <label class="form-label" for="clientId">Client ID</label>
-        <input 
-          type="text" 
-          class="form-input" 
-          id="clientId" 
-          placeholder="Enter your client ID"
+        <input
+          type="text"
+          class="form-input"
+          id="clientId"
+          name="username"
+          placeholder="e.g. ardanspa"
           required
           autocomplete="username"
         />
+        <span class="form-helper">The ID your agency gave you</span>
       </div>
-      
+
       <div class="form-group">
         <label class="form-label" for="password">Password</label>
-        <input 
-          type="password" 
-          class="form-input" 
-          id="password" 
-          placeholder="Enter your password"
-          required
-          autocomplete="current-password"
-        />
+        <div class="password-wrap">
+          <input
+            type="password"
+            class="form-input"
+            id="password"
+            name="password"
+            placeholder="Enter your password"
+            required
+            autocomplete="current-password"
+          />
+          <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Show password" id="passwordToggleBtn">👁</button>
+        </div>
       </div>
-      
-      <button type="submit" class="btn btn-primary">Sign In</button>
+
+      <div class="forgot-row">
+        <a href="/forgot-password" class="forgot-link">Forgot password?</a>
+      </div>
+
+      <button type="submit" class="btn btn-primary" aria-label="Sign in to your account">
+        <span class="btn-label">Sign In</span>
+      </button>
     </form>
-    
+
+    <div class="trust-line" role="note">🔒 Your data is encrypted and secure</div>
+
     <div class="login-footer">
-      <p>Don't have an account? Contact your agency to get registered.</p>
+      <p>Need access? Ask your agency team to invite you.</p>
+      <a href="/staff-login" class="staff-link">Agency staff? Sign in here →</a>
     </div>
   </div>
 
   <script>
-    const LS_SESSION_KEY = "2fly_client_session";
+    const LS_SESSION_KEY = '2fly_client_session';
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? 'http://localhost:3003'
       : 'https://api.2flyflow.com';
 
+    function hideError() {
+      const errorEl = document.getElementById('errorMessage');
+      const errorText = document.getElementById('errorMessageText');
+      errorEl.classList.remove('show');
+      if (errorText) errorText.textContent = '';
+    }
+
     function showError(message) {
       const errorEl = document.getElementById('errorMessage');
-      errorEl.textContent = message;
+      const errorText = document.getElementById('errorMessageText');
+      if (errorText) errorText.textContent = message;
       errorEl.classList.add('show');
-      setTimeout(() => errorEl.classList.remove('show'), 5000);
+    }
+
+    function clearFieldErrors() {
+      document.querySelectorAll('.form-input.input-error').forEach(function (el) {
+        el.classList.remove('input-error');
+      });
+    }
+
+    function setSubmitLoading(loading) {
+      const submitBtn = document.querySelector('.btn-primary');
+      const label = submitBtn.querySelector('.btn-label');
+      if (!submitBtn || !label) return;
+      if (loading) {
+        submitBtn.disabled = true;
+        label.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Signing in...';
+      } else {
+        submitBtn.disabled = false;
+        label.textContent = 'Sign In';
+      }
+    }
+
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const btn = document.getElementById('passwordToggleBtn');
+      if (!input || !btn) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+        btn.setAttribute('aria-label', 'Hide password');
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+        btn.setAttribute('aria-label', 'Show password');
+      }
     }
 
     async function login(clientId, password) {
@@ -217,7 +431,7 @@
         });
         const data = await r.json();
         if (!r.ok) {
-          showError(data.error || 'Invalid client ID or password');
+          showError(data.error || 'Invalid client ID or password. Please try again.');
           return false;
         }
         const session = {
@@ -230,7 +444,7 @@
         window.location.href = 'index.html';
         return true;
       } catch (err) {
-        showError('Unable to reach server. Please try again.');
+        showError('Unable to reach server. Check your connection and try again.');
         return false;
       }
     }
@@ -242,18 +456,31 @@
         if (Date.now() - d.loggedInAt < 24 * 60 * 60 * 1000) {
           window.location.href = 'index.html';
         }
-      } catch { /* continue to login */ }
+      } catch (e) { /* continue to login */ }
     }
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-      const clientId = document.getElementById('clientId').value.trim();
-      const password = document.getElementById('password').value;
+      hideError();
+      clearFieldErrors();
+
+      const clientIdEl = document.getElementById('clientId');
+      const passwordEl = document.getElementById('password');
+      const clientId = clientIdEl.value.trim();
+      const password = passwordEl.value;
+
       if (!clientId || !password) {
-        showError('Please enter both client ID and password');
+        if (!clientId) clientIdEl.classList.add('input-error');
+        if (!password) passwordEl.classList.add('input-error');
+        showError('Please enter your client ID and password');
         return;
       }
-      await login(clientId, password);
+
+      setSubmitLoading(true);
+      const ok = await login(clientId, password);
+      if (!ok) {
+        setSubmitLoading(false);
+      }
     });
   </script>
   <script>
