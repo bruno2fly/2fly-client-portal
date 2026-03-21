@@ -2949,6 +2949,18 @@
           </div>
         </div>
 
+        <!-- Push Notifications Section -->
+        <div class="settings-section" style="margin-bottom: 32px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Push Notifications</h3>
+            <button id="refreshPushStatusBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Refresh</button>
+          </div>
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">Track which clients and team members have push notifications enabled on their devices.</p>
+          <div id="pushStatusContainer" style="background: #f8fafc; border-radius: 8px; padding: 16px; max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; padding: 20px; color: #64748b;">Loading push status...</div>
+          </div>
+        </div>
+
         <!-- Clients List Section (saved credentials) -->
         <div class="settings-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -3545,7 +3557,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 
-  <script src="/agency.js?v=73"></script>
+  <script src="/agency.js?v=74"></script>
 </body>
 </html>
 

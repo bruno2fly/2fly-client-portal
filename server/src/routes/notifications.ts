@@ -93,6 +93,48 @@ router.get('/debug-subs', authenticate, (req: AuthenticatedRequest, res) => {
   res.json({ total: list.length, subscriptions: list });
 });
 
+// GET /api/notifications/client-status — which clients have push enabled
+router.get('/client-status', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { getClientsByAgency } = await import('../db.js');
+    const agencyId = (req as any).auth?.agencyId || (req as any).agencyId;
+    if (!agencyId) return res.status(400).json({ error: 'No agencyId' });
+
+    const clients = getClientsByAgency(agencyId);
+    const subs = getPushSubscriptions();
+    const allSubs = Object.values(subs);
+
+    const result = clients.map(c => {
+      const clientSubs = allSubs.filter(s => s.userId === c.id && s.role === 'CLIENT');
+      return {
+        clientId: c.id,
+        clientName: c.name,
+        pushEnabled: clientSubs.length > 0,
+        deviceCount: clientSubs.length,
+        lastSubscribed: clientSubs.length > 0 ? new Date(Math.max(...clientSubs.map(s => s.createdAt))).toISOString() : null,
+      };
+    });
+
+    // Also get staff subscriptions summary
+    const staffSubs = allSubs.filter(s => s.role !== 'CLIENT');
+
+    res.json({
+      success: true,
+      clients: result,
+      staff: {
+        total: staffSubs.length,
+        subscriptions: staffSubs.map(s => ({
+          userId: s.userId,
+          role: s.role,
+          subscribedAt: new Date(s.createdAt).toISOString(),
+        })),
+      },
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/notifications/send-to-all — send to ALL subscriptions (for testing)
 router.post('/send-to-all', authenticate, async (req: AuthenticatedRequest, res) => {
   try {

@@ -5444,8 +5444,11 @@ function setupSettingsModal() {
       loadUsersList();
       loadClientsList();
       loadMetaIntegrationsList();
+      loadPushNotificationStatus();
     });
   }
+  var refreshPushBtn = document.getElementById('refreshPushStatusBtn');
+  if (refreshPushBtn) refreshPushBtn.addEventListener('click', loadPushNotificationStatus);
 
   // META_CONNECTED postMessage from OAuth popup - refresh Scheduled Posts connection when opened from that tab
   window.addEventListener('message', (e) => {
@@ -5747,6 +5750,84 @@ function setupSettingsModal() {
     return div.innerHTML;
   }
   
+  async function loadPushNotificationStatus() {
+    var container = document.getElementById('pushStatusContainer');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Loading...</div>';
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/notifications/client-status', { credentials: 'include' });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+
+      var h = '';
+
+      // Staff section
+      h += '<div style="margin-bottom:16px;">';
+      h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Team (' + d.staff.total + ' device' + (d.staff.total !== 1 ? 's' : '') + ')</div>';
+      if (d.staff.total === 0) {
+        h += '<div style="font-size:13px;color:#94a3b8;">No team members subscribed yet.</div>';
+      } else {
+        d.staff.subscriptions.forEach(function(s) {
+          h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;">';
+          h += '<span style="width:8px;height:8px;border-radius:50%;background:#059669;flex-shrink:0;"></span>';
+          h += '<span style="font-size:13px;color:#0f172a;flex:1;">' + (s.userId || '').replace(/</g, '&lt;').substring(0, 30) + '</span>';
+          h += '<span style="font-size:11px;color:#94a3b8;">' + (s.role || '') + '</span>';
+          h += '</div>';
+        });
+      }
+      h += '</div>';
+
+      // Clients section
+      h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;">Clients</div>';
+      if (!d.clients || d.clients.length === 0) {
+        h += '<div style="font-size:13px;color:#94a3b8;">No clients found.</div>';
+      } else {
+        d.clients.forEach(function(c) {
+          h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e2e8f0;">';
+          // Status indicator
+          if (c.pushEnabled) {
+            h += '<span style="width:8px;height:8px;border-radius:50%;background:#059669;flex-shrink:0;" title="Push enabled"></span>';
+          } else {
+            h += '<span style="width:8px;height:8px;border-radius:50%;background:#e2e8f0;border:1px solid #cbd5e1;flex-shrink:0;" title="Not subscribed"></span>';
+          }
+          // Client name
+          h += '<span style="font-size:13px;color:#0f172a;font-weight:600;flex:1;">' + (c.clientName || c.clientId || '').replace(/</g, '&lt;') + '</span>';
+          // Status badge
+          if (c.pushEnabled) {
+            h += '<span style="padding:2px 8px;border-radius:6px;background:#dcfce7;color:#059669;font-size:11px;font-weight:700;">' + c.deviceCount + ' device' + (c.deviceCount > 1 ? 's' : '') + '</span>';
+          } else {
+            h += '<span style="padding:2px 8px;border-radius:6px;background:#f1f5f9;color:#94a3b8;font-size:11px;font-weight:600;">Not enabled</span>';
+          }
+          // Send test button
+          h += '<button type="button" class="push-test-client" data-client-id="' + c.clientId + '" data-client-name="' + (c.clientName || '').replace(/"/g, '&quot;') + '" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;font-weight:600;cursor:pointer;' + (c.pushEnabled ? '' : 'opacity:0.4;pointer-events:none;') + '">Test</button>';
+          h += '</div>';
+        });
+      }
+
+      container.innerHTML = h;
+
+      // Wire test buttons
+      container.querySelectorAll('.push-test-client').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var cId = btn.getAttribute('data-client-id');
+          var cName = btn.getAttribute('data-client-name');
+          btn.textContent = 'Sending...';
+          try {
+            var tr = await fetch(getApiBaseUrl() + '/api/notifications/send-to-client', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+              body: JSON.stringify({ clientId: cId, title: 'Fresh content ready! ✨', body: 'Your team just prepared new content for ' + cName + '. Take a quick look!' })
+            });
+            var td = await tr.json();
+            btn.textContent = td.sent > 0 ? 'Sent!' : 'No device';
+            setTimeout(function() { btn.textContent = 'Test'; }, 2000);
+          } catch(e) { btn.textContent = 'Failed'; setTimeout(function() { btn.textContent = 'Test'; }, 2000); }
+        });
+      });
+    } catch(e) {
+      container.innerHTML = '<div style="color:#dc2626;padding:12px;">Failed to load: ' + (e.message || '') + '</div>';
+    }
+  }
+
   async function loadMetaIntegrationsList() {
     var container = $('#metaIntegrationsContainer');
     if (!container) return;
