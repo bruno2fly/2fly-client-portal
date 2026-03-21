@@ -1,6 +1,24 @@
 {
+  "cleanUrls": true,
+  "redirects": [
+    { "source": "/privacy", "destination": "/privacy.html" }
+  ],
   "rewrites": [
+    { "source": "/agency", "destination": "/agency.html" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/staff-login", "destination": "/staff-login.html" },
+    { "source": "/accept-invite", "destination": "/accept-invite.html" },
     { "source": "/forgot-password", "destination": "/forgot-password.html" },
-    { "source": "/staff-login", "destination": "/staff-login.html" }
+    { "source": "/reset-password", "destination": "/reset-password.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/publish-posts?retry=1",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-tokens",
+      "schedule": "0 6 * * *"
+    }
   ]
 }
