@@ -665,6 +665,19 @@
     .pv-stat-chip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #475569; cursor: default; transition: background 0.15s; }
     .pv-stat-chip:hover { background: #ffffff; }
     .pv-stat-chip--alert { background: #fef2f2; color: #b91c1c; }
+    @keyframes pulseRed {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.18); }
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    .pv-stat-chip--pulse { animation: pulseRed 2s ease-in-out infinite; }
+    @media (max-width: 768px) {
+      .production-kanban--scroll { flex-direction: column !important; align-items: stretch !important; }
+      .production-kanban--scroll .kanban-column { max-width: none !important; width: 100% !important; min-width: 0 !important; }
+    }
     .pv-stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .pv-stat-divider { width: 1px; height: 24px; background: #e2e8f0; }
     .pv-table-wrap { background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden; }
@@ -2370,8 +2383,9 @@
       <aside id="productionSidebar" class="production-sidebar" aria-label="Production navigation">
         <div class="production-sidebar__title">Production</div>
         <button type="button" id="productionNavDemands" class="production-sidebar__link active" data-section="demands"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>DEMANDS</button>
-        <button type="button" id="productionNavAILibrary" class="production-sidebar__link" data-section="ai-library"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>AI LIBRARY</button>
-        <button type="button" id="productionNavReferences" class="production-sidebar__link" data-section="references"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></span>REFERENCES</button>
+        <button type="button" id="productionNavMyTasks" class="production-sidebar__link" data-section="mytasks"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>MY TASKS</button>
+        <button type="button" id="productionNavAILibrary" class="production-sidebar__link production-sidebar__link--soon" data-section="ai-library" style="opacity:0.45;pointer-events:none;" aria-disabled="true" title="Coming soon"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>AI LIBRARY</button>
+        <button type="button" id="productionNavReferences" class="production-sidebar__link production-sidebar__link--soon" data-section="references" style="opacity:0.45;pointer-events:none;" aria-disabled="true" title="Coming soon"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></span>REFERENCES</button>
       </aside>
       <div id="productionViewMain" class="production-view-main" style="flex: 1; overflow: auto; padding: 24px; background: #F9FAFB;">
         <div id="productionViewInner"></div>
@@ -3530,7 +3544,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 
-  <script src="/agency.js?v=70"></script>
+  <script src="/agency.js?v=71"></script>
 </body>
 </html>
 

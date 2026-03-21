@@ -90,10 +90,10 @@ Social media agency management platform. Agency staff manage clients, create con
 
 `agency.html` loads `agency.js` with a version parameter:
 ```html
-<script src="/agency.js?v=70"></script>
+<script src="/agency.js?v=71"></script>
 ```
 
-**Every time you edit `agency.js`, you MUST increment the version number in `agency.html`.** If you don't, users will get cached old JS and nothing will work. Current version: **v=70**.
+**Every time you edit `agency.js`, you MUST increment the version number in `agency.html`.** If you don't, users will get cached old JS and nothing will work. Current version: **v=71**.
 
 ### 2. Frontend is Vanilla JS — NOT React
 

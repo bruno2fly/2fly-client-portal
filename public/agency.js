@@ -71,6 +71,7 @@ let productionNavBound = false;
 let demandFilterStatus = '';
 let demandFilterClient = '';
 let demandFilterDueToday = false;
+let demandFilterOverdue = false;
 let currentProductionTaskId = null;
 let demandViewMode = 'table';
 let productionSortCol = null; // null | 'task' | 'timeline' | 'assignee' | 'status'
@@ -1060,7 +1061,9 @@ function updateTabCountBadges() {
   }
   var state = load();
   var approvals = state.approvals || [];
-  var pendingApprovals = approvals.filter(function(a) { return !a.status || a.status === 'pending'; });
+  var pendingApprovals = approvals.filter(function(a) {
+    return !a.status || a.status === 'pending' || a.status === 'changes';
+  });
   var openReqs = (state.requests || []).filter(isClientRequestOpen);
   var openNeeds = (state.needs || []).filter(function(n) { return !n.status || n.status === 'open'; });
   setBadge('approvals', pendingApprovals.length);
@@ -6587,12 +6590,41 @@ function switchToProductionView() {
   if (btnD && btnP) { btnD.classList.remove('view-switch-btn--active'); btnP.classList.add('view-switch-btn--active'); }
   if (!productionNavBound) {
     productionNavBound = true;
-    ['demands', 'ai-library', 'references'].forEach(function(section) {
-      var btn = document.getElementById('productionNav' + (section === 'demands' ? 'Demands' : section === 'ai-library' ? 'AILibrary' : 'References'));
+    var navDemands = document.getElementById('productionNavDemands');
+    var navMyTasks = document.getElementById('productionNavMyTasks');
+    if (navDemands) {
+      navDemands.addEventListener('click', function() {
+        currentProductionSection = 'demands';
+        demandFilterAssignee = '';
+        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+        navDemands.classList.add('active');
+        renderProductionView();
+      });
+    }
+    if (navMyTasks) {
+      navMyTasks.addEventListener('click', function() {
+        currentProductionSection = 'demands';
+        var myName = (currentStaff && (currentStaff.name || currentStaff.fullName || currentStaff.username || '')).trim();
+        if (!myName) {
+          showToast('Set your name on your profile to use My Tasks.', 'info');
+          return;
+        }
+        demandFilterAssignee = demandFilterAssignee === myName ? '' : myName;
+        demandFilterStatus = '';
+        demandFilterDueToday = false;
+        demandFilterOverdue = false;
+        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+        if (demandFilterAssignee) navMyTasks.classList.add('active');
+        else if (navDemands) navDemands.classList.add('active');
+        renderProductionView();
+      });
+    }
+    ['ai-library', 'references'].forEach(function(section) {
+      var btn = document.getElementById('productionNav' + (section === 'ai-library' ? 'AILibrary' : 'References'));
       if (btn) btn.addEventListener('click', function() {
         currentProductionSection = section;
         document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
-        if (btn) btn.classList.add('active');
+        btn.classList.add('active');
         renderProductionView();
       });
     });
@@ -7158,6 +7190,166 @@ var PRODUCTION_STATUS_CONFIG = {
   ready_to_post:     { label: 'Ready',      short: 'Ready',    bgColor: '#f0fdfa',  textColor: '#0d9488', borderColor: '#99f6e4', dotColor: '#14b8a6', icon: '▸' }
 };
 
+function showInlineStatusDropdown(btn) {
+  var existing = document.querySelector('.pv-status-dropdown');
+  if (existing) existing.remove();
+
+  var taskId = btn.getAttribute('data-task-id');
+  var current = btn.getAttribute('data-current');
+  if (!taskId) return;
+
+  var rect = btn.getBoundingClientRect();
+  var dropdown = document.createElement('div');
+  dropdown.className = 'pv-status-dropdown';
+  dropdown.style.cssText = 'position:fixed;top:' + (rect.bottom + 4) + 'px;left:' + Math.min(rect.left, window.innerWidth - 200) + 'px;background:#fff;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.15);border:1px solid #e2e8f0;padding:4px;z-index:10050;min-width:168px;max-height:70vh;overflow-y:auto;';
+
+  var statuses = ['assigned', 'in_progress', 'review', 'changes_requested', 'approved', 'ready_to_post'];
+  statuses.forEach(function(s) {
+    var cfg = PRODUCTION_STATUS_CONFIG[s];
+    if (!cfg) return;
+    var isActive = s === current;
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:' + (isActive ? cfg.bgColor : 'transparent') + ';border-radius:6px;cursor:pointer;font-size:12px;color:' + cfg.textColor + ';font-weight:' + (isActive ? '700' : '500') + ';text-align:left;';
+    item.innerHTML = '<span style="font-size:10px;">' + cfg.icon + '</span> ' + cfg.label;
+    item.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      dropdown.remove();
+      document.removeEventListener('mousedown', onDoc);
+      if (s === current) return;
+      fetch(getApiBaseUrl() + '/api/production/tasks/' + encodeURIComponent(taskId) + '/status', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: s })
+      })
+        .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Failed'); return j; }); })
+        .then(function() { return loadProductionTasks(); })
+        .then(function() { renderProductionView(); showToast('Status updated', 'success'); })
+        .catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    });
+    dropdown.appendChild(item);
+  });
+
+  document.body.appendChild(dropdown);
+
+  function onDoc(e) {
+    if (!dropdown.parentNode) return;
+    if (dropdown.contains(e.target) || btn.contains(e.target)) return;
+    dropdown.remove();
+    document.removeEventListener('mousedown', onDoc);
+  }
+  setTimeout(function() { document.addEventListener('mousedown', onDoc); }, 0);
+}
+
+function openTaskDrawer(taskId) {
+  var root = document.getElementById('pvTaskDrawerRoot');
+  if (root) root.remove();
+
+  var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+  if (!task) return;
+
+  var clients = loadClientsRegistry();
+  var clientName = (clients[task.clientId] && clients[task.clientId].name) || '';
+  var cfg = PRODUCTION_STATUS_CONFIG[task.status] || PRODUCTION_STATUS_CONFIG.assigned;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'pvTaskDrawerRoot';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:10040;display:flex;justify-content:flex-end;';
+
+  var backdrop = document.createElement('div');
+  backdrop.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);';
+
+  var drawer = document.createElement('div');
+  drawer.className = 'pv-task-drawer-panel';
+  drawer.style.cssText = 'position:relative;z-index:1;width:min(480px,92vw);height:100%;background:#fff;box-shadow:-8px 0 30px rgba(0,0,0,0.12);overflow-y:auto;animation:slideInRight 0.22s ease-out;';
+
+  var titleSafe = (task.title || task.caption || 'Task').replace(/</g, '&lt;');
+  var h = '';
+  h += '<div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">';
+  h += '<div style="min-width:0;">';
+  h += '<div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">' + (clientName + '').replace(/</g, '&lt;') + '</div>';
+  h += '<div style="font-size:18px;font-weight:700;color:#0f172a;margin-top:4px;line-height:1.3;">' + titleSafe + '</div>';
+  h += '</div>';
+  h += '<button type="button" id="pvDrawerCloseX" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:26px;line-height:1;padding:4px;">&times;</button></div>';
+
+  h += '<div style="padding:16px 24px;display:flex;gap:8px;flex-wrap:wrap;">';
+  h += '<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + cfg.bgColor + ';color:' + cfg.textColor + ';border:1px solid ' + cfg.borderColor + ';">' + cfg.icon + ' ' + cfg.label + '</span>';
+  h += '<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;">' + (task.priority || 'medium') + '</span>';
+  if (task.deadline) h += '<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;">Due ' + (task.deadline + '').replace(/</g, '&lt;').slice(0, 10) + '</span>';
+  h += '</div>';
+
+  var cap = task.caption || task.copyText || '';
+  if (cap) {
+    h += '<div style="padding:0 24px 16px;"><div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">CAPTION</div>';
+    h += '<div style="font-size:13px;color:#0f172a;line-height:1.55;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">' + cap.replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div></div>';
+  }
+
+  if (task.finalArt && task.finalArt.length > 0) {
+    h += '<div style="padding:0 24px 16px;"><div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DESIGN (' + task.finalArt.length + ')</div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;">';
+    task.finalArt.forEach(function(url) {
+      h += '<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">';
+      h += mediaTag(url, 'Art', 'width:100%;height:100%;object-fit:cover;');
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  if (task.briefNotes) {
+    h += '<div style="padding:0 24px 16px;"><div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">BRIEF</div>';
+    h += '<div style="font-size:13px;color:#475569;line-height:1.55;">' + (task.briefNotes + '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div></div>';
+  }
+
+  if (task.reviewNotes) {
+    h += '<div style="padding:0 24px 16px;"><div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:6px;">REVISION NOTES</div>';
+    h += '<div style="font-size:13px;color:#991b1b;line-height:1.55;background:#fef2f2;padding:12px;border-radius:8px;border:1px solid #fecaca;">' + (task.reviewNotes + '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div></div>';
+  }
+
+  if (task.comments && task.comments.length > 0) {
+    h += '<div style="padding:0 24px 16px;"><div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">COMMENTS (' + task.comments.length + ')</div>';
+    task.comments.forEach(function(c) {
+      h += '<div style="padding:10px 0;border-bottom:1px solid #f1f5f9;">';
+      h += '<div style="font-size:11px;"><strong style="color:#0f172a;">' + ((c.authorName || '') + '').replace(/</g, '&lt;') + '</strong> <span style="color:#94a3b8;">· ' + (c.createdAt ? fmtDate(c.createdAt) : '') + '</span></div>';
+      h += '<div style="font-size:13px;color:#475569;margin-top:4px;">' + ((c.message || '') + '').replace(/</g, '&lt;') + '</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+
+  h += '<div style="padding:16px 24px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;margin-top:auto;">';
+  h += '<button type="button" class="pv-drawer-open-full" data-task-id="' + (taskId + '').replace(/"/g, '&quot;') + '" style="flex:1;min-width:140px;padding:10px 14px;border-radius:8px;border:none;background:#1e40af;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Open Full View</button>';
+  h += '<button type="button" id="pvDrawerCloseBtn" style="padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;">Close</button>';
+  h += '</div>';
+
+  drawer.innerHTML = h;
+  overlay.appendChild(backdrop);
+  overlay.appendChild(drawer);
+  document.body.appendChild(overlay);
+
+  function closeDrawer() {
+    overlay.remove();
+    document.removeEventListener('keydown', onEsc);
+  }
+  function onEsc(e) {
+    if (e.key === 'Escape') closeDrawer();
+  }
+  backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', onEsc);
+
+  var cx = document.getElementById('pvDrawerCloseX');
+  var cb = document.getElementById('pvDrawerCloseBtn');
+  if (cx) cx.addEventListener('click', closeDrawer);
+  if (cb) cb.addEventListener('click', closeDrawer);
+  var full = drawer.querySelector('.pv-drawer-open-full');
+  if (full) {
+    full.addEventListener('click', function() {
+      closeDrawer();
+      currentProductionTaskId = taskId;
+      renderProductionView();
+    });
+  }
+}
 
 function showDeleteTaskConfirm(taskId, taskTitle) {
   // Remove existing modal if any
@@ -7748,6 +7940,13 @@ function renderProductionView() {
     tasks = tasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === todayISO; });
   }
 
+  if (demandFilterOverdue) {
+    var overdueIso = new Date().toISOString().slice(0, 10);
+    tasks = tasks.filter(function(t) {
+      return t.deadline && t.deadline.slice(0, 10) < overdueIso && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1;
+    });
+  }
+
   // Apply sorting
   if (productionSortCol) {
     var statusOrder = ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'];
@@ -7804,6 +8003,7 @@ function renderProductionView() {
   ['assigned', 'in_progress', 'changes_requested', 'review', 'approved', 'ready_to_post'].forEach(function(s) { statCounts[s] = 0; });
   allTasks.forEach(function(t) { if (statCounts[t.status] !== undefined) statCounts[t.status]++; });
   var statsOverdue = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
+  var statsDueToday = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === todayStr; }).length;
 
   // SVG icons as strings
   var svgSearch = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>';
@@ -7834,15 +8034,10 @@ function renderProductionView() {
   html += '<div class="pv-search-wrap"><span class="pv-search-icon">' + svgSearch + '</span>';
   html += '<input type="text" id="pvSearchInput" class="pv-search-input" placeholder="Search tasks..."></div>';
   // Filter toggle
-  var hasActiveFilters = demandFilterStatus || demandFilterClient || demandFilterAssignee;
+  var hasActiveFilters = demandFilterStatus || demandFilterClient || demandFilterAssignee || demandFilterDueToday || demandFilterOverdue;
   html += '<button type="button" id="pvFilterToggle" class="pv-filter-btn' + (productionFiltersOpen ? ' pv-filter-btn--active' : '') + '">' + svgFilter + ' Filters';
   if (hasActiveFilters) html += ' <span class="pv-filter-dot"></span>';
   html += '</button>';
-  // Quick filter chips
-  var overdueCount = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) < todayStr && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1; }).length;
-  var dueTodayCount = allTasks.filter(function(t) { return t.deadline && t.deadline.slice(0, 10) === todayStr; }).length;
-  if (overdueCount > 0) html += '<button type="button" class="pv-quick-chip" id="pvQuickOverdue">Overdue <span class="pv-quick-chip-count">' + overdueCount + '</span></button>';
-  if (dueTodayCount > 0) html += '<button type="button" class="pv-quick-chip' + (demandFilterDueToday ? ' pv-filter-btn--active' : '') + '" id="pvQuickDueToday">Due Today <span class="pv-quick-chip-count">' + dueTodayCount + '</span></button>';
   html += '</div>';
   // Assign button
   html += '<button type="button" id="pvAssignTask" class="pv-assign-btn">' + svgPlus + ' Assign Task</button>';
@@ -7879,19 +8074,30 @@ function renderProductionView() {
     html += '</div>';
   }
 
-  // ── Stats bar ──
-  html += '<div class="pv-stats-bar" style="margin: 12px 0;">';
-  html += '<div class="pv-stat-chip"><span class="pv-stat-dot" style="background: #94a3b8;"></span> ' + allTasks.length + ' <span style="color: #94a3b8; font-weight: 400;">Total</span></div>';
+  // ── Stats bar (clickable filters) ──
+  html += '<div class="pv-stats-bar" style="margin: 12px 0; flex-wrap: wrap;">';
+  html += '<button type="button" class="pv-stat-chip pv-stat-filter" data-pv-stat="total" style="cursor:pointer;border:none;font:inherit;display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;background:transparent;">';
+  html += '<span class="pv-stat-dot" style="background: #94a3b8;"></span> ' + allTasks.length + ' <span style="color: #94a3b8; font-weight: 400;">Total</span></button>';
   html += '<div class="pv-stat-divider"></div>';
   sKeys.forEach(function(k) {
     if (statCounts[k] > 0) {
       var cfg = PRODUCTION_STATUS_CONFIG[k];
-      html += '<div class="pv-stat-chip"><span class="pv-stat-dot" style="background: ' + cfg.dotColor + ';"></span> ' + statCounts[k] + ' <span style="color: #94a3b8; font-weight: 400;">' + cfg.short + '</span></div>';
+      var active = demandFilterStatus === k && !demandFilterOverdue && !demandFilterDueToday;
+      html += '<button type="button" class="pv-stat-chip pv-stat-filter" data-pv-stat="' + k + '" style="cursor:pointer;border:none;font:inherit;display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;background:' + (active ? '#e2e8f0' : 'transparent') + ';">';
+      html += '<span class="pv-stat-dot" style="background: ' + cfg.dotColor + ';"></span> ' + statCounts[k] + ' <span style="color: #94a3b8; font-weight: 400;">' + cfg.short + '</span></button>';
     }
   });
+  if (statsDueToday > 0) {
+    html += '<div class="pv-stat-divider"></div>';
+    var dtActive = demandFilterDueToday && !demandFilterOverdue;
+    html += '<button type="button" class="pv-stat-chip pv-stat-filter pv-stat-chip--duetoday" data-pv-stat="duetoday" style="cursor:pointer;border:none;font:inherit;display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;background:' + (dtActive ? '#ffedd5' : 'transparent') + ';">';
+    html += '<span class="pv-stat-dot" style="background: #f59e0b;"></span> ' + statsDueToday + ' <span style="color:#d97706;font-weight:600;">Due Today</span></button>';
+  }
   if (statsOverdue > 0) {
     html += '<div class="pv-stat-divider"></div>';
-    html += '<div class="pv-stat-chip pv-stat-chip--alert"><span class="pv-stat-dot" style="background: #ef4444;"></span> ' + statsOverdue + ' <span style="font-weight: 400;">Overdue</span></div>';
+    var odActive = demandFilterOverdue;
+    html += '<button type="button" class="pv-stat-chip pv-stat-filter pv-stat-chip--alert' + (odActive ? ' pv-stat-chip--pulse' : '') + '" data-pv-stat="overdue" style="cursor:pointer;border:none;font:inherit;display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;background:' + (odActive ? '#fee2e2' : 'transparent') + ';' + (statsOverdue > 0 ? '' : '') + '">';
+    html += '<span class="pv-stat-dot" style="background: #ef4444;"></span> ' + statsOverdue + ' <span style="font-weight:600;color:#dc2626;">Overdue</span></button>';
   }
   html += '</div>';
 
@@ -7901,7 +8107,7 @@ function renderProductionView() {
     html += '</div>';
     container.innerHTML = html;
     var kanbanEl = document.getElementById('demandsKanbanContainer');
-    if (kanbanEl) renderProductionKanbanView(kanbanEl, clientsData);
+    if (kanbanEl) renderProductionKanbanView(kanbanEl, clientsData, tasks);
   } else {
     // ── Table mode ──
     html += '<div class="pv-table-wrap">';
@@ -7918,7 +8124,6 @@ function renderProductionView() {
     if (tasks.length === 0) {
       html += '<div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-size: 14px;">No demands found.<br><span style="font-size: 12px; margin-top: 8px; display: block;">Use "Send to Designer" from the Approvals tab to create new demands.</span></div>';
     } else {
-      if (productionTasksCache.length) console.log('Production task fields:', JSON.stringify(productionTasksCache[0], null, 2));
       clientGroupOrder.forEach(function(clientId) {
         var group = clientGroupsMap[clientId];
         var isCollapsed = productionCollapsedClients[clientId];
@@ -7932,11 +8137,19 @@ function renderProductionView() {
             dotsHtml += '<span class="pv-stat-dot" style="background: ' + cfg.dotColor + ';" title="' + cfg.label + ': ' + groupStats[s] + '"></span>';
           }
         });
+        var doneInGroup = group.tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; }).length;
+        var totalInGroup = group.tasks.length;
+        var pctGroup = totalInGroup > 0 ? Math.round((doneInGroup / totalInGroup) * 100) : 0;
         html += '<button type="button" class="pv-client-header" data-client-id="' + clientId + '">';
         html += '<span class="pv-client-chevron' + (isCollapsed ? ' pv-client-chevron--collapsed' : '') + '">' + svgChevron + '</span>';
         html += '<span class="pv-client-name">' + (group.name || '').replace(/</g, '&lt;').toLowerCase() + '</span>';
         html += '<span class="pv-client-count">' + group.tasks.length + ' task' + (group.tasks.length !== 1 ? 's' : '') + '</span>';
-        html += '<span class="pv-client-dots">' + dotsHtml + '</span>';
+        html += '<span class="pv-client-meta-right" style="display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;">';
+        html += '<span class="pv-client-dots" style="margin-left:0;">' + dotsHtml + '</span>';
+        html += '<span style="display:flex;align-items:center;gap:6px;">';
+        html += '<span style="width:56px;height:4px;border-radius:2px;background:#e2e8f0;overflow:hidden;display:inline-block;vertical-align:middle;">';
+        html += '<span style="display:block;width:' + pctGroup + '%;height:100%;border-radius:2px;background:' + (pctGroup === 100 ? '#059669' : '#3b82f6') + ';"></span></span>';
+        html += '<span style="font-size:10px;color:#94a3b8;font-weight:600;">' + doneInGroup + '/' + totalInGroup + '</span></span></span>';
         html += '</button>';
 
         if (!isCollapsed) {
@@ -7949,10 +8162,26 @@ function renderProductionView() {
             var designerName = designerMap[t.designerId] || t.designerId || '—';
             var initial = (designerName + '').split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().slice(0, 2);
             var dueDate = t.deadline ? new Date(t.deadline) : null;
-            var deadlineLabel = dueDate ? dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
-            var isOverdue = dueDate && dueDate < new Date() && ['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1;
-            var isToday = dueDate && dueDate.toISOString().slice(0, 10) === todayStr && !isOverdue;
-            var dueClass = isOverdue ? 'pv-due--overdue' : (isToday ? 'pv-due--today' : 'pv-due--future');
+            var deadlineLabel = '—';
+            var dueClass = 'pv-due--future';
+            if (dueDate && !isNaN(dueDate.getTime())) {
+              var startOfToday = new Date();
+              startOfToday.setHours(0, 0, 0, 0);
+              var d0 = new Date(dueDate);
+              d0.setHours(0, 0, 0, 0);
+              var diffDays = Math.round((d0.getTime() - startOfToday.getTime()) / 86400000);
+              if (['review', 'approved', 'ready_to_post'].indexOf(t.status) === -1) {
+                if (diffDays < -1) { deadlineLabel = Math.abs(diffDays) + 'd overdue'; dueClass = 'pv-due--overdue'; }
+                else if (diffDays === -1) { deadlineLabel = 'Yesterday'; dueClass = 'pv-due--overdue'; }
+                else if (diffDays === 0) { deadlineLabel = 'Due today'; dueClass = 'pv-due--today'; }
+                else if (diffDays === 1) { deadlineLabel = 'Tomorrow'; dueClass = 'pv-due--future'; }
+                else if (diffDays <= 7) { deadlineLabel = 'In ' + diffDays + ' days'; dueClass = 'pv-due--future'; }
+                else { deadlineLabel = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); dueClass = 'pv-due--future'; }
+              } else {
+                deadlineLabel = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                dueClass = 'pv-due--future';
+              }
+            }
             var priorityColors = { low: '#cbd5e1', medium: '#60a5fa', high: '#fb923c', urgent: '#ef4444' };
             var priorityDotColor = priorityColors[t.priority] || priorityColors.medium;
             var cfg = PRODUCTION_STATUS_CONFIG[t.status] || PRODUCTION_STATUS_CONFIG.assigned;
@@ -7967,14 +8196,13 @@ function renderProductionView() {
             if (reviewNote) html += '<div class="pv-task-review-note">↳ ' + reviewNote + '</div>';
             html += '</td>';
             // Timeline
-            html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 130px;"><span class="pv-due-label ' + dueClass + '">' + deadlineLabel + '</span>';
-            if (isOverdue) html += '<span class="pv-late-badge">LATE</span>';
-            else if (isToday) html += '<span class="pv-today-badge">TODAY</span>';
-            html += '</td>';
+            html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 130px;"><span class="pv-due-label ' + dueClass + '">' + deadlineLabel + '</span></td>';
             // Assignee
             html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 160px;"><div class="pv-assignee"><span class="pv-assignee-avatar">' + initial + '</span><span class="pv-assignee-name">' + (designerName + '').replace(/</g, '&lt;') + '</span></div></td>';
             // Status
-            html += '<td style="padding: 12px 16px 12px 0; width: 130px;"><span class="pv-status-badge" style="background: ' + cfg.bgColor + '; color: ' + cfg.textColor + '; border-color: ' + cfg.borderColor + ';"><span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + '</span></td>';
+            html += '<td style="padding:12px 16px 12px 0;width:150px;position:relative;">';
+            html += '<button type="button" class="pv-status-badge pv-inline-status" data-task-id="' + (t.id + '').replace(/"/g, '&quot;') + '" data-current="' + (t.status || '').replace(/"/g, '&quot;') + '" style="cursor:pointer;border:1px solid ' + cfg.borderColor + ';background:' + cfg.bgColor + ';color:' + cfg.textColor + ';padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">';
+            html += '<span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + ' <span style="font-size:9px;opacity:0.55;">▾</span></button></td>';
             // Delete button
             html += '<td style="padding: 12px 4px 12px 0; width: 36px;"><button type="button" class="pv-delete-task-btn" data-task-id="' + t.id + '" data-task-title="' + displayTitle.replace(/"/g, '&quot;') + '" title="Delete task" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s;" onmouseenter="this.style.color=\'#dc2626\';this.style.background=\'#fee2e2\'" onmouseleave="this.style.color=\'#94a3b8\';this.style.background=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>';
             html += '</tr>';
@@ -8020,17 +8248,63 @@ function renderProductionView() {
   var pvFS = document.getElementById('pvFilterStatus');
   var pvFC = document.getElementById('pvFilterClient');
   var pvFA = document.getElementById('pvFilterAssignee');
-  if (pvFS) pvFS.addEventListener('change', function() { demandFilterStatus = pvFS.value; renderProductionView(); });
-  if (pvFC) pvFC.addEventListener('change', function() { demandFilterClient = pvFC.value; renderProductionView(); });
-  if (pvFA) pvFA.addEventListener('change', function() { demandFilterAssignee = pvFA.value; renderProductionView(); });
+  if (pvFS) pvFS.addEventListener('change', function() {
+    demandFilterStatus = pvFS.value;
+    demandFilterDueToday = false;
+    demandFilterOverdue = false;
+    renderProductionView();
+  });
+  if (pvFC) pvFC.addEventListener('change', function() {
+    demandFilterClient = pvFC.value;
+    demandFilterDueToday = false;
+    demandFilterOverdue = false;
+    renderProductionView();
+  });
+  if (pvFA) pvFA.addEventListener('change', function() {
+    demandFilterAssignee = pvFA.value;
+    demandFilterDueToday = false;
+    demandFilterOverdue = false;
+    renderProductionView();
+  });
   // Clear filters
   var pvCF = document.getElementById('pvClearFilters');
-  if (pvCF) pvCF.addEventListener('click', function() { demandFilterStatus = ''; demandFilterClient = ''; demandFilterAssignee = ''; renderProductionView(); });
-  // Quick chips
-  var pvQO = document.getElementById('pvQuickOverdue');
-  if (pvQO) pvQO.addEventListener('click', function() { /* TODO: overdue filter */ });
-  var pvQD = document.getElementById('pvQuickDueToday');
-  if (pvQD) pvQD.addEventListener('click', function() { demandFilterDueToday = !demandFilterDueToday; renderProductionView(); });
+  if (pvCF) pvCF.addEventListener('click', function() {
+    demandFilterStatus = '';
+    demandFilterClient = '';
+    demandFilterAssignee = '';
+    demandFilterDueToday = false;
+    demandFilterOverdue = false;
+    renderProductionView();
+  });
+  container.querySelectorAll('.pv-stat-filter').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var st = chip.getAttribute('data-pv-stat');
+      if (st === 'total') {
+        demandFilterStatus = '';
+        demandFilterDueToday = false;
+        demandFilterOverdue = false;
+        demandFilterClient = '';
+        demandFilterAssignee = '';
+      } else if (st === 'overdue') {
+        demandFilterOverdue = !demandFilterOverdue;
+        if (demandFilterOverdue) {
+          demandFilterDueToday = false;
+          demandFilterStatus = '';
+        }
+      } else if (st === 'duetoday') {
+        demandFilterDueToday = !demandFilterDueToday;
+        if (demandFilterDueToday) {
+          demandFilterOverdue = false;
+          demandFilterStatus = '';
+        }
+      } else {
+        demandFilterStatus = demandFilterStatus === st ? '' : st;
+        demandFilterDueToday = false;
+        demandFilterOverdue = false;
+      }
+      renderProductionView();
+    });
+  });
   // Assign task
   var pvAT = document.getElementById('pvAssignTask');
   var pvGR = document.getElementById('pvGhostRow');
@@ -8068,20 +8342,18 @@ function renderProductionView() {
       showDeleteTaskConfirm(taskId, taskTitle);
     });
   });
-  // Task row click → open workspace
+  container.querySelectorAll('.pv-inline-status').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showInlineStatusDropdown(btn);
+    });
+  });
+  // Task row click → drawer (full view from drawer)
   container.querySelectorAll('.pv-task-row').forEach(function(row) {
     row.addEventListener('click', function(e) {
       if (e.target.closest('button')) return;
       var id = row.getAttribute('data-task-id');
-      if (id) { currentProductionTaskId = id; renderProductionView(); }
-    });
-  });
-  // Kanban card clicks (reuse from kanban container)
-  container.querySelectorAll('.kanban-card').forEach(function(card) {
-    card.addEventListener('click', function(e) {
-      if (e.target.closest('button')) return;
-      var id = card.getAttribute('data-task-id');
-      if (id) { currentProductionTaskId = id; renderProductionView(); }
+      if (id) openTaskDrawer(id);
     });
   });
   container.querySelectorAll('.btnAssignTaskColumn').forEach(function(btn) {
@@ -8093,10 +8365,57 @@ function renderProductionView() {
   container.querySelectorAll('.btn-review-changes').forEach(function(btn) {
     btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); var notes = prompt('Feedback for designer:'); if (notes === null) return; fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_changes', reviewNotes: notes }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(renderProductionView).catch(function(e) { showToast(e.message, 'error'); }); });
   });
+
+  var navDem = document.getElementById('productionNavDemands');
+  var navMy = document.getElementById('productionNavMyTasks');
+  var myNm = (currentStaff && (currentStaff.name || currentStaff.fullName || currentStaff.username || '')).trim();
+  if (navDem && navMy && currentProductionSection === 'demands') {
+    if (demandFilterAssignee && myNm && demandFilterAssignee === myNm) {
+      navDem.classList.remove('active');
+      navMy.classList.add('active');
+    } else {
+      navMy.classList.remove('active');
+      navDem.classList.add('active');
+    }
+  }
 }
 
-function renderProductionKanbanView(container, clientsData) {
+if (!window._productionShortcutsBound) {
+  window._productionShortcutsBound = true;
+  document.addEventListener('keydown', function(e) {
+    if (currentViewMode !== 'production') return;
+    var t = e.target;
+    var tag = (t && t.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    if (e.key === 'n' || e.key === 'N') {
+      if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign);
+      else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info');
+      e.preventDefault();
+    } else if (e.key === 'f' || e.key === 'F') {
+      productionFiltersOpen = !productionFiltersOpen;
+      renderProductionView();
+      e.preventDefault();
+    } else if (e.key === 't') {
+      demandViewMode = 'table';
+      renderProductionView();
+      e.preventDefault();
+    } else if (e.key === 'k') {
+      demandViewMode = 'kanban';
+      renderProductionView();
+      e.preventDefault();
+    } else if (e.key === '/') {
+      var s = document.getElementById('pvSearchInput');
+      if (s) { s.focus(); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      var d = document.getElementById('pvTaskDrawerRoot');
+      if (d) d.remove();
+    }
+  });
+}
+
+function renderProductionKanbanView(container, clientsData, tasksFiltered) {
   if (!container) return;
+  var taskPool = tasksFiltered && Array.isArray(tasksFiltered) ? tasksFiltered : productionTasksCache.slice();
   var designerMapKanban = {};
   designersCache.forEach(function(d) { designerMapKanban[d.id] = d.name || d.email || 'Designer'; });
   if (currentStaff) designerMapKanban[currentStaff.id] = currentStaff.name || currentStaff.fullName || currentStaff.username || 'You';
@@ -8104,13 +8423,14 @@ function renderProductionKanbanView(container, clientsData) {
   var priorityBorder = { low: '#22c55e', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' };
   var columns = ['assigned', 'in_progress', 'review', 'changes_requested', 'approved', 'ready_to_post'];
   var labels = { assigned: 'Assigned', in_progress: 'In Progress', review: 'Review', changes_requested: 'Changes Requested', approved: 'Approved', ready_to_post: 'Ready to Post' };
-  var html = '<div class="production-kanban" style="display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px; min-height: 400px;">';
+  var todayStrK = new Date().toISOString().slice(0, 10);
+  var html = '<div class="production-kanban production-kanban--scroll" style="display:flex;gap:20px;overflow-x:auto;padding-bottom:12px;min-height:400px;">';
   columns.forEach(function(col) {
-    var colTasks = productionTasksCache.filter(function(t) { return t.status === col; });
+    var colTasks = taskPool.filter(function(t) { return t.status === col; });
     var cc = colColors[col] || colColors.assigned;
-    html += '<div class="kanban-column" data-status="' + col + '" style="min-width: 280px; max-width: 280px; display: flex; flex-direction: column;">';
-    html += '<div class="kanban-column-header" style="padding: 10px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-bottom: 12px; background: ' + cc.bg + '; color: ' + cc.color + ';">' + labels[col] + ' <span style="opacity: 0.9;">(' + colTasks.length + ')</span></div>';
-    html += '<div class="kanban-column-cards" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">';
+    html += '<div class="kanban-column" data-column-status="' + col + '" style="min-width:280px;max-width:280px;display:flex;flex-direction:column;">';
+    html += '<div class="kanban-column-header" style="padding:10px 14px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;background:' + cc.bg + ';color:' + cc.color + ';">' + labels[col] + ' <span style="opacity:0.9;">(' + colTasks.length + ')</span></div>';
+    html += '<div class="kanban-column-cards" data-column-status="' + col + '" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:120px;">';
     colTasks.forEach(function(t) {
       var clientName = (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || '—';
       var cap = (t.caption || t.briefNotes || '').slice(0, 60) + ((t.caption || t.briefNotes || '').length > 60 ? '…' : '');
@@ -8119,29 +8439,127 @@ function renderProductionKanbanView(container, clientsData) {
       var dueStr = t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
       var borderColor = priorityBorder[t.priority] || priorityBorder.medium;
       var thumbHtml = (t.finalArt && t.finalArt[0]) ? mediaTag(t.finalArt[0], '', 'width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;') : '';
-      html += '<div class="kanban-card kanban-card--' + col + '" data-task-id="' + t.id + '" style="background: #fff; border-radius: 12px; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid ' + borderColor + '; cursor: pointer; transition: all 0.2s ease; overflow: hidden;">';
-      if (thumbHtml) html += thumbHtml;
-      html += '<div style="padding: 12px;">';
-      html += '<div class="kanban-card__client-chip" style="font-size: 11px; color: #64748b; margin-bottom: 4px;">' + (clientName + '').replace(/</g, '&lt;') + '</div>';
-      html += '<div class="kanban-card__title" style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
-      if (col === 'review') {
-        html += '<div style="margin-bottom: 8px; display: flex; gap: 6px;"><button type="button" class="btn-review-approve" data-id="' + t.id + '" style="padding: 6px 12px; font-size: 12px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer;">Approve</button><button type="button" class="btn-review-changes" data-id="' + t.id + '" style="padding: 6px 12px; font-size: 12px; background: #ea580c; color: white; border: none; border-radius: 6px; cursor: pointer;">Request Changes</button></div>';
+      var isOverdue = t.deadline && String(t.deadline).slice(0, 10) < todayStrK && ['approved', 'ready_to_post'].indexOf(t.status) === -1;
+      var overdueDays = 0;
+      if (isOverdue) {
+        overdueDays = Math.max(1, Math.round((Date.now() - new Date(t.deadline).getTime()) / 86400000));
       }
-      html += '<div class="kanban-card__footer" style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9;"><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">' + initial + '</span><span style="font-size: 12px; color: #64748b;">' + (designerName + '').replace(/</g, '&lt;') + '</span></span><span style="font-size: 11px; color: #94a3b8;">' + dueStr + '</span></div>';
+      var leftExtra = isOverdue ? '3px solid #ef4444' : '4px solid ' + borderColor;
+      html += '<div class="kanban-card kanban-card--' + col + '" draggable="true" data-task-id="' + t.id + '" data-status="' + col + '" style="position:relative;background:#fff;border-radius:12px;padding:0;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:' + leftExtra + ';cursor:grab;transition:opacity 0.15s ease,box-shadow 0.15s ease;overflow:hidden;">';
+      html += '<div class="kanban-card-actions" style="display:none;position:absolute;top:6px;right:6px;z-index:2;gap:4px;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.12);padding:4px;align-items:center;">';
+      html += '<button type="button" class="kanban-quick-status" data-task-id="' + t.id + '" data-current="' + (t.status || '') + '" style="padding:4px 8px;border:none;background:#f1f5f9;border-radius:6px;font-size:10px;font-weight:700;color:#475569;cursor:pointer;">Status</button>';
+      html += '<button type="button" class="kanban-quick-open" data-task-id="' + t.id + '" style="padding:4px 8px;border:none;background:#eff6ff;border-radius:6px;font-size:10px;font-weight:700;color:#1d4ed8;cursor:pointer;">Open</button>';
+      html += '</div>';
+      if (thumbHtml) html += thumbHtml;
+      html += '<div style="padding:12px;">';
+      if (isOverdue) {
+        html += '<div style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:#fef2f2;color:#dc2626;font-size:9px;font-weight:700;margin-bottom:6px;">' + overdueDays + 'd late</div>';
+      }
+      html += '<div class="kanban-card__client-chip" style="font-size:11px;color:#64748b;margin-bottom:4px;">' + (clientName + '').replace(/</g, '&lt;') + '</div>';
+      html += '<div class="kanban-card__title" style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:8px;">' + (cap || 'Untitled').replace(/</g, '&lt;') + '</div>';
+      if (col === 'review') {
+        html += '<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn-review-approve" data-id="' + t.id + '" style="padding:6px 12px;font-size:12px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;">Approve</button><button type="button" class="btn-review-changes" data-id="' + t.id + '" style="padding:6px 12px;font-size:12px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer;">Request Changes</button></div>';
+      }
+      html += '<div class="kanban-card__footer" style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;"><span style="display:flex;align-items:center;gap:6px;"><span style="width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:#475569;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">' + initial + '</span><span style="font-size:12px;color:#64748b;">' + (designerName + '').replace(/</g, '&lt;') + '</span></span><span style="font-size:11px;color:#94a3b8;">' + dueStr + '</span></div>';
       html += '</div></div>';
     });
-    if (colTasks.length === 0) html += '<div class="kanban-column-empty" style="padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; border: 2px dashed #e2e8f0; border-radius: 8px; background: #fafafa;">No tasks in this column</div>';
+    if (colTasks.length === 0) html += '<div class="kanban-column-empty" style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;border:2px dashed #e2e8f0;border-radius:8px;background:#fafafa;">No tasks in this column</div>';
     html += '</div>';
-    html += '<button type="button" class="kanban-column-add-btn btnAssignTaskColumn" style="margin-top: 10px; padding: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; background: transparent; color: #64748b; font-size: 14px; cursor: pointer;">+ Add</button>';
+    html += '<button type="button" class="kanban-column-add-btn btnAssignTaskColumn" style="margin-top:10px;padding:10px;border:2px dashed #cbd5e1;border-radius:8px;background:transparent;color:#64748b;font-size:14px;cursor:pointer;">+ Add</button>';
     html += '</div>';
   });
   html += '</div>';
   container.innerHTML = html;
+
+  function clearColumnHighlight() {
+    container.querySelectorAll('.kanban-column-cards').forEach(function(c) {
+      c.style.outline = 'none';
+      c.style.background = '';
+    });
+  }
+
+  container.querySelectorAll('.kanban-card[draggable="true"]').forEach(function(card) {
+    card.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-task-id'));
+      e.dataTransfer.effectAllowed = 'move';
+      card.style.opacity = '0.45';
+      container.querySelectorAll('.kanban-column-cards').forEach(function(col) {
+        col.style.outline = '2px dashed #93c5fd';
+        col.style.outlineOffset = '-2px';
+      });
+    });
+    card.addEventListener('dragend', function() {
+      card.style.opacity = '1';
+      clearColumnHighlight();
+    });
+    var actions = card.querySelector('.kanban-card-actions');
+    if (actions) {
+      card.addEventListener('mouseenter', function() { actions.style.display = 'flex'; });
+      card.addEventListener('mouseleave', function() { actions.style.display = 'none'; });
+    }
+  });
+
+  container.querySelectorAll('.kanban-column-cards').forEach(function(colEl) {
+    colEl.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      colEl.style.background = '#eff6ff';
+    });
+    colEl.addEventListener('dragleave', function(e) {
+      if (!colEl.contains(e.relatedTarget)) colEl.style.background = '';
+    });
+    colEl.addEventListener('drop', function(e) {
+      e.preventDefault();
+      colEl.style.background = '';
+      clearColumnHighlight();
+      var taskId = e.dataTransfer.getData('text/plain');
+      var newStatus = colEl.getAttribute('data-column-status');
+      if (!taskId || !newStatus) return;
+      fetch(getApiBaseUrl() + '/api/production/tasks/' + encodeURIComponent(taskId) + '/status', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+        .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Failed'); return j; }); })
+        .then(function() { return loadProductionTasks(); })
+        .then(function() {
+          renderProductionView();
+          showToast('Moved to ' + (labels[newStatus] || newStatus).replace(/_/g, ' '), 'success');
+        })
+        .catch(function(err) { showToast(err.message || 'Failed to move task', 'error'); });
+    });
+  });
+
   container.querySelectorAll('.kanban-card').forEach(function(card) {
     card.addEventListener('click', function(e) {
       if (e.target.closest('button')) return;
       var id = card.getAttribute('data-task-id');
-      if (id) { currentProductionTaskId = id; renderProductionView(); }
+      if (id) openTaskDrawer(id);
+    });
+  });
+  container.querySelectorAll('.kanban-quick-open').forEach(function(b) {
+    b.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = b.getAttribute('data-task-id');
+      if (id) openTaskDrawer(id);
+    });
+  });
+  container.querySelectorAll('.kanban-quick-status').forEach(function(b) {
+    b.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = b.getAttribute('data-task-id');
+      var task = productionTasksCache.find(function(x) { return x.id === id; });
+      if (!task) return;
+      var rect = b.getBoundingClientRect();
+      var ghost = document.createElement('button');
+      ghost.type = 'button';
+      ghost.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + (rect.bottom + 2) + 'px;width:2px;height:2px;opacity:0;pointer-events:none;';
+      ghost.setAttribute('data-task-id', id);
+      ghost.setAttribute('data-current', task.status || 'assigned');
+      document.body.appendChild(ghost);
+      showInlineStatusDropdown(ghost);
+      setTimeout(function() { try { ghost.remove(); } catch (err) {} }, 800);
     });
   });
   container.querySelectorAll('.btnAssignTaskColumn').forEach(function(btn) {
