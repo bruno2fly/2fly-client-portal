@@ -1333,6 +1333,54 @@ function renderClientHeader() {
   }
   
   setupLogoUpload();
+  updateFlowCatState();
+}
+
+function updateFlowCatState() {
+  var wrap = document.getElementById('flowCatWrap');
+  var svg = document.getElementById('flowCatSvg');
+  if (!wrap || !svg) return;
+
+  // Calculate workload for current client
+  var state = load();
+  var actionCount = 0;
+  if (state) {
+    actionCount += (state.approvals || []).filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'changes' || a.status === 'copy_pending'; }).length;
+    actionCount += (state.requests || []).filter(function(r) { return !r.done; }).length;
+    actionCount += (state.needs || []).filter(function(n) { return !n.done; }).length;
+  }
+
+  // Production tasks for this client
+  var prodCount = 0;
+  if (typeof productionTasksCache !== 'undefined') {
+    prodCount = productionTasksCache.filter(function(t) {
+      return t.clientId === currentClientId && ['in_progress', 'assigned', 'review', 'changes_requested'].indexOf(t.status) !== -1;
+    }).length;
+  }
+
+  var total = actionCount + prodCount;
+
+  // Remove all state classes
+  wrap.className = '';
+
+  // Set Flow's mood
+  var tooltip = '';
+  if (total === 0) {
+    wrap.classList.add('flow-state-sleep');
+    tooltip = 'Flow is sleeping... all clear!';
+  } else if (total <= 3) {
+    wrap.classList.add('flow-state-relax');
+    tooltip = 'Flow is chilling. ' + total + ' thing' + (total > 1 ? 's' : '') + ' on the list.';
+  } else if (total <= 8) {
+    wrap.classList.add('flow-state-alert');
+    tooltip = 'Flow is alert! ' + total + ' items need attention.';
+  } else {
+    wrap.classList.add('flow-state-busy');
+    tooltip = 'Flow is fired up! ' + total + ' things to handle!';
+  }
+
+  wrap.title = tooltip;
+  wrap.style.display = currentClientId ? 'block' : 'none';
 }
 
 function setupLogoUpload() {
