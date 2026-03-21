@@ -3902,8 +3902,26 @@ async function initializeApp() {
     // Check if push is supported
     if (!('PushManager' in window)) {
       pushDebug('PushManager not available. iOS requires: Add to Home Screen + iOS 16.4+');
-      showPushBanner(); // Still show banner with info
+      showPushBanner();
       return;
+    }
+
+    // Force re-subscribe to fix old subscriptions saved with wrong userId
+    // This runs once per device — after re-subscribing, the flag prevents repeated unsubscribe
+    var resubKey = '2fly_push_resub_v2';
+    if (!localStorage.getItem(resubKey)) {
+      reg.pushManager.getSubscription().then(function(oldSub) {
+        if (oldSub) {
+          pushDebug('Re-subscribing to fix identity...');
+          oldSub.unsubscribe().then(function() {
+            localStorage.setItem(resubKey, '1');
+            subscribeClientPush(reg);
+          });
+        } else {
+          localStorage.setItem(resubKey, '1');
+        }
+      });
+      return; // Don't continue with normal flow — re-subscribe handles it
     }
 
     // Check Notification API
