@@ -54,10 +54,15 @@ router.get('/portal-state', (req, res) => {
   if (!ctx) return;
   try {
     let state = getPortalState(ctx.agencyId, ctx.clientId);
+    const client = getClient(ctx.clientId);
     if (!state) {
-      const client = getClient(ctx.clientId);
       state = defaultPortalState(ctx.clientId, client?.name || ctx.clientId, client?.primaryContactWhatsApp);
       savePortalState(ctx.agencyId, ctx.clientId, state);
+    }
+    // Ensure logoUrl from client record is included in the response
+    if (client && state.client) {
+      (state.client as any).logoUrl = client.logoUrl || null;
+      (state.client as any).name = client.name || state.client.name;
     }
     res.json({ success: true, data: state });
   } catch (e: any) {
