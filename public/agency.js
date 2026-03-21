@@ -1338,58 +1338,44 @@ function renderClientHeader() {
 
 function updateFlowCatState() {
   var wrap = document.getElementById('flowCatWrap');
-  var svg = document.getElementById('flowCatSvg');
-  if (!wrap || !svg) return;
+  if (!wrap) return;
 
-  // Calculate workload for current client
+  // Calculate workload
   var state = load();
-  var actionCount = 0;
+  var total = 0;
   if (state) {
-    actionCount += (state.approvals || []).filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'changes' || a.status === 'copy_pending'; }).length;
-    actionCount += (state.requests || []).filter(function(r) { return !r.done; }).length;
-    actionCount += (state.needs || []).filter(function(n) { return !n.done; }).length;
+    total += (state.approvals || []).filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'changes' || a.status === 'copy_pending'; }).length;
+    total += (state.requests || []).filter(function(r) { return !r.done; }).length;
+    total += (state.needs || []).filter(function(n) { return !n.done; }).length;
   }
-
-  // Production tasks for this client
-  var prodCount = 0;
   if (typeof productionTasksCache !== 'undefined') {
-    prodCount = productionTasksCache.filter(function(t) {
+    total += productionTasksCache.filter(function(t) {
       return t.clientId === currentClientId && ['in_progress', 'assigned', 'review', 'changes_requested'].indexOf(t.status) !== -1;
     }).length;
   }
 
-  var total = actionCount + prodCount;
-
-  // Remove all state classes
+  // Reset
   wrap.className = '';
-
-  // Reset hidden elements
   var eyesNormal = document.getElementById('flowEyes');
   var eyesSleepy = document.getElementById('flowEyesSleepy');
-  var eyesExcited = document.getElementById('flowEyesExcited');
-  var zzz = document.getElementById('flowZzz');
   if (eyesNormal) eyesNormal.style.display = '';
   if (eyesSleepy) eyesSleepy.style.display = 'none';
-  if (eyesExcited) eyesExcited.style.display = 'none';
-  if (zzz) zzz.style.display = 'none';
 
-  // Set Flow's mood
-  var tooltip = '';
+  // Quiet mood — Flow is always cozy, just slightly different
   if (total === 0) {
     wrap.classList.add('flow-state-sleep');
-    tooltip = 'Flow is napping... everything is done! 💤';
+    wrap.title = 'Flow is napping... all done 💤';
   } else if (total <= 3) {
     wrap.classList.add('flow-state-relax');
-    tooltip = 'Flow is vibing. ' + total + ' thing' + (total > 1 ? 's' : '') + ' to do. Easy day!';
+    wrap.title = 'Flow is cozy. ' + total + ' thing' + (total > 1 ? 's' : '') + ' to do.';
   } else if (total <= 8) {
     wrap.classList.add('flow-state-alert');
-    tooltip = 'Flow is on it! ' + total + ' items need attention 👀';
+    wrap.title = 'Flow is keeping an eye on ' + total + ' items.';
   } else {
     wrap.classList.add('flow-state-busy');
-    tooltip = 'Flow is fired up! ' + total + ' things to handle!';
+    wrap.title = 'Flow is purring hard. ' + total + ' things in motion!';
   }
 
-  wrap.title = tooltip;
   wrap.style.display = currentClientId ? 'block' : 'none';
 }
 

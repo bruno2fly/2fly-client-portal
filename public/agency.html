@@ -1931,97 +1931,50 @@
             <h2 id="clientHeaderName" style="font-size: 28px; font-weight: 700; color: white; margin: 0 0 8px 0;">Client Name</h2>
             <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin: 0;">Real-time status • Approvals • Requests</p>
           </div>
-          <!-- Flow the orange tabby cat mascot -->
-          <div id="flowCatWrap" style="position:relative;width:80px;height:68px;margin-right:4px;flex-shrink:0;" title="Flow is here!">
-            <svg id="flowCatSvg" viewBox="0 0 80 68" width="80" height="68" style="overflow:visible;">
-              <defs>
-                <linearGradient id="furGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#F5B846"/>
-                  <stop offset="100%" stop-color="#E8A020"/>
-                </linearGradient>
-              </defs>
-              <!-- Tail (behind body) -->
-              <path id="flowTail" d="M62,40 Q72,28 68,16 Q66,10 62,12" fill="none" stroke="#E8A020" stroke-width="5" stroke-linecap="round"/>
-              <path d="M62,40 Q72,28 68,16 Q66,10 62,12" fill="none" stroke="#D4891A" stroke-width="2" stroke-linecap="round" stroke-dasharray="5,8" opacity="0.5"/>
-              <!-- Body -->
-              <ellipse class="flow-body" cx="36" cy="46" rx="22" ry="16" fill="url(#furGrad)"/>
-              <!-- Tabby stripes on body -->
-              <path d="M28,36 Q32,40 28,44" fill="none" stroke="#D4891A" stroke-width="1.5" opacity="0.4"/>
-              <path d="M34,34 Q38,38 34,42" fill="none" stroke="#D4891A" stroke-width="1.5" opacity="0.4"/>
-              <path d="M40,35 Q44,39 40,43" fill="none" stroke="#D4891A" stroke-width="1.5" opacity="0.4"/>
-              <!-- Front paws -->
-              <ellipse cx="22" cy="58" rx="7" ry="4.5" fill="#F5C56B"/>
-              <ellipse cx="42" cy="58" rx="7" ry="4.5" fill="#F5C56B"/>
-              <!-- Paw pads -->
-              <circle cx="20" cy="59" r="1.2" fill="#E8A090" opacity="0.6"/>
-              <circle cx="24" cy="59" r="1.2" fill="#E8A090" opacity="0.6"/>
-              <circle cx="40" cy="59" r="1.2" fill="#E8A090" opacity="0.6"/>
-              <circle cx="44" cy="59" r="1.2" fill="#E8A090" opacity="0.6"/>
-              <!-- Head -->
-              <ellipse class="flow-head" cx="32" cy="24" rx="16" ry="14.5" fill="#F5B846"/>
-              <!-- Tabby M on forehead -->
-              <path d="M24,16 L28,12 L32,17 L36,12 L40,16" fill="none" stroke="#D4891A" stroke-width="1.2" opacity="0.5" stroke-linecap="round"/>
-              <!-- Cheeks (lighter) -->
-              <ellipse cx="24" cy="28" rx="5" ry="4" fill="#F8CC6A" opacity="0.6"/>
-              <ellipse cx="40" cy="28" rx="5" ry="4" fill="#F8CC6A" opacity="0.6"/>
+          <!-- Flow 🐱 — Pusheen-style cozy office cat -->
+          <div id="flowCatWrap" style="position:relative;width:50px;height:44px;margin-right:6px;flex-shrink:0;" title="Flow is napping...">
+            <svg id="flowCatSvg" viewBox="0 0 50 44" width="50" height="44">
+              <!-- Tail (behind body, gentle curve) -->
+              <path id="flowTail" d="M42,28 Q48,20 45,13" fill="none" stroke="#D4A06A" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>
+              <!-- Body (chubby rounded loaf) -->
+              <ellipse class="flow-body" cx="24" cy="30" rx="18" ry="12" fill="#D4A06A"/>
+              <!-- Lighter belly -->
+              <ellipse cx="24" cy="33" rx="12" ry="6" fill="#E8C49A" opacity="0.5"/>
+              <!-- Subtle stripes -->
+              <path d="M18,24 Q20,27 18,30" fill="none" stroke="#C08C54" stroke-width="1" opacity="0.25" stroke-linecap="round"/>
+              <path d="M24,23 Q26,26 24,29" fill="none" stroke="#C08C54" stroke-width="1" opacity="0.25" stroke-linecap="round"/>
+              <path d="M30,24 Q32,27 30,30" fill="none" stroke="#C08C54" stroke-width="1" opacity="0.25" stroke-linecap="round"/>
+              <!-- Front paws (tucked under, loaf style) -->
+              <ellipse cx="14" cy="38" rx="5" ry="3" fill="#DEBA8A"/>
+              <ellipse cx="34" cy="38" rx="5" ry="3" fill="#DEBA8A"/>
+              <!-- Head (round, slightly overlapping body) -->
+              <circle class="flow-head" cx="24" cy="18" r="12" fill="#D4A06A"/>
+              <!-- Lighter face -->
+              <ellipse cx="24" cy="20" rx="8" ry="6" fill="#E2B882" opacity="0.4"/>
               <!-- Ears -->
-              <polygon points="19,16 14,2 26,11" fill="#F5B846"/>
-              <polygon points="45,16 50,2 38,11" fill="#F5B846"/>
-              <!-- Ear insides (pink) -->
-              <polygon points="20,14 16,5 25,11" fill="#F4B0A0" opacity="0.7"/>
-              <polygon points="44,14 48,5 39,11" fill="#F4B0A0" opacity="0.7"/>
-              <!-- Eyes - big and expressive -->
+              <polygon points="15,10 11,1 20,7" fill="#D4A06A"/>
+              <polygon points="33,10 37,1 28,7" fill="#D4A06A"/>
+              <polygon points="16,9 13,3 19,7" fill="#D9A8A0" opacity="0.5"/>
+              <polygon points="32,9 35,3 29,7" fill="#D9A8A0" opacity="0.5"/>
+              <!-- Eyes — half-closed, cozy/sleepy -->
               <g id="flowEyes">
-                <!-- Eye whites -->
-                <ellipse cx="26" cy="23" rx="5" ry="5.5" fill="white"/>
-                <ellipse cx="38" cy="23" rx="5" ry="5.5" fill="white"/>
-                <!-- Irises (dark brown) -->
-                <ellipse class="flow-iris-l" cx="27" cy="23" rx="3.2" ry="3.5" fill="#3D2212"/>
-                <ellipse class="flow-iris-r" cx="39" cy="23" rx="3.2" ry="3.5" fill="#3D2212"/>
-                <!-- Pupils -->
-                <ellipse cx="27.5" cy="23" rx="1.8" ry="2.2" fill="#1a0e06"/>
-                <ellipse cx="39.5" cy="23" rx="1.8" ry="2.2" fill="#1a0e06"/>
-                <!-- Eye shine (big highlight) -->
-                <circle cx="28.5" cy="21.5" r="1.5" fill="white" opacity="0.9"/>
-                <circle cx="40.5" cy="21.5" r="1.5" fill="white" opacity="0.9"/>
-                <!-- Small secondary highlight -->
-                <circle cx="26" cy="24.5" r="0.7" fill="white" opacity="0.5"/>
-                <circle cx="38" cy="24.5" r="0.7" fill="white" opacity="0.5"/>
+                <path d="M19,17 Q21,19 23,17" fill="none" stroke="#5C3D2E" stroke-width="1.6" stroke-linecap="round"/>
+                <path d="M25,17 Q27,19 29,17" fill="none" stroke="#5C3D2E" stroke-width="1.6" stroke-linecap="round"/>
               </g>
-              <!-- Sleepy eyes (hidden by default) -->
+              <!-- Sleepy eyes (fully closed, happy curves) -->
               <g id="flowEyesSleepy" style="display:none;">
-                <path d="M22,23 Q26,26 30,23" fill="none" stroke="#3D2212" stroke-width="2" stroke-linecap="round"/>
-                <path d="M34,23 Q38,26 42,23" fill="none" stroke="#3D2212" stroke-width="2" stroke-linecap="round"/>
-                <!-- Blush marks -->
-                <ellipse cx="22" cy="27" rx="3" ry="1.5" fill="#F4A0A0" opacity="0.4"/>
-                <ellipse cx="42" cy="27" rx="3" ry="1.5" fill="#F4A0A0" opacity="0.4"/>
+                <path d="M18,17.5 Q21,19.5 24,17.5" fill="none" stroke="#5C3D2E" stroke-width="1.4" stroke-linecap="round"/>
+                <path d="M24,17.5 Q27,19.5 30,17.5" fill="none" stroke="#5C3D2E" stroke-width="1.4" stroke-linecap="round"/>
               </g>
-              <!-- Nose (pink triangle) -->
-              <path d="M30,28 L32,26 L34,28 Z" fill="#F08080"/>
-              <!-- Mouth (cute W shape) -->
-              <path d="M29,30 Q32,32 32,30 Q32,32 35,30" fill="none" stroke="#C06050" stroke-width="0.8" stroke-linecap="round"/>
-              <!-- Whiskers (3 per side) -->
-              <line x1="10" y1="25" x2="22" y2="27" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <line x1="9" y1="28" x2="22" y2="29" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <line x1="11" y1="31" x2="22" y2="31" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <line x1="42" y1="27" x2="54" y2="25" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <line x1="42" y1="29" x2="55" y2="28" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <line x1="42" y1="31" x2="53" y2="31" stroke="white" stroke-width="0.7" opacity="0.7"/>
-              <!-- Zzz for sleeping -->
-              <g id="flowZzz" style="display:none;">
-                <text x="50" y="10" fill="rgba(255,255,255,0.7)" font-size="12" font-weight="800" font-family="sans-serif">z</text>
-                <text x="57" y="4" fill="rgba(255,255,255,0.5)" font-size="8" font-weight="800" font-family="sans-serif">z</text>
-              </g>
-              <!-- Sparkle eyes for excited state (hidden by default) -->
-              <g id="flowEyesExcited" style="display:none;">
-                <ellipse cx="26" cy="23" rx="5" ry="5.5" fill="white"/>
-                <ellipse cx="38" cy="23" rx="5" ry="5.5" fill="white"/>
-                <!-- Star-shaped pupils -->
-                <circle cx="27" cy="22" rx="3" ry="3" fill="#3D2212"/>
-                <circle cx="39" cy="22" rx="3" ry="3" fill="#3D2212"/>
-                <text x="24.5" y="25" fill="white" font-size="7" font-weight="900" font-family="sans-serif">★</text>
-                <text x="36.5" y="25" fill="white" font-size="7" font-weight="900" font-family="sans-serif">★</text>
-              </g>
+              <!-- Nose (tiny pink dot) -->
+              <ellipse cx="24" cy="21" rx="1.2" ry="0.8" fill="#D49B9B"/>
+              <!-- Mouth (subtle) -->
+              <path d="M22.5,22.5 Q24,23.5 25.5,22.5" fill="none" stroke="#C08878" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
+              <!-- Whiskers (delicate) -->
+              <line x1="12" y1="20" x2="18" y2="21" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>
+              <line x1="11" y1="22" x2="18" y2="22.5" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>
+              <line x1="30" y1="21" x2="36" y2="20" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>
+              <line x1="30" y1="22.5" x2="37" y2="22" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>
             </svg>
           </div>
           <div class="client-header__actions">
@@ -3657,88 +3610,43 @@
     @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Flow the orange tabby cat animations */
+    /* Flow 🐱 — minimal cozy cat animations */
     @keyframes flowBreathe {
       0%, 100% { transform: scaleY(1); }
-      50% { transform: scaleY(1.04); }
+      50% { transform: scaleY(1.02); }
     }
-    @keyframes flowTailSlow {
-      0%, 100% { d: path("M62,40 Q72,28 68,16 Q66,10 62,12"); }
-      50% { d: path("M62,40 Q74,32 72,20 Q70,14 66,16"); }
+    @keyframes flowTailSway {
+      0%, 100% { d: path("M42,28 Q48,20 45,13"); }
+      50% { d: path("M42,28 Q50,22 48,15"); }
     }
-    @keyframes flowTailMedium {
-      0%, 100% { d: path("M62,40 Q72,28 68,16 Q66,10 62,12"); }
-      33% { d: path("M62,40 Q76,34 74,22 Q72,16 68,18"); }
-      66% { d: path("M62,40 Q68,24 64,14 Q62,8 58,10"); }
-    }
-    @keyframes flowTailFast {
-      0%, 100% { d: path("M62,40 Q72,28 68,16 Q66,10 62,12"); }
-      25% { d: path("M62,40 Q78,36 76,24 Q74,18 70,20"); }
-      50% { d: path("M62,40 Q70,26 66,14 Q64,8 60,10"); }
-      75% { d: path("M62,40 Q64,22 60,12 Q58,6 54,8"); }
-    }
-    @keyframes flowBlink {
-      0%, 90%, 100% { transform: scaleY(1); }
-      94% { transform: scaleY(0.05); }
-    }
-    @keyframes flowZzzFloat {
-      0% { opacity:0; transform: translateY(0); }
-      20% { opacity:0.7; }
-      100% { opacity:0; transform: translateY(-14px); }
-    }
-    @keyframes flowBounce {
-      0%, 100% { transform: translateY(0); }
-      40% { transform: translateY(-5px); }
-      60% { transform: translateY(-3px); }
-    }
-    @keyframes flowLookAround {
-      0%, 35%, 100% { transform: translateX(0); }
-      15% { transform: translateX(2px); }
-      55% { transform: translateX(-2px); }
-      80% { transform: translateX(1px); }
-    }
-    @keyframes flowEarTwitch {
-      0%, 85%, 100% { transform: rotate(0deg); }
-      90% { transform: rotate(-5deg); }
-      95% { transform: rotate(3deg); }
-    }
-    @keyframes flowWhiskerTwitch {
-      0%, 90%, 100% { opacity: 0.7; }
-      95% { opacity: 1; transform: translateX(1px); }
+    @keyframes flowPurr {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(0.3px); }
+      75% { transform: translateX(-0.3px); }
     }
 
-    /* State: sleeping — cozy */
-    .flow-state-sleep .flow-body { animation: flowBreathe 3s ease-in-out infinite; }
+    /* Default state: always cozy, always breathing */
+    #flowCatSvg .flow-body { animation: flowBreathe 3.5s ease-in-out infinite; }
+    #flowTail { animation: flowTailSway 4s ease-in-out infinite; }
+
+    /* Sleep: show sleepy eyes instead of half-closed */
     .flow-state-sleep #flowEyes { display: none; }
     .flow-state-sleep #flowEyesSleepy { display: block !important; }
-    .flow-state-sleep #flowEyesExcited { display: none; }
-    .flow-state-sleep #flowZzz { display: block !important; animation: flowZzzFloat 2.5s ease-in-out infinite; }
-    .flow-state-sleep #flowTail { animation: flowTailSlow 5s ease-in-out infinite; }
 
-    /* State: relaxed — chillin */
-    .flow-state-relax .flow-body { animation: flowBreathe 4s ease-in-out infinite; }
-    .flow-state-relax #flowEyes { animation: flowBlink 5s ease-in-out infinite; }
-    .flow-state-relax #flowTail { animation: flowTailMedium 3s ease-in-out infinite; }
-    .flow-state-relax .flow-ear-l { animation: flowEarTwitch 6s ease-in-out infinite; transform-origin: center; }
+    /* Relax/alert/busy: keep half-closed eyes (default), just vary breathing */
+    .flow-state-relax #flowCatSvg .flow-body { animation: flowBreathe 4s ease-in-out infinite; }
+    .flow-state-alert #flowCatSvg .flow-body { animation: flowBreathe 3s ease-in-out infinite; }
+    .flow-state-alert #flowTail { animation: flowTailSway 2.5s ease-in-out infinite; }
+    .flow-state-busy #flowCatSvg .flow-body { animation: flowBreathe 2.5s ease-in-out infinite; }
+    .flow-state-busy #flowTail { animation: flowTailSway 1.8s ease-in-out infinite; }
 
-    /* State: alert — looking around */
-    .flow-state-alert #flowEyes { animation: flowBlink 3.5s ease-in-out infinite; }
-    .flow-state-alert .flow-head { animation: flowLookAround 4s ease-in-out infinite; }
-    .flow-state-alert #flowTail { animation: flowTailMedium 1.8s ease-in-out infinite; }
-    .flow-state-alert line { animation: flowWhiskerTwitch 3s ease-in-out infinite; }
-
-    /* State: busy — bouncing and excited */
-    .flow-state-busy #flowCatSvg { animation: flowBounce 1.2s ease-in-out infinite; }
-    .flow-state-busy #flowEyes { display: none; }
-    .flow-state-busy #flowEyesExcited { display: block !important; }
-    .flow-state-busy #flowTail { animation: flowTailFast 0.7s ease-in-out infinite; }
-    .flow-state-busy .flow-head { animation: flowLookAround 2s ease-in-out infinite; }
-
-    #flowCatWrap { transition: all 0.3s; cursor: default; }
-    #flowCatWrap:hover { transform: scale(1.08); }
+    /* Hover: tiny purr vibration */
+    #flowCatWrap { cursor: default; transition: opacity 0.3s; opacity: 0.85; }
+    #flowCatWrap:hover { opacity: 1; }
+    #flowCatWrap:hover #flowCatSvg { animation: flowPurr 0.15s ease-in-out 3; }
   </style>
 
-  <script src="/agency.js?v=78"></script>
+  <script src="/agency.js?v=79"></script>
 </body>
 </html>
 
