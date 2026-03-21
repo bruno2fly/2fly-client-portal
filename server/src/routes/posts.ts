@@ -22,7 +22,7 @@ import {
   getInstagramAccount,
   refreshLongLivedToken,
 } from '../lib/meta-api.js';
-import { sendPushToRole, NOTIFY } from '../lib/pushService.js';
+import { sendPushToRole, sendPushToClient, NOTIFY } from '../lib/pushService.js';
 
 const router = Router();
 
@@ -129,6 +129,11 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
     };
 
     saveScheduledPost(post);
+    // Notify client their post is scheduled
+    sendPushToClient(post.clientId, NOTIFY.clientPostScheduled(
+      post.caption ? post.caption.substring(0, 40) : 'Your post',
+      new Date(post.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    )).catch(() => {});
     res.status(201).json({ success: true, post });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to schedule post' });
@@ -335,10 +340,14 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
       return res.status(422).json({ error, post });
     }
-    // Fire-and-forget push notification for successful publish
+    // Fire-and-forget push notifications for successful publish
     const clientName = getClient(post.clientId)?.name || 'Client';
     sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
       clientName,
+      post.platforms.join(' & ')
+    )).catch(() => {});
+    // Notify the CLIENT that their post went live
+    sendPushToClient(post.clientId, NOTIFY.clientPostLive(
       post.platforms.join(' & ')
     )).catch(() => {});
     res.json({ success: true, post });

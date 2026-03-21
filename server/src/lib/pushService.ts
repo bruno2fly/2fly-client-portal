@@ -97,6 +97,34 @@ export async function sendPushToRole(
   }
 }
 
+/**
+ * Send push notification to a specific client (all their portal devices)
+ * Client subscriptions have userId = clientId and role = CLIENT
+ */
+export async function sendPushToClient(clientId: string, payload: PushPayload): Promise<void> {
+  if (!initVapid()) return;
+  const subs = getPushSubscriptions();
+  const clientSubs = Object.values(subs).filter(s => s.userId === clientId);
+
+  for (const sub of clientSubs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: sub.keys },
+        JSON.stringify({
+          ...payload,
+          icon: payload.icon || '/icons/icon-192.png',
+          badge: payload.badge || '/icons/icon-192.png',
+        })
+      );
+    } catch (err: any) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        deletePushSubscription(sub.endpoint);
+      }
+      console.error(`[push] Failed to send to client ${clientId}:`, err.message);
+    }
+  }
+}
+
 // ── DOPAMINE NOTIFICATION TEMPLATES ──
 
 export const NOTIFY = {
@@ -200,5 +228,79 @@ export const NOTIFY = {
       '. Keep crushing it!',
     tag: 'weekly-' + Date.now(),
     data: { url: '/agency' },
+  }),
+
+  // ── CLIENT-FACING NOTIFICATIONS (sent to client portal users) ──
+
+  // Content sent for client approval (design/copy ready to review)
+  clientContentReady: (postTitle: string, count?: number) => ({
+    title: 'New content to review! ✨',
+    body: count && count > 1
+      ? count + ' posts are ready for your approval. Your brand is about to level up!'
+      : '"' + postTitle.substring(0, 40) + '" is ready. Quick review and we\'ll make it happen!',
+    tag: 'content-ready-' + Date.now(),
+    data: { url: '/' },
+    actions: [{ action: 'review', title: 'Review now' }],
+  }),
+
+  // Copy sent for client review
+  clientCopyReady: (postTitle: string) => ({
+    title: 'Fresh copy for you to check! 📝',
+    body: 'We wrote "' + postTitle.substring(0, 35) + '" for your brand. Take a look and let us know!',
+    tag: 'copy-ready-' + Date.now(),
+    data: { url: '/' },
+    actions: [{ action: 'review', title: 'Review copy' }],
+  }),
+
+  // Client's request was completed
+  clientRequestDone: (requestTitle: string) => ({
+    title: 'Done! Your request is complete ✅',
+    body: '"' + requestTitle.substring(0, 40) + '" has been handled. We\'re always on it!',
+    tag: 'request-done-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Post scheduled for client
+  clientPostScheduled: (postTitle: string, scheduledDate: string) => ({
+    title: 'Post locked and loaded! 📅',
+    body: '"' + postTitle.substring(0, 35) + '" is scheduled for ' + scheduledDate + '. Sit back, we got this!',
+    tag: 'scheduled-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Post went live on client's social
+  clientPostLive: (platform: string) => ({
+    title: 'Your post is LIVE! 🚀',
+    body: 'Just published on ' + platform + '! Your audience is seeing it right now. Let\'s go!',
+    tag: 'live-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Dopamine: we're working on your stuff
+  clientWeAreOnIt: (taskCount: number) => ({
+    title: 'Your team is on it! 💪',
+    body: taskCount + ' piece' + (taskCount > 1 ? 's' : '') + ' of content in the works right now. Your brand is in good hands!',
+    tag: 'working-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Dopamine: weekly progress update for client
+  clientWeeklyUpdate: (postsPublished: number, postsScheduled: number, inProduction: number) => ({
+    title: 'Your weekly buzz 🐝',
+    body: (postsPublished > 0 ? postsPublished + ' post' + (postsPublished > 1 ? 's' : '') + ' went live. ' : '')
+      + (postsScheduled > 0 ? postsScheduled + ' more coming up. ' : '')
+      + (inProduction > 0 ? inProduction + ' being created right now. ' : '')
+      + 'Your brand keeps growing!',
+    tag: 'client-weekly-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Nudge: pending approvals reminder
+  clientApprovalReminder: (count: number) => ({
+    title: 'Quick heads up! 👋',
+    body: 'You have ' + count + ' post' + (count > 1 ? 's' : '') + ' waiting for your approval. A quick review keeps everything on schedule!',
+    tag: 'reminder-' + Date.now(),
+    data: { url: '/' },
+    actions: [{ action: 'review', title: 'Review now' }],
   }),
 };

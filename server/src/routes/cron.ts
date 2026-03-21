@@ -20,7 +20,7 @@ import {
   getInstagramAccount,
   refreshLongLivedToken,
 } from '../lib/meta-api.js';
-import { sendPushToRole, NOTIFY } from '../lib/pushService.js';
+import { sendPushToRole, sendPushToClient, NOTIFY } from '../lib/pushService.js';
 
 const router = Router();
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -158,10 +158,14 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       post.metaPostIds = metaPostIds;
       delete post.error;
       results.push({ id: post.id, status: 'published' });
-      // Fire-and-forget push notification for successful publish
+      // Fire-and-forget push notifications
       const clientName = getClient(post.clientId)?.name || 'Client';
       sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
         clientName,
+        post.platforms.join(' & ')
+      )).catch(() => {});
+      // Notify client their post went live
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(
         post.platforms.join(' & ')
       )).catch(() => {});
     } catch (err: any) {
@@ -327,10 +331,13 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
       post.metaPostIds = metaPostIds;
       delete post.error;
       results.push({ id: post.id, status: 'published' });
-      // Fire-and-forget push notification for successful publish
+      // Fire-and-forget push notifications
       const clientName = getClient(post.clientId)?.name || 'Client';
       sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
         clientName,
+        post.platforms.join(' & ')
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(
         post.platforms.join(' & ')
       )).catch(() => {});
     } catch (err: any) {

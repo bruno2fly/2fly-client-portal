@@ -233,4 +233,47 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
   }
 });
 
+// POST /api/notifications/notify-client — agency triggers a client notification
+// Body: { clientId, type, postTitle?, requestTitle?, platform?, scheduledDate?, count? }
+router.post('/notify-client', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { clientId, type, postTitle, requestTitle, platform, scheduledDate, count } = req.body;
+    if (!clientId || !type) return res.status(400).json({ error: 'clientId and type required' });
+
+    const { sendPushToClient, NOTIFY } = await import('../lib/pushService.js');
+
+    let payload: any;
+    switch (type) {
+      case 'content_ready':
+        payload = NOTIFY.clientContentReady(postTitle || 'New content', count);
+        break;
+      case 'copy_ready':
+        payload = NOTIFY.clientCopyReady(postTitle || 'New copy');
+        break;
+      case 'request_done':
+        payload = NOTIFY.clientRequestDone(requestTitle || 'Your request');
+        break;
+      case 'post_scheduled':
+        payload = NOTIFY.clientPostScheduled(postTitle || 'Your post', scheduledDate || 'soon');
+        break;
+      case 'post_live':
+        payload = NOTIFY.clientPostLive(platform || 'social media');
+        break;
+      case 'we_are_on_it':
+        payload = NOTIFY.clientWeAreOnIt(count || 1);
+        break;
+      case 'approval_reminder':
+        payload = NOTIFY.clientApprovalReminder(count || 1);
+        break;
+      default:
+        return res.status(400).json({ error: 'Unknown type: ' + type });
+    }
+
+    await sendPushToClient(clientId, payload);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
