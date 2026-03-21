@@ -184,7 +184,7 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
       return res.status(404).json({ error: 'Client not found' });
     }
     const designer = getUser(designerId);
-    if (!designer || designer.agencyId !== agencyId || designer.role !== 'DESIGNER') {
+    if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'STAFF'].includes(designer.role)) {
       return res.status(400).json({ error: 'Invalid designer' });
     }
 
