@@ -1555,7 +1555,7 @@ function ensureScheduledTabExists() {
     const div = document.createElement('div');
     div.id = 'tabScheduled';
     div.className = 'tab-content';
-    div.innerHTML = '<div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;"><div id="scheduledPostsConnectionContent"></div></div><div id="scheduledPostsListTitle" style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 12px;">Scheduled Posts:</div><div id="scheduledPostsFilters" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;"><select id="scheduledFilterClient" class="form-select form-select--sm"><option value="">All clients</option></select><select id="scheduledFilterPlatform" class="form-select form-select--sm"><option value="">All platforms</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select><select id="scheduledFilterStatus" class="form-select form-select--sm"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="failed">Failed</option></select></div><div id="scheduledPostsList" class="scheduled-posts-list"><div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div></div>';
+    div.innerHTML = '<div id="scheduledPostsConnectionSection" class="card" style="margin-bottom:16px;padding:14px 18px;"><div id="scheduledPostsConnectionContent"></div></div><div id="scheduledPostsList" class="scheduled-posts-list"><div style="text-align: center; padding: 40px; color: #64748b;">Loading scheduled posts...</div></div>';
     contentLibraryContent.parentNode.insertBefore(div, contentLibraryContent);
   }
 }
@@ -1592,11 +1592,11 @@ async function renderScheduledPostsConnectionSection() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed to check status');
 
-    let html = '<div style="font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px;">' + (client.name || currentClientId) + ' — Social Accounts</div>';
+    let html = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><span style="font-size:14px;font-weight:600;color:#0f172a;">' + (client.name || currentClientId) + '</span><span style="font-size:11px;color:#94a3b8;font-weight:500;">Social Accounts</span></div>';
     if (j.connected) {
-      html += '<div style="display: flex; flex-direction: column; gap: 12px;">';
-      html += '<div style="display: flex; align-items: center; gap: 12px;flex-wrap:wrap;"><span style="color: #059669;">●</span> Instagram: Connected' + (j.instagramUsername ? ' (@' + j.instagramUsername + ')' : '') + '</div>';
-      html += '<div style="display: flex; align-items: center; gap: 12px;"><span style="color: #059669;">●</span> Facebook: Connected' + (j.pageName ? ' (' + j.pageName + ')' : '') + '</div>';
+      html += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#059669;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ig2" x1="0" y1="24" x2="24" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="25%" stop-color="#fa7e1e"/><stop offset="50%" stop-color="#d62976"/><stop offset="75%" stop-color="#962fbf"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect width="20" height="20" x="2" y="2" rx="5" stroke="url(#ig2)" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="4.5" stroke="url(#ig2)" stroke-width="2" fill="none"/><circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig2)"/></svg>' + (j.instagramUsername ? '@' + j.instagramUsername : 'Connected') + '</div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#059669;"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>' + (j.pageName ? j.pageName : 'Connected') + '</div>';
       html += '</div>';
       // Token expiry warning
       if (j.daysUntilExpiry != null && j.daysUntilExpiry <= 14) {
@@ -1613,12 +1613,12 @@ async function renderScheduledPostsConnectionSection() {
       html += '</div>';
       html += '<div id="scheduledMetaTestResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;"></div>';
     } else {
-      html += '<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">';
-      html += '<div><span style="color: #94a3b8;">○</span> Instagram: Not connected</div>';
-      html += '<div><span style="color: #94a3b8;">○</span> Facebook: Not connected</div>';
+      html += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ig1" x1="0" y1="24" x2="24" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="25%" stop-color="#fa7e1e"/><stop offset="50%" stop-color="#d62976"/><stop offset="75%" stop-color="#962fbf"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect width="20" height="20" x="2" y="2" rx="5" stroke="url(#ig1)" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="4.5" stroke="url(#ig1)" stroke-width="2" fill="none"/><circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig1)"/></svg>Not linked</div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>Not linked</div>';
       html += '</div>';
-      if (j.error) html += '<p style="font-size: 13px; color: #dc2626; margin: 0 0 12px 0;">' + j.error + '</p>';
-      html += '<button type="button" class="btn btn-primary" id="scheduledMetaConnectBtn" style="padding: 12px 24px;">Connect Facebook &amp; Instagram</button>';
+      if (j.error) html += '<p style="font-size:12px;color:#dc2626;margin:8px 0 0 0;">' + j.error + '</p>';
+      html += '<button type="button" class="btn btn-primary" id="scheduledMetaConnectBtn" style="padding:8px 16px;font-size:13px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;margin-top:12px;"><svg width="18" height="18" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="#0081FB"/><path d="M18 8c-5.523 0-10 4.16-10 9.29 0 2.57 1.07 4.88 2.82 6.56v3.15l2.94-1.63c.83.23 1.72.35 2.63.35h.61c-.04-.33-.06-.66-.06-1 0-4.83 4.07-8.73 9.06-8.73.29 0 .58.01.87.04C26.24 11.66 22.5 8 18 8zm-1.1 7.93l-2.55 2.72-4.7-2.72 5.17-5.48 2.62 2.72 4.63-2.72-5.17 5.48z" fill="white"/><path d="M30.97 17.29c0-4.28-4.07-7.73-9.06-7.73-5 0-9.07 3.46-9.07 7.73s4.07 7.73 9.07 7.73c.78 0 1.54-.09 2.26-.26l2.48 1.37v-2.65c1.46-1.49 2.32-3.42 2.32-5.52v.33zm-11.1-1.26l1.88-2 3.38 2-3.71 3.93-1.88-2-3.38 2 3.71-3.93z" fill="white"/></svg>Connect with Meta</button>';
     }
     content.innerHTML = html;
 
@@ -1736,32 +1736,16 @@ async function renderScheduledPostsTab() {
   }
 
   const container = $('#scheduledPostsList');
-  const filterClient = $('#scheduledFilterClient');
-  const filterPlatform = $('#scheduledFilterPlatform');
-  const filterStatus = $('#scheduledFilterStatus');
   if (!container) return;
 
   injectCalendarStyles();
 
   const clients = loadClientsRegistry();
-  if (filterClient) {
-    const cur = filterClient.value;
-    filterClient.innerHTML = '<option value="">All clients</option>' + Object.values(clients || {}).map(c => '<option value="' + c.id + '">' + (c.name || c.id) + '</option>').join('');
-    if (cur) filterClient.value = cur;
-  }
 
   const params = new URLSearchParams();
-  if (filterClient && filterClient.value) params.set('clientId', filterClient.value);
-  else if (currentClientId) params.set('clientId', currentClientId);
-  if (filterPlatform && filterPlatform.value) params.set('platform', filterPlatform.value);
-  if (filterStatus && filterStatus.value) params.set('status', filterStatus.value);
+  if (currentClientId) params.set('clientId', currentClientId);
 
-  const listTitle = $('#scheduledPostsListTitle');
-  if (listTitle) {
-    const filteredClientId = filterClient && filterClient.value;
-    const clientName = filteredClientId && clients ? (clients[filteredClientId]?.name || filteredClientId) : (currentClientId && clients ? (clients[currentClientId]?.name || currentClientId) : null);
-    listTitle.textContent = clientName ? 'Scheduled Posts for ' + clientName + ':' : 'Scheduled Posts:';
-  }
+
 
   try {
     const r = await fetch(`${getApiBaseUrl()}/api/posts/scheduled?${params}`, { credentials: 'include' });
@@ -2212,12 +2196,7 @@ function renderFeedBuilder() {
 }
 
 function setupScheduledPostsFilters() {
-  const filterClient = $('#scheduledFilterClient');
-  const filterPlatform = $('#scheduledFilterPlatform');
-  const filterStatus = $('#scheduledFilterStatus');
-  if (filterClient && !filterClient._scheduledBound) { filterClient._scheduledBound = true; filterClient.addEventListener('change', () => renderScheduledPostsTab()); }
-  if (filterPlatform && !filterPlatform._scheduledBound) { filterPlatform._scheduledBound = true; filterPlatform.addEventListener('change', () => renderScheduledPostsTab()); }
-  if (filterStatus && !filterStatus._scheduledBound) { filterStatus._scheduledBound = true; filterStatus.addEventListener('change', () => renderScheduledPostsTab()); }
+  // Filters removed — kept as stub to avoid call errors
 }
 
 /* ================== Overview Tab ================== */
