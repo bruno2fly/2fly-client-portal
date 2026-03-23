@@ -4182,15 +4182,26 @@ function renderUpcomingFeed(){
     return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
   }).sort(function(a,b){
     return new Date(a.postDate) - new Date(b.postDate);
-  }).slice(0, 4); // Max 4 posts
+  }).slice(0, 4);
 
-  if (countEl) {
-    countEl.textContent = upcoming.length > 0 ? upcoming.length + " next up" : "";
+  // If no real posts, show sample placeholder cards
+  var usingSample = false;
+  if (upcoming.length === 0) {
+    usingSample = true;
+    var d1 = new Date(); d1.setDate(d1.getDate() + 2);
+    var d2 = new Date(); d2.setDate(d2.getDate() + 4);
+    var d3 = new Date(); d3.setDate(d3.getDate() + 6);
+    var d4 = new Date(); d4.setDate(d4.getDate() + 9);
+    upcoming = [
+      { id: "sample-1", title: "Spring Collection Launch", type: "Post", status: "approved", postDate: d1.toISOString(), copyText: "Introducing our new spring collection — fresh styles for a fresh season \u2728" },
+      { id: "sample-2", title: "Behind the Scenes", type: "Reel", status: "pending", postDate: d2.toISOString(), copyText: "Take a peek behind the curtain at how we create your favorite content \ud83c\udfac" },
+      { id: "sample-3", title: "Client Success Story", type: "Carousel", status: "approved", postDate: d3.toISOString(), copyText: "See how we helped grow engagement by 340% in just 3 months \ud83d\udcc8" },
+      { id: "sample-4", title: "Weekend Tips & Tricks", type: "Story", status: "pending", postDate: d4.toISOString(), copyText: "Quick tips to boost your social media game this weekend \ud83d\ude80" }
+    ];
   }
 
-  if (upcoming.length === 0) {
-    grid.innerHTML = '<div class="upcoming-feed-empty"><div class="upcoming-feed-empty-icon">📅</div>No upcoming posts scheduled.<br>Posts with a future date will appear here.</div>';
-    return;
+  if (countEl) {
+    countEl.textContent = usingSample ? "Preview" : upcoming.length + " next up";
   }
 
   upcoming.forEach(function(item){
@@ -4261,6 +4272,13 @@ function renderUpcomingFeed(){
 
     grid.appendChild(card);
   });
+
+  // If using sample data, add a subtle banner
+  if (usingSample) {
+    var banner = el("div", { style: "grid-column: 1 / -1; text-align:center; padding:10px 16px; font-size:12px; color:var(--text-secondary); background:var(--panel); border-radius:10px; border:1px dashed rgba(100,116,139,.3); margin-top:4px;" });
+    banner.innerHTML = "\u2728 Sample posts — Your scheduled content will appear here automatically.";
+    grid.appendChild(banner);
+  }
 }
 
 function resolveUpcomingImage(item) {
