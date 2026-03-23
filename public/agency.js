@@ -1846,83 +1846,6 @@ async function renderScheduledPostsTab() {
     html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1877f2;">' + summary.facebook + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📘 Facebook</div></div>';
     html += '</div></div>';
 
-    /* ── Upcoming Posts Feed (Instagram-style cards) ── */
-    const feedPosts = allPosts.filter(p => {
-      const st = (p.status || '').toLowerCase();
-      return st === 'scheduled' || st === 'approved';
-    }).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)).slice(0, 6);
-
-    if (feedPosts.length > 0) {
-      html += '<div style="margin-top:28px;">';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
-      html += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Upcoming Posts Preview</h3>';
-      html += '<span style="font-size:13px;color:#64748b;font-weight:500;">' + feedPosts.length + ' next up</span>';
-      html += '</div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" class="agency-upcoming-grid">';
-
-      feedPosts.forEach(function(p) {
-        const typeLabel = (p.platforms && p.platforms.length > 0) ? p.platforms.map(pl => pl.charAt(0).toUpperCase() + pl.slice(1)).join(', ') : 'Post';
-        const statusLower = (p.status || 'scheduled').toLowerCase();
-        const statusLabel = statusLower === 'published' ? 'Published' : statusLower === 'approved' ? 'Approved' : statusLower === 'failed' ? 'Failed' : 'Scheduled';
-        const statusBg = statusLower === 'approved' ? '#dcfce7' : statusLower === 'published' ? '#dbeafe' : statusLower === 'failed' ? '#fee2e2' : '#e0f2fe';
-        const statusColor = statusLower === 'approved' ? '#166534' : statusLower === 'published' ? '#1e40af' : statusLower === 'failed' ? '#991b1b' : '#0369a1';
-        const platformBg = (p.platforms || []).includes('instagram') ? '#fce7f3' : '#dbeafe';
-        const platformColor = (p.platforms || []).includes('instagram') ? '#be185d' : '#1e40af';
-        const caption = p.caption ? (p.caption.length > 80 ? p.caption.slice(0, 80) + '…' : p.caption) : 'No caption';
-        const safeCaption = caption.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const dateStr = new Date(p.scheduledAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        const timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const clientLabel = p.clientName || p.clientId || '';
-        const safeClientLabel = clientLabel.replace(/</g, '&lt;');
-        const mediaUrl = (p.mediaUrls && p.mediaUrls.length > 0) ? p.mediaUrls[0] : (p.imageUrl || '');
-
-        html += '<div class="agency-upcoming-card" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04);cursor:pointer;transition:transform 0.2s ease,box-shadow 0.2s ease;">';
-
-        // Image or placeholder
-        if (mediaUrl) {
-          html += '<div style="width:100%;aspect-ratio:1/1;overflow:hidden;position:relative;">';
-          html += '<img src="' + mediaUrl.replace(/"/g, '&quot;') + '" alt="Post preview" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML=\'<div style=\\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0e7ff,#dbeafe,#ede9fe);font-size:40px;\\\'>📸</div>\'" />';
-          html += '</div>';
-        } else {
-          const emoji = (p.platforms || []).includes('instagram') ? '📷' : '📘';
-          html += '<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0e7ff 0%,#dbeafe 50%,#ede9fe 100%);font-size:40px;">' + emoji + '</div>';
-        }
-
-        // Card body
-        html += '<div style="padding:12px 14px 14px;">';
-
-        // Client name
-        if (safeClientLabel) {
-          html += '<div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px;">' + safeClientLabel + '</div>';
-        }
-
-        // Meta: platform + status
-        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;">';
-        html += '<span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding:3px 8px;border-radius:6px;background:' + platformBg + ';color:' + platformColor + ';">' + typeLabel + '</span>';
-        html += '<span style="font-size:10px;font-weight:500;padding:3px 8px;border-radius:6px;background:' + statusBg + ';color:' + statusColor + ';">' + statusLabel + '</span>';
-        html += '</div>';
-
-        // Caption
-        html += '<div style="font-size:13px;line-height:1.5;font-weight:500;color:#0f172a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:8px;">' + safeCaption + '</div>';
-
-        // Date + time
-        html += '<div style="font-size:11px;color:#64748b;display:flex;align-items:center;gap:4px;">';
-        html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-        html += dateStr + ' · ' + timeStr + '</div>';
-
-        html += '</div></div>';
-      });
-
-      html += '</div></div>';
-    }
-
-    container.innerHTML = html;
-
-    // Add hover effects for feed cards
-    container.querySelectorAll('.agency-upcoming-card').forEach(function(card) {
-      card.addEventListener('mouseenter', function() { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 8px 24px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.06)'; });
-      card.addEventListener('mouseleave', function() { card.style.transform = ''; card.style.boxShadow = ''; });
-    });
 
     container.querySelectorAll('.cal-nav-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -1952,6 +1875,351 @@ async function renderScheduledPostsTab() {
     }
   } catch (e) {
     container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + (e.message || 'Unknown error') + '</div>';
+  }
+
+  // Render Feed Builder below the calendar
+  try { renderFeedBuilder(); } catch(e) { console.warn('Feed builder render skipped:', e); }
+}
+
+
+
+/* ================== Feed Preview Builder (Drag & Drop) ================== */
+function renderFeedBuilder() {
+  if (!currentClientId) return;
+
+  // Remove existing builder if any
+  var existing = document.getElementById('feedBuilderSection');
+  if (existing) existing.remove();
+
+  var tabContent = document.getElementById('tabScheduled');
+  if (!tabContent) return;
+
+  var state = portalStateCache[currentClientId] || {};
+  var approvals = (state.approvals || []);
+  var assets = loadAssets(currentClientId);
+  var clients = loadClientsRegistry();
+  var clientName = (clients[currentClientId] && clients[currentClientId].name) || 'Client';
+
+  // Collect all available images from approvals + assets
+  var allItems = [];
+
+  // From approvals: posts with images
+  approvals.forEach(function(a) {
+    var img = a.previewImageUrl || a.copyImageUrl || (a.previewImageUrls && a.previewImageUrls[0]) || (a.imageUrls && a.imageUrls[0]) || a.imageUrl || null;
+    if (img || a.uploadedImages && a.uploadedImages.length > 0) {
+      allItems.push({
+        id: a.id,
+        source: 'approval',
+        title: a.title || 'Untitled',
+        type: a.type || 'Post',
+        caption: a.copyText || a.caption || '',
+        imageUrl: img || (a.uploadedImages && a.uploadedImages[0] && a.uploadedImages[0].url) || null,
+        postDate: a.postDate || null,
+        status: a.status || 'pending'
+      });
+    }
+  });
+
+  // From content library assets
+  assets.forEach(function(a) {
+    var img = a.thumbnailUrl || a.url || null;
+    if (img && (a.mediaType === 'PHOTO' || a.mediaType === 'GRAPHIC' || a.mediaType === 'VIDEO')) {
+      allItems.push({
+        id: a.id,
+        source: 'asset',
+        title: a.title || 'Asset',
+        type: a.formatUse || 'Post',
+        caption: a.title || '',
+        imageUrl: img,
+        postDate: null,
+        status: a.approvalStatus || 'PENDING'
+      });
+    }
+  });
+
+  // Build the section HTML
+  var section = document.createElement('div');
+  section.id = 'feedBuilderSection';
+  section.style.cssText = 'margin-top:32px;padding:24px;background:#fff;border-radius:16px;border:1px solid #e2e8f0;';
+
+  var header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">';
+  header += '<div>';
+  header += '<h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">Feed Preview Builder</h3>';
+  header += '<p style="margin:4px 0 0;font-size:13px;color:#64748b;">Drag images into slots to build the client\u2019s upcoming posts feed, then send.</p>';
+  header += '</div>';
+  header += '<button type="button" id="feedBuilderSendBtn" style="padding:10px 24px;background:#1a56db;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;">Send to ' + clientName.replace(/</g,'&lt;') + '</button>';
+  header += '</div>';
+
+  var body = '<div style="display:flex;gap:24px;min-height:400px;">';
+
+  // ── LEFT: Asset library ──
+  body += '<div style="width:260px;flex-shrink:0;display:flex;flex-direction:column;">';
+  body += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+  body += '<span style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Assets</span>';
+  body += '<label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:12px;color:#3b82f6;font-weight:500;">';
+  body += '<input type="file" id="feedBuilderUpload" accept="image/*" multiple style="display:none;" />';
+  body += '+ Upload</label></div>';
+  body += '<div id="feedBuilderAssetList" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;max-height:500px;padding:4px;">';
+
+  if (allItems.length === 0) {
+    body += '<div style="grid-column:1/-1;text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">No images available.<br>Upload or create approvals with images.</div>';
+  } else {
+    allItems.forEach(function(item, idx) {
+      body += '<div class="fb-asset-item" draggable="true" data-fb-idx="' + idx + '" style="aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:grab;position:relative;border:2px solid transparent;transition:border-color 0.2s;">';
+      if (item.imageUrl) {
+        body += '<img src="' + (item.imageUrl || '').replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;" onerror="this.parentNode.style.background=\'#f1f5f9\';this.style.display=\'none\';this.parentNode.innerHTML+=\'<div style=\\\"display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:24px;\\\">\ud83d\udcf7</div>\';" />';
+      } else {
+        body += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;font-size:24px;">\ud83d\udcf7</div>';
+      }
+      body += '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (item.title || '').replace(/</g,'&lt;').slice(0,30) + '</div>';
+      body += '</div>';
+    });
+  }
+
+  body += '</div></div>';
+
+  // ── RIGHT: Feed preview (2x2 grid with drop zones) ──
+  body += '<div style="flex:1;display:flex;flex-direction:column;">';
+  body += '<div style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Client Feed Preview</div>';
+  body += '<div id="feedBuilderGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;">';
+
+  for (var i = 0; i < 4; i++) {
+    body += '<div class="fb-drop-zone" data-slot="' + i + '" style="aspect-ratio:1/1;border:2px dashed #cbd5e1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.2s;position:relative;overflow:hidden;background:#f8fafc;">';
+    body += '<div class="fb-slot-placeholder" style="text-align:center;color:#94a3b8;pointer-events:none;">';
+    body += '<div style="font-size:32px;margin-bottom:8px;">+</div>';
+    body += '<div style="font-size:12px;font-weight:500;">Drop image here</div>';
+    body += '<div style="font-size:11px;margin-top:2px;">Slot ' + (i + 1) + '</div>';
+    body += '</div>';
+    body += '<div class="fb-slot-filled" style="display:none;width:100%;height:100%;position:absolute;top:0;left:0;"></div>';
+    body += '</div>';
+  }
+
+  body += '</div>';
+
+  // Caption inputs for each slot
+  body += '<div id="feedBuilderCaptions" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">';
+  for (var i = 0; i < 4; i++) {
+    body += '<div class="fb-caption-group" data-slot="' + i + '" style="display:none;">';
+    body += '<input type="text" class="fb-caption-input" placeholder="Caption for slot ' + (i+1) + '..." style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#0f172a;" />';
+    body += '<input type="date" class="fb-date-input" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:11px;color:#64748b;margin-top:4px;" />';
+    body += '</div>';
+  }
+  body += '</div>';
+
+  body += '</div>';
+  body += '</div>';
+
+  section.innerHTML = header + body;
+  tabContent.appendChild(section);
+
+  // ── Wire up drag & drop ──
+  var feedSlots = [null, null, null, null]; // Track which item is in each slot
+
+  var assetItems = section.querySelectorAll('.fb-asset-item');
+  var dropZones = section.querySelectorAll('.fb-drop-zone');
+
+  assetItems.forEach(function(el) {
+    el.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', el.getAttribute('data-fb-idx'));
+      el.style.opacity = '0.5';
+    });
+    el.addEventListener('dragend', function() {
+      el.style.opacity = '1';
+    });
+  });
+
+  dropZones.forEach(function(zone) {
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      zone.style.borderColor = '#3b82f6';
+      zone.style.background = '#eff6ff';
+    });
+    zone.addEventListener('dragleave', function() {
+      zone.style.borderColor = feedSlots[zone.getAttribute('data-slot')] ? '#3b82f6' : '#cbd5e1';
+      zone.style.background = feedSlots[zone.getAttribute('data-slot')] ? '#fff' : '#f8fafc';
+    });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var idx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      var slot = parseInt(zone.getAttribute('data-slot'), 10);
+      if (isNaN(idx) || !allItems[idx]) return;
+
+      var item = allItems[idx];
+      feedSlots[slot] = item;
+
+      // Fill the slot visually
+      var filled = zone.querySelector('.fb-slot-filled');
+      var placeholder = zone.querySelector('.fb-slot-placeholder');
+      placeholder.style.display = 'none';
+      filled.style.display = 'block';
+      filled.innerHTML = '<img src="' + (item.imageUrl || '').replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;" />'
+        + '<button type="button" class="fb-slot-remove" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">&times;</button>'
+        + '<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (item.title || '').replace(/</g,'&lt;') + '</div>';
+
+      zone.style.borderColor = '#3b82f6';
+      zone.style.borderStyle = 'solid';
+      zone.style.background = '#fff';
+
+      // Show caption input
+      var captionGroup = section.querySelector('.fb-caption-group[data-slot="' + slot + '"]');
+      if (captionGroup) {
+        captionGroup.style.display = 'block';
+        var captionInput = captionGroup.querySelector('.fb-caption-input');
+        if (captionInput && item.caption) captionInput.value = item.caption;
+        var dateInput = captionGroup.querySelector('.fb-date-input');
+        if (dateInput && item.postDate) dateInput.value = item.postDate.slice(0, 10);
+      }
+
+      // Remove button
+      var removeBtn = filled.querySelector('.fb-slot-remove');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          feedSlots[slot] = null;
+          filled.style.display = 'none';
+          filled.innerHTML = '';
+          placeholder.style.display = '';
+          zone.style.borderColor = '#cbd5e1';
+          zone.style.borderStyle = 'dashed';
+          zone.style.background = '#f8fafc';
+          if (captionGroup) captionGroup.style.display = 'none';
+        });
+      }
+    });
+  });
+
+  // ── Upload handler ──
+  var uploadInput = section.querySelector('#feedBuilderUpload');
+  if (uploadInput) {
+    uploadInput.addEventListener('change', function() {
+      var files = Array.from(uploadInput.files || []);
+      files.forEach(function(file) {
+        if (!file.type.startsWith('image/')) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var newItem = {
+            id: 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+            source: 'upload',
+            title: file.name.replace(/\.[^.]+$/, ''),
+            type: 'Post',
+            caption: '',
+            imageUrl: e.target.result,
+            postDate: null,
+            status: 'pending'
+          };
+          allItems.push(newItem);
+          var newIdx = allItems.length - 1;
+          var assetList = section.querySelector('#feedBuilderAssetList');
+          var emptyMsg = assetList.querySelector('div[style*="grid-column"]');
+          if (emptyMsg) emptyMsg.remove();
+          var card = document.createElement('div');
+          card.className = 'fb-asset-item';
+          card.draggable = true;
+          card.setAttribute('data-fb-idx', newIdx);
+          card.style.cssText = 'aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:grab;position:relative;border:2px solid transparent;transition:border-color 0.2s;';
+          card.innerHTML = '<img src="' + e.target.result.replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;" />'
+            + '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (newItem.title || '').replace(/</g,'&lt;') + '</div>';
+          card.addEventListener('dragstart', function(ev) {
+            ev.dataTransfer.setData('text/plain', card.getAttribute('data-fb-idx'));
+            card.style.opacity = '0.5';
+          });
+          card.addEventListener('dragend', function() { card.style.opacity = '1'; });
+          assetList.appendChild(card);
+        };
+        reader.readAsDataURL(file);
+      });
+      uploadInput.value = '';
+    });
+  }
+
+  // ── Send to Client ──
+  var sendBtn = section.querySelector('#feedBuilderSendBtn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', async function() {
+      var filledSlots = feedSlots.filter(function(s) { return s !== null; });
+      if (filledSlots.length === 0) {
+        showToast('Drag at least one image into the feed slots before sending.', 'error');
+        return;
+      }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+      sendBtn.style.opacity = '0.6';
+
+      try {
+        var state = portalStateCache[currentClientId];
+        if (!state) throw new Error('No portal state loaded');
+        if (!state.approvals) state.approvals = [];
+
+        // Create/update approval entries for each filled slot
+        feedSlots.forEach(function(item, slotIdx) {
+          if (!item) return;
+          var captionGroup = section.querySelector('.fb-caption-group[data-slot="' + slotIdx + '"]');
+          var captionVal = captionGroup ? (captionGroup.querySelector('.fb-caption-input').value || item.caption || '') : (item.caption || '');
+          var dateVal = captionGroup ? (captionGroup.querySelector('.fb-date-input').value || '') : '';
+          if (!dateVal && item.postDate) dateVal = item.postDate.slice(0, 10);
+          if (!dateVal) {
+            // Auto-assign dates: today + 2 days per slot
+            var d = new Date();
+            d.setDate(d.getDate() + 2 + (slotIdx * 2));
+            dateVal = d.toISOString().slice(0, 10);
+          }
+
+          // Check if this approval already exists (by id from source)
+          var existingIdx = state.approvals.findIndex(function(a) { return a.id === item.id; });
+          var approvalData = {
+            id: item.source === 'upload' ? ('feed_' + Date.now() + '_' + slotIdx) : item.id,
+            title: item.title || ('Post ' + (slotIdx + 1)),
+            type: item.type || 'Post',
+            postDate: dateVal,
+            copyText: captionVal,
+            imageUrl: item.imageUrl || undefined,
+            previewImageUrl: item.imageUrl || undefined,
+            status: 'approved',
+            feedSlot: slotIdx,
+            sentToFeedAt: new Date().toISOString()
+          };
+
+          if (existingIdx >= 0) {
+            // Update existing
+            var existing = state.approvals[existingIdx];
+            state.approvals[existingIdx] = Object.assign({}, existing, approvalData);
+          } else {
+            // New entry
+            state.approvals.push(approvalData);
+          }
+        });
+
+        // Log activity
+        if (!state.activity) state.activity = [];
+        state.activity.push({
+          when: Date.now(),
+          text: 'Updated upcoming posts feed (' + filledSlots.length + ' posts)'
+        });
+
+        // Save
+        portalStateCache[currentClientId] = state;
+        await savePortalStateToAPI(currentClientId, state);
+
+        showToast('Feed preview sent to ' + clientName + '! Their portal will update automatically.', 'success');
+        sendBtn.textContent = 'Sent!';
+        sendBtn.style.background = '#16a34a';
+
+        setTimeout(function() {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send to ' + clientName.replace(/</g,'&lt;');
+          sendBtn.style.background = '#1a56db';
+          sendBtn.style.opacity = '1';
+        }, 3000);
+
+      } catch (err) {
+        console.error('Feed builder send error:', err);
+        showToast('Failed to send: ' + (err.message || 'Unknown error'), 'error');
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send to ' + clientName.replace(/</g,'&lt;');
+        sendBtn.style.opacity = '1';
+      }
+    });
   }
 }
 
