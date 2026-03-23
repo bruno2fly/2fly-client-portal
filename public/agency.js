@@ -1747,123 +1747,119 @@ async function renderScheduledPostsTab() {
 
 
 
+  // Fetch posts — calendar renders regardless (empty if API fails)
+  var allPosts = [];
   try {
     const r = await fetch(`${getApiBaseUrl()}/api/posts/scheduled?${params}`, { credentials: 'include' });
     const contentType = r.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      await r.text();
-      throw new Error('API returned non-JSON (status ' + r.status + '). Check that the API server is running and reachable.');
-    }
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Failed to load scheduled posts');
-    const allPosts = j.posts || [];
-
-    const y = currentCalendarMonth.getFullYear();
-    const m = currentCalendarMonth.getMonth();
-    const monthStart = new Date(y, m, 1).getTime();
-    const monthEnd = new Date(y, m + 1, 0, 23, 59, 59).getTime();
-    const postsInMonth = allPosts.filter(p => {
-      const t = new Date(p.scheduledAt).getTime();
-      return t >= monthStart && t <= monthEnd;
-    });
-
-    const postsByDay = {};
-    postsInMonth.forEach(p => {
-      const key = new Date(p.scheduledAt).toDateString();
-      if (!postsByDay[key]) postsByDay[key] = [];
-      postsByDay[key].push(p);
-    });
-
-    const days = getCalendarDays(y, m);
-    const todayStr = new Date().toDateString();
-    const monthName = currentCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-
-    let html = '<div class="schedule-calendar-wrap">';
-    html += '<div class="cal-nav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">';
-    html += '<div style="display:flex;align-items:center;gap:12px;">';
-    html += '<button type="button" class="cal-nav-btn" data-offset="-1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&lsaquo;</button>';
-    html += '<h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;min-width:180px;text-align:center;">' + monthName + '</h3>';
-    html += '<button type="button" class="cal-nav-btn" data-offset="1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&rsaquo;</button>';
-    html += '</div></div>';
-
-    html += '<div class="cal-grid">';
-    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function(day) {
-      html += '<div class="cal-header-cell">' + day + '</div>';
-    });
-    days.forEach(function(day) {
-      const isOtherMonth = day.getMonth() !== m;
-      const isToday = day.toDateString() === todayStr;
-      const dayNum = day.getDate();
-      const key = day.toDateString();
-      const dayPosts = postsByDay[key] || [];
-      let cls = 'cal-day';
-      if (isOtherMonth) cls += ' other-month';
-      if (isToday) cls += ' today';
-      html += '<div class="' + cls + '">';
-      html += '<div class="cal-day-number">' + dayNum + '</div>';
-      html += '<div class="cal-posts">';
-      dayPosts.forEach(function(p) {
-        const timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const platformIcons = (p.platforms || []).map(function(plat) { return plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '—';
-        const titleStr = (p.caption ? p.caption.slice(0, 40) + (p.caption.length > 40 ? '…' : '') : 'No caption').replace(/</g, '&lt;');
-        const status = p.status || 'scheduled';
-        const borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
-        const bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
-        const statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
-        html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
-        html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
-        html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
-        html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
-        html += '<div class="cal-status" style="font-size:10px;font-weight:600;">' + statusLabel + '</div></div>';
-      });
-      html += '</div></div>';
-    });
-    html += '</div>';
-
-    const summary = buildCalendarSummary(postsInMonth);
-    html += '<div class="schedule-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:24px;padding:20px;background:white;border-radius:12px;border:1px solid #e2e8f0;">';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1a56db;">' + summary.total + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Total Posts</div></div>';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#3b82f6;">' + summary.scheduled + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Scheduled</div></div>';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#10b981;">' + summary.published + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Published</div></div>';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#ef4444;">' + summary.failed + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Failed</div></div>';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#e4405f;">' + summary.instagram + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📷 Instagram</div></div>';
-    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1877f2;">' + summary.facebook + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📘 Facebook</div></div>';
-    html += '</div></div>';
-
-
-    container.querySelectorAll('.cal-nav-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        const offset = parseInt(btn.getAttribute('data-offset'), 10);
-        navigateCalendarMonth(offset);
-      });
-    });
-
-    if (!container._calDismissBound) {
-      container._calDismissBound = true;
-      container.addEventListener('click', async function(e) {
-        const dismiss = e.target && e.target.closest && e.target.closest('.cal-post-dismiss');
-        if (!dismiss) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const postId = dismiss.getAttribute('data-post-id');
-        if (!postId) return;
-        try {
-          const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error || 'Failed to remove');
-          renderScheduledPostsTab();
-        } catch (err) {
-          showToast(err.message || 'Failed to remove post', 'error');
-        }
-      });
+    if (contentType.includes('application/json')) {
+      const j = await r.json();
+      if (r.ok && j.posts) allPosts = j.posts;
     }
   } catch (e) {
-    var errMsg = (e.message || 'Unknown error');
-    if (errMsg.includes('non-JSON') || errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('API returned')) {
-      container.innerHTML = '<div style="text-align:center;padding:48px 24px;"><div style="font-size:36px;margin-bottom:12px;opacity:.5;">\ud83d\udcc5</div><div style="font-size:16px;font-weight:600;color:#0f172a;margin-bottom:6px;">No scheduled posts yet</div><div style="font-size:13px;color:#64748b;">Connect your social accounts above to start scheduling, or create posts in the Approvals tab.</div></div>';
-    } else {
-      container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + errMsg + '</div>';
-    }
+    console.warn('Scheduled posts API unavailable:', e.message);
+  }
+
+  // Always render calendar
+  const y = currentCalendarMonth.getFullYear();
+  const m = currentCalendarMonth.getMonth();
+  const monthStart = new Date(y, m, 1).getTime();
+  const monthEnd = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+  const postsInMonth = allPosts.filter(p => {
+    const t = new Date(p.scheduledAt).getTime();
+    return t >= monthStart && t <= monthEnd;
+  });
+
+  const postsByDay = {};
+  postsInMonth.forEach(p => {
+    const key = new Date(p.scheduledAt).toDateString();
+    if (!postsByDay[key]) postsByDay[key] = [];
+    postsByDay[key].push(p);
+  });
+
+  const days = getCalendarDays(y, m);
+  const todayStr = new Date().toDateString();
+  const monthName = currentCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  let html = '<div class="schedule-calendar-wrap">';
+  html += '<div class="cal-nav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">';
+  html += '<div style="display:flex;align-items:center;gap:12px;">';
+  html += '<button type="button" class="cal-nav-btn" data-offset="-1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&lsaquo;</button>';
+  html += '<h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;min-width:180px;text-align:center;">' + monthName + '</h3>';
+  html += '<button type="button" class="cal-nav-btn" data-offset="1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&rsaquo;</button>';
+  html += '</div></div>';
+
+  html += '<div class="cal-grid">';
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function(day) {
+    html += '<div class="cal-header-cell">' + day + '</div>';
+  });
+  days.forEach(function(day) {
+    const isOtherMonth = day.getMonth() !== m;
+    const isToday = day.toDateString() === todayStr;
+    const dayNum = day.getDate();
+    const key = day.toDateString();
+    const dayPosts = postsByDay[key] || [];
+    let cls = 'cal-day';
+    if (isOtherMonth) cls += ' other-month';
+    if (isToday) cls += ' today';
+    html += '<div class="' + cls + '">';
+    html += '<div class="cal-day-number">' + dayNum + '</div>';
+    html += '<div class="cal-posts">';
+    dayPosts.forEach(function(p) {
+      const timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const platformIcons = (p.platforms || []).map(function(plat) { return plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '—';
+      const titleStr = (p.caption ? p.caption.slice(0, 40) + (p.caption.length > 40 ? '…' : '') : 'No caption').replace(/</g, '&lt;');
+      const status = p.status || 'scheduled';
+      const borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
+      const bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
+      const statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
+      html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
+      html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
+      html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
+      html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
+      html += '<div class="cal-status" style="font-size:10px;font-weight:600;">' + statusLabel + '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  const summary = buildCalendarSummary(postsInMonth);
+  html += '<div class="schedule-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:24px;padding:20px;background:white;border-radius:12px;border:1px solid #e2e8f0;">';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1a56db;">' + summary.total + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Total Posts</div></div>';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#3b82f6;">' + summary.scheduled + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Scheduled</div></div>';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#10b981;">' + summary.published + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Published</div></div>';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#ef4444;">' + summary.failed + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Failed</div></div>';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#e4405f;">' + summary.instagram + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📷 Instagram</div></div>';
+  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1877f2;">' + summary.facebook + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📘 Facebook</div></div>';
+  html += '</div></div>';
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.cal-nav-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const offset = parseInt(btn.getAttribute('data-offset'), 10);
+      navigateCalendarMonth(offset);
+    });
+  });
+
+  if (!container._calDismissBound) {
+    container._calDismissBound = true;
+    container.addEventListener('click', async function(e) {
+      const dismiss = e.target && e.target.closest && e.target.closest('.cal-post-dismiss');
+      if (!dismiss) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const postId = dismiss.getAttribute('data-post-id');
+      if (!postId) return;
+      try {
+        const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to remove');
+        renderScheduledPostsTab();
+      } catch (err) {
+        showToast(err.message || 'Failed to remove post', 'error');
+      }
+    });
   }
 
   // Render Feed Builder below the calendar
