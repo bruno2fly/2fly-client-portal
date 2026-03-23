@@ -1033,119 +1033,15 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 }
 
 
-  /* ===== UPCOMING POSTS FEED ===== */
-  .upcoming-feed-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  @media (max-width: 600px) {
-    .upcoming-feed-grid { grid-template-columns: 1fr; }
-  }
-  .upcoming-card {
-    background: var(--panel);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    cursor: pointer;
-  }
-  .upcoming-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.06);
-  }
-  .upcoming-card-img {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    object-fit: cover;
-    display: block;
-    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #ede9fe 100%);
-  }
-  .upcoming-card-body {
-    padding: 14px 16px 16px;
-  }
-  .upcoming-card-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-  .upcoming-card-type {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: #dbeafe;
-    color: #1e40af;
-  }
-  .upcoming-card-type.type-reel { background: #fce7f3; color: #be185d; }
-  .upcoming-card-type.type-story { background: #fef3c7; color: #92400e; }
-  .upcoming-card-type.type-carousel { background: #e0e7ff; color: #4338ca; }
-  .upcoming-card-status {
-    font-size: 11px;
-    font-weight: 500;
-    padding: 3px 8px;
-    border-radius: 6px;
-  }
-  .upcoming-card-status.status-pending { background: #fef3c7; color: #92400e; }
-  .upcoming-card-status.status-approved { background: #dcfce7; color: #166534; }
-  .upcoming-card-status.status-scheduled { background: #e0f2fe; color: #0369a1; }
-  .upcoming-card-caption {
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--text-primary);
-    font-weight: 500;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    margin-bottom: 8px;
-  }
-  .upcoming-card-date {
-    font-size: 12px;
-    color: var(--text-secondary);
-    font-weight: 400;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .upcoming-card-date svg { flex-shrink: 0; }
-  .upcoming-feed-empty {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-secondary);
-    font-size: 14px;
-  }
-  .upcoming-feed-empty-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
-    opacity: 0.5;
-  }
-  /* Placeholder shimmer for images that haven't loaded */
-  .upcoming-card-img-placeholder {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #ede9fe 100%);
-    color: #94a3b8;
-    font-size: 48px;
-  }
-  body[data-theme="dark"] .upcoming-card {
-    box-shadow: 0 2px 8px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.06);
-  }
-  body[data-theme="dark"] .upcoming-card:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.08);
-  }
-  body[data-theme="dark"] .upcoming-card-img-placeholder {
-    background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 50%, #312e81 100%);
-    color: #475569;
-  }
+  /* ===== UPCOMING POSTS (Instagram-style grid uses Tailwind utilities) ===== */
 </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: ["selector", '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+  };
+</script>
 </head>
 <body>
   <button type="button" class="pwa-refresh-btn" id="pwaRefreshBtn" aria-label="Refresh content" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
@@ -1383,13 +1279,15 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         <div id="calendarView"></div>
       </section>
 
-      <!-- Upcoming Posts Feed (Instagram-style 2x2 grid) -->
+      <!-- Upcoming Posts — Instagram-style profile grid -->
       <section class="panel upcoming-feed-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;margin-top:8px;" aria-label="Upcoming Posts" data-show-tabs="activity">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0;">Upcoming Posts</h3>
-          <span class="upcoming-feed-count" id="upcomingFeedCount" style="font-size:13px;color:var(--text-secondary);font-weight:500;"></span>
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="m-0 text-lg font-semibold text-blue-800 dark:text-blue-300">Upcoming Posts</h3>
+          <span class="upcoming-feed-count shrink-0 text-sm font-medium text-slate-500 dark:text-slate-400" id="upcomingFeedCount"></span>
         </div>
-        <div id="upcomingFeedGrid" class="upcoming-feed-grid"></div>
+        <div class="mx-auto w-full max-w-[600px]">
+          <div id="upcomingFeedGrid" class="grid w-full grid-cols-3 gap-1"></div>
+        </div>
       </section>
 
       <!-- Progress (formerly Reports) -->
@@ -3649,7 +3547,36 @@ function renderCalendar(){
 /* ================== Request Stats ================== */
 
 
-/* ================== Upcoming Posts Feed ================== */
+/* ================== Upcoming Posts Feed (Instagram-style grid) ================== */
+function upcomingFeedPlaceholderGradientClass(type) {
+  var t = (type || "").toLowerCase();
+  if (t === "reel" || t === "reels") return "bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-950/50 dark:to-pink-950/50";
+  if (t === "story" || t === "stories") return "bg-gradient-to-br from-green-50 to-teal-100 dark:from-green-950/40 dark:to-teal-950/40";
+  if (t === "carousel") return "bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950/40 dark:to-orange-950/40";
+  return "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-950/50 dark:to-blue-900/50";
+}
+
+function upcomingFeedStatusDotClass(status) {
+  var st = (status || "pending").toLowerCase();
+  if (st === "approved") return "bg-green-500";
+  if (st === "pending") return "bg-amber-400";
+  return "bg-gray-400";
+}
+
+function upcomingFeedTypeLabel(type) {
+  var t = (type || "post").toLowerCase();
+  if (t === "reel" || t === "reels") return "REEL";
+  if (t === "story" || t === "stories") return "STORY";
+  if (t === "carousel") return "CAROUSEL";
+  return "POST";
+}
+
+function upcomingFeedOpenModal(itemId) {
+  if (typeof window.openApprovalModal === "function") {
+    window.openApprovalModal(itemId);
+  }
+}
+
 function renderUpcomingFeed(){
   var s = load();
   var grid = document.querySelector("#upcomingFeedGrid");
@@ -3657,111 +3584,137 @@ function renderUpcomingFeed(){
   if (!grid) return;
   grid.innerHTML = "";
 
-  // Get future approved/pending posts sorted by postDate ascending
-  var now = new Date();
-  now.setHours(0,0,0,0);
-  var upcoming = (s.approvals || []).filter(function(a){
-    if (!a.postDate) return false;
-    var d = new Date(a.postDate);
-    return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
-  }).sort(function(a,b){
-    return new Date(a.postDate) - new Date(b.postDate);
-  }).slice(0, 4);
-
-  // If no real posts, show sample placeholder cards
+  // Use dedicated upcomingFeed (set by agency Feed Builder) if available
+  var upcoming = [];
   var usingSample = false;
+
+  if (s.upcomingFeed && s.upcomingFeed.length > 0) {
+    upcoming = s.upcomingFeed.slice(0, 12);
+  } else {
+    var now = new Date();
+    now.setHours(0,0,0,0);
+    upcoming = (s.approvals || []).filter(function(a){
+      if (!a.postDate) return false;
+      var d = new Date(a.postDate);
+      return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
+    }).sort(function(a,b){
+      return new Date(a.postDate) - new Date(b.postDate);
+    }).slice(0, 12);
+  }
+
   if (upcoming.length === 0) {
     usingSample = true;
     var d1 = new Date(); d1.setDate(d1.getDate() + 2);
     var d2 = new Date(); d2.setDate(d2.getDate() + 4);
     var d3 = new Date(); d3.setDate(d3.getDate() + 6);
     var d4 = new Date(); d4.setDate(d4.getDate() + 9);
+    var d5 = new Date(); d5.setDate(d5.getDate() + 11);
+    var d6 = new Date(); d6.setDate(d6.getDate() + 14);
     upcoming = [
       { id: "sample-1", title: "Spring Collection Launch", type: "Post", status: "approved", postDate: d1.toISOString(), copyText: "Introducing our new spring collection — fresh styles for a fresh season \u2728" },
       { id: "sample-2", title: "Behind the Scenes", type: "Reel", status: "pending", postDate: d2.toISOString(), copyText: "Take a peek behind the curtain at how we create your favorite content \ud83c\udfac" },
       { id: "sample-3", title: "Client Success Story", type: "Carousel", status: "approved", postDate: d3.toISOString(), copyText: "See how we helped grow engagement by 340% in just 3 months \ud83d\udcc8" },
-      { id: "sample-4", title: "Weekend Tips & Tricks", type: "Story", status: "pending", postDate: d4.toISOString(), copyText: "Quick tips to boost your social media game this weekend \ud83d\ude80" }
+      { id: "sample-4", title: "Weekend Tips & Tricks", type: "Story", status: "pending", postDate: d4.toISOString(), copyText: "Quick tips to boost your social media game this weekend \ud83d\ude80" },
+      { id: "sample-5", title: "Product Highlight", type: "Post", status: "pending", postDate: d5.toISOString(), copyText: "This week\u2019s favorite \u2014 tap to shop the look." },
+      { id: "sample-6", title: "Team Spotlight", type: "Reel", status: "approved", postDate: d6.toISOString(), copyText: "Meet the people behind your content." }
     ];
   }
 
   if (countEl) {
-    countEl.textContent = usingSample ? "Preview" : upcoming.length + " next up";
+    countEl.innerHTML = "";
+    countEl.className = "upcoming-feed-count shrink-0 text-sm font-medium text-slate-500 dark:text-slate-400";
+    if (usingSample) {
+      var previewLink = document.createElement("a");
+      previewLink.href = "#upcomingFeedGrid";
+      previewLink.className = "font-medium text-blue-800 hover:text-blue-600 hover:underline dark:text-blue-300 dark:hover:text-blue-200";
+      previewLink.textContent = "Preview";
+      previewLink.addEventListener("click", function(e) {
+        e.preventDefault();
+        var g = document.getElementById("upcomingFeedGrid");
+        if (g) g.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      countEl.appendChild(previewLink);
+    } else {
+      countEl.textContent = upcoming.length + " next up";
+    }
   }
 
   upcoming.forEach(function(item){
-    var card = el("div", { class: "upcoming-card" });
+    var st = (item.status || "pending").toLowerCase();
+    var statusTitle = st === "approved" ? "Approved" : st === "pending" ? "Pending Approval" : "Scheduled / Draft";
+    var tile = el("div", {
+      class: "group relative aspect-square cursor-pointer overflow-hidden rounded-md transition-transform duration-200 ease-out hover:z-10 hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900",
+      role: "button",
+      tabindex: "0",
+      "aria-label": (item.title || "Post") + " — " + upcomingFeedTypeLabel(item.type) + " — " + statusTitle
+    });
 
-    // Image area
     var imgSrc = resolveUpcomingImage(item);
     if (imgSrc) {
-      var img = el("img", { class: "upcoming-card-img", loading: "lazy" });
+      var img = el("img", {
+        class: "absolute inset-0 h-full w-full object-cover",
+        loading: "lazy",
+        alt: item.title || "Post preview"
+      });
       img.src = imgSrc;
-      img.alt = item.title || "Post preview";
       img.onerror = function(){
-        // Replace broken image with placeholder
-        var ph = el("div", { class: "upcoming-card-img-placeholder" });
+        var ph = el("div", {
+          class: "absolute inset-0 flex items-center justify-center text-4xl leading-none " + upcomingFeedPlaceholderGradientClass(item.type)
+        });
         ph.innerHTML = getTypeEmoji(item.type);
         this.parentNode.replaceChild(ph, this);
       };
-      card.appendChild(img);
+      tile.appendChild(img);
     } else {
-      var placeholder = el("div", { class: "upcoming-card-img-placeholder" });
+      var placeholder = el("div", {
+        class: "absolute inset-0 flex items-center justify-center text-4xl leading-none " + upcomingFeedPlaceholderGradientClass(item.type)
+      });
       placeholder.innerHTML = getTypeEmoji(item.type);
-      card.appendChild(placeholder);
+      tile.appendChild(placeholder);
     }
 
-    // Body
-    var body = el("div", { class: "upcoming-card-body" });
+    tile.appendChild(el("div", {
+      class: "pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[30%] bg-gradient-to-t from-black/70 via-black/40 to-transparent transition-all duration-200 group-hover:from-black/85 group-hover:via-black/55"
+    }));
 
-    // Meta row: type + status
-    var meta = el("div", { class: "upcoming-card-meta" });
-    var typeClass = "upcoming-card-type";
-    var typeStr = (item.type || "Post").toLowerCase();
-    if (typeStr === "reel" || typeStr === "reels") typeClass += " type-reel";
-    else if (typeStr === "story" || typeStr === "stories") typeClass += " type-story";
-    else if (typeStr === "carousel") typeClass += " type-carousel";
-    var typeChip = el("span", { class: typeClass });
-    typeChip.textContent = item.type || "Post";
-    meta.appendChild(typeChip);
+    tile.appendChild(el("span", {
+      class: "absolute right-1.5 top-1.5 z-[2] h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white/90 shadow-sm " + upcomingFeedStatusDotClass(item.status),
+      title: statusTitle,
+      "aria-hidden": "true"
+    }));
 
-    var statusClass = "upcoming-card-status";
-    var st = (item.status || "pending").toLowerCase();
-    if (st === "approved") statusClass += " status-approved";
-    else if (st === "pending") statusClass += " status-pending";
-    else statusClass += " status-scheduled";
-    var statusChip = el("span", { class: statusClass });
-    statusChip.textContent = st === "approved" ? "Approved" : st === "pending" ? "Pending Approval" : "Scheduled";
-    meta.appendChild(statusChip);
-    body.appendChild(meta);
+    var footer = el("div", { class: "absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-0.5 p-2 pt-6" });
+    var pill = el("span", { class: "inline-flex max-w-full self-start rounded-full bg-white/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-800 shadow-sm backdrop-blur-[2px] dark:bg-white/80 dark:text-slate-900" });
+    pill.textContent = upcomingFeedTypeLabel(item.type);
+    footer.appendChild(pill);
 
-    // Caption
-    var caption = el("div", { class: "upcoming-card-caption" });
+    var caption = el("p", { class: "line-clamp-2 text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]" });
     caption.textContent = item.copyText || item.title || "Untitled post";
-    body.appendChild(caption);
+    footer.appendChild(caption);
 
-    // Date
-    var dateDiv = el("div", { class: "upcoming-card-date" });
     var d = new Date(item.postDate);
-    dateDiv.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    body.appendChild(dateDiv);
+    var dateEl = el("p", { class: "text-[10px] text-white/70" });
+    dateEl.textContent = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    footer.appendChild(dateEl);
 
-    card.appendChild(body);
+    tile.appendChild(footer);
 
-    // Click to open approval modal
-    card.addEventListener("click", function(){
-      if (typeof window.openApprovalModal === "function") {
-        window.openApprovalModal(item.id);
+    tile.addEventListener("click", function(){ upcomingFeedOpenModal(item.id); });
+    tile.addEventListener("keydown", function(e){
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        upcomingFeedOpenModal(item.id);
       }
     });
 
-    grid.appendChild(card);
+    grid.appendChild(tile);
   });
 
-  // If using sample data, add a subtle banner
   if (usingSample) {
-    var banner = el("div", { style: "grid-column: 1 / -1; text-align:center; padding:10px 16px; font-size:12px; color:var(--text-secondary); background:var(--panel); border-radius:10px; border:1px dashed rgba(100,116,139,.3); margin-top:4px;" });
-    banner.innerHTML = "\u2728 Sample posts — Your scheduled content will appear here automatically.";
-    grid.appendChild(banner);
+    grid.appendChild(el("div", {
+      class: "col-span-3 mt-2 rounded-lg border border-dashed border-slate-300 bg-white/80 px-4 py-2.5 text-center text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-400",
+      role: "note"
+    }, "\u2728 Sample posts — Your scheduled content will appear here automatically."));
   }
 }
 
@@ -3790,10 +3743,10 @@ function resolveUpcomingImage(item) {
 
 function getTypeEmoji(type) {
   var t = (type || "").toLowerCase();
-  if (t === "reel" || t === "reels") return "🎬";
-  if (t === "story" || t === "stories") return "📱";
-  if (t === "carousel") return "🖼️";
-  return "📸";
+  if (t === "reel" || t === "reels") return "\ud83c\udfac";
+  if (t === "story" || t === "stories") return "\ud83d\udcf1";
+  if (t === "carousel") return "\ud83d\udcda";
+  return "\ud83d\udcf7";
 }
 
 

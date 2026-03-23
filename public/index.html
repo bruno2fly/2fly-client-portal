@@ -3584,17 +3584,24 @@ function renderUpcomingFeed(){
   if (!grid) return;
   grid.innerHTML = "";
 
-  var now = new Date();
-  now.setHours(0,0,0,0);
-  var upcoming = (s.approvals || []).filter(function(a){
-    if (!a.postDate) return false;
-    var d = new Date(a.postDate);
-    return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
-  }).sort(function(a,b){
-    return new Date(a.postDate) - new Date(b.postDate);
-  }).slice(0, 12);
-
+  // Use dedicated upcomingFeed (set by agency Feed Builder) if available
+  var upcoming = [];
   var usingSample = false;
+
+  if (s.upcomingFeed && s.upcomingFeed.length > 0) {
+    upcoming = s.upcomingFeed.slice(0, 12);
+  } else {
+    var now = new Date();
+    now.setHours(0,0,0,0);
+    upcoming = (s.approvals || []).filter(function(a){
+      if (!a.postDate) return false;
+      var d = new Date(a.postDate);
+      return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
+    }).sort(function(a,b){
+      return new Date(a.postDate) - new Date(b.postDate);
+    }).slice(0, 12);
+  }
+
   if (upcoming.length === 0) {
     usingSample = true;
     var d1 = new Date(); d1.setDate(d1.getDate() + 2);

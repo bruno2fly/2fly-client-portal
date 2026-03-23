@@ -2171,6 +2171,33 @@ function renderFeedBuilder() {
           else st.approvals.push(approvalData);
         });
 
+        // Build dedicated upcomingFeed array — this is what the client portal renders
+        st.upcomingFeed = [];
+        feedSlots.forEach(function(item, slotIdx) {
+          if (!item) return;
+          var capRow = section.querySelector('.fb-caption-row[data-slot="' + slotIdx + '"]');
+          var captionVal = capRow ? (capRow.querySelector('.fb-cap-text').value || item.caption || '') : (item.caption || '');
+          var dateVal = capRow ? (capRow.querySelector('.fb-cap-date').value || '') : '';
+          if (!dateVal && item.postDate) dateVal = item.postDate.slice(0, 10);
+          if (!dateVal) {
+            var dd2 = new Date();
+            dd2.setDate(dd2.getDate() + 2 + (slotIdx * 2));
+            dateVal = dd2.toISOString().slice(0, 10);
+          }
+          st.upcomingFeed.push({
+            id: item.source === 'upload' ? ('feed_' + Date.now() + '_' + slotIdx) : item.id,
+            title: item.title || ('Post ' + (slotIdx + 1)),
+            type: item.type || 'Post',
+            postDate: dateVal,
+            copyText: captionVal,
+            imageUrl: item.imageUrl || undefined,
+            previewImageUrl: item.imageUrl || undefined,
+            status: 'approved',
+            feedSlot: slotIdx,
+            sentToFeedAt: new Date().toISOString()
+          });
+        });
+
         if (!st.activity) st.activity = [];
         st.activity.push({ when: Date.now(), text: 'Updated upcoming posts feed (' + filledSlots.length + ' posts)' });
         portalStateCache[currentClientId] = st;
