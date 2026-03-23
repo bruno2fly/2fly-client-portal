@@ -1761,27 +1761,27 @@ async function renderScheduledPostsTab() {
   }
 
   // Always render calendar
-  const y = currentCalendarMonth.getFullYear();
-  const m = currentCalendarMonth.getMonth();
-  const monthStart = new Date(y, m, 1).getTime();
-  const monthEnd = new Date(y, m + 1, 0, 23, 59, 59).getTime();
-  const postsInMonth = allPosts.filter(p => {
-    const t = new Date(p.scheduledAt).getTime();
+  var calY = currentCalendarMonth.getFullYear();
+  var calM = currentCalendarMonth.getMonth();
+  var monthStart = new Date(calY, calM, 1).getTime();
+  var monthEnd = new Date(calY, calM + 1, 0, 23, 59, 59).getTime();
+  var postsInMonth = allPosts.filter(function(p) {
+    var t = new Date(p.scheduledAt).getTime();
     return t >= monthStart && t <= monthEnd;
   });
 
-  const postsByDay = {};
-  postsInMonth.forEach(p => {
-    const key = new Date(p.scheduledAt).toDateString();
+  var postsByDay = {};
+  postsInMonth.forEach(function(p) {
+    var key = new Date(p.scheduledAt).toDateString();
     if (!postsByDay[key]) postsByDay[key] = [];
     postsByDay[key].push(p);
   });
 
-  const days = getCalendarDays(y, m);
-  const todayStr = new Date().toDateString();
-  const monthName = currentCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  var calDays = getCalendarDays(calY, calM);
+  var todayStr = new Date().toDateString();
+  var monthName = currentCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-  let html = '<div class="schedule-calendar-wrap">';
+  var html = '<div class="schedule-calendar-wrap">';
   html += '<div class="cal-nav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;">';
   html += '<button type="button" class="cal-nav-btn" data-offset="-1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&lsaquo;</button>';
@@ -1793,26 +1793,26 @@ async function renderScheduledPostsTab() {
   ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function(day) {
     html += '<div class="cal-header-cell">' + day + '</div>';
   });
-  days.forEach(function(day) {
-    const isOtherMonth = day.getMonth() !== m;
-    const isToday = day.toDateString() === todayStr;
-    const dayNum = day.getDate();
-    const key = day.toDateString();
-    const dayPosts = postsByDay[key] || [];
-    let cls = 'cal-day';
+  calDays.forEach(function(day) {
+    var isOtherMonth = day.getMonth() !== calM;
+    var isToday = day.toDateString() === todayStr;
+    var dayNum = day.getDate();
+    var key = day.toDateString();
+    var dayPosts = postsByDay[key] || [];
+    var cls = 'cal-day';
     if (isOtherMonth) cls += ' other-month';
     if (isToday) cls += ' today';
     html += '<div class="' + cls + '">';
     html += '<div class="cal-day-number">' + dayNum + '</div>';
     html += '<div class="cal-posts">';
     dayPosts.forEach(function(p) {
-      const timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const platformIcons = (p.platforms || []).map(function(plat) { return plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '—';
-      const titleStr = (p.caption ? p.caption.slice(0, 40) + (p.caption.length > 40 ? '…' : '') : 'No caption').replace(/</g, '&lt;');
-      const status = p.status || 'scheduled';
-      const borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
-      const bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
-      const statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
+      var timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      var platformIcons = (p.platforms || []).map(function(plat) { return plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '—';
+      var titleStr = (p.caption ? p.caption.slice(0, 40) + (p.caption.length > 40 ? '…' : '') : 'No caption').replace(/</g, '&lt;');
+      var status = p.status || 'scheduled';
+      var borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
+      var bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
+      var statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
       html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
       html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
       html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
@@ -1823,7 +1823,7 @@ async function renderScheduledPostsTab() {
   });
   html += '</div>';
 
-  const summary = buildCalendarSummary(postsInMonth);
+  var summary = buildCalendarSummary(postsInMonth);
   html += '<div class="schedule-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:24px;padding:20px;background:white;border-radius:12px;border:1px solid #e2e8f0;">';
   html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1a56db;">' + summary.total + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Total Posts</div></div>';
   html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#3b82f6;">' + summary.scheduled + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Scheduled</div></div>';
