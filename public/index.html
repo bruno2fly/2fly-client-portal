@@ -1032,6 +1032,119 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
   }
 }
 
+
+  /* ===== UPCOMING POSTS FEED ===== */
+  .upcoming-feed-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 600px) {
+    .upcoming-feed-grid { grid-template-columns: 1fr; }
+  }
+  .upcoming-card {
+    background: var(--panel);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+  }
+  .upcoming-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .upcoming-card-img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #ede9fe 100%);
+  }
+  .upcoming-card-body {
+    padding: 14px 16px 16px;
+  }
+  .upcoming-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .upcoming-card-type {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  .upcoming-card-type.type-reel { background: #fce7f3; color: #be185d; }
+  .upcoming-card-type.type-story { background: #fef3c7; color: #92400e; }
+  .upcoming-card-type.type-carousel { background: #e0e7ff; color: #4338ca; }
+  .upcoming-card-status {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .upcoming-card-status.status-pending { background: #fef3c7; color: #92400e; }
+  .upcoming-card-status.status-approved { background: #dcfce7; color: #166534; }
+  .upcoming-card-status.status-scheduled { background: #e0f2fe; color: #0369a1; }
+  .upcoming-card-caption {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    font-weight: 500;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .upcoming-card-date {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .upcoming-card-date svg { flex-shrink: 0; }
+  .upcoming-feed-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  .upcoming-feed-empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+  }
+  /* Placeholder shimmer for images that haven't loaded */
+  .upcoming-card-img-placeholder {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #ede9fe 100%);
+    color: #94a3b8;
+    font-size: 48px;
+  }
+  body[data-theme="dark"] .upcoming-card {
+    box-shadow: 0 2px 8px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.06);
+  }
+  body[data-theme="dark"] .upcoming-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.08);
+  }
+  body[data-theme="dark"] .upcoming-card-img-placeholder {
+    background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 50%, #312e81 100%);
+    color: #475569;
+  }
 </style>
 </head>
 <body>
@@ -1268,6 +1381,15 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
       <section class="panel calendar-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;" aria-label="Calendar" data-show-tabs="activity">
         <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0 0 20px 0;">Calendar</h3>
         <div id="calendarView"></div>
+      </section>
+
+      <!-- Upcoming Posts Feed (Instagram-style 2x2 grid) -->
+      <section class="panel upcoming-feed-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;margin-top:8px;" aria-label="Upcoming Posts" data-show-tabs="activity">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0;">Upcoming Posts</h3>
+          <span class="upcoming-feed-count" id="upcomingFeedCount" style="font-size:13px;color:var(--text-secondary);font-weight:500;"></span>
+        </div>
+        <div id="upcomingFeedGrid" class="upcoming-feed-grid"></div>
       </section>
 
       <!-- Progress (formerly Reports) -->
@@ -2398,6 +2520,9 @@ function render(){
   
   // Calendar
   try { renderCalendar(); } catch(e){ console.warn("Calendar render skipped:", e); }
+
+  // Upcoming Posts Feed
+  try { renderUpcomingFeed(); } catch(e){ console.warn("Upcoming feed render skipped:", e); }
   
   // Request Stats
   try { renderRequestStats(); } catch(e){ console.warn("Request stats render skipped:", e); }
@@ -4038,6 +4163,137 @@ async function initializeApp() {
       })
       .catch(function(e) { pushDebug('Registration error: ' + e.message); });
   }
+
+
+/* ================== Upcoming Posts Feed ================== */
+function renderUpcomingFeed(){
+  var s = load();
+  var grid = document.querySelector("#upcomingFeedGrid");
+  var countEl = document.querySelector("#upcomingFeedCount");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  // Get future approved/pending posts sorted by postDate ascending
+  var now = new Date();
+  now.setHours(0,0,0,0);
+  var upcoming = (s.approvals || []).filter(function(a){
+    if (!a.postDate) return false;
+    var d = new Date(a.postDate);
+    return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
+  }).sort(function(a,b){
+    return new Date(a.postDate) - new Date(b.postDate);
+  }).slice(0, 4); // Max 4 posts
+
+  if (countEl) {
+    countEl.textContent = upcoming.length > 0 ? upcoming.length + " next up" : "";
+  }
+
+  if (upcoming.length === 0) {
+    grid.innerHTML = '<div class="upcoming-feed-empty"><div class="upcoming-feed-empty-icon">📅</div>No upcoming posts scheduled.<br>Posts with a future date will appear here.</div>';
+    return;
+  }
+
+  upcoming.forEach(function(item){
+    var card = el("div", { class: "upcoming-card" });
+
+    // Image area
+    var imgSrc = resolveUpcomingImage(item);
+    if (imgSrc) {
+      var img = el("img", { class: "upcoming-card-img", loading: "lazy" });
+      img.src = imgSrc;
+      img.alt = item.title || "Post preview";
+      img.onerror = function(){
+        // Replace broken image with placeholder
+        var ph = el("div", { class: "upcoming-card-img-placeholder" });
+        ph.innerHTML = getTypeEmoji(item.type);
+        this.parentNode.replaceChild(ph, this);
+      };
+      card.appendChild(img);
+    } else {
+      var placeholder = el("div", { class: "upcoming-card-img-placeholder" });
+      placeholder.innerHTML = getTypeEmoji(item.type);
+      card.appendChild(placeholder);
+    }
+
+    // Body
+    var body = el("div", { class: "upcoming-card-body" });
+
+    // Meta row: type + status
+    var meta = el("div", { class: "upcoming-card-meta" });
+    var typeClass = "upcoming-card-type";
+    var typeStr = (item.type || "Post").toLowerCase();
+    if (typeStr === "reel" || typeStr === "reels") typeClass += " type-reel";
+    else if (typeStr === "story" || typeStr === "stories") typeClass += " type-story";
+    else if (typeStr === "carousel") typeClass += " type-carousel";
+    var typeChip = el("span", { class: typeClass });
+    typeChip.textContent = item.type || "Post";
+    meta.appendChild(typeChip);
+
+    var statusClass = "upcoming-card-status";
+    var st = (item.status || "pending").toLowerCase();
+    if (st === "approved") statusClass += " status-approved";
+    else if (st === "pending") statusClass += " status-pending";
+    else statusClass += " status-scheduled";
+    var statusChip = el("span", { class: statusClass });
+    statusChip.textContent = st === "approved" ? "Approved" : st === "pending" ? "Pending Approval" : "Scheduled";
+    meta.appendChild(statusChip);
+    body.appendChild(meta);
+
+    // Caption
+    var caption = el("div", { class: "upcoming-card-caption" });
+    caption.textContent = item.copyText || item.title || "Untitled post";
+    body.appendChild(caption);
+
+    // Date
+    var dateDiv = el("div", { class: "upcoming-card-date" });
+    var d = new Date(item.postDate);
+    dateDiv.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    body.appendChild(dateDiv);
+
+    card.appendChild(body);
+
+    // Click to open approval modal
+    card.addEventListener("click", function(){
+      if (typeof window.openApprovalModal === "function") {
+        window.openApprovalModal(item.id);
+      }
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+function resolveUpcomingImage(item) {
+  // Priority: previewImageUrl > copyImageUrl > first of previewImageUrls > first of imageUrls > imageUrl
+  if (item.previewImageUrl) return item.previewImageUrl;
+  if (item.copyImageUrl) return item.copyImageUrl;
+  if (item.previewImageUrls && item.previewImageUrls.length > 0) return item.previewImageUrls[0];
+  if (item.imageUrls && item.imageUrls.length > 0) {
+    var url = item.imageUrls[0];
+    if (typeof driveThumbnailUrl === "function") {
+      var thumb = driveThumbnailUrl(url);
+      if (thumb) return thumb;
+    }
+    return url;
+  }
+  if (item.imageUrl) {
+    if (typeof driveThumbnailUrl === "function") {
+      var thumb = driveThumbnailUrl(item.imageUrl);
+      if (thumb) return thumb;
+    }
+    return item.imageUrl;
+  }
+  return null;
+}
+
+function getTypeEmoji(type) {
+  var t = (type || "").toLowerCase();
+  if (t === "reel" || t === "reels") return "🎬";
+  if (t === "story" || t === "stories") return "📱";
+  if (t === "carousel") return "🖼️";
+  return "📸";
+}
+
 </script>
 </body>
 </html>
