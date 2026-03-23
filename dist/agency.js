@@ -1874,7 +1874,12 @@ async function renderScheduledPostsTab() {
       });
     }
   } catch (e) {
-    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + (e.message || 'Unknown error') + '</div>';
+    var errMsg = (e.message || 'Unknown error');
+    if (errMsg.includes('non-JSON') || errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('API returned')) {
+      container.innerHTML = '<div style="text-align:center;padding:48px 24px;"><div style="font-size:36px;margin-bottom:12px;opacity:.5;">\ud83d\udcc5</div><div style="font-size:16px;font-weight:600;color:#0f172a;margin-bottom:6px;">No scheduled posts yet</div><div style="font-size:13px;color:#64748b;">Connect your social accounts above to start scheduling, or create posts in the Approvals tab.</div></div>';
+    } else {
+      container.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;">Failed to load: ' + errMsg + '</div>';
+    }
   }
 
   // Render Feed Builder below the calendar
@@ -1887,7 +1892,6 @@ async function renderScheduledPostsTab() {
 function renderFeedBuilder() {
   if (!currentClientId) return;
 
-  // Remove existing builder if any
   var existing = document.getElementById('feedBuilderSection');
   if (existing) existing.remove();
 
@@ -1899,232 +1903,244 @@ function renderFeedBuilder() {
   var assets = loadAssets(currentClientId);
   var clients = loadClientsRegistry();
   var clientName = (clients[currentClientId] && clients[currentClientId].name) || 'Client';
+  var safeClientName = clientName.replace(/</g, '&lt;');
 
-  // Collect all available images from approvals + assets
+  // Collect all images from approvals + assets
   var allItems = [];
 
-  // From approvals: posts with images
   approvals.forEach(function(a) {
-    var img = a.previewImageUrl || a.copyImageUrl || (a.previewImageUrls && a.previewImageUrls[0]) || (a.imageUrls && a.imageUrls[0]) || a.imageUrl || null;
-    if (img || a.uploadedImages && a.uploadedImages.length > 0) {
+    var img = a.previewImageUrl || a.copyImageUrl
+      || (a.previewImageUrls && a.previewImageUrls[0])
+      || (a.imageUrls && a.imageUrls[0])
+      || a.imageUrl
+      || (a.uploadedImages && a.uploadedImages[0] && a.uploadedImages[0].url)
+      || null;
+    if (img) {
       allItems.push({
-        id: a.id,
-        source: 'approval',
-        title: a.title || 'Untitled',
-        type: a.type || 'Post',
+        id: a.id, source: 'approval',
+        title: a.title || 'Untitled', type: a.type || 'Post',
         caption: a.copyText || a.caption || '',
-        imageUrl: img || (a.uploadedImages && a.uploadedImages[0] && a.uploadedImages[0].url) || null,
-        postDate: a.postDate || null,
+        imageUrl: img, postDate: a.postDate || null,
         status: a.status || 'pending'
       });
     }
   });
 
-  // From content library assets
   assets.forEach(function(a) {
     var img = a.thumbnailUrl || a.url || null;
     if (img && (a.mediaType === 'PHOTO' || a.mediaType === 'GRAPHIC' || a.mediaType === 'VIDEO')) {
       allItems.push({
-        id: a.id,
-        source: 'asset',
-        title: a.title || 'Asset',
-        type: a.formatUse || 'Post',
-        caption: a.title || '',
-        imageUrl: img,
-        postDate: null,
-        status: a.approvalStatus || 'PENDING'
+        id: a.id, source: 'asset',
+        title: a.title || 'Asset', type: a.formatUse || 'Post',
+        caption: a.title || '', imageUrl: img,
+        postDate: null, status: a.approvalStatus || 'PENDING'
       });
     }
   });
 
-  // Build the section HTML
+  // Build section
   var section = document.createElement('div');
   section.id = 'feedBuilderSection';
-  section.style.cssText = 'margin-top:32px;padding:24px;background:#fff;border-radius:16px;border:1px solid #e2e8f0;';
+  var h = '';
 
-  var header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">';
-  header += '<div>';
-  header += '<h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">Feed Preview Builder</h3>';
-  header += '<p style="margin:4px 0 0;font-size:13px;color:#64748b;">Drag images into slots to build the client\u2019s upcoming posts feed, then send.</p>';
-  header += '</div>';
-  header += '<button type="button" id="feedBuilderSendBtn" style="padding:10px 24px;background:#1a56db;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;">Send to ' + clientName.replace(/</g,'&lt;') + '</button>';
-  header += '</div>';
+  // Header
+  h += '<div class="fb-header">';
+  h += '<div><h3 class="fb-title">Feed Preview Builder</h3>';
+  h += '<p class="fb-subtitle">Drag images into slots to build the client\u2019s upcoming posts feed, then send.</p></div>';
+  h += '<button type="button" id="feedBuilderSendBtn" class="fb-send-btn" disabled>Send to ' + safeClientName + '</button>';
+  h += '</div>';
 
-  var body = '<div style="display:flex;gap:24px;min-height:400px;">';
+  // Two-panel layout
+  h += '<div class="fb-panels">';
 
-  // ── LEFT: Asset library ──
-  body += '<div style="width:260px;flex-shrink:0;display:flex;flex-direction:column;">';
-  body += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-  body += '<span style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Assets</span>';
-  body += '<label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:12px;color:#3b82f6;font-weight:500;">';
-  body += '<input type="file" id="feedBuilderUpload" accept="image/*" multiple style="display:none;" />';
-  body += '+ Upload</label></div>';
-  body += '<div id="feedBuilderAssetList" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;max-height:500px;padding:4px;">';
+  // LEFT: Assets panel
+  h += '<div class="fb-assets-panel">';
+  h += '<div class="fb-assets-header">';
+  h += '<span class="fb-section-label">Assets</span>';
+  h += '<label class="fb-upload-btn"><input type="file" id="feedBuilderUpload" accept="image/*" multiple />+ Upload</label>';
+  h += '</div>';
+  h += '<div id="feedBuilderAssetList" class="fb-assets-list">';
 
   if (allItems.length === 0) {
-    body += '<div style="grid-column:1/-1;text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">No images available.<br>Upload or create approvals with images.</div>';
+    h += '<div class="fb-empty-assets">No images available.<br>Upload or create approvals with images.</div>';
   } else {
     allItems.forEach(function(item, idx) {
-      body += '<div class="fb-asset-item" draggable="true" data-fb-idx="' + idx + '" style="aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:grab;position:relative;border:2px solid transparent;transition:border-color 0.2s;">';
-      if (item.imageUrl) {
-        body += '<img src="' + (item.imageUrl || '').replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;" onerror="this.parentNode.style.background=\'#f1f5f9\';this.style.display=\'none\';this.parentNode.innerHTML+=\'<div style=\\\"display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:24px;\\\">\ud83d\udcf7</div>\';" />';
-      } else {
-        body += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;font-size:24px;">\ud83d\udcf7</div>';
-      }
-      body += '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (item.title || '').replace(/</g,'&lt;').slice(0,30) + '</div>';
-      body += '</div>';
+      var safeUrl = (item.imageUrl || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      var safeTitle = (item.title || '').replace(/</g, '&lt;').slice(0, 30);
+      h += '<div class="fb-asset-card" draggable="true" data-fb-idx="' + idx + '">';
+      h += '<div class="fb-asset-thumb">';
+      h += '<img class="fb-asset-img" src="' + safeUrl + '" alt="" draggable="false" />';
+      h += '</div>';
+      h += '<span class="fb-asset-label">' + safeTitle + '</span>';
+      h += '</div>';
     });
   }
 
-  body += '</div></div>';
+  h += '</div></div>';
 
-  // ── RIGHT: Feed preview (2x2 grid with drop zones) ──
-  body += '<div style="flex:1;display:flex;flex-direction:column;">';
-  body += '<div style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Client Feed Preview</div>';
-  body += '<div id="feedBuilderGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;">';
+  // RIGHT: Feed preview grid (3x3)
+  h += '<div class="fb-preview-panel">';
+  h += '<span class="fb-section-label">Client Feed Preview</span>';
+  h += '<div id="feedBuilderGrid" class="fb-grid">';
 
-  for (var i = 0; i < 4; i++) {
-    body += '<div class="fb-drop-zone" data-slot="' + i + '" style="aspect-ratio:1/1;border:2px dashed #cbd5e1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.2s;position:relative;overflow:hidden;background:#f8fafc;">';
-    body += '<div class="fb-slot-placeholder" style="text-align:center;color:#94a3b8;pointer-events:none;">';
-    body += '<div style="font-size:32px;margin-bottom:8px;">+</div>';
-    body += '<div style="font-size:12px;font-weight:500;">Drop image here</div>';
-    body += '<div style="font-size:11px;margin-top:2px;">Slot ' + (i + 1) + '</div>';
-    body += '</div>';
-    body += '<div class="fb-slot-filled" style="display:none;width:100%;height:100%;position:absolute;top:0;left:0;"></div>';
-    body += '</div>';
+  for (var i = 0; i < 9; i++) {
+    h += '<div class="fb-slot" data-slot="' + i + '">';
+    h += '<div class="fb-slot-empty"><div class="fb-slot-plus">+</div><div class="fb-slot-text">Drop here</div></div>';
+    h += '<div class="fb-slot-filled"></div>';
+    h += '</div>';
   }
+  h += '</div>';
 
-  body += '</div>';
-
-  // Caption inputs for each slot
-  body += '<div id="feedBuilderCaptions" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">';
-  for (var i = 0; i < 4; i++) {
-    body += '<div class="fb-caption-group" data-slot="' + i + '" style="display:none;">';
-    body += '<input type="text" class="fb-caption-input" placeholder="Caption for slot ' + (i+1) + '..." style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#0f172a;" />';
-    body += '<input type="date" class="fb-date-input" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:11px;color:#64748b;margin-top:4px;" />';
-    body += '</div>';
+  // Captions
+  h += '<div id="feedBuilderCaptions" class="fb-captions">';
+  for (var i = 0; i < 9; i++) {
+    h += '<div class="fb-caption-row" data-slot="' + i + '">';
+    h += '<input type="text" class="fb-cap-text" placeholder="Caption..." />';
+    h += '<input type="date" class="fb-cap-date" />';
+    h += '</div>';
   }
-  body += '</div>';
+  h += '</div></div></div>';
 
-  body += '</div>';
-  body += '</div>';
-
-  section.innerHTML = header + body;
+  section.innerHTML = h;
   tabContent.appendChild(section);
 
-  // ── Wire up drag & drop ──
-  var feedSlots = [null, null, null, null]; // Track which item is in each slot
-
-  var assetItems = section.querySelectorAll('.fb-asset-item');
-  var dropZones = section.querySelectorAll('.fb-drop-zone');
-
-  assetItems.forEach(function(el) {
-    el.addEventListener('dragstart', function(e) {
-      e.dataTransfer.setData('text/plain', el.getAttribute('data-fb-idx'));
-      el.style.opacity = '0.5';
-    });
-    el.addEventListener('dragend', function() {
-      el.style.opacity = '1';
-    });
+  // Fix broken images
+  section.querySelectorAll('.fb-asset-img').forEach(function(img) {
+    img.onerror = function() {
+      img.style.display = 'none';
+      var fb = document.createElement('div');
+      fb.className = 'fb-thumb-fallback';
+      fb.textContent = '\ud83d\udcf7';
+      img.parentNode.appendChild(fb);
+    };
   });
 
-  dropZones.forEach(function(zone) {
-    zone.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      zone.style.borderColor = '#3b82f6';
-      zone.style.background = '#eff6ff';
+  // State
+  var feedSlots = new Array(9).fill(null);
+
+  function updateSendBtn() {
+    var btn = section.querySelector('#feedBuilderSendBtn');
+    var filled = feedSlots.filter(Boolean).length;
+    if (btn) {
+      btn.disabled = filled === 0;
+      if (filled > 0) btn.classList.add('fb-send-active');
+      else btn.classList.remove('fb-send-active');
+    }
+  }
+
+  function fillSlot(slotIdx, item) {
+    feedSlots[slotIdx] = item;
+    var zone = section.querySelector('.fb-slot[data-slot="' + slotIdx + '"]');
+    if (!zone) return;
+    var emptyEl = zone.querySelector('.fb-slot-empty');
+    var filledEl = zone.querySelector('.fb-slot-filled');
+
+    emptyEl.style.display = 'none';
+    filledEl.style.display = 'block';
+    filledEl.innerHTML = '';
+
+    var img = document.createElement('img');
+    img.className = 'fb-slot-img';
+    img.src = item.imageUrl || '';
+    img.draggable = false;
+    filledEl.appendChild(img);
+
+    var xBtn = document.createElement('button');
+    xBtn.className = 'fb-slot-x';
+    xBtn.innerHTML = '&times;';
+    xBtn.addEventListener('click', function(ev) { ev.stopPropagation(); clearSlot(slotIdx); });
+    filledEl.appendChild(xBtn);
+
+    zone.classList.add('fb-slot-occupied');
+
+    var capRow = section.querySelector('.fb-caption-row[data-slot="' + slotIdx + '"]');
+    if (capRow) {
+      capRow.style.display = 'flex';
+      var ct = capRow.querySelector('.fb-cap-text');
+      var cd = capRow.querySelector('.fb-cap-date');
+      if (ct && item.caption) ct.value = item.caption;
+      if (cd && item.postDate) cd.value = item.postDate.slice(0, 10);
+    }
+    updateSendBtn();
+  }
+
+  function clearSlot(slotIdx) {
+    feedSlots[slotIdx] = null;
+    var zone = section.querySelector('.fb-slot[data-slot="' + slotIdx + '"]');
+    if (!zone) return;
+    zone.querySelector('.fb-slot-empty').style.display = '';
+    var filledEl = zone.querySelector('.fb-slot-filled');
+    filledEl.style.display = 'none';
+    filledEl.innerHTML = '';
+    zone.classList.remove('fb-slot-occupied');
+    var capRow = section.querySelector('.fb-caption-row[data-slot="' + slotIdx + '"]');
+    if (capRow) capRow.style.display = 'none';
+    updateSendBtn();
+  }
+
+  // Drag & Drop
+  section.querySelectorAll('.fb-asset-card').forEach(function(card) {
+    card.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-fb-idx'));
+      card.classList.add('fb-dragging');
     });
-    zone.addEventListener('dragleave', function() {
-      zone.style.borderColor = feedSlots[zone.getAttribute('data-slot')] ? '#3b82f6' : '#cbd5e1';
-      zone.style.background = feedSlots[zone.getAttribute('data-slot')] ? '#fff' : '#f8fafc';
-    });
+    card.addEventListener('dragend', function() { card.classList.remove('fb-dragging'); });
+  });
+
+  section.querySelectorAll('.fb-slot').forEach(function(zone) {
+    zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('fb-slot-hover'); });
+    zone.addEventListener('dragleave', function() { zone.classList.remove('fb-slot-hover'); });
     zone.addEventListener('drop', function(e) {
       e.preventDefault();
+      zone.classList.remove('fb-slot-hover');
       var idx = parseInt(e.dataTransfer.getData('text/plain'), 10);
       var slot = parseInt(zone.getAttribute('data-slot'), 10);
       if (isNaN(idx) || !allItems[idx]) return;
-
-      var item = allItems[idx];
-      feedSlots[slot] = item;
-
-      // Fill the slot visually
-      var filled = zone.querySelector('.fb-slot-filled');
-      var placeholder = zone.querySelector('.fb-slot-placeholder');
-      placeholder.style.display = 'none';
-      filled.style.display = 'block';
-      filled.innerHTML = '<img src="' + (item.imageUrl || '').replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;" />'
-        + '<button type="button" class="fb-slot-remove" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;">&times;</button>'
-        + '<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (item.title || '').replace(/</g,'&lt;') + '</div>';
-
-      zone.style.borderColor = '#3b82f6';
-      zone.style.borderStyle = 'solid';
-      zone.style.background = '#fff';
-
-      // Show caption input
-      var captionGroup = section.querySelector('.fb-caption-group[data-slot="' + slot + '"]');
-      if (captionGroup) {
-        captionGroup.style.display = 'block';
-        var captionInput = captionGroup.querySelector('.fb-caption-input');
-        if (captionInput && item.caption) captionInput.value = item.caption;
-        var dateInput = captionGroup.querySelector('.fb-date-input');
-        if (dateInput && item.postDate) dateInput.value = item.postDate.slice(0, 10);
-      }
-
-      // Remove button
-      var removeBtn = filled.querySelector('.fb-slot-remove');
-      if (removeBtn) {
-        removeBtn.addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          feedSlots[slot] = null;
-          filled.style.display = 'none';
-          filled.innerHTML = '';
-          placeholder.style.display = '';
-          zone.style.borderColor = '#cbd5e1';
-          zone.style.borderStyle = 'dashed';
-          zone.style.background = '#f8fafc';
-          if (captionGroup) captionGroup.style.display = 'none';
-        });
-      }
+      fillSlot(slot, allItems[idx]);
     });
   });
 
-  // ── Upload handler ──
+  // Upload
   var uploadInput = section.querySelector('#feedBuilderUpload');
   if (uploadInput) {
     uploadInput.addEventListener('change', function() {
-      var files = Array.from(uploadInput.files || []);
-      files.forEach(function(file) {
+      Array.from(uploadInput.files || []).forEach(function(file) {
         if (!file.type.startsWith('image/')) return;
         var reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function(ev) {
           var newItem = {
-            id: 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-            source: 'upload',
-            title: file.name.replace(/\.[^.]+$/, ''),
-            type: 'Post',
-            caption: '',
-            imageUrl: e.target.result,
-            postDate: null,
-            status: 'pending'
+            id: 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            source: 'upload', title: file.name.replace(/\.[^.]+$/, ''),
+            type: 'Post', caption: '', imageUrl: ev.target.result,
+            postDate: null, status: 'pending'
           };
           allItems.push(newItem);
           var newIdx = allItems.length - 1;
-          var assetList = section.querySelector('#feedBuilderAssetList');
-          var emptyMsg = assetList.querySelector('div[style*="grid-column"]');
+          var list = section.querySelector('#feedBuilderAssetList');
+          var emptyMsg = list.querySelector('.fb-empty-assets');
           if (emptyMsg) emptyMsg.remove();
           var card = document.createElement('div');
-          card.className = 'fb-asset-item';
+          card.className = 'fb-asset-card';
           card.draggable = true;
           card.setAttribute('data-fb-idx', newIdx);
-          card.style.cssText = 'aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:grab;position:relative;border:2px solid transparent;transition:border-color 0.2s;';
-          card.innerHTML = '<img src="' + e.target.result.replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;" />'
-            + '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (newItem.title || '').replace(/</g,'&lt;') + '</div>';
-          card.addEventListener('dragstart', function(ev) {
-            ev.dataTransfer.setData('text/plain', card.getAttribute('data-fb-idx'));
-            card.style.opacity = '0.5';
+          var thumb = document.createElement('div');
+          thumb.className = 'fb-asset-thumb';
+          var img = document.createElement('img');
+          img.className = 'fb-asset-img';
+          img.src = ev.target.result;
+          img.draggable = false;
+          thumb.appendChild(img);
+          var lbl = document.createElement('span');
+          lbl.className = 'fb-asset-label';
+          lbl.textContent = newItem.title.slice(0, 30);
+          card.appendChild(thumb);
+          card.appendChild(lbl);
+          card.addEventListener('dragstart', function(de) {
+            de.dataTransfer.setData('text/plain', card.getAttribute('data-fb-idx'));
+            card.classList.add('fb-dragging');
           });
-          card.addEventListener('dragend', function() { card.style.opacity = '1'; });
-          assetList.appendChild(card);
+          card.addEventListener('dragend', function() { card.classList.remove('fb-dragging'); });
+          list.appendChild(card);
         };
         reader.readAsDataURL(file);
       });
@@ -2132,92 +2148,64 @@ function renderFeedBuilder() {
     });
   }
 
-  // ── Send to Client ──
+  // Send to Client
   var sendBtn = section.querySelector('#feedBuilderSendBtn');
   if (sendBtn) {
     sendBtn.addEventListener('click', async function() {
-      var filledSlots = feedSlots.filter(function(s) { return s !== null; });
-      if (filledSlots.length === 0) {
-        showToast('Drag at least one image into the feed slots before sending.', 'error');
-        return;
-      }
-
+      var filledSlots = feedSlots.filter(Boolean);
+      if (filledSlots.length === 0) return;
       sendBtn.disabled = true;
       sendBtn.textContent = 'Sending...';
-      sendBtn.style.opacity = '0.6';
-
       try {
-        var state = portalStateCache[currentClientId];
-        if (!state) throw new Error('No portal state loaded');
-        if (!state.approvals) state.approvals = [];
+        var st = portalStateCache[currentClientId];
+        if (!st) throw new Error('No portal state loaded');
+        if (!st.approvals) st.approvals = [];
 
-        // Create/update approval entries for each filled slot
         feedSlots.forEach(function(item, slotIdx) {
           if (!item) return;
-          var captionGroup = section.querySelector('.fb-caption-group[data-slot="' + slotIdx + '"]');
-          var captionVal = captionGroup ? (captionGroup.querySelector('.fb-caption-input').value || item.caption || '') : (item.caption || '');
-          var dateVal = captionGroup ? (captionGroup.querySelector('.fb-date-input').value || '') : '';
+          var capRow = section.querySelector('.fb-caption-row[data-slot="' + slotIdx + '"]');
+          var captionVal = capRow ? (capRow.querySelector('.fb-cap-text').value || item.caption || '') : (item.caption || '');
+          var dateVal = capRow ? (capRow.querySelector('.fb-cap-date').value || '') : '';
           if (!dateVal && item.postDate) dateVal = item.postDate.slice(0, 10);
           if (!dateVal) {
-            // Auto-assign dates: today + 2 days per slot
-            var d = new Date();
-            d.setDate(d.getDate() + 2 + (slotIdx * 2));
-            dateVal = d.toISOString().slice(0, 10);
+            var dd = new Date();
+            dd.setDate(dd.getDate() + 2 + (slotIdx * 2));
+            dateVal = dd.toISOString().slice(0, 10);
           }
-
-          // Check if this approval already exists (by id from source)
-          var existingIdx = state.approvals.findIndex(function(a) { return a.id === item.id; });
           var approvalData = {
             id: item.source === 'upload' ? ('feed_' + Date.now() + '_' + slotIdx) : item.id,
             title: item.title || ('Post ' + (slotIdx + 1)),
             type: item.type || 'Post',
-            postDate: dateVal,
-            copyText: captionVal,
+            postDate: dateVal, copyText: captionVal,
             imageUrl: item.imageUrl || undefined,
             previewImageUrl: item.imageUrl || undefined,
-            status: 'approved',
-            feedSlot: slotIdx,
+            status: 'approved', feedSlot: slotIdx,
             sentToFeedAt: new Date().toISOString()
           };
-
-          if (existingIdx >= 0) {
-            // Update existing
-            var existing = state.approvals[existingIdx];
-            state.approvals[existingIdx] = Object.assign({}, existing, approvalData);
-          } else {
-            // New entry
-            state.approvals.push(approvalData);
-          }
+          var existingIdx = st.approvals.findIndex(function(a) { return a.id === approvalData.id; });
+          if (existingIdx >= 0) st.approvals[existingIdx] = Object.assign({}, st.approvals[existingIdx], approvalData);
+          else st.approvals.push(approvalData);
         });
 
-        // Log activity
-        if (!state.activity) state.activity = [];
-        state.activity.push({
-          when: Date.now(),
-          text: 'Updated upcoming posts feed (' + filledSlots.length + ' posts)'
-        });
+        if (!st.activity) st.activity = [];
+        st.activity.push({ when: Date.now(), text: 'Updated upcoming posts feed (' + filledSlots.length + ' posts)' });
+        portalStateCache[currentClientId] = st;
+        await savePortalStateToAPI(currentClientId, st);
 
-        // Save
-        portalStateCache[currentClientId] = state;
-        await savePortalStateToAPI(currentClientId, state);
-
-        showToast('Feed preview sent to ' + clientName + '! Their portal will update automatically.', 'success');
+        showToast('Feed sent to ' + clientName + '!', 'success');
         sendBtn.textContent = 'Sent!';
         sendBtn.style.background = '#16a34a';
-
         setTimeout(function() {
           sendBtn.disabled = false;
-          sendBtn.textContent = 'Send to ' + clientName.replace(/</g,'&lt;');
-          sendBtn.style.background = '#1a56db';
-          sendBtn.style.opacity = '1';
+          sendBtn.textContent = 'Send to ' + safeClientName;
+          sendBtn.style.background = '';
+          updateSendBtn();
         }, 3000);
-
       } catch (err) {
-        console.error('Feed builder send error:', err);
-        showToast('Failed to send: ' + (err.message || 'Unknown error'), 'error');
+        showToast('Failed: ' + (err.message || 'Unknown error'), 'error');
         sendBtn.disabled = false;
-        sendBtn.textContent = 'Send to ' + clientName.replace(/</g,'&lt;');
-        sendBtn.style.opacity = '1';
+        sendBtn.textContent = 'Send to ' + safeClientName;
+        updateSendBtn();
       }
     });
   }
