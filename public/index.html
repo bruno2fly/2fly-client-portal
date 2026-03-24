@@ -2211,7 +2211,7 @@ function render(){
   if (state.kpis) state.kpis.waitingApproval = pendingCount;
   
   // Count approved items for the third card
-  const approvedCount = (state.approvals || []).filter(a => a.status === 'approved').length;
+  const approvedCount = (state.approvals || []).filter(a => a.status === 'approved' || a.status === 'scheduled').length;
   const kpiValMissing = $("#kpiValMissing");
   if (kpiValMissing) kpiValMissing.textContent = approvedCount;
   
@@ -2488,7 +2488,7 @@ function renderApprovalsSectioned(){
     return (status === '' || status === 'pending') && status !== 'copy_pending' && status !== 'copy_approved';
   });
   const changes = items.filter(i => i.status === 'changes');
-  const approved = items.filter(i => i.status === 'approved');
+  const approved = items.filter(i => i.status === 'approved' || i.status === 'scheduled');
 
   const $copy = $("#approvalsCopy"), $p = $("#approvalsPending"), $c = $("#approvalsChanges"), $a = $("#approvalsApproved"); 
   if (!$copy || !$p || !$c || !$a) {
@@ -3081,9 +3081,9 @@ window.openApprovalModal = function(id){
   // Show/hide buttons based on status
   const approveBtn = $("#approveBtn");
   const requestChangesBtn = $("#requestChangesBtn");
-  if (item.status === "approved" || item.status === "copy_approved") {
+  if (item.status === "approved" || item.status === "scheduled" || item.status === "copy_approved") {
     // For copy_approved, still show buttons so client can request changes if needed
-    if (item.status === "approved") {
+    if (item.status === "approved" || item.status === "scheduled") {
       if (approveBtn) approveBtn.style.display = "none";
       if (requestChangesBtn) requestChangesBtn.style.display = "none";
     } else {
@@ -3472,7 +3472,7 @@ function renderCalendar(){
   // Get all approvals with postDate (pending or approved)
   const itemsWithDate = (s.approvals || []).filter(a => 
     a.postDate && 
-    (a.status === 'pending' || a.status === 'approved' || !a.status)
+    (a.status === 'pending' || a.status === 'approved' || a.status === 'scheduled' || !a.status)
   );
   
   if (itemsWithDate.length === 0) {
@@ -3698,7 +3698,7 @@ function renderUpcomingFeed(){
     upcoming = (s.approvals || []).filter(function(a){
       if (!a.postDate) return false;
       var d = new Date(a.postDate);
-      return d >= now && (a.status === 'pending' || a.status === 'approved' || !a.status);
+      return d >= now && (a.status === 'pending' || a.status === 'approved' || a.status === 'scheduled' || !a.status);
     }).sort(function(a,b){
       return new Date(a.postDate) - new Date(b.postDate);
     }).slice(0, 12);
@@ -4268,7 +4268,7 @@ async function initializeApp() {
   var copyCount = approvals.filter(function(a){ return ['copy_pending','copy_approved','copy_changes'].includes((a.status || '')); }).length;
   var pendingCount = approvals.filter(function(a){ return !a.status || a.status === 'pending'; }).length;
   var changesCount = approvals.filter(function(a){ return a.status === 'changes'; }).length;
-  var approvedCount = approvals.filter(function(a){ return a.status === 'approved'; }).length;
+  var approvedCount = approvals.filter(function(a){ return a.status === 'approved' || a.status === 'scheduled'; }).length;
   var defaultTab = 'copy';
   if (pendingCount > 0) defaultTab = 'pending';
   else if (copyCount > 0) defaultTab = 'copy';
