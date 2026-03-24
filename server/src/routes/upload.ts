@@ -217,9 +217,9 @@ router.post('/media', authenticate, async (req: AuthenticatedRequest, res) => {
 /**
  * POST /api/upload/asset
  * Upload an image for the Image Library (Assets tab).
- * Saves to local filesystem at /uploads/assets/<filename>
+ * Uses Vercel Blob for persistent storage (local filesystem is ephemeral on Vercel).
  * Body: { image: "data:image/jpeg;base64,..." }
- * Returns: { success: true, url: "/uploads/assets/abc123.jpg" }
+ * Returns: { success: true, url: "https://...blob.vercel-storage.com/..." }
  */
 router.post('/asset', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
@@ -233,20 +233,52 @@ router.post('/asset', authenticate, async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: 'Invalid image format' });
     }
 
-    const { join } = await import('path');
-    const { writeFileSync, existsSync, mkdirSync } = await import('fs');
-
     const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
     const buffer = Buffer.from(match[2], 'base64');
+    const contentType = `image/${match[1]}`;
 
-    const uploadsDir = join(process.cwd(), 'uploads', 'assets');
-    if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+    const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
 
-    const filename = `asset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    writeFileSync(join(uploadsDir, filename), buffer);
+    if (blobToken) {
+      // Use Vercel Blob for persistent storage
+      let put: any;
+      try {
+        const blobModule = await import('@vercel/blob');
+        put = blobModule.put;
+      } catch (importErr: any) {
+        return res.status(503).json({
+          error: 'Image upload not available',
+          message: 'Install @vercel/blob package for image uploads.',
+        });
+      }
 
-    const url = `/uploads/assets/${filename}`;
-    return res.json({ success: true, url });
+      let agencyId = 'default';
+      try {
+        const scope = getAgencyScope(req);
+        agencyId = scope.agencyId;
+      } catch (_) {}
+
+      const filename = `assets/${agencyId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const blob = await put(filename, buffer, {
+        access: 'public',
+        contentType,
+        token: blobToken,
+      });
+      return res.json({ success: true, url: blob.url });
+    } else {
+      // Fallback: local filesystem (development only — ephemeral on Vercel)
+      const { join } = await import('path');
+      const { writeFileSync, existsSync, mkdirSync } = await import('fs');
+
+      const uploadsDir = join(process.cwd(), 'uploads', 'assets');
+      if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+
+      const filename = `asset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      writeFileSync(join(uploadsDir, filename), buffer);
+
+      const url = `/uploads/assets/${filename}`;
+      return res.json({ success: true, url });
+    }
   } catch (e: any) {
     console.error('Asset upload error:', e?.message);
     res.status(500).json({ error: e?.message || 'Asset upload failed' });
