@@ -1370,13 +1370,42 @@
       color: #92400e;
     }
     
-    /* Assets & References panel */
-    .assets-panel { margin-bottom: 24px; }
-    .assets-panel__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-    .assets-panel__summary { display: flex; gap: 16px; font-size: 14px; color: #475569; }
-    .assets-summary__item { font-weight: 500; }
-    .assets-panel__toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; cursor: pointer; }
-    .assets-panel__filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    /* Image Library */
+    .imglib-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+    .imglib-header h3 { font-size:18px; font-weight:600; color:#0f172a; margin:0; }
+    .imglib-stats { display:flex; gap:16px; font-size:13px; color:#64748b; }
+    .imglib-stats span { display:flex; align-items:center; gap:4px; }
+    .imglib-stats .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .imglib-stats .dot--approved { background:#22c55e; }
+    .imglib-stats .dot--pending { background:#f59e0b; }
+    .imglib-stats .dot--rejected { background:#ef4444; }
+    .imglib-upload-zone { border:2px dashed #cbd5e1; border-radius:16px; padding:40px 24px; text-align:center; cursor:pointer; transition:all .2s; background:#fafbfc; margin-bottom:24px; }
+    .imglib-upload-zone:hover, .imglib-upload-zone.dragover { border-color:#3b82f6; background:#eff6ff; }
+    .imglib-upload-zone svg { margin:0 auto 12px; display:block; }
+    .imglib-upload-zone p { color:#64748b; font-size:14px; margin:0 0 8px; }
+    .imglib-upload-zone .btn { margin-top:8px; }
+    .imglib-filter-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+    .imglib-filter-btn { padding:6px 14px; border-radius:20px; border:1px solid #e2e8f0; background:#fff; font-size:13px; color:#64748b; cursor:pointer; transition:all .15s; }
+    .imglib-filter-btn:hover { border-color:#94a3b8; color:#334155; }
+    .imglib-filter-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+    .imglib-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; }
+    .imglib-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; transition:all .2s; position:relative; }
+    .imglib-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-2px); }
+    .imglib-card__img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#f1f5f9; cursor:pointer; }
+    .imglib-card__body { padding:10px 12px; }
+    .imglib-card__name { font-size:13px; font-weight:500; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px; }
+    .imglib-card__badge { font-size:11px; padding:2px 8px; border-radius:10px; display:inline-block; }
+    .imglib-card__badge--pending { background:#fef3c7; color:#92400e; }
+    .imglib-card__badge--approved { background:#d1fae5; color:#065f46; }
+    .imglib-card__badge--rejected { background:#fecaca; color:#991b1b; }
+    .imglib-card__actions { display:flex; gap:4px; margin-top:8px; }
+    .imglib-card__actions .btn { padding:4px 10px; font-size:11px; border-radius:6px; }
+    .imglib-empty { text-align:center; padding:48px 24px; color:#94a3b8; }
+    .imglib-empty svg { margin:0 auto 16px; display:block; opacity:.5; }
+    .imglib-empty p { font-size:14px; margin:0; }
+    .imglib-lightbox { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.85); display:flex; align-items:center; justify-content:center; }
+    .imglib-lightbox img { max-width:90vw; max-height:85vh; border-radius:12px; object-fit:contain; }
+    .imglib-lightbox__close { position:absolute; top:20px; right:24px; color:#fff; font-size:28px; cursor:pointer; background:none; border:none; }
     .form-select--sm { min-width: 120px; font-size: 13px; padding: 6px 10px; }
     .post-approved-visuals__filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .post-approved-visuals__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 220px; overflow-y: auto; }
@@ -1996,6 +2025,7 @@
         <button class="tab" data-tab="requests">Requests</button>
         <button class="tab" data-tab="needs">Agency Needs <span class="tab-tooltip" title="Things your team needs from the client to move work forward.">ⓘ</span></button>
         <button class="tab" data-tab="contentlibrary">Assets &amp; References</button>
+        <button class="tab" data-tab="ailibrary">AI Library</button>
         <button class="tab" data-tab="scheduled">Scheduled Posts</button>
         <button class="tab" data-tab="reports">Reports</button>
       </div>
@@ -2235,6 +2265,10 @@
         </div>
       </div>
 
+      <div id="tabAilibrary" class="tab-content">
+        <div id="aiLibraryClientView"></div>
+      </div>
+
       <div id="tabScheduled" class="tab-content">
         <div id="scheduledPostsConnectionSection" class="card" style="margin-bottom: 24px; padding: 20px;">
           <div id="scheduledPostsConnectionContent"></div>
@@ -2245,112 +2279,8 @@
       </div>
 
       <div id="tabContentlibrary" class="tab-content">
-        <p class="section-desc">Add approved visuals, links, and references your team can reuse across posts, stories, reels, and ads. <a href="#" id="contentLibraryLearnMore" class="link-learn">Learn more</a></p>
-
-        <!-- Approved assets ready to use (focal point) -->
-        <div id="assetsApprovedPanel" class="card assets-panel">
-          <div class="assets-panel__header">
-            <div class="assets-panel__summary">
-              <span id="assetsSummaryApproved" class="assets-summary__item">Approved: 0</span>
-              <span id="assetsSummaryPending" class="assets-summary__item">Pending: 0</span>
-              <span id="assetsSummaryNeedsChanges" class="assets-summary__item">Needs changes: 0</span>
-            </div>
-            <label class="assets-panel__toggle">
-              <input type="checkbox" id="assetsShowAllOnly" checked />
-              <span>Show approved only</span>
-            </label>
-          </div>
-          <div class="assets-panel__filters">
-            <select id="assetsFilterFormatUse" class="form-select form-select--sm">
-              <option value="ANY">Any format</option>
-              <option value="POST">Post</option>
-              <option value="STORY">Story</option>
-              <option value="REEL">Reel</option>
-              <option value="AD">Ad</option>
-            </select>
-            <select id="assetsFilterPillar" class="form-select form-select--sm">
-              <option value="">All pillars</option>
-            </select>
-            <select id="assetsFilterMediaType" class="form-select form-select--sm">
-              <option value="">All types</option>
-              <option value="PHOTO">Photo</option>
-              <option value="VIDEO">Video</option>
-              <option value="GRAPHIC">Graphic</option>
-              <option value="DOC">Doc</option>
-            </select>
-          </div>
-          <div id="assetsGrid" class="assets-grid"></div>
-        </div>
-
-        <!-- Add Content Reference form -->
-        <div class="card">
-          <div class="edit-panel__title">Add Content Reference</div>
-          <form id="assetForm">
-            <div class="form-group">
-              <label class="form-label" for="assetTitle">Title / Description</label>
-              <input type="text" class="form-input" id="assetTitle" required placeholder="e.g. Menu hero image" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Add by</label>
-              <div class="asset-addby">
-                <label class="asset-addby__opt"><input type="radio" name="assetSourceType" value="LINK" checked /> Paste link (Drive/Dropbox/Figma/Canva)</label>
-                <label class="asset-addby__opt"><input type="radio" name="assetSourceType" value="UPLOAD" /> Upload file (optional)</label>
-              </div>
-            </div>
-            <div class="form-group" id="assetLinkGroup">
-              <label class="form-label" for="assetUrl">Link</label>
-              <input type="url" class="form-input" id="assetUrl" placeholder="Paste Google Drive / Dropbox / Figma / Canva link…" />
-            </div>
-            <div class="form-group" id="assetUploadGroup" style="display: none;">
-              <label class="form-label">Upload file</label>
-              <input type="file" class="form-input" id="assetFile" accept="image/*,video/*,.pdf" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetMediaType">Media type</label>
-              <select class="form-select" id="assetMediaType">
-                <option value="PHOTO">Photo</option>
-                <option value="VIDEO">Video</option>
-                <option value="GRAPHIC">Graphic</option>
-                <option value="DOC">Doc</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetFormatUse">Use for</label>
-              <select class="form-select" id="assetFormatUse">
-                <option value="ANY">Any</option>
-                <option value="POST">Post</option>
-                <option value="STORY">Story</option>
-                <option value="REEL">Reel</option>
-                <option value="AD">Ad</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetPillars">Pillars (comma separated)</label>
-              <input type="text" class="form-input" id="assetPillars" placeholder="e.g. Promo, Branding, Menu" />
-              <small class="form-hint">Suggested: Promo, Branding, Testimonial, Menu, BTS, Event, Education</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetApprovalStatus">Approval status</label>
-              <select class="form-select" id="assetApprovalStatus">
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="NEEDS_CHANGES">Needs changes</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetClientNotes">Client notes (optional)</label>
-              <textarea class="form-textarea" id="assetClientNotes" rows="2" placeholder="Notes from or for the client"></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="assetInternalNotes">Internal notes (optional)</label>
-              <textarea class="form-textarea" id="assetInternalNotes" rows="2" placeholder="Team-only notes"></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary">Save Reference</button>
-            </div>
-          </form>
-        </div>
+        <!-- Image Library - rendered by JS -->
+        <div id="imageLibraryRoot"></div>
       </div>
 
 
@@ -2422,7 +2352,7 @@
         <div class="production-sidebar__title">Production</div>
         <button type="button" id="productionNavDemands" class="production-sidebar__link active" data-section="demands"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>DEMANDS</button>
         <button type="button" id="productionNavMyTasks" class="production-sidebar__link" data-section="mytasks"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>MY TASKS</button>
-        <button type="button" id="productionNavAILibrary" class="production-sidebar__link production-sidebar__link--soon" data-section="ai-library" style="opacity:0.45;pointer-events:none;" aria-disabled="true" title="Coming soon"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>AI LIBRARY</button>
+        <button type="button" id="productionNavAILibrary" class="production-sidebar__link" data-section="ai-library"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>AI LIBRARY</button>
         <button type="button" id="productionNavReferences" class="production-sidebar__link production-sidebar__link--soon" data-section="references" style="opacity:0.45;pointer-events:none;" aria-disabled="true" title="Coming soon"><span class="production-sidebar__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></span>REFERENCES</button>
       </aside>
       <div id="productionViewMain" class="production-view-main" style="flex: 1; overflow: auto; padding: 24px; background: #F9FAFB;">
@@ -3628,6 +3558,68 @@
     #flowCatWrap:hover { opacity: 1; }
     #flowCatWrap:hover #flowCatSvg { animation: flowPurr 0.15s ease-in-out 3; }
   
+  /* ===== AI Library ===== */
+  .ail-section { margin-bottom: 24px; }
+  .ail-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .ail-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; gap:12px; flex-wrap:wrap; }
+  .ail-title { font-size:22px; font-weight:700; color:#0f172a; margin:0; }
+  .ail-subtitle { font-size:13px; color:#64748b; margin:4px 0 0; }
+  .ail-btn { padding:8px 18px; border-radius:8px; border:none; font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:6px; }
+  .ail-btn-primary { background:#1a56db; color:#fff; }
+  .ail-btn-primary:hover { background:#1e40af; }
+  .ail-btn-secondary { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+  .ail-btn-secondary:hover { background:#e2e8f0; }
+  .ail-btn-success { background:#059669; color:#fff; }
+  .ail-btn-danger { background:#dc2626; color:#fff; }
+  .ail-btn-sm { padding:5px 12px; font-size:12px; }
+  .ail-form-row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+  .ail-form-group { flex:1; min-width:180px; }
+  .ail-label { display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; }
+  .ail-input,.ail-select,.ail-textarea { width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#1e293b; background:#fff; box-sizing:border-box; }
+  .ail-textarea { min-height:80px; resize:vertical; }
+  .ail-select { appearance:auto; }
+  .ail-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+  .ail-img-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; transition:box-shadow .2s,border-color .2s; }
+  .ail-img-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); border-color:#1a56db; }
+  .ail-img-thumb { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#f1f5f9; cursor:pointer; }
+  .ail-img-thumb[data-format="story"] { aspect-ratio:9/16; }
+  .ail-img-thumb[data-format="carousel"] { aspect-ratio:4/5; }
+  .ail-img-thumb[data-format="ad_banner"] { aspect-ratio:1200/628; }
+  .ail-img-info { padding:10px 12px; }
+  .ail-img-meta { display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b; margin-bottom:6px; flex-wrap:wrap; }
+  .ail-badge { padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+  .ail-badge-generated { background:#eff6ff; color:#2563eb; }
+  .ail-badge-pending { background:#fffbeb; color:#b45309; }
+  .ail-badge-approved { background:#ecfdf5; color:#059669; }
+  .ail-badge-rejected { background:#fef2f2; color:#dc2626; }
+  .ail-badge-used { background:#f5f3ff; color:#6d28d9; }
+  .ail-badge-feed { background:#f0fdf4; color:#16a34a; }
+  .ail-badge-story { background:#fdf4ff; color:#a855f7; }
+  .ail-badge-carousel { background:#fff7ed; color:#ea580c; }
+  .ail-badge-ad_banner { background:#eff6ff; color:#2563eb; }
+  .ail-img-prompt { font-size:12px; color:#475569; line-height:1.4; max-height:36px; overflow:hidden; text-overflow:ellipsis; }
+  .ail-img-actions { display:flex; gap:6px; padding:8px 12px; border-top:1px solid #f1f5f9; }
+  .ail-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; margin-bottom:20px; }
+  .ail-tab { padding:10px 20px; font-size:13px; font-weight:600; color:#64748b; border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .15s; }
+  .ail-tab:hover { color:#1e293b; }
+  .ail-tab.active { color:#1a56db; border-bottom-color:#1a56db; }
+  .ail-empty { text-align:center; padding:48px 24px; color:#94a3b8; }
+  .ail-empty-icon { font-size:48px; margin-bottom:12px; opacity:.5; }
+  .ail-empty-text { font-size:15px; font-weight:500; }
+  .ail-color-swatch { width:28px; height:28px; border-radius:6px; border:2px solid #e2e8f0; display:inline-block; cursor:pointer; }
+  .ail-color-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .ail-tag { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; background:#eff6ff; color:#1a56db; border-radius:20px; font-size:11px; font-weight:600; }
+  .ail-tag-remove { cursor:pointer; font-size:14px; line-height:1; color:#94a3b8; }
+  .ail-tag-remove:hover { color:#dc2626; }
+  .ail-preview-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.7); z-index:99999; display:flex; align-items:center; justify-content:center; }
+  .ail-preview-img { max-width:90vw; max-height:85vh; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .ail-preview-close { position:absolute; top:16px; right:20px; width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.2); color:#fff; border:none; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ail-filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .ail-filter-select { padding:6px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:12px; color:#475569; background:#fff; }
+  .ail-generating { display:flex; align-items:center; gap:12px; padding:16px; background:#eff6ff; border-radius:10px; margin:16px 0; }
+  .ail-spinner { width:24px; height:24px; border:3px solid #e2e8f0; border-top-color:#1a56db; border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
   /* ===== Feed Preview Builder ===== */
   #feedBuilderSection {
     background: #f0f4ff;

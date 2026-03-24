@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2Fly Agency - Staff Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #0052CC 0%, #003d99 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .login-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      width: 100%;
+      max-width: 450px;
+    }
+    
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: #0052CC;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    
+    .login-subtitle {
+      font-size: 14px;
+      color: #64748b;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #0052CC;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #0052CC;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0042a8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+    }
+    
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+    
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #64748b;
+      margin-top: 12px;
+    }
+    
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    
+    .error-message {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .error-message.show {
+      display: block;
+    }
+    
+    .success-message {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .success-message.show {
+      display: block;
+    }
+    
+    .login-footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    
+    .login-footer a {
+      color: #0052CC;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    
+    .login-footer a:hover {
+      text-decoration: underline;
+    }
+    
+    .divider {
+      text-align: center;
+      margin: 24px 0;
+      position: relative;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    
+    .divider::before,
+    .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 45%;
+      height: 1px;
+      background: #e2e8f0;
+    }
+    
+    .divider::before {
+      left: 0;
+    }
+    
+    .divider::after {
+      right: 0;
+    }
+    
+    .register-section {
+      display: none;
+    }
+    
+    .register-section.show {
+      display: block;
+    }
+    
+    .login-section.hide {
+      display: none;
+    }
+    
+    .password-requirements {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-header">
+      <div class="login-logo">2F</div>
+      <h1 class="login-title">Agency Staff Portal</h1>
+      <p class="login-subtitle" id="subtitle">Sign in to access the dashboard</p>
+    </div>
+    
+    <div id="errorMessage" class="error-message"></div>
+    <div id="successMessage" class="success-message"></div>
+    
+    <!-- Login Section -->
+    <div id="loginSection" class="login-section">
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">Email or Username</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            id="username" 
+            placeholder="Enter your email or username"
+            required
+            autocomplete="username"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input 
+            type="password" 
+            class="form-input" 
+            id="password" 
+            placeholder="Enter your password"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Sign In</button>
+      </form>
+      
+      <div style="margin-top: 16px; text-align: center;">
+        <a href="#" id="forgotPasswordLink" style="color: #0052CC; text-decoration: none; font-size: 14px;">Forgot password?</a>
+      </div>
+      
+      <div class="divider">or</div>
+      
+      <a href="#" id="haveInviteLink" style="display: block; text-align: center; color: #0052CC; text-decoration: none; font-size: 14px; margin-top: 8px;">Have an invite link?</a>
+      
+      <div class="login-footer">
+        <p>Need help? Contact your administrator.</p>
+      </div>
+    </div>
+    
+  </div>
+
+  <script>
+    const LS_STAFF_KEY = "2fly_staff_v1";
+    const LS_STAFF_SESSION_KEY = "2fly_staff_session";
+    
+    function loadStaff() {
+      const data = localStorage.getItem(LS_STAFF_KEY);
+      if (!data) return {};
+      try {
+        return JSON.parse(data);
+      } catch {
+        return {};
+      }
+    }
+    
+    function saveStaff(staff) {
+      localStorage.setItem(LS_STAFF_KEY, JSON.stringify(staff));
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      const successEl = document.getElementById('successMessage');
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+      successEl.classList.remove('show');
+      setTimeout(() => {
+        errorEl.classList.remove('show');
+      }, 5000);
+    }
+    
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      const errorEl = document.getElementById('errorMessage');
+      successEl.textContent = message;
+      successEl.classList.add('show');
+      errorEl.classList.remove('show');
+      setTimeout(() => {
+        successEl.classList.remove('show');
+      }, 5000);
+    }
+    
+    function isLocalHost() {
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    }
+    
+    function agencyUrl() {
+      if (window.location.protocol === 'file:') {
+        const p = window.location.pathname;
+        const base = p.substring(0, p.lastIndexOf('/'));
+        return base + '/agency.html';
+      }
+      return isLocalHost() ? '/agency.html' : '/agency';
+    }
+    
+    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+      ? 'http://localhost:3001' 
+      : 'https://api.2flyflow.com'; // Update with your production API URL
+    
+    const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
+    // Get agencyId from URL or use default (for MVP)
+    function getAgencyId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let agencyId = urlParams.get('agencyId') || localStorage.getItem('2fly_agency_id') || DEFAULT_AGENCY_ID;
+      if (agencyId === 'default-agency') agencyId = DEFAULT_AGENCY_ID;
+      localStorage.setItem('2fly_agency_id', agencyId);
+      return agencyId;
+    }
+    
+    async function login(identifier, password) {
+      try {
+        const agencyId = getAgencyId();
+        
+        // Determine if identifier is email or username
+        const isEmail = identifier.includes('@');
+        const payload = isEmail 
+          ? { email: identifier, password, agencyId }
+          : { username: identifier, password, agencyId };
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // Important for cookies
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          showError(data.error || 'Login failed');
+          return false;
+        }
+        
+        localStorage.setItem(LS_STAFF_SESSION_KEY, JSON.stringify({
+          ...data.user,
+          loggedInAt: Date.now()
+        }));
+        
+        // Redirect to agency dashboard
+        window.location.href = agencyUrl();
+        return true;
+      } catch (error) {
+        console.error('Login error:', error);
+        showError('Network error. Please try again.');
+        return false;
+      }
+    }
+    
+    // Wait for DOM to be ready before setting up event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('Staff login page loaded');
+      
+      // Check if already logged in - redirect to agency dashboard
+      const session = localStorage.getItem(LS_STAFF_SESSION_KEY);
+      if (session) {
+        try {
+          const sessionData = JSON.parse(session);
+          // Check if session is still valid (24 hours)
+          if (Date.now() - sessionData.loggedInAt < 24 * 60 * 60 * 1000) {
+            console.log('Already logged in, redirecting to agency');
+            window.location.href = agencyUrl();
+            return; // Stop execution
+          } else {
+            // Session expired, clear it
+            localStorage.removeItem(LS_STAFF_SESSION_KEY);
+          }
+        } catch {
+          // Invalid session, clear it and continue to login
+          localStorage.removeItem(LS_STAFF_SESSION_KEY);
+        }
+      }
+      
+      // Handle login form submission
+      const loginForm = document.getElementById('loginForm');
+      if (loginForm) {
+        // Keep type="text": we accept both email and username (see label "Email or Username")
+        loginForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const identifier = document.getElementById('username').value.trim();
+          const password = document.getElementById('password').value;
+          
+          if (!identifier || !password) {
+            showError('Please enter both email/username and password');
+            return;
+          }
+          
+          await login(identifier, password);
+        });
+      }
+      
+      // Handle "Forgot password?" link
+      const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+      if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          const agencyId = getAgencyId();
+          const forgotUrl = isLocalHost() 
+            ? `/forgot-password.html?agencyId=${agencyId}`
+            : `/forgot-password?agencyId=${agencyId}`;
+          window.location.href = forgotUrl;
+        });
+      }
+      
+      // Handle "Have an invite link?" link
+      const haveInviteLink = document.getElementById('haveInviteLink');
+      if (haveInviteLink) {
+        haveInviteLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Show helpful message about invite links
+          const message = 'If you received an invite link, please use the complete link from your email. ' +
+            'The link should include a token parameter. ' +
+            'If you\'re waiting for account access, your administrator will send you login credentials via email.';
+          alert(message);
+          // Optionally navigate to accept-invite page with helpful error
+          const agencyId = getAgencyId();
+          const inviteUrl = isLocalHost()
+            ? `/accept-invite.html?agencyId=${agencyId}`
+            : `/accept-invite?agencyId=${agencyId}`;
+          window.location.href = inviteUrl;
+        });
+      }
+      
+      console.log('All event listeners set up');
+    });
+    
+    // Also run immediately if DOM is already loaded (for compatibility)
+    if (document.readyState === 'loading') {
+      // DOMContentLoaded will fire
+    } else {
+      // DOM is already loaded, trigger the setup
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+    }
+  </script>
+</body>
+</html>
+

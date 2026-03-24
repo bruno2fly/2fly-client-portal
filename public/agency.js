@@ -518,6 +518,17 @@ function saveAsset(clientId, asset) {
   const idx = list.findIndex(a => a.id === full.id);
   if (idx >= 0) list[idx] = full; else list.push(full);
   try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { console.warn('saveAsset', e); }
+  syncAssetsToPortalState(clientId);
+}
+
+/** Sync localStorage assets into portal state so client portal can see them */
+function syncAssetsToPortalState(clientId) {
+  if (!clientId) return;
+  var assets = loadAssets(clientId);
+  var state = portalStateCache[clientId];
+  if (!state) return;
+  state.assets = assets;
+  savePortalStateToAPI(clientId, state).catch(function(e){ console.warn('syncAssetsToPortalState', e); });
 }
 
 /** Update only approval status and timestamps. */
@@ -536,6 +547,7 @@ function updateAssetStatus(clientId, assetId, newStatus) {
   const clientName = (clients && clients[clientId] && clients[clientId].name) || 'Client';
   if (newStatus === 'APPROVED') createNotification({ type: 'PROGRESS', title: 'Asset approved', message: (asset.title || 'Asset') + ' is ready to use.', clientId, action: { label: 'View assets', href: '#contentlibrary' } });
   else if (newStatus === 'NEEDS_CHANGES') createNotification({ type: 'ACTION', title: 'Asset needs changes', message: 'Client requested changes: ' + (asset.title || 'asset'), clientId, action: { label: 'Open assets', href: '#contentlibrary' } });
+  syncAssetsToPortalState(clientId);
 }
 
 /** Filter assets by formatUse, pillar, mediaType, and approvedOnly. */
@@ -1518,6 +1530,9 @@ function switchTab(tabName) {
     case 'contentlibrary':
       renderContentLibraryTab();
       break;
+    case 'ailibrary':
+      renderAILibraryTab();
+      break;
     case 'scheduled':
       renderScheduledPostsTab();
       break;
@@ -2220,6 +2235,509 @@ function renderFeedBuilder() {
 
 function setupScheduledPostsFilters() {
   // Filters removed — kept as stub to avoid call errors
+}
+
+/* ================== AI Library Module ================== */
+
+var ailCurrentTab = 'generator'; // 'generator' | 'library' | 'brandkit'
+var ailImages = [];
+var ailBrandKit = null;
+var ailFilterStatus = '';
+var ailFilterFormat = '';
+var ailFilterClient = '';
+
+function ailStatusBadge(status) {
+  var map = { generated: 'ail-badge-generated', pending_approval: 'ail-badge-pending', approved: 'ail-badge-approved', rejected: 'ail-badge-rejected', used_in_post: 'ail-badge-used' };
+  var labels = { generated: 'Generated', pending_approval: 'Pending', approved: 'Approved', rejected: 'Rejected', used_in_post: 'Used' };
+  return '<span class="ail-badge ' + (map[status] || '') + '">' + (labels[status] || status) + '</span>';
+}
+
+function ailFormatBadge(fmt) {
+  var labels = { feed: 'Feed', story: 'Story', carousel: 'Carousel', ad_banner: 'Ad Banner' };
+  return '<span class="ail-badge ail-badge-' + (fmt || 'feed') + '">' + (labels[fmt] || fmt) + '</span>';
+}
+
+function ailBuildImageCard(img, clients) {
+  var clientName = '';
+  if (clients) {
+    var c = clients[img.clientId];
+    clientName = c ? (c.name || img.clientId) : img.clientId;
+  }
+  var h = '<div class="ail-img-card" data-img-id="' + img.id + '">';
+  h += '<img class="ail-img-thumb" data-format="' + (img.format || 'feed') + '" src="' + (img.imageUrl || '') + '" alt="AI Generated" loading="lazy" onerror="this.style.background=\'#f1f5f9\';this.alt=\'Failed to load\'" />';
+  h += '<div class="ail-img-info">';
+  h += '<div class="ail-img-meta">';
+  if (clientName) h += '<span style="font-weight:600;color:#1e293b;">' + clientName + '</span>';
+  h += ailFormatBadge(img.format) + ' ' + ailStatusBadge(img.status);
+  h += '</div>';
+  h += '<div class="ail-img-prompt">' + ((img.prompt || '').replace(/</g, '&lt;').slice(0, 80)) + '</div>';
+  h += '</div>';
+  h += '<div class="ail-img-actions">';
+  if (img.status === 'pending_approval' || img.status === 'generated') {
+    h += '<button class="ail-btn ail-btn-success ail-btn-sm ail-action-approve" data-id="' + img.id + '">Approve</button>';
+    h += '<button class="ail-btn ail-btn-danger ail-btn-sm ail-action-reject" data-id="' + img.id + '">Reject</button>';
+  }
+  h += '<button class="ail-btn ail-btn-secondary ail-btn-sm ail-action-download" data-url="' + (img.imageUrl || '') + '">Download</button>';
+  h += '<button class="ail-btn ail-btn-secondary ail-btn-sm ail-action-delete" data-id="' + img.id + '" style="color:#dc2626;">Delete</button>';
+  h += '</div></div>';
+  return h;
+}
+
+function ailBindImageActions(container) {
+  container.querySelectorAll('.ail-action-approve').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-id');
+      showConfirmModal({ icon: '\u2705', title: 'Approve Image?', message: 'This image will be available for use in posts.', confirmLabel: 'Approve', confirmColor: '#059669', onConfirm: function() {
+        fetch(getApiBaseUrl() + '/api/ai-library/images/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) })
+          .then(function(r) { return r.json(); }).then(function() { showToast('Image approved', 'success'); renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+      }});
+    });
+  });
+  container.querySelectorAll('.ail-action-reject').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-id');
+      var feedback = prompt('Feedback (optional):') || '';
+      fetch(getApiBaseUrl() + '/api/ai-library/images/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected', feedback: feedback }) })
+        .then(function(r) { return r.json(); }).then(function() { showToast('Image rejected'); renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+    });
+  });
+  container.querySelectorAll('.ail-action-delete').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-id');
+      showConfirmModal({ icon: '\ud83d\uddd1\ufe0f', title: 'Delete Image?', message: 'This cannot be undone.', confirmLabel: 'Delete', confirmColor: '#dc2626', onConfirm: function() {
+        fetch(getApiBaseUrl() + '/api/ai-library/images/' + id, { method: 'DELETE', credentials: 'include' })
+          .then(function(r) { return r.json(); }).then(function() { showToast('Image deleted'); renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+      }});
+    });
+  });
+  container.querySelectorAll('.ail-action-download').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var url = btn.getAttribute('data-url');
+      if (url) { var a = document.createElement('a'); a.href = url; a.download = 'ai-image.png'; a.click(); }
+    });
+  });
+  container.querySelectorAll('.ail-img-thumb').forEach(function(img) {
+    img.addEventListener('click', function() {
+      var overlay = document.createElement('div');
+      overlay.className = 'ail-preview-overlay';
+      overlay.innerHTML = '<img class="ail-preview-img" src="' + img.src + '" /><button class="ail-preview-close">&times;</button>';
+      overlay.addEventListener('click', function(e) { if (e.target === overlay || e.target.classList.contains('ail-preview-close')) overlay.remove(); });
+      document.body.appendChild(overlay);
+    });
+  });
+}
+
+async function renderGlobalAILibrary(container) {
+  var clients = loadClientsRegistry();
+  var clientIds = clients ? Object.keys(clients) : [];
+
+  var h = '<div class="ail-header"><div><h2 class="ail-title">AI Library</h2><p class="ail-subtitle">Generate images with AI using client brand kits, manage approvals, and build your visual library.</p></div></div>';
+
+  // Tabs
+  h += '<div class="ail-tabs">';
+  h += '<button class="ail-tab' + (ailCurrentTab === 'generator' ? ' active' : '') + '" data-ailtab="generator">Image Generator</button>';
+  h += '<button class="ail-tab' + (ailCurrentTab === 'library' ? ' active' : '') + '" data-ailtab="library">Library</button>';
+  h += '<button class="ail-tab' + (ailCurrentTab === 'brandkit' ? ' active' : '') + '" data-ailtab="brandkit">Brand Kit</button>';
+  h += '</div>';
+
+  h += '<div id="ailTabContent"></div>';
+  container.innerHTML = h;
+
+  // Tab switching
+  container.querySelectorAll('.ail-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      ailCurrentTab = tab.getAttribute('data-ailtab');
+      renderGlobalAILibrary(container);
+    });
+  });
+
+  var tc = container.querySelector('#ailTabContent');
+  if (!tc) return;
+
+  if (ailCurrentTab === 'generator') {
+    renderAILGenerator(tc, clients, clientIds);
+  } else if (ailCurrentTab === 'library') {
+    await renderAILLibraryGrid(tc, clients, clientIds, null);
+  } else if (ailCurrentTab === 'brandkit') {
+    renderAILBrandKit(tc, clients, clientIds);
+  }
+}
+
+function renderAILGenerator(tc, clients, clientIds) {
+  var h = '<div class="ail-card ail-section">';
+  h += '<h3 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#0f172a;">Generate AI Images</h3>';
+
+  // Client selector
+  h += '<div class="ail-form-row">';
+  h += '<div class="ail-form-group"><label class="ail-label">Client</label><select class="ail-select" id="ailGenClient">';
+  h += '<option value="">Select client...</option>';
+  clientIds.forEach(function(cid) {
+    var name = clients[cid] ? (clients[cid].name || cid) : cid;
+    h += '<option value="' + cid + '"' + (cid === currentClientId ? ' selected' : '') + '>' + name + '</option>';
+  });
+  h += '</select></div>';
+
+  // Format
+  h += '<div class="ail-form-group"><label class="ail-label">Format</label><select class="ail-select" id="ailGenFormat">';
+  h += '<option value="feed">Feed (1080x1080)</option>';
+  h += '<option value="story">Story (1080x1920)</option>';
+  h += '<option value="carousel">Carousel (1080x1350)</option>';
+  h += '<option value="ad_banner">Ad Banner (1200x628)</option>';
+  h += '</select></div>';
+
+  // Variations
+  h += '<div class="ail-form-group" style="max-width:120px;"><label class="ail-label">Variations</label><select class="ail-select" id="ailGenCount">';
+  for (var i = 1; i <= 5; i++) h += '<option value="' + i + '"' + (i === 3 ? ' selected' : '') + '>' + i + '</option>';
+  h += '</select></div>';
+  h += '</div>';
+
+  // Prompt
+  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Prompt / Content Brief</label>';
+  h += '<textarea class="ail-textarea" id="ailGenPrompt" placeholder="Describe the image you want to generate... e.g. \'Professional product shot of skincare serum on marble surface with soft natural lighting\'"></textarea></div>';
+
+  // Brand kit info
+  h += '<div id="ailGenBrandInfo" style="margin-bottom:16px;"></div>';
+
+  // Generate button
+  h += '<button class="ail-btn ail-btn-primary" id="ailGenBtn" style="padding:12px 28px;font-size:14px;">';
+  h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+  h += ' Generate Images</button>';
+
+  // Results area
+  h += '<div id="ailGenResults"></div>';
+  h += '</div>';
+
+  tc.innerHTML = h;
+
+  // Show brand kit info when client changes
+  var clientSelect = tc.querySelector('#ailGenClient');
+  function updateBrandInfo() {
+    var cid = clientSelect.value;
+    var info = tc.querySelector('#ailGenBrandInfo');
+    if (!cid) { info.innerHTML = ''; return; }
+    fetch(getApiBaseUrl() + '/api/ai-library/brand-kit?clientId=' + encodeURIComponent(cid), { credentials: 'include' })
+      .then(function(r) { return r.json(); }).then(function(d) {
+        if (d.brandKit) {
+          var bk = d.brandKit;
+          var tags = (bk.styleTags || []).map(function(t) { return '<span class="ail-tag">' + t + '</span>'; }).join(' ');
+          var colors = (bk.colors || []).map(function(c) { return '<span class="ail-color-swatch" style="background:' + c.hex + ';" title="' + (c.name || c.hex) + '"></span>'; }).join('');
+          info.innerHTML = '<div style="padding:10px 14px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;font-size:12px;color:#0369a1;">'
+            + '<strong>Brand Kit loaded:</strong> '
+            + (colors ? ' ' + colors : '')
+            + (tags ? ' ' + tags : '')
+            + (bk.photoStyle ? ' | Style: ' + bk.photoStyle : '')
+            + '</div>';
+        } else {
+          info.innerHTML = '<div style="padding:10px 14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:12px;color:#92400e;">No brand kit configured for this client. <a href="#" class="ailGoToBrandKit" style="color:#1a56db;font-weight:600;">Set up Brand Kit</a></div>';
+          var link = info.querySelector('.ailGoToBrandKit');
+          if (link) link.addEventListener('click', function(e) { e.preventDefault(); ailCurrentTab = 'brandkit'; renderGlobalAILibrary(tc.closest('#productionViewInner') || tc.parentNode); });
+        }
+      }).catch(function() { info.innerHTML = ''; });
+  }
+  clientSelect.addEventListener('change', updateBrandInfo);
+  if (clientSelect.value) updateBrandInfo();
+
+  // Generate button
+  tc.querySelector('#ailGenBtn').addEventListener('click', async function() {
+    var cid = tc.querySelector('#ailGenClient').value;
+    var prompt = tc.querySelector('#ailGenPrompt').value.trim();
+    var format = tc.querySelector('#ailGenFormat').value;
+    var count = parseInt(tc.querySelector('#ailGenCount').value, 10);
+    var results = tc.querySelector('#ailGenResults');
+    var btn = tc.querySelector('#ailGenBtn');
+
+    if (!cid) { showToast('Select a client first', 'error'); return; }
+    if (!prompt) { showToast('Enter a prompt', 'error'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="ail-spinner" style="width:16px;height:16px;border-width:2px;"></div> Generating...';
+    results.innerHTML = '<div class="ail-generating"><div class="ail-spinner"></div><div><strong>Generating ' + count + ' image' + (count > 1 ? 's' : '') + '...</strong><br><span style="font-size:12px;color:#64748b;">This may take 30-60 seconds</span></div></div>';
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: cid, prompt: prompt, format: format, variationsCount: count })
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Generation failed');
+
+      var imgs = d.images || [];
+      if (imgs.length === 0) throw new Error('No images generated');
+
+      var gh = '<h4 style="margin:16px 0 12px;font-size:14px;font-weight:600;color:#0f172a;">Generated ' + imgs.length + ' image' + (imgs.length > 1 ? 's' : '') + '</h4>';
+      gh += '<div class="ail-grid">';
+      imgs.forEach(function(img) { gh += ailBuildImageCard(img, clients); });
+      gh += '</div>';
+      results.innerHTML = gh;
+      ailBindImageActions(results);
+      showToast(imgs.length + ' image' + (imgs.length > 1 ? 's' : '') + ' generated!', 'success');
+    } catch (err) {
+      results.innerHTML = '<div style="padding:16px;background:#fef2f2;border-radius:8px;color:#dc2626;font-size:13px;margin-top:12px;">Failed: ' + (err.message || 'Unknown error') + '</div>';
+      showToast(err.message || 'Generation failed', 'error');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Generate Images';
+  });
+}
+
+async function renderAILLibraryGrid(tc, clients, clientIds, fixedClientId) {
+  var h = '';
+
+  // Filters
+  if (!fixedClientId) {
+    h += '<div class="ail-filters">';
+    h += '<select class="ail-filter-select" id="ailFilterClient"><option value="">All Clients</option>';
+    clientIds.forEach(function(cid) {
+      var name = clients[cid] ? (clients[cid].name || cid) : cid;
+      h += '<option value="' + cid + '"' + (ailFilterClient === cid ? ' selected' : '') + '>' + name + '</option>';
+    });
+    h += '</select>';
+    h += '<select class="ail-filter-select" id="ailFilterStatus"><option value="">All Statuses</option>';
+    ['pending_approval', 'approved', 'rejected', 'used_in_post'].forEach(function(s) {
+      var labels = { pending_approval: 'Pending', approved: 'Approved', rejected: 'Rejected', used_in_post: 'Used in Post' };
+      h += '<option value="' + s + '"' + (ailFilterStatus === s ? ' selected' : '') + '>' + labels[s] + '</option>';
+    });
+    h += '</select>';
+    h += '<select class="ail-filter-select" id="ailFilterFormat"><option value="">All Formats</option>';
+    ['feed', 'story', 'carousel', 'ad_banner'].forEach(function(f) {
+      var labels = { feed: 'Feed', story: 'Story', carousel: 'Carousel', ad_banner: 'Ad Banner' };
+      h += '<option value="' + f + '"' + (ailFilterFormat === f ? ' selected' : '') + '>' + labels[f] + '</option>';
+    });
+    h += '</select></div>';
+  }
+
+  tc.innerHTML = h + '<div id="ailLibGrid"><div style="text-align:center;padding:24px;color:#94a3b8;">Loading images...</div></div>';
+
+  // Bind filter changes
+  if (!fixedClientId) {
+    ['ailFilterClient', 'ailFilterStatus', 'ailFilterFormat'].forEach(function(id) {
+      var el = tc.querySelector('#' + id);
+      if (el) el.addEventListener('change', function() {
+        ailFilterClient = (tc.querySelector('#ailFilterClient') || {}).value || '';
+        ailFilterStatus = (tc.querySelector('#ailFilterStatus') || {}).value || '';
+        ailFilterFormat = (tc.querySelector('#ailFilterFormat') || {}).value || '';
+        loadAndRenderImages();
+      });
+    });
+  }
+
+  async function loadAndRenderImages() {
+    var grid = tc.querySelector('#ailLibGrid');
+    var params = new URLSearchParams();
+    if (fixedClientId) params.set('clientId', fixedClientId);
+    else if (ailFilterClient) params.set('clientId', ailFilterClient);
+    if (ailFilterStatus) params.set('status', ailFilterStatus);
+    if (ailFilterFormat) params.set('format', ailFilterFormat);
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/images?' + params, { credentials: 'include' });
+      var d = await r.json();
+      var imgs = d.images || [];
+
+      if (imgs.length === 0) {
+        grid.innerHTML = '<div class="ail-empty"><div class="ail-empty-icon">\ud83d\uddbc\ufe0f</div><div class="ail-empty-text">No images yet</div><p style="font-size:13px;color:#94a3b8;margin-top:8px;">Generate your first images in the Image Generator tab.</p></div>';
+        return;
+      }
+
+      var gh = '<div style="margin-bottom:12px;font-size:13px;color:#64748b;">' + imgs.length + ' image' + (imgs.length > 1 ? 's' : '') + '</div>';
+      gh += '<div class="ail-grid">';
+      imgs.forEach(function(img) { gh += ailBuildImageCard(img, clients); });
+      gh += '</div>';
+      grid.innerHTML = gh;
+      ailBindImageActions(grid);
+    } catch (err) {
+      grid.innerHTML = '<div style="padding:16px;color:#dc2626;">Failed to load images: ' + (err.message || '') + '</div>';
+    }
+  }
+
+  await loadAndRenderImages();
+}
+
+function renderAILBrandKit(tc, clients, clientIds) {
+  var h = '<div class="ail-card ail-section">';
+  h += '<h3 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#0f172a;">Brand Kit Editor</h3>';
+
+  // Client selector
+  h += '<div class="ail-form-group" style="margin-bottom:16px;max-width:300px;"><label class="ail-label">Client</label><select class="ail-select" id="ailBKClient">';
+  h += '<option value="">Select client...</option>';
+  clientIds.forEach(function(cid) {
+    var name = clients[cid] ? (clients[cid].name || cid) : cid;
+    h += '<option value="' + cid + '"' + (cid === currentClientId ? ' selected' : '') + '>' + name + '</option>';
+  });
+  h += '</select></div>';
+
+  h += '<div id="ailBKForm" style="display:none;"></div>';
+  h += '</div>';
+  tc.innerHTML = h;
+
+  var clientSelect = tc.querySelector('#ailBKClient');
+  function loadKit() {
+    var cid = clientSelect.value;
+    var form = tc.querySelector('#ailBKForm');
+    if (!cid) { form.style.display = 'none'; return; }
+    form.style.display = 'block';
+    form.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">Loading brand kit...</div>';
+
+    fetch(getApiBaseUrl() + '/api/ai-library/brand-kit?clientId=' + encodeURIComponent(cid), { credentials: 'include' })
+      .then(function(r) { return r.json(); }).then(function(d) {
+        var bk = d.brandKit || { logoUrls: [], colors: [], fonts: { heading: '', body: '', weights: [] }, styleTags: [], photoStyle: '', rulesText: '', referenceImages: [] };
+        renderBKForm(form, bk, cid);
+      }).catch(function(e) { form.innerHTML = '<div style="color:#dc2626;">Failed to load: ' + e.message + '</div>'; });
+  }
+  clientSelect.addEventListener('change', loadKit);
+  if (clientSelect.value) loadKit();
+}
+
+function renderBKForm(container, bk, clientId) {
+  var h = '';
+
+  // Colors
+  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Brand Colors</label>';
+  h += '<div id="ailBKColors">';
+  (bk.colors || []).forEach(function(c, i) {
+    h += '<div class="ail-color-row" data-idx="' + i + '">';
+    h += '<input type="color" value="' + (c.hex || '#000000') + '" class="ailBKColorHex" style="width:36px;height:36px;border:none;cursor:pointer;" />';
+    h += '<input type="text" value="' + (c.name || '') + '" class="ail-input ailBKColorName" placeholder="Color name" style="max-width:150px;" />';
+    h += '<span class="ail-tag-remove ailBKColorRemove" title="Remove">&times;</span>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<button class="ail-btn ail-btn-secondary ail-btn-sm" id="ailBKAddColor" style="margin-top:6px;">+ Add Color</button></div>';
+
+  // Fonts
+  h += '<div class="ail-form-row">';
+  h += '<div class="ail-form-group"><label class="ail-label">Heading Font</label><input class="ail-input" id="ailBKFontHead" value="' + ((bk.fonts && bk.fonts.heading) || '') + '" placeholder="e.g. Montserrat" /></div>';
+  h += '<div class="ail-form-group"><label class="ail-label">Body Font</label><input class="ail-input" id="ailBKFontBody" value="' + ((bk.fonts && bk.fonts.body) || '') + '" placeholder="e.g. Open Sans" /></div>';
+  h += '</div>';
+
+  // Style tags
+  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Visual Style Tags</label>';
+  h += '<div id="ailBKTags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+  (bk.styleTags || []).forEach(function(t) {
+    h += '<span class="ail-tag">' + t + '<span class="ail-tag-remove ailBKTagRemove" data-tag="' + t + '">&times;</span></span>';
+  });
+  h += '</div>';
+  h += '<div style="display:flex;gap:6px;"><input class="ail-input" id="ailBKNewTag" placeholder="e.g. clean, bold, minimal" style="max-width:200px;" /><button class="ail-btn ail-btn-secondary ail-btn-sm" id="ailBKAddTag">Add</button></div></div>';
+
+  // Photo style
+  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Photo Style Description</label>';
+  h += '<input class="ail-input" id="ailBKPhotoStyle" value="' + ((bk.photoStyle || '').replace(/"/g, '&quot;')) + '" placeholder="e.g. natural lighting, warm tones, lifestyle photography" /></div>';
+
+  // Rules
+  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Visual Rules (auto-injected into every AI prompt)</label>';
+  h += '<textarea class="ail-textarea" id="ailBKRules" placeholder="e.g. always use dark backgrounds, never use stock people, minimalist with lots of white space">' + (bk.rulesText || '') + '</textarea></div>';
+
+  // Save
+  h += '<button class="ail-btn ail-btn-primary" id="ailBKSave" style="padding:11px 28px;">Save Brand Kit</button>';
+
+  container.innerHTML = h;
+
+  // Current state
+  var currentColors = (bk.colors || []).slice();
+  var currentTags = (bk.styleTags || []).slice();
+
+  // Add color
+  container.querySelector('#ailBKAddColor').addEventListener('click', function() {
+    currentColors.push({ name: '', hex: '#1a56db' });
+    renderBKForm(container, Object.assign({}, bk, { colors: currentColors, styleTags: currentTags }), clientId);
+  });
+
+  // Remove color
+  container.querySelectorAll('.ailBKColorRemove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var row = btn.closest('.ail-color-row');
+      var idx = parseInt(row.getAttribute('data-idx'), 10);
+      currentColors.splice(idx, 1);
+      renderBKForm(container, Object.assign({}, bk, { colors: currentColors, styleTags: currentTags }), clientId);
+    });
+  });
+
+  // Add tag
+  var addTagBtn = container.querySelector('#ailBKAddTag');
+  var tagInput = container.querySelector('#ailBKNewTag');
+  function addTag() {
+    var v = tagInput.value.trim();
+    if (v && currentTags.indexOf(v) === -1) {
+      currentTags.push(v);
+      renderBKForm(container, Object.assign({}, bk, { colors: currentColors, styleTags: currentTags }), clientId);
+    }
+  }
+  addTagBtn.addEventListener('click', addTag);
+  tagInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
+
+  // Remove tag
+  container.querySelectorAll('.ailBKTagRemove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var tag = btn.getAttribute('data-tag');
+      currentTags = currentTags.filter(function(t) { return t !== tag; });
+      renderBKForm(container, Object.assign({}, bk, { colors: currentColors, styleTags: currentTags }), clientId);
+    });
+  });
+
+  // Save
+  container.querySelector('#ailBKSave').addEventListener('click', async function() {
+    var btn = container.querySelector('#ailBKSave');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    // Read current color values from inputs
+    var colors = [];
+    container.querySelectorAll('.ail-color-row').forEach(function(row) {
+      var hex = row.querySelector('.ailBKColorHex').value;
+      var name = row.querySelector('.ailBKColorName').value.trim();
+      colors.push({ hex: hex, name: name });
+    });
+
+    var data = {
+      clientId: clientId,
+      colors: colors,
+      fonts: { heading: container.querySelector('#ailBKFontHead').value.trim(), body: container.querySelector('#ailBKFontBody').value.trim(), weights: [] },
+      styleTags: currentTags,
+      photoStyle: container.querySelector('#ailBKPhotoStyle').value.trim(),
+      rulesText: container.querySelector('#ailBKRules').value.trim(),
+      logoUrls: bk.logoUrls || [],
+      referenceImages: bk.referenceImages || []
+    };
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/brand-kit', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+      showToast('Brand kit saved!', 'success');
+      btn.disabled = false; btn.textContent = 'Save Brand Kit';
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+      btn.disabled = false; btn.textContent = 'Save Brand Kit';
+    }
+  });
+}
+
+/* Per-client AI Library tab */
+async function renderAILibraryTab() {
+  var container = document.getElementById('aiLibraryClientView');
+  if (!container) return;
+  if (!currentClientId) {
+    container.innerHTML = '<div class="ail-empty"><div class="ail-empty-icon">\ud83d\uddbc\ufe0f</div><div class="ail-empty-text">Select a client to view their AI Library</div></div>';
+    return;
+  }
+
+  var clients = loadClientsRegistry();
+  var clientName = (clients[currentClientId] && clients[currentClientId].name) || currentClientId;
+
+  var h = '<div class="ail-header"><div><h3 class="ail-title" style="font-size:18px;">AI Library \u2014 ' + clientName + '</h3></div>';
+  h += '<button class="ail-btn ail-btn-primary ail-btn-sm" id="ailClientGenBtn">Generate New Images</button></div>';
+
+  container.innerHTML = h + '<div id="ailClientGrid"></div>';
+
+  // Generate button goes to production AI Library generator
+  container.querySelector('#ailClientGenBtn').addEventListener('click', function() {
+    showToast('Switch to Production \u2192 AI Library to generate images', 'info');
+  });
+
+  await renderAILLibraryGrid(container.querySelector('#ailClientGrid'), clients, Object.keys(clients), currentClientId);
 }
 
 /* ================== Overview Tab ================== */
@@ -4895,185 +5413,201 @@ function setupNeedsHandlers() {
   }
 }
 
-/* ================== Assets & References (Content Library) Tab ================== */
+/* ================== Image Library (Content Library) Tab ================== */
+
+var imglibFilter = 'all'; // all | pending | approved | rejected
 
 function renderContentLibraryTab() {
-  const container = $('#assetsGrid');
-  const summaryApproved = $('#assetsSummaryApproved');
-  const summaryPending = $('#assetsSummaryPending');
-  const summaryNeedsChanges = $('#assetsSummaryNeedsChanges');
-  const filterFormatUse = $('#assetsFilterFormatUse');
-  const filterPillar = $('#assetsFilterPillar');
-  const filterMediaType = $('#assetsFilterMediaType');
-  const showApprovedOnlyCheck = $('#assetsShowAllOnly');
+  var root = document.getElementById('imageLibraryRoot');
+  if (!root) return;
   if (!currentClientId) {
-    if (container) container.innerHTML = '';
+    root.innerHTML = '<div class="imglib-empty"><p>Select a client to manage their image library.</p></div>';
     return;
   }
 
-  const assets = loadAssets(currentClientId);
-  const approvedCount = assets.filter(a => a.approvalStatus === 'APPROVED').length;
-  const pendingCount = assets.filter(a => a.approvalStatus === 'PENDING').length;
-  const needsChangesCount = assets.filter(a => a.approvalStatus === 'NEEDS_CHANGES').length;
+  var assets = loadAssets(currentClientId);
+  var approvedCount = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; }).length;
+  var pendingCount = assets.filter(function(a){ return a.approvalStatus === 'PENDING'; }).length;
+  var rejectedCount = assets.filter(function(a){ return a.approvalStatus === 'REJECTED' || a.approvalStatus === 'NEEDS_CHANGES'; }).length;
 
-  if (summaryApproved) summaryApproved.textContent = 'Approved: ' + approvedCount;
-  if (summaryPending) summaryPending.textContent = 'Pending: ' + pendingCount;
-  if (summaryNeedsChanges) summaryNeedsChanges.textContent = 'Needs changes: ' + needsChangesCount;
+  // Filter
+  var filtered = assets;
+  if (imglibFilter === 'pending') filtered = assets.filter(function(a){ return a.approvalStatus === 'PENDING'; });
+  else if (imglibFilter === 'approved') filtered = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; });
+  else if (imglibFilter === 'rejected') filtered = assets.filter(function(a){ return a.approvalStatus === 'REJECTED' || a.approvalStatus === 'NEEDS_CHANGES'; });
+  filtered.sort(function(a,b){ return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime(); });
 
-  var needsChangesCue = document.getElementById('assetsNeedsChangesCue');
-  if (needsChangesCount > 0) {
-    if (!needsChangesCue) {
-      var panelHeader = document.querySelector('#assetsApprovedPanel .assets-panel__header');
-      if (panelHeader) {
-        needsChangesCue = document.createElement('span');
-        needsChangesCue.id = 'assetsNeedsChangesCue';
-        needsChangesCue.className = 'inline-cue inline-cue--action';
-        needsChangesCue.textContent = 'Client requested changes';
-        panelHeader.appendChild(document.createTextNode(' '));
-        panelHeader.appendChild(needsChangesCue);
+  var html = '';
+
+  // Header
+  html += '<div class="imglib-header">';
+  html += '<h3>Image Library</h3>';
+  html += '<div class="imglib-stats">';
+  html += '<span><span class="dot dot--approved"></span> ' + approvedCount + ' Approved</span>';
+  html += '<span><span class="dot dot--pending"></span> ' + pendingCount + ' Pending</span>';
+  html += '<span><span class="dot dot--rejected"></span> ' + rejectedCount + ' Rejected</span>';
+  html += '</div></div>';
+
+  // Upload zone
+  html += '<div class="imglib-upload-zone" id="imglibDropZone">';
+  html += '<svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#eff6ff"/><path d="M24 16v16m-8-8h16" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round"/></svg>';
+  html += '<p>Drag & drop images here or click to upload</p>';
+  html += '<p style="font-size:12px;color:#94a3b8;">PNG, JPG, WEBP up to 10MB each</p>';
+  html += '<input type="file" id="imglibFileInput" accept="image/*" multiple style="display:none" />';
+  html += '<button type="button" class="btn btn-primary" id="imglibBrowseBtn" style="font-size:13px;padding:8px 20px;">Browse Files</button>';
+  html += '</div>';
+
+  // Filter bar
+  html += '<div class="imglib-filter-bar">';
+  ['all','pending','approved','rejected'].forEach(function(f){
+    var label = f.charAt(0).toUpperCase() + f.slice(1);
+    var count = f === 'all' ? assets.length : f === 'pending' ? pendingCount : f === 'approved' ? approvedCount : rejectedCount;
+    html += '<button class="imglib-filter-btn' + (imglibFilter === f ? ' active' : '') + '" data-imglib-filter="' + f + '">' + label + ' (' + count + ')</button>';
+  });
+  html += '</div>';
+
+  // Grid
+  if (filtered.length === 0) {
+    html += '<div class="imglib-empty">';
+    html += '<svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="16" fill="#f1f5f9"/><path d="M22 32h20M32 22v20" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/></svg>';
+    html += '<p>' + (imglibFilter === 'all' ? 'No images yet. Upload some to get started.' : 'No ' + imglibFilter + ' images.') + '</p>';
+    html += '</div>';
+  } else {
+    html += '<div class="imglib-grid">';
+    filtered.forEach(function(asset){
+      var statusLower = (asset.approvalStatus || 'PENDING').toLowerCase().replace(/_/g,'-');
+      var statusLabel = statusLower === 'needs-changes' ? 'Needs changes' : statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
+      var badgeClass = statusLower === 'needs-changes' ? 'rejected' : statusLower;
+      var previewUrl = asset.thumbnailUrl || asset.url || '';
+      var imgTag = previewUrl ? '<img class="imglib-card__img" src="' + previewUrl + '" alt="' + (asset.title || '').replace(/"/g,'&quot;') + '" loading="lazy" referrerpolicy="no-referrer" data-imglib-preview="' + previewUrl + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" /><div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>' : '<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>';
+      html += '<div class="imglib-card">';
+      html += imgTag;
+      html += '<div class="imglib-card__body">';
+      html += '<div class="imglib-card__name">' + (asset.title || 'Untitled') + '</div>';
+      html += '<span class="imglib-card__badge imglib-card__badge--' + badgeClass + '">' + statusLabel + '</span>';
+      html += '<div class="imglib-card__actions">';
+      if (asset.approvalStatus !== 'APPROVED') {
+        html += '<button class="btn btn-primary" data-imglib-action="approve" data-imglib-id="' + asset.id + '" style="background:#22c55e;border-color:#22c55e;">Approve</button>';
       }
-    }
-    if (needsChangesCue) needsChangesCue.style.display = 'inline-flex';
-  } else if (needsChangesCue) needsChangesCue.style.display = 'none';
-
-  // Build unique pillars for filter dropdown
-  const allPillars = [...new Set(assets.flatMap(a => a.pillars || []))].sort();
-  const suggestedPillars = ['Promo', 'Branding', 'Testimonial', 'Menu', 'BTS', 'Event', 'Education'];
-  const pillarOpts = [...new Set([...suggestedPillars.filter(p => allPillars.includes(p)), ...allPillars])];
-  if (filterPillar) {
-    const current = filterPillar.value;
-    filterPillar.innerHTML = '<option value="">All pillars</option>' + pillarOpts.map(p => '<option value="' + p + '">' + p + '</option>').join('');
-    if (pillarOpts.includes(current)) filterPillar.value = current;
-  }
-
-  const filters = {
-    formatUse: filterFormatUse ? filterFormatUse.value : 'ANY',
-    pillar: filterPillar ? filterPillar.value : '',
-    mediaType: filterMediaType ? filterMediaType.value : '',
-    approvedOnly: showApprovedOnlyCheck ? showApprovedOnlyCheck.checked : true
-  };
-  let filtered = filterAssets(assets, filters);
-  filtered.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
-
-  if (container) {
-    container.innerHTML = '';
-    if (filtered.length === 0) {
-      container.appendChild(el('div', { class: 'empty-state' },
-        el('div', { class: 'empty-state__text' }, filters.approvedOnly ? 'No approved assets match the filters. Try "Show approved only" off or adjust filters.' : 'No assets match the filters. Add a reference using the form below.')
-      ));
-    } else {
-      filtered.forEach(asset => {
-        container.appendChild(buildAssetCard(asset));
-      });
-    }
-  }
-
-  // Console logging for selected client
-  if (assets.length) {
-    assets.slice(0, 6).forEach(a => {
+      if (asset.approvalStatus === 'APPROVED') {
+        html += '<button class="btn btn-secondary" data-imglib-action="unapprove" data-imglib-id="' + asset.id + '" style="font-size:11px;">Unapprove</button>';
+      }
+      html += '<button class="btn btn-danger" data-imglib-action="delete" data-imglib-id="' + asset.id + '">Delete</button>';
+      html += '</div></div></div>';
     });
+    html += '</div>';
   }
+
+  root.innerHTML = html;
+
+  // Bind events
+  imglibBindEvents(root);
 }
 
-function buildAssetCard(asset) {
-  const card = el('div', { class: 'asset-card' });
-  const mediaIcon = { PHOTO: '🖼', VIDEO: '▶', GRAPHIC: '◇', DOC: '📄' }[asset.mediaType] || '🖼';
-  const thumbContainer = el('div', { class: 'asset-card__thumb' });
-  const thumbPlaceholder = el('div', { class: 'asset-card__thumb-placeholder', style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;font-size:28px;color:#94a3b8;' });
-  const iconSpan = document.createElement('span');
-  iconSpan.textContent = mediaIcon;
-  thumbPlaceholder.appendChild(iconSpan);
-  const previewUrl = asset.thumbnailUrl || getPreviewUrl(asset);
-  const fileId = (asset.url && (asset.sourceProvider === 'GOOGLE_DRIVE' || asset.url.includes('drive.google.com'))) ? extractGoogleDriveFileId(asset.url) : null;
-  if (previewUrl) {
-    const img = el('img', {
-      class: 'asset-card__thumb-img',
-      src: previewUrl,
-      alt: asset.title || 'Preview',
-      loading: 'lazy',
-      referrerPolicy: 'no-referrer'
+function imglibBindEvents(root) {
+  // File input & browse
+  var fileInput = document.getElementById('imglibFileInput');
+  var browseBtn = document.getElementById('imglibBrowseBtn');
+  var dropZone = document.getElementById('imglibDropZone');
+
+  if (browseBtn && fileInput) {
+    browseBtn.addEventListener('click', function(){ fileInput.click(); });
+  }
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('click', function(e){
+      if (e.target === browseBtn || e.target === fileInput) return;
+      fileInput.click();
     });
-    img.onload = function () {
-      thumbPlaceholder.style.display = 'none';
-    };
-    img.onerror = function () {
-      img.style.display = 'none';
-      thumbPlaceholder.style.display = 'flex';
-      thumbPlaceholder.title = 'Preview unavailable (permissions)';
-      var note = thumbPlaceholder.querySelector('.asset-card__thumb-note');
-      if (!note) {
-        note = document.createElement('span');
-        note.className = 'asset-card__thumb-note';
-        note.textContent = 'Preview unavailable (permissions)';
-        thumbPlaceholder.appendChild(note);
+    dropZone.addEventListener('dragover', function(e){ e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', function(){ dropZone.classList.remove('dragover'); });
+    dropZone.addEventListener('drop', function(e){
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files) imglibHandleFiles(e.dataTransfer.files);
+    });
+  }
+  if (fileInput) {
+    fileInput.addEventListener('change', function(){ if (fileInput.files.length) imglibHandleFiles(fileInput.files); fileInput.value = ''; });
+  }
+
+  // Filter buttons
+  root.querySelectorAll('[data-imglib-filter]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      imglibFilter = btn.getAttribute('data-imglib-filter');
+      renderContentLibraryTab();
+    });
+  });
+
+  // Action buttons (approve, unapprove, delete)
+  root.querySelectorAll('[data-imglib-action]').forEach(function(btn){
+    var action = btn.getAttribute('data-imglib-action');
+    var id = btn.getAttribute('data-imglib-id');
+    btn.addEventListener('click', function(){
+      if (action === 'approve') {
+        updateAssetStatus(currentClientId, id, 'APPROVED');
+        if (typeof showToast === 'function') showToast('Image approved', 'success');
+        renderContentLibraryTab();
+      } else if (action === 'unapprove') {
+        updateAssetStatus(currentClientId, id, 'PENDING');
+        renderContentLibraryTab();
+      } else if (action === 'delete') {
+        if (typeof showConfirmModal === 'function') {
+          showConfirmModal('Delete this image?', 'This cannot be undone.', function(){
+            deleteAsset(id);
+          });
+        } else {
+          if (confirm('Delete this image?')) deleteAsset(id);
+        }
+      }
+    });
+  });
+
+  // Lightbox on image click
+  root.querySelectorAll('[data-imglib-preview]').forEach(function(img){
+    img.addEventListener('click', function(){
+      var src = img.getAttribute('data-imglib-preview');
+      var lb = document.createElement('div');
+      lb.className = 'imglib-lightbox';
+      lb.innerHTML = '<button class="imglib-lightbox__close">&times;</button><img src="' + src + '" />';
+      lb.addEventListener('click', function(e){ if (e.target === lb || e.target.classList.contains('imglib-lightbox__close')) lb.remove(); });
+      document.body.appendChild(lb);
+    });
+  });
+}
+
+function imglibHandleFiles(files) {
+  if (!currentClientId) { if (typeof showToast === 'function') showToast('Select a client first'); return; }
+  var count = 0;
+  Array.from(files).forEach(function(file){
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 10 * 1024 * 1024) { if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var dataUrl = e.target.result;
+      saveAsset(currentClientId, {
+        title: file.name.replace(/\.[^.]+$/, ''),
+        sourceType: 'UPLOAD',
+        sourceProvider: 'LOCAL_UPLOAD',
+        url: dataUrl,
+        mediaType: 'PHOTO',
+        formatUse: 'ANY',
+        pillars: [],
+        approvalStatus: 'PENDING',
+        clientNotes: '',
+        internalNotes: '',
+        thumbnailUrl: dataUrl
+      });
+      count++;
+      if (count === files.length || count === Array.from(files).filter(function(f){ return f.type.startsWith('image/'); }).length) {
+        imglibFilter = 'all';
+        renderContentLibraryTab();
+        if (typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
+        // Sync to portal state so client sees them
+        if (typeof savePortalStateToAPI === 'function') savePortalStateToAPI();
       }
     };
-    thumbContainer.appendChild(img);
-  }
-  thumbContainer.appendChild(thumbPlaceholder);
-  card.appendChild(thumbContainer);
-
-  const body = el('div', { class: 'asset-card__body' });
-  const title = el('div', { class: 'asset-card__title' });
-  title.textContent = asset.title || 'Untitled';
-  body.appendChild(title);
-
-  const statusClass = 'asset-card__status asset-card__status--' + (asset.approvalStatus || 'PENDING').toLowerCase().replace(/_/g, '-');
-  const statusLabel = (asset.approvalStatus || 'PENDING').replace(/_/g, ' ');
-  body.appendChild(el('span', { class: statusClass }, statusLabel));
-
-  const meta = el('div', { class: 'asset-card__meta' });
-  meta.appendChild(el('span', { class: 'asset-card__provider' }, getProviderLabel(asset.sourceProvider)));
-  meta.appendChild(el('span', { class: 'asset-card__use' }, (asset.formatUse || 'Any').replace(/_/g, ' ')));
-  if ((asset.pillars || []).length) {
-    asset.pillars.forEach(p => meta.appendChild(el('span', { class: 'asset-card__pillar' }, p)));
-  }
-  body.appendChild(meta);
-
-  const actions = el('div', { class: 'asset-card__actions' });
-  const openBtn = el('button', { type: 'button', class: 'btn btn--sm btn-secondary' }, 'Open');
-  openBtn.addEventListener('click', () => { if (asset.url) window.open(asset.url, '_blank'); });
-  const copyBtn = el('button', { type: 'button', class: 'btn btn--sm btn-secondary' }, 'Copy link');
-  copyBtn.addEventListener('click', () => {
-    if (asset.url) {
-      navigator.clipboard.writeText(asset.url);
-      if (typeof showToast === 'function') showToast('Link copied', 'success');
-      else alert('Link copied');
-    }
+    reader.readAsDataURL(file);
   });
-  actions.appendChild(openBtn);
-  actions.appendChild(copyBtn);
-
-  const deleteBtn = el('button', { type: 'button', class: 'btn btn--sm btn-danger' }, 'Delete');
-  deleteBtn.addEventListener('click', () => {
-    if (confirm('Delete "' + (asset.title || 'this reference') + '"?')) {
-      deleteAsset(asset.id);
-    }
-  });
-  actions.appendChild(deleteBtn);
-
-  const statusSelect = el('select', { class: 'form-select form-select--sm', 'data-asset-id': asset.id });
-  ['PENDING', 'APPROVED', 'NEEDS_CHANGES', 'REJECTED'].forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    opt.textContent = s.replace(/_/g, ' ');
-    if ((asset.approvalStatus || '') === s) opt.selected = true;
-    statusSelect.appendChild(opt);
-  });
-  statusSelect.addEventListener('change', () => {
-    const newStatus = statusSelect.value;
-    updateAssetStatus(currentClientId, asset.id, newStatus);
-    renderContentLibraryTab();
-  });
-  actions.appendChild(statusSelect);
-
-  const useInContentBtn = el('button', { type: 'button', class: 'btn btn--sm btn-primary' }, 'Use in Content');
-  useInContentBtn.addEventListener('click', () => { alert('Use in Content will open the Content Engine. Coming soon.'); });
-  actions.appendChild(useInContentBtn);
-
-  body.appendChild(actions);
-  card.appendChild(body);
-  return card;
 }
 
 function approveAsset(id) {
@@ -5084,77 +5618,17 @@ function approveAsset(id) {
 
 function deleteAsset(id) {
   if (!currentClientId) return;
-  const key = getAssetsStorageKey(currentClientId);
+  var key = getAssetsStorageKey(currentClientId);
   if (!key) return;
-  const list = loadAssets(currentClientId).filter(a => a.id !== id);
+  var list = loadAssets(currentClientId).filter(function(a){ return a.id !== id; });
   try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { console.warn('deleteAsset', e); }
+  syncAssetsToPortalState(currentClientId);
   renderContentLibraryTab();
 }
 
-// Setup asset handlers: Add-by toggle, form submit, filters
+// Setup asset handlers (simplified — events now bound inline by renderContentLibraryTab)
 function setupAssetHandlers() {
-  // Add-by toggle: show Link vs Upload group
-  const linkGroup = $('#assetLinkGroup');
-  const uploadGroup = $('#assetUploadGroup');
-  $$('input[name="assetSourceType"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const isLink = ($('input[name="assetSourceType"]:checked') || {}).value === 'LINK';
-      if (linkGroup) linkGroup.style.display = isLink ? 'block' : 'none';
-      if (uploadGroup) uploadGroup.style.display = isLink ? 'none' : 'block';
-    });
-  });
-  if (linkGroup) linkGroup.style.display = 'block';
-  if (uploadGroup) uploadGroup.style.display = 'none';
-
-  const assetForm = $('#assetForm');
-  if (assetForm) {
-    assetForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (!currentClientId) {
-        if (typeof showToast === 'function') showToast('Please select a client first');
-        else alert('Please select a client first');
-        return;
-      }
-      const sourceType = ($('input[name="assetSourceType"]:checked') || {}).value || 'LINK';
-      const urlInput = $('#assetUrl');
-      const url = (urlInput && urlInput.value && sourceType === 'LINK') ? urlInput.value.trim() : '';
-      const sourceProvider = sourceType === 'LINK' ? parseProviderFromUrl(url) : 'LOCAL_UPLOAD';
-      const asset = {
-        title: ($('#assetTitle') && $('#assetTitle').value) ? $('#assetTitle').value.trim() : '',
-        sourceType: sourceType,
-        sourceProvider,
-        url: url || (sourceType === 'UPLOAD' && $('#assetFile') && $('#assetFile').files[0] ? '#' + $('#assetFile').files[0].name : ''),
-        mediaType: ($('#assetMediaType') && $('#assetMediaType').value) || 'PHOTO',
-        formatUse: ($('#assetFormatUse') && $('#assetFormatUse').value) || 'ANY',
-        pillars: normalizePillars(($('#assetPillars') && $('#assetPillars').value) || ''),
-        approvalStatus: ($('#assetApprovalStatus') && $('#assetApprovalStatus').value) || 'PENDING',
-        clientNotes: ($('#assetClientNotes') && $('#assetClientNotes').value) ? $('#assetClientNotes').value.trim() : '',
-        internalNotes: ($('#assetInternalNotes') && $('#assetInternalNotes').value) ? $('#assetInternalNotes').value.trim() : ''
-      };
-      asset.thumbnailUrl = getPreviewUrl(asset);
-      saveAsset(currentClientId, asset);
-      assetForm.reset();
-      if ($('#assetApprovalStatus')) $('#assetApprovalStatus').value = 'PENDING';
-      if ($('input[name="assetSourceType"]')) { const r = $('input[name="assetSourceType"][value="LINK"]'); if (r) r.checked = true; }
-      if (linkGroup) linkGroup.style.display = 'block';
-      if (uploadGroup) uploadGroup.style.display = 'none';
-      // Show all assets so the new one (usually Pending) is visible
-      const showApprovedOnly = $('#assetsShowAllOnly');
-      if (showApprovedOnly) showApprovedOnly.checked = false;
-      renderContentLibraryTab();
-      if (typeof showToast === 'function') showToast('Reference saved');
-      else alert('Reference saved');
-    });
-  }
-
-  // Filter and toggle handlers for Assets panel
-  const filterFormatUse = $('#assetsFilterFormatUse');
-  const filterPillar = $('#assetsFilterPillar');
-  const filterMediaType = $('#assetsFilterMediaType');
-  const showApprovedOnly = $('#assetsShowAllOnly');
-  [filterFormatUse, filterPillar, filterMediaType, showApprovedOnly].forEach(el => {
-    if (el) el.addEventListener('change', () => renderContentLibraryTab());
-  });
+  // No-op: all events are bound by imglibBindEvents() after each render
 }
 
 /* ================== New Client Modal ================== */
@@ -7586,23 +8060,41 @@ function bindWorkspaceEvents(container, task) {
 
   var submitBtn = container.querySelector('.workspace-btn-submit-review[data-id="' + taskId + '"]');
   if (submitBtn) submitBtn.addEventListener('click', function() {
-    var msg = task.status === 'changes_requested' ? 'Resubmitted with changes' : 'Submitted design for review';
-    postCommentAndRefresh(msg, 'review').then(function() { showToast('Submitted for review'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    var isResubmit = task.status === 'changes_requested';
+    showConfirmModal({
+      icon: '📤',
+      title: isResubmit ? 'Resubmit for Review?' : 'Submit for Review?',
+      message: isResubmit ? 'This will send the revised design back for manager review.' : 'This will send your design to the manager for review. Make sure all assets are uploaded.',
+      confirmLabel: isResubmit ? 'Resubmit' : 'Submit',
+      confirmColor: '#2563eb',
+      onConfirm: function() {
+        var msg = isResubmit ? 'Resubmitted with changes' : 'Submitted design for review';
+        postCommentAndRefresh(msg, 'review').then(function() { showToast('Submitted for review'); }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+      }
+    });
   });
 
   var approveBtn = container.querySelector('.workspace-btn-approve[data-id="' + taskId + '"]');
   if (approveBtn) approveBtn.addEventListener('click', function() {
-    postCommentAndRefresh('Approved', 'approved').then(function() {
-      showToast('Design approved! Sent to client approvals for review.');
-      // Notify client that new content is ready
-      var task = productionTasksCache.find(function(t) { return t.id === taskId; });
-      if (task && task.clientId) {
-        fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-          body: JSON.stringify({ clientId: task.clientId, type: 'content_ready', postTitle: task.title || task.caption || 'New design' })
-        }).catch(function() {});
+    showConfirmModal({
+      icon: '✅',
+      title: 'Approve Design?',
+      message: 'This will mark the design as approved and notify the client that new content is ready.',
+      confirmLabel: 'Approve',
+      confirmColor: '#059669',
+      onConfirm: function() {
+        postCommentAndRefresh('Approved', 'approved').then(function() {
+          showToast('Design approved! Sent to client approvals for review.');
+          var task = productionTasksCache.find(function(t) { return t.id === taskId; });
+          if (task && task.clientId) {
+            fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+              body: JSON.stringify({ clientId: task.clientId, type: 'content_ready', postTitle: task.title || task.caption || 'New design' })
+            }).catch(function() {});
+          }
+        }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
       }
-    }).catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    });
   });
 
   var approveCommentBtn = container.querySelector('.workspace-btn-approve-comment[data-id="' + taskId + '"]');
@@ -7778,6 +8270,65 @@ function runWorkspaceUpload(taskId, files, feedbackEl) {
         return loadProductionTasks();
       }).then(function() { renderProductionView(); showToast('Uploaded'); }).catch(function(e) { if (feedbackEl) feedbackEl.classList.remove('upload-drop-zone--loading'); showToast(e.message || 'Upload failed', 'error'); });
   });
+}
+
+/* ── Confirmation Modal (reusable) ── */
+function showConfirmModal(opts) {
+  var title = opts.title || 'Confirm Action';
+  var message = opts.message || 'Are you sure?';
+  var confirmLabel = opts.confirmLabel || 'Confirm';
+  var confirmColor = opts.confirmColor || '#1a56db';
+  var onConfirm = opts.onConfirm;
+
+  var existing = document.getElementById('confirmActionModal');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'confirmActionModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.12s ease-out;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:16px;max-width:400px;width:90%;padding:28px 24px 20px;box-shadow:0 20px 60px rgba(0,0,0,0.25);text-align:center;animation:slideUp 0.15s ease-out;';
+
+  var iconDiv = document.createElement('div');
+  iconDiv.style.cssText = 'font-size:36px;margin-bottom:12px;';
+  iconDiv.textContent = opts.icon || '⚡';
+  modal.appendChild(iconDiv);
+
+  var titleEl = document.createElement('h3');
+  titleEl.style.cssText = 'margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a;';
+  titleEl.textContent = title;
+  modal.appendChild(titleEl);
+
+  var msgEl = document.createElement('p');
+  msgEl.style.cssText = 'margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.5;';
+  msgEl.textContent = message;
+  modal.appendChild(msgEl);
+
+  var btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'flex:1;padding:11px 20px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:14px;font-weight:600;cursor:pointer;';
+  cancelBtn.addEventListener('click', function() { overlay.remove(); });
+
+  var confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.style.cssText = 'flex:1;padding:11px 20px;border-radius:10px;border:none;background:' + confirmColor + ';color:#fff;font-size:14px;font-weight:700;cursor:pointer;';
+  confirmBtn.addEventListener('click', function() {
+    overlay.remove();
+    if (onConfirm) onConfirm();
+  });
+
+  btns.appendChild(cancelBtn);
+  btns.appendChild(confirmBtn);
+  modal.appendChild(btns);
+  overlay.appendChild(modal);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 var DESIGNER_STATUS_CONFIG = {
@@ -8035,9 +8586,7 @@ function renderProductionView() {
   var activeLink = document.querySelector('.production-sidebar__link[data-section="' + currentProductionSection + '"]');
   if (activeLink) activeLink.classList.add('active');
   if (currentProductionSection === 'ai-library') {
-    var clients = loadClientsRegistry();
-    var clientList = clients ? Object.keys(clients).map(function(id) { return clients[id].name || id; }).join(', ') : '—';
-    container.innerHTML = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">AI Library</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">A library of images for each client will be available here.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Coming soon</span><p style="font-size: 13px; color: #94a3b8; margin-top: 16px;">Clients: ' + (clientList || 'None') + '</p></div>';
+    renderGlobalAILibrary(container);
     return;
   }
   if (currentProductionSection === 'references') {
@@ -8451,8 +9000,17 @@ function renderProductionView() {
     container.querySelectorAll('.btn-submit-review').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var id = btn.getAttribute('data-id');
-        fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
-          .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+        showConfirmModal({
+          icon: '📤',
+          title: 'Submit for Review?',
+          message: 'This will send your design to the manager for review.',
+          confirmLabel: 'Submit',
+          confirmColor: '#2563eb',
+          onConfirm: function() {
+            fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
+              .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+          }
+        });
       });
     });
 
@@ -8460,8 +9018,17 @@ function renderProductionView() {
     container.querySelectorAll('.btn-resubmit').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var id = btn.getAttribute('data-id');
-        fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
-          .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+        showConfirmModal({
+          icon: '🔄',
+          title: 'Resubmit for Review?',
+          message: 'This will send the revised design back for manager review.',
+          confirmLabel: 'Resubmit',
+          confirmColor: '#dc2626',
+          onConfirm: function() {
+            fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/status', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
+              .then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(function() { renderProductionView(); }).catch(function(e) { showToast(e.message, 'error'); });
+          }
+        });
       });
     });
 

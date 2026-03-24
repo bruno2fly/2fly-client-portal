@@ -530,3 +530,97 @@ export function deletePushSubscription(endpoint: string): void {
   writeJSON(PUSH_SUBSCRIPTIONS_FILE, all);
 }
 
+// ==================== AI LIBRARY DATABASE FUNCTIONS ====================
+
+const BRAND_KITS_FILE = join(DB_DIR, 'brand-kits.json');
+const AI_IMAGES_FILE = join(DB_DIR, 'ai-images.json');
+
+// Brand Kit
+export interface BrandKit {
+  id: string;
+  clientId: string;
+  agencyId: string;
+  logoUrls: string[];
+  colors: { name: string; hex: string }[];
+  fonts: { heading: string; body: string; weights: string[] };
+  styleTags: string[];  // e.g. 'clean', 'bold', 'minimal', 'luxury'
+  photoStyle: string;   // e.g. 'natural lighting, warm tones'
+  rulesText: string;    // e.g. 'always use dark backgrounds'
+  referenceImages: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function getBrandKits(): Record<string, BrandKit> {
+  return readJSON(BRAND_KITS_FILE, {});
+}
+
+export function getBrandKitByClient(clientId: string): BrandKit | null {
+  const kits = getBrandKits();
+  return Object.values(kits).find(k => k.clientId === clientId) || null;
+}
+
+export function saveBrandKit(kit: BrandKit): void {
+  const kits = getBrandKits();
+  kits[kit.id] = kit;
+  writeJSON(BRAND_KITS_FILE, kits);
+}
+
+export function deleteBrandKit(id: string): void {
+  const kits = getBrandKits();
+  delete kits[id];
+  writeJSON(BRAND_KITS_FILE, kits);
+}
+
+// AI Images
+export interface AIImage {
+  id: string;
+  clientId: string;
+  agencyId: string;
+  brandKitId: string | null;
+  prompt: string;
+  enhancedPrompt: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  format: 'feed' | 'story' | 'carousel' | 'ad_banner';
+  formatDimensions: string;
+  status: 'generated' | 'pending_approval' | 'approved' | 'rejected' | 'used_in_post';
+  generatedBy: string;
+  approvedBy: string | null;
+  approvalDate: number | null;
+  feedback: string;
+  usedInPostId: string | null;
+  modelUsed: string;
+  batchId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function getAIImages(): Record<string, AIImage> {
+  return readJSON(AI_IMAGES_FILE, {});
+}
+
+export function getAIImagesByClient(clientId: string): AIImage[] {
+  return Object.values(getAIImages()).filter(i => i.clientId === clientId);
+}
+
+export function getAIImagesByAgency(agencyId: string): AIImage[] {
+  return Object.values(getAIImages()).filter(i => i.agencyId === agencyId);
+}
+
+export function getAIImageById(id: string): AIImage | null {
+  return getAIImages()[id] || null;
+}
+
+export function saveAIImage(img: AIImage): void {
+  const images = getAIImages();
+  images[img.id] = img;
+  writeJSON(AI_IMAGES_FILE, images);
+}
+
+export function deleteAIImage(id: string): void {
+  const images = getAIImages();
+  delete images[id];
+  writeJSON(AI_IMAGES_FILE, images);
+}
+
