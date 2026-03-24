@@ -5464,6 +5464,7 @@ function imglibFixUrl(url) {
 
 var imglibFilter = 'all'; // all | pending | approved | rejected
 
+var _imglibLastRefresh = 0;
 function renderContentLibraryTab() {
   var root = document.getElementById('imageLibraryRoot');
   if (!root) return;
@@ -5471,6 +5472,23 @@ function renderContentLibraryTab() {
     root.innerHTML = '<div class="imglib-empty"><p>Select a client to manage their image library.</p></div>';
     return;
   }
+
+  // Silently re-fetch portal state to pick up client-side approval changes (max once per 10s)
+  var now = Date.now();
+  if (now - _imglibLastRefresh > 10000) {
+    _imglibLastRefresh = now;
+    fetchPortalStateFromAPI(currentClientId).then(function() {
+      // Re-render after fresh data (but don't loop — check timestamp)
+      if (Date.now() - now < 12000) _imglibRenderGrid();
+    }).catch(function(){});
+  }
+
+  _imglibRenderGrid();
+}
+
+function _imglibRenderGrid() {
+  var root = document.getElementById('imageLibraryRoot');
+  if (!root || !currentClientId) return;
 
   var assets = loadAssets(currentClientId);
   var approvedCount = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; }).length;
@@ -5617,8 +5635,13 @@ function imglibBindEvents(root) {
         renderContentLibraryTab();
       } else if (action === 'delete') {
         if (typeof showConfirmModal === 'function') {
-          showConfirmModal('Delete this image?', 'This cannot be undone.', function(){
-            deleteAsset(id);
+          showConfirmModal({
+            title: 'Delete this image?',
+            message: 'This cannot be undone.',
+            confirmLabel: 'Delete',
+            confirmColor: '#ef4444',
+            icon: '🗑️',
+            onConfirm: function(){ deleteAsset(id); }
           });
         } else {
           if (confirm('Delete this image?')) deleteAsset(id);
