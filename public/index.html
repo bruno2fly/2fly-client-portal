@@ -2692,7 +2692,7 @@ window.openApprovalModal = function(id){
   const approvalImage = $("#approvalImage");
   
   // Check if this is a copy approval
-  const isCopyApproval = item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes' || item.copyText;
+  const isCopyApproval = item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes';
   
   if (isCopyApproval) {
     // Show copy text
