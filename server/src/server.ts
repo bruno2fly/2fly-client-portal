@@ -33,6 +33,7 @@ import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, 
 import { generateToken, generateId, generateUsernameFromEmail, generateRandomPassword, hashPassword } from './utils/auth.js';
 import { sendCredentialsEmail } from './utils/email.js';
 import { clearRateLimit, clearAllRateLimits } from './utils/rateLimit.js';
+import { runRecoverPortalApprovals } from './recover-data.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -131,6 +132,20 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// TEMPORARY: one-time portal-state recovery from production-tasks.json — remove after use
+app.get('/api/recover-data', (req, res) => {
+  const key = typeof req.query.key === 'string' ? req.query.key : '';
+  if (key !== 'recover2fly2026') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    res.json(runRecoverPortalApprovals());
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'recovery failed';
+    res.status(500).json({ error: message });
+  }
 });
 
 // Dev-only: Clear rate limits (for testing)

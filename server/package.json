@@ -11,7 +11,8 @@
     "setup": "tsx src/scripts/setup.ts",
     "setup:cli": "node setup-cli.js",
     "generate-invite": "node generate-invite.js",
-    "migrate:agency-scope": "npm run build && node dist/scripts/migrate-agency-scope.js"
+    "migrate:agency-scope": "npm run build && node dist/scripts/migrate-agency-scope.js",
+    "recover:portal": "npx tsx src/recover-data.ts"
   },
   "dependencies": {
     "@types/web-push": "^3.6.4",
