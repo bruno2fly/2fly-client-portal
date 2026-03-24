@@ -4200,6 +4200,29 @@ async function initializeApp() {
       console.error("Error in delayed render:", e);
     }
   }, 100);
+
+  // Auto-refresh portal state every 30 seconds so client sees agency updates (new images, status changes)
+  setInterval(async function() {
+    var token = (session && session.token) || null;
+    if (!token) return;
+    try {
+      var r = await fetch(API_BASE + '/api/client/portal-state?_=' + Date.now(), {
+        headers: { 'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache' }
+      });
+      if (!r.ok) return;
+      var j = await r.json();
+      if (j && j.data) {
+        var oldJSON = JSON.stringify(portalStateCache && portalStateCache.approvals);
+        var newJSON = JSON.stringify(j.data.approvals);
+        portalStateCache = j.data;
+        // Re-render if approvals changed (new images, status updates, etc.)
+        if (oldJSON !== newJSON) {
+          try { renderApprovalsSectioned(); } catch(e) {}
+          try { renderClientImageLibrary(); } catch(e) {}
+        }
+      }
+    } catch(e) { /* silent */ }
+  }, 30000);
   }
 
   // Run when DOM is ready
