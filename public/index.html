@@ -3732,9 +3732,12 @@ function renderUpcomingFeed(){
     pill.textContent = upcomingFeedTypeLabel(item.type);
     footer.appendChild(pill);
 
-    var caption = el("p", { class: "line-clamp-2 text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]" });
-    caption.textContent = item.copyText || item.title || "Untitled post";
-    footer.appendChild(caption);
+    var captionText = item.copyText || item.caption || "";
+    if (captionText) {
+      var caption = el("p", { class: "line-clamp-2 text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]" });
+      caption.textContent = captionText;
+      footer.appendChild(caption);
+    }
 
     var d = new Date(item.postDate);
     var dateEl = el("p", { class: "text-[10px] text-white/70" });

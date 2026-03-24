@@ -38,13 +38,10 @@ import {
   getUserByEmail,
   saveUser,
   saveAuditLog,
-  getPortalState,
-  savePortalState,
 } from './db.js';
 import { generateToken, generateId, generateUsernameFromEmail, generateRandomPassword, hashPassword } from './utils/auth.js';
 import { sendCredentialsEmail } from './utils/email.js';
 import { clearRateLimit, clearAllRateLimits } from './utils/rateLimit.js';
-import { runRecoverPortalApprovals } from './recover-data.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -143,99 +140,6 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
-});
-
-// TEMPORARY: one-time portal-state recovery from production-tasks.json — remove after use
-app.get('/api/recover-data', (req, res) => {
-  const key = typeof req.query.key === 'string' ? req.query.key : '';
-  if (key !== 'recover2fly2026') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  try {
-    res.json(runRecoverPortalApprovals());
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'recovery failed';
-    res.status(500).json({ error: message });
-  }
-});
-
-const INJECT_REQUESTS_AGENCY_ID = 'agency_1737676800000_abc123';
-const INJECT_REQUESTS_BY_CLIENT: { clientId: string; details: string[] }[] = [
-  { clientId: 'stpetersburg', details: ['Course menu strategy'] },
-  {
-    clientId: 'thisisitbrazil',
-    details: [
-      'A onda agora é peptídios. Galera só tá falando nisso. Só que estão se referindo a injeções.',
-    ],
-  },
-  {
-    clientId: 'ardanspa',
-    details: [
-      'Ketastese promocao 28 de marco ate 10 de abril',
-      'Posts 4 de abril national vitamin C - make a post / mes de awareness da rosácea',
-      'Post sobre SPF e falar da marca e da importancia',
-    ],
-  },
-  { clientId: 'supercrisp', details: ['Doordash video'] },
-];
-
-// TEMPORARY: append client requests + activity to portal-state — remove after use
-app.get('/api/inject-requests', (req, res) => {
-  const key = typeof req.query.key === 'string' ? req.query.key : '';
-  if (key !== 'recover2fly2026') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  type Row = {
-    clientId: string;
-    skipped?: boolean;
-    reason?: string;
-    added?: number;
-    requestIds?: string[];
-    error?: string;
-  };
-  const results: Row[] = [];
-  let tick = 0;
-  try {
-    for (const { clientId, details } of INJECT_REQUESTS_BY_CLIENT) {
-      const state = getPortalState(INJECT_REQUESTS_AGENCY_ID, clientId);
-      if (!state) {
-        results.push({ clientId, skipped: true, reason: 'no portal state' });
-        continue;
-      }
-      if (!Array.isArray(state.requests)) state.requests = [];
-      if (!Array.isArray(state.activity)) state.activity = [];
-      const requestIds: string[] = [];
-      for (const detailsText of details) {
-        const now = Date.now() + tick;
-        tick += 1;
-        const id = 'r' + Math.random().toString(36).slice(2, 7);
-        state.requests.push({
-          id,
-          type: 'Content Request',
-          by: 'Client',
-          details: detailsText,
-          link: '',
-          images: [],
-          status: 'open',
-          createdAt: now,
-        });
-        state.activity.push({
-          when: now,
-          text:
-            '📩 New request: Content Request - ' +
-            detailsText.substring(0, 50) +
-            (detailsText.length > 50 ? '...' : ''),
-        });
-        requestIds.push(id);
-      }
-      savePortalState(INJECT_REQUESTS_AGENCY_ID, clientId, state);
-      results.push({ clientId, added: requestIds.length, requestIds });
-    }
-    res.json({ success: true, agencyId: INJECT_REQUESTS_AGENCY_ID, results });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'inject failed';
-    res.status(500).json({ error: message, partialResults: results });
-  }
 });
 
 // Dev-only: Clear rate limits (for testing)
