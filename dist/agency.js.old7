@@ -5504,18 +5504,6 @@ function renderContentLibraryTab() {
   html += '<button type="button" class="btn btn-primary" id="imglibBrowseBtn" style="font-size:13px;padding:8px 20px;">Browse Files</button>';
   html += '</div>';
 
-  // Check for broken assets (data: URLs or empty URLs)
-  var brokenCount = assets.filter(function(a) {
-    var url = a.thumbnailUrl || a.url || '';
-    return !url || url.startsWith('data:') || (!url.startsWith('http') && !url.startsWith('/uploads/'));
-  }).length;
-  if (brokenCount > 0) {
-    html += '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">';
-    html += '<span style="font-size:13px;color:#92400e;">' + brokenCount + ' image(s) have broken previews (old uploads). Clean them up to fix the library.</span>';
-    html += '<button type="button" class="btn btn-danger" id="imglibCleanupBtn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">Remove Broken</button>';
-    html += '</div>';
-  }
-
   // Filter bar
   html += '<div class="imglib-filter-bar">';
   ['all','pending','approved','rejected'].forEach(function(f){
@@ -5564,12 +5552,6 @@ function renderContentLibraryTab() {
 }
 
 function imglibBindEvents(root) {
-  // Cleanup broken images button
-  var cleanupBtn = document.getElementById('imglibCleanupBtn');
-  if (cleanupBtn) {
-    cleanupBtn.addEventListener('click', function(){ imglibClearBroken(); });
-  }
-
   // File input & browse
   var fileInput = document.getElementById('imglibFileInput');
   var browseBtn = document.getElementById('imglibBrowseBtn');
@@ -5725,45 +5707,9 @@ function deleteAsset(id) {
   var key = getAssetsStorageKey(currentClientId);
   if (!key) return;
   var list = loadAssets(currentClientId).filter(function(a){ return a.id !== id; });
-  // Strip any base64 data from remaining assets to free space
-  list = imglibStripBase64(list);
-  try {
-    localStorage.setItem(key, JSON.stringify(list));
-  } catch (e) {
-    // Quota still exceeded — force clear and save clean list
-    console.warn('deleteAsset quota error, force clearing:', e);
-    try { localStorage.removeItem(key); } catch(e2){}
-    try { localStorage.setItem(key, JSON.stringify(list)); } catch(e3){}
-  }
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { console.warn('deleteAsset', e); }
   syncAssetsToPortalState(currentClientId);
   renderContentLibraryTab();
-}
-
-/** Strip base64 data URLs from assets to prevent localStorage overflow */
-function imglibStripBase64(assets) {
-  return assets.map(function(a) {
-    var copy = Object.assign({}, a);
-    if (copy.url && copy.url.startsWith('data:')) copy.url = '';
-    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('data:')) copy.thumbnailUrl = '';
-    return copy;
-  });
-}
-
-/** Clear all broken assets (no valid image URL) for current client */
-function imglibClearBroken() {
-  if (!currentClientId) return;
-  var key = getAssetsStorageKey(currentClientId);
-  if (!key) return;
-  var list = loadAssets(currentClientId);
-  var clean = list.filter(function(a) {
-    var url = a.thumbnailUrl || a.url || '';
-    return url && !url.startsWith('data:') && url.startsWith('http');
-  });
-  try { localStorage.removeItem(key); } catch(e){}
-  try { localStorage.setItem(key, JSON.stringify(clean)); } catch(e){}
-  syncAssetsToPortalState(currentClientId);
-  renderContentLibraryTab();
-  if (typeof showToast === 'function') showToast('Cleaned up ' + (list.length - clean.length) + ' broken images', 'success');
 }
 
 // Setup asset handlers (simplified — events now bound inline by renderContentLibraryTab)

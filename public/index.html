@@ -3791,7 +3791,14 @@ function renderClientImageLibrary() {
 
   var s = load();
   // Images come from portal state assets array (synced by agency)
-  var assets = Array.isArray(s.assets) ? s.assets : [];
+  // Filter out broken assets (no valid URL)
+  var allAssets = Array.isArray(s.assets) ? s.assets : [];
+  var assets = allAssets.filter(function(a) {
+    var url = a.thumbnailUrl || a.url || '';
+    if (!url) return false;
+    if (url.startsWith('data:')) return false;
+    return true;
+  });
 
   var approvedCount = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; }).length;
   var pendingCount = assets.filter(function(a){ return a.approvalStatus === 'PENDING'; }).length;
