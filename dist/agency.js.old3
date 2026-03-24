@@ -308,27 +308,6 @@ async function fetchPortalStateFromAPI(clientId) {
     }
     portalStateCache[clientId] = data;
     portalStateFetched.add(clientId);
-
-    // Sync client-side asset status changes back into localStorage
-    if (Array.isArray(data.assets) && data.assets.length > 0) {
-      try {
-        var localAssets = loadAssets(clientId);
-        var changed = false;
-        data.assets.forEach(function(serverAsset) {
-          var local = localAssets.find(function(a){ return a.id === serverAsset.id; });
-          if (local && local.approvalStatus !== serverAsset.approvalStatus) {
-            local.approvalStatus = serverAsset.approvalStatus;
-            local.updatedAt = serverAsset.updatedAt || new Date().toISOString();
-            if (serverAsset.approvalStatus === 'APPROVED') local.approvedAt = serverAsset.approvedAt || new Date().toISOString();
-            changed = true;
-          }
-        });
-        if (changed) {
-          var key = getAssetsStorageKey(clientId);
-          if (key) try { localStorage.setItem(key, JSON.stringify(localAssets)); } catch(e){}
-        }
-      } catch(e) { console.warn('Asset sync from portal state:', e); }
-    }
   }
   return data;
 }
@@ -5436,14 +5415,6 @@ function setupNeedsHandlers() {
 
 /* ================== Image Library (Content Library) Tab ================== */
 
-// Fix asset URLs: convert relative paths to full URLs
-function imglibFixUrl(url) {
-  if (!url) return '';
-  if (url.startsWith('data:')) return ''; // Skip base64 data URLs (old broken uploads)
-  if (url.startsWith('/uploads/')) return getApiBaseUrl() + url;
-  return url;
-}
-
 var imglibFilter = 'all'; // all | pending | approved | rejected
 
 function renderContentLibraryTab() {
@@ -5507,7 +5478,7 @@ function renderContentLibraryTab() {
       var statusLower = (asset.approvalStatus || 'PENDING').toLowerCase().replace(/_/g,'-');
       var statusLabel = statusLower === 'needs-changes' ? 'Needs changes' : statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
       var badgeClass = statusLower === 'needs-changes' ? 'rejected' : statusLower;
-      var previewUrl = imglibFixUrl(asset.thumbnailUrl) || imglibFixUrl(asset.url) || '';
+      var previewUrl = asset.thumbnailUrl || asset.url || '';
       var imgTag = previewUrl ? '<img class="imglib-card__img" src="' + previewUrl + '" alt="' + (asset.title || '').replace(/"/g,'&quot;') + '" loading="lazy" referrerpolicy="no-referrer" data-imglib-preview="' + previewUrl + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" /><div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>' : '<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>';
       html += '<div class="imglib-card">';
       html += imgTag;
@@ -5636,20 +5607,18 @@ function imglibHandleFiles(files) {
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.url) {
-          // Build full URL if server returned relative path
-          var fullUrl = j.url.startsWith('http') ? j.url : getApiBaseUrl() + j.url;
           saveAsset(currentClientId, {
             title: file.name.replace(/\.[^.]+$/, ''),
             sourceType: 'UPLOAD',
             sourceProvider: 'LOCAL_UPLOAD',
-            url: fullUrl,
+            url: j.url,
             mediaType: 'PHOTO',
             formatUse: 'ANY',
             pillars: [],
             approvalStatus: 'PENDING',
             clientNotes: '',
             internalNotes: '',
-            thumbnailUrl: fullUrl
+            thumbnailUrl: j.url
           });
           count++;
         } else {

@@ -3839,9 +3839,7 @@ function renderClientImageLibrary() {
     var badgeClass = statusLower === 'needs-changes' ? 'rejected' : statusLower;
     var statusLabel = statusLower === 'needs-changes' ? 'Needs changes' : statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
 
-    var rawPrev = asset.thumbnailUrl || asset.url || '';
-    var previewUrl = (rawPrev && rawPrev.startsWith('/uploads/')) ? API_BASE + rawPrev : rawPrev;
-    if (previewUrl && previewUrl.startsWith('data:')) previewUrl = '';
+    var previewUrl = asset.thumbnailUrl || asset.url || '';
     var imgHtml = previewUrl ? '<img class="cil-card__img" src="' + previewUrl + '" alt="' + (asset.title || '').replace(/"/g, '&quot;') + '" loading="lazy" referrerpolicy="no-referrer" />' : '<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);color:rgba(255,255,255,.3);font-size:20px;">No preview</div>';
 
     card.innerHTML = imgHtml
