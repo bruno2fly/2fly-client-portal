@@ -1859,7 +1859,7 @@ async function renderScheduledPostsTab() {
       var borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
       var bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
       var statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
-      html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:default;">';
+      html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:pointer;" title="Click to view details">';
       html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
       html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
       html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
@@ -1888,22 +1888,65 @@ async function renderScheduledPostsTab() {
     });
   });
 
+  // Store posts for click-to-view
+  container._calPosts = allPosts;
+
   if (!container._calDismissBound) {
     container._calDismissBound = true;
     container.addEventListener('click', async function(e) {
       const dismiss = e.target && e.target.closest && e.target.closest('.cal-post-dismiss');
-      if (!dismiss) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const postId = dismiss.getAttribute('data-post-id');
-      if (!postId) return;
-      try {
-        const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'Failed to remove');
-        renderScheduledPostsTab();
-      } catch (err) {
-        showToast(err.message || 'Failed to remove post', 'error');
+      if (dismiss) {
+        e.preventDefault();
+        e.stopPropagation();
+        const postId = dismiss.getAttribute('data-post-id');
+        if (!postId) return;
+        try {
+          const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || 'Failed to remove');
+          renderScheduledPostsTab();
+        } catch (err) {
+          showToast(err.message || 'Failed to remove post', 'error');
+        }
+        return;
+      }
+      // Click on post card — show detail modal
+      const postCard = e.target && e.target.closest && e.target.closest('.cal-post');
+      if (postCard) {
+        const postId = postCard.getAttribute('data-post-id');
+        const posts = container._calPosts || [];
+        const post = posts.find(function(p) { return p.id === postId; });
+        if (post) {
+          var modalBg = document.createElement('div');
+          modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+          modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
+          var modal = document.createElement('div');
+          modal.style.cssText = 'background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+          var schedTime = new Date(post.scheduledAt).toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+          var platformStr = (post.platforms || []).map(function(p) { return p === 'instagram' ? '📷 Instagram' : p === 'facebook' ? '📘 Facebook' : p; }).join(', ') || 'No platforms';
+          var statusStr = post.status === 'published' ? '✓ Published' : post.status === 'failed' ? '✗ Failed' : post.status === 'publishing' ? 'Publishing…' : '● Scheduled';
+          var statusColor = post.status === 'published' ? '#10b981' : post.status === 'failed' ? '#ef4444' : '#3b82f6';
+          var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+          h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
+          h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
+          if (post.mediaUrl) {
+            h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><img src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" /></div>';
+          }
+          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</span>';
+          h += '<div style="margin-top:4px;font-weight:600;color:' + statusColor + ';">' + statusStr + '</div></div>';
+          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Scheduled For</span>';
+          h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + schedTime + '</div></div>';
+          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Platforms</span>';
+          h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + platformStr + '</div></div>';
+          if (post.caption) {
+            h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Caption</span>';
+            h += '<div style="margin-top:4px;color:#334155;line-height:1.6;white-space:pre-wrap;">' + post.caption.replace(/</g, '&lt;') + '</div></div>';
+          }
+          modal.innerHTML = h;
+          modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
+          modalBg.appendChild(modal);
+          document.body.appendChild(modalBg);
+        }
       }
     });
   }
@@ -3833,6 +3876,7 @@ function renderApprovalsTab() {
   const changes = approvalsList.filter(a => a.status === 'changes');
   const approved = approvalsList.filter(a => a.status === 'approved' && (!a.postDate || new Date(a.postDate) < now || new Date(a.postDate) > fifteenDaysFromNow));
   const scheduled = approvalsList.filter(a => {
+    if (a.status === 'scheduled') return true;
     if (a.status !== 'approved' || !a.postDate) return false;
     const postDate = new Date(a.postDate);
     return postDate >= now && postDate <= fifteenDaysFromNow;
@@ -3938,6 +3982,7 @@ function renderApprovalsTab() {
         if (statusDisplay === 'copy_pending') statusDisplay = 'Copy Pending';
         else if (statusDisplay === 'copy_approved') statusDisplay = 'Copy Approved';
         else if (statusDisplay === 'copy_changes') statusDisplay = 'Copy Changes';
+        else if (statusDisplay === 'scheduled') statusDisplay = 'Scheduled';
         else statusDisplay = statusDisplay.charAt(0).toUpperCase() + statusDisplay.slice(1);
         meta.appendChild(el('span', {
           class: `chip chip--status-${item.status || 'pending'}`
@@ -4105,7 +4150,18 @@ function renderApprovalsTab() {
           scheduleSection.appendChild(notConnectedWrap);
           itemEl.appendChild(scheduleSection);
         }
-        
+
+        if (sectionKey === 'scheduled') {
+          const scheduledBanner = el('div', {
+            style: 'margin-top: 12px; padding: 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; font-size: 13px; color: #065f46;'
+          });
+          const schedDate = item.postDate ? new Date(item.postDate).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Date not set';
+          const platforms = item.scheduledPlatforms ? item.scheduledPlatforms.join(', ') : '';
+          scheduledBanner.innerHTML = '<strong>Scheduled:</strong> ' + schedDate + (platforms ? ' — ' + platforms : '');
+          scheduledBanner.addEventListener('click', (e) => e.stopPropagation());
+          itemEl.appendChild(scheduledBanner);
+        }
+
         itemEl.addEventListener('click', (e) => {
           e.stopPropagation(); // Prevent section toggle and container click when clicking item
           selectedApprovalId = item.id;
@@ -4563,6 +4619,8 @@ async function scheduleFromApproval(approvalId) {
     if (!r.ok) throw new Error(j.error || 'Failed to schedule');
     if (item) {
       item.status = 'scheduled';
+      item.postDate = scheduledAt;
+      item.scheduledPlatforms = platforms;
       save(state);
     }
     renderApprovalsTab();
