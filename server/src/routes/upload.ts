@@ -214,4 +214,43 @@ router.post('/media', authenticate, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+/**
+ * POST /api/upload/asset
+ * Upload an image for the Image Library (Assets tab).
+ * Saves to local filesystem at /uploads/assets/<filename>
+ * Body: { image: "data:image/jpeg;base64,..." }
+ * Returns: { success: true, url: "/uploads/assets/abc123.jpg" }
+ */
+router.post('/asset', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { image } = req.body;
+    if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Valid base64 image required (data:image/...)' });
+    }
+
+    const match = image.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid image format' });
+    }
+
+    const { join } = await import('path');
+    const { writeFileSync, existsSync, mkdirSync } = await import('fs');
+
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+
+    const uploadsDir = join(process.cwd(), 'uploads', 'assets');
+    if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+
+    const filename = `asset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    writeFileSync(join(uploadsDir, filename), buffer);
+
+    const url = `/uploads/assets/${filename}`;
+    return res.json({ success: true, url });
+  } catch (e: any) {
+    console.error('Asset upload error:', e?.message);
+    res.status(500).json({ error: e?.message || 'Asset upload failed' });
+  }
+});
+
 export default router;

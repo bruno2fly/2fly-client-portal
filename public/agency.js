@@ -5577,37 +5577,74 @@ function imglibBindEvents(root) {
 
 function imglibHandleFiles(files) {
   if (!currentClientId) { if (typeof showToast === 'function') showToast('Select a client first'); return; }
+  var imageFiles = Array.from(files).filter(function(f){ return f.type.startsWith('image/'); });
+  if (imageFiles.length === 0) { if (typeof showToast === 'function') showToast('No image files selected'); return; }
   var count = 0;
-  Array.from(files).forEach(function(file){
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > 10 * 1024 * 1024) { if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)'); return; }
+  var failed = 0;
+  var total = imageFiles.length;
+
+  // Show uploading state
+  var dropZone = document.getElementById('imglibDropZone');
+  if (dropZone) { dropZone.style.opacity = '0.5'; dropZone.style.pointerEvents = 'none'; }
+
+  imageFiles.forEach(function(file){
+    if (file.size > 10 * 1024 * 1024) {
+      if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)');
+      total--;
+      return;
+    }
+
+    // Read file, upload to server — no base64 in localStorage
     var reader = new FileReader();
     reader.onload = function(e){
       var dataUrl = e.target.result;
-      saveAsset(currentClientId, {
-        title: file.name.replace(/\.[^.]+$/, ''),
-        sourceType: 'UPLOAD',
-        sourceProvider: 'LOCAL_UPLOAD',
-        url: dataUrl,
-        mediaType: 'PHOTO',
-        formatUse: 'ANY',
-        pillars: [],
-        approvalStatus: 'PENDING',
-        clientNotes: '',
-        internalNotes: '',
-        thumbnailUrl: dataUrl
+      fetch(getApiBaseUrl() + '/api/upload/asset', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.url) {
+          saveAsset(currentClientId, {
+            title: file.name.replace(/\.[^.]+$/, ''),
+            sourceType: 'UPLOAD',
+            sourceProvider: 'LOCAL_UPLOAD',
+            url: j.url,
+            mediaType: 'PHOTO',
+            formatUse: 'ANY',
+            pillars: [],
+            approvalStatus: 'PENDING',
+            clientNotes: '',
+            internalNotes: '',
+            thumbnailUrl: j.url
+          });
+          count++;
+        } else {
+          failed++;
+          if (typeof showToast === 'function') showToast('Failed: ' + (j.error || file.name));
+        }
+        imglibCheckDone();
+      })
+      .catch(function(err){
+        console.error('Upload error:', err);
+        failed++;
+        if (typeof showToast === 'function') showToast('Upload failed: ' + file.name);
+        imglibCheckDone();
       });
-      count++;
-      if (count === files.length || count === Array.from(files).filter(function(f){ return f.type.startsWith('image/'); }).length) {
-        imglibFilter = 'all';
-        renderContentLibraryTab();
-        if (typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
-        // Sync to portal state so client sees them
-        if (typeof savePortalStateToAPI === 'function') savePortalStateToAPI();
-      }
     };
     reader.readAsDataURL(file);
   });
+
+  function imglibCheckDone() {
+    if (count + failed >= total) {
+      if (dropZone) { dropZone.style.opacity = ''; dropZone.style.pointerEvents = ''; }
+      imglibFilter = 'all';
+      renderContentLibraryTab();
+      if (count > 0 && typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
+    }
+  }
 }
 
 function approveAsset(id) {

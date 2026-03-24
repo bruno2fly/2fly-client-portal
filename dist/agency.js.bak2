@@ -5575,17 +5575,31 @@ function imglibBindEvents(root) {
   });
 }
 
+function imglibCreateThumbnail(file, maxW, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      var scale = Math.min(maxW / img.width, maxW / img.height, 1);
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      var thumb = canvas.toDataURL('image/jpeg', 0.6);
+      callback(thumb, e.target.result);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function imglibHandleFiles(files) {
   if (!currentClientId) { if (typeof showToast === 'function') showToast('Select a client first'); return; }
   var imageFiles = Array.from(files).filter(function(f){ return f.type.startsWith('image/'); });
   if (imageFiles.length === 0) { if (typeof showToast === 'function') showToast('No image files selected'); return; }
   var count = 0;
-  var failed = 0;
   var total = imageFiles.length;
-
-  // Show uploading state
-  var dropZone = document.getElementById('imglibDropZone');
-  if (dropZone) { dropZone.style.opacity = '0.5'; dropZone.style.pointerEvents = 'none'; }
 
   imageFiles.forEach(function(file){
     if (file.size > 10 * 1024 * 1024) {
@@ -5594,57 +5608,47 @@ function imglibHandleFiles(files) {
       return;
     }
 
-    // Read file, upload to server — no base64 in localStorage
-    var reader = new FileReader();
-    reader.onload = function(e){
-      var dataUrl = e.target.result;
-      fetch(getApiBaseUrl() + '/api/upload/asset', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl })
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        if (j && j.url) {
-          saveAsset(currentClientId, {
-            title: file.name.replace(/\.[^.]+$/, ''),
-            sourceType: 'UPLOAD',
-            sourceProvider: 'LOCAL_UPLOAD',
-            url: j.url,
-            mediaType: 'PHOTO',
-            formatUse: 'ANY',
-            pillars: [],
-            approvalStatus: 'PENDING',
-            clientNotes: '',
-            internalNotes: '',
-            thumbnailUrl: j.url
-          });
-          count++;
-        } else {
-          failed++;
-          if (typeof showToast === 'function') showToast('Failed: ' + (j.error || file.name));
+    // Create a compressed thumbnail (max 400px) to store in localStorage
+    imglibCreateThumbnail(file, 400, function(thumbDataUrl, fullDataUrl) {
+      // Try server upload first for full-size image
+      imglibUploadToServer(fullDataUrl, function(serverUrl) {
+        var imageUrl = serverUrl || thumbDataUrl;
+        saveAsset(currentClientId, {
+          title: file.name.replace(/\.[^.]+$/, ''),
+          sourceType: 'UPLOAD',
+          sourceProvider: 'LOCAL_UPLOAD',
+          url: imageUrl,
+          mediaType: 'PHOTO',
+          formatUse: 'ANY',
+          pillars: [],
+          approvalStatus: 'PENDING',
+          clientNotes: '',
+          internalNotes: '',
+          thumbnailUrl: thumbDataUrl
+        });
+        count++;
+        if (count >= total) {
+          imglibFilter = 'all';
+          renderContentLibraryTab();
+          if (typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
         }
-        imglibCheckDone();
-      })
-      .catch(function(err){
-        console.error('Upload error:', err);
-        failed++;
-        if (typeof showToast === 'function') showToast('Upload failed: ' + file.name);
-        imglibCheckDone();
       });
-    };
-    reader.readAsDataURL(file);
+    });
   });
+}
 
-  function imglibCheckDone() {
-    if (count + failed >= total) {
-      if (dropZone) { dropZone.style.opacity = ''; dropZone.style.pointerEvents = ''; }
-      imglibFilter = 'all';
-      renderContentLibraryTab();
-      if (count > 0 && typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
-    }
-  }
+function imglibUploadToServer(dataUrl, callback) {
+  // Try uploading to server, fall back silently if unavailable
+  try {
+    fetch(getApiBaseUrl() + '/api/upload/image', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: dataUrl })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      callback(j && j.url ? j.url : null);
+    }).catch(function(){ callback(null); });
+  } catch(e) { callback(null); }
 }
 
 function approveAsset(id) {
