@@ -1930,10 +1930,19 @@ async function renderScheduledPostsTab() {
           h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
           h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
           if (post.mediaUrl) {
-            h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><img src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" /></div>';
+            var isVideo = post.mediaUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) || post.mediaUrl.indexOf('video') !== -1;
+            if (isVideo) {
+              h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><video src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" controls preload="metadata" playsinline></video></div>';
+            } else {
+              h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><img src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" /></div>';
+            }
           }
           h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</span>';
           h += '<div style="margin-top:4px;font-weight:600;color:' + statusColor + ';">' + statusStr + '</div></div>';
+          if (post.status === 'failed' && post.error) {
+            h += '<div style="margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><span style="font-size:12px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Error</span>';
+            h += '<div style="margin-top:4px;color:#991b1b;font-size:13px;">' + (post.error || 'Unknown error').replace(/</g, '&lt;') + '</div></div>';
+          }
           h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Scheduled For</span>';
           h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + schedTime + '</div></div>';
           h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Platforms</span>';
@@ -1942,8 +1951,93 @@ async function renderScheduledPostsTab() {
             h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Caption</span>';
             h += '<div style="margin-top:4px;color:#334155;line-height:1.6;white-space:pre-wrap;">' + post.caption.replace(/</g, '&lt;') + '</div></div>';
           }
+          // Action buttons
+          h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
+          h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
+          h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
+          h += '</div>';
           modal.innerHTML = h;
           modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
+          // Repost Now button
+          modal.querySelector('.cal-modal-repost').addEventListener('click', async function() {
+            if (!confirm('Repost this now to ' + (post.platforms || []).join(' & ') + '?')) return;
+            this.disabled = true;
+            this.textContent = 'Publishing...';
+            try {
+              // Create new scheduled post with same content, then publish immediately
+              var schedR = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  clientId: post.clientId,
+                  contentId: post.contentId || post.id,
+                  caption: post.caption || '',
+                  mediaUrl: post.mediaUrl || '',
+                  platforms: post.platforms || [],
+                  scheduledAt: new Date().toISOString(),
+                  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+                })
+              });
+              var schedJ = await schedR.json();
+              if (!schedR.ok) throw new Error(schedJ.error || 'Failed to create post');
+              var newPostId = schedJ.post && schedJ.post.id;
+              if (!newPostId) throw new Error('No post ID returned');
+              var pubR = await fetch(getApiBaseUrl() + '/api/posts/' + newPostId + '/publish-now', { method: 'POST', credentials: 'include' });
+              var pubJ = await pubR.json();
+              if (!pubR.ok) throw new Error(pubJ.error || 'Publish failed');
+              showToast('Post published successfully!', 'success');
+              modalBg.remove();
+              renderScheduledPostsTab();
+            } catch (err) {
+              showToast(err.message || 'Failed to repost', 'error');
+              this.disabled = false;
+              this.textContent = 'Repost Now';
+            }
+          });
+          // Schedule Again button
+          modal.querySelector('.cal-modal-reschedule').addEventListener('click', function() {
+            var btn = this;
+            // Replace button with datetime picker
+            var wrap = btn.parentNode;
+            var pickerHtml = '<div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px;">';
+            pickerHtml += '<input type="datetime-local" class="cal-modal-reschedule-input" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;" />';
+            pickerHtml += '<button type="button" class="cal-modal-reschedule-confirm" style="padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Confirm Schedule</button>';
+            pickerHtml += '</div>';
+            btn.outerHTML = pickerHtml;
+            var confirmBtn = wrap.querySelector('.cal-modal-reschedule-confirm');
+            var dateInput = wrap.querySelector('.cal-modal-reschedule-input');
+            confirmBtn.addEventListener('click', async function() {
+              if (!dateInput.value) { showToast('Select a date and time', 'error'); return; }
+              confirmBtn.disabled = true;
+              confirmBtn.textContent = 'Scheduling...';
+              try {
+                var r = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    clientId: post.clientId,
+                    contentId: post.contentId || post.id,
+                    caption: post.caption || '',
+                    mediaUrl: post.mediaUrl || '',
+                    platforms: post.platforms || [],
+                    scheduledAt: new Date(dateInput.value).toISOString(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+                  })
+                });
+                var j = await r.json();
+                if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+                showToast('Post rescheduled for ' + new Date(dateInput.value).toLocaleString(), 'success');
+                modalBg.remove();
+                renderScheduledPostsTab();
+              } catch (err) {
+                showToast(err.message || 'Failed to schedule', 'error');
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Schedule';
+              }
+            });
+          });
           modalBg.appendChild(modal);
           document.body.appendChild(modalBg);
         }
@@ -2026,7 +2120,7 @@ function renderFeedBuilder() {
   h += '<div class="fb-assets-panel">';
   h += '<div class="fb-assets-header">';
   h += '<span class="fb-section-label">Assets</span>';
-  h += '<label class="fb-upload-btn"><input type="file" id="feedBuilderUpload" accept="image/*" multiple />+ Upload</label>';
+  h += '<label class="fb-upload-btn"><input type="file" id="feedBuilderUpload" accept="image/*,video/*" multiple />+ Upload</label>';
   h += '</div>';
   h += '<div id="feedBuilderAssetList" class="fb-assets-list">';
 
@@ -2174,7 +2268,7 @@ function renderFeedBuilder() {
   if (uploadInput) {
     uploadInput.addEventListener('change', function() {
       Array.from(uploadInput.files || []).forEach(function(file) {
-        if (!file.type.startsWith('image/')) return;
+        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
         var reader = new FileReader();
         reader.onload = function(ev) {
           var newItem = {
@@ -4509,23 +4603,24 @@ async function getMediaUrlForApproval() {
     if (first) return first.thumbnailUrl || getPreviewUrl(first) || first.url || null;
   }
   const uploadBase64 = function(base64) {
-    return fetch(`${getApiBaseUrl()}/api/upload/image`, {
+    // Use /api/upload/media to support both image and video
+    return fetch(`${getApiBaseUrl()}/api/upload/media`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64 })
+      body: JSON.stringify({ media: base64 })
     }).then(function(r) { return r.json(); }).then(function(j) { return j && j.url ? j.url : null; });
   };
   if (uploadedImages && uploadedImages.length > 0 && (uploadedImages[0].dataUrl || uploadedImages[0].data)) {
     const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
-    if (base64 && String(base64).startsWith('data:image/')) {
+    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
       const url = await uploadBase64(base64);
       if (url) return url;
     }
   }
   if (item.uploadedImages && item.uploadedImages.length > 0 && (item.uploadedImages[0].dataUrl || item.uploadedImages[0].data)) {
     const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
-    if (base64 && String(base64).startsWith('data:image/')) {
+    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
       const url = await uploadBase64(base64);
       if (url) return url;
     }
@@ -4539,10 +4634,11 @@ async function getMediaUrlForApprovalId(approvalId) {
   if (!currentClientId) return null;
   const uploadBase64 = async function(base64) {
     try {
-      const r = await fetch(getApiBaseUrl() + '/api/upload/image', {
+      // Use /api/upload/media to support both image and video
+      const r = await fetch(getApiBaseUrl() + '/api/upload/media', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 })
+        body: JSON.stringify({ media: base64 })
       });
       const j = await r.json();
       return (j && j.url) ? j.url : null;
@@ -4555,7 +4651,7 @@ async function getMediaUrlForApprovalId(approvalId) {
   // Check global uploadedImages from file input first
   if (typeof uploadedImages !== 'undefined' && uploadedImages.length > 0) {
     const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
-    if (base64 && String(base64).startsWith('data:image/')) {
+    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
       const url = await uploadBase64(base64);
       if (url) return url;
     }
@@ -4563,13 +4659,13 @@ async function getMediaUrlForApprovalId(approvalId) {
   // Check saved approval images
   if (item && item.uploadedImages && item.uploadedImages.length > 0) {
     const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
-    if (base64 && String(base64).startsWith('data:image/')) {
+    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
       const url = await uploadBase64(base64);
       if (url) return url;
     }
   }
   // If urls has a base64, upload it too
-  if (urls.length > 0 && urls[0].startsWith('data:image/')) {
+  if (urls.length > 0 && (urls[0].startsWith('data:image/') || urls[0].startsWith('data:video/'))) {
     const url = await uploadBase64(urls[0]);
     if (url) return url;
   }
@@ -4593,7 +4689,7 @@ async function scheduleFromApproval(approvalId) {
   }
   const mediaUrl = await getMediaUrlForApprovalId(approvalId);
   if (platforms.includes('instagram') && !mediaUrl) {
-    showToast('Instagram requires an image. Add an image in the approval or post to Facebook only.', 'error');
+    showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
     return;
   }
   const state = load();
@@ -4644,7 +4740,7 @@ async function postNowFromApproval(approvalId) {
   if (!confirm('Post now to ' + platforms.join(' & ') + '?')) return;
   const mediaUrl = await getMediaUrlForApprovalId(approvalId);
   if (platforms.includes('instagram') && !mediaUrl) {
-    showToast('Instagram requires an image. Add an image in the approval or post to Facebook only.', 'error');
+    showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
     return;
   }
   const state = load();
@@ -4693,7 +4789,7 @@ async function schedulePostToMeta() {
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
     const mediaUrl = await getMediaUrlForApproval();
-    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires an image. Add an image or post to Facebook only.');
+    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
     const timeVal = $('#schedulePostTime') ? $('#schedulePostTime').value : '10:00';
@@ -4738,7 +4834,7 @@ async function postNowToMeta() {
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
     const mediaUrl = await getMediaUrlForApproval();
-    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires an image. Add an image or post to Facebook only.');
+    if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
       method: 'POST',
@@ -5574,9 +5670,9 @@ function _imglibRenderGrid() {
   // Upload zone
   html += '<div class="imglib-upload-zone" id="imglibDropZone">';
   html += '<svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#eff6ff"/><path d="M24 16v16m-8-8h16" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round"/></svg>';
-  html += '<p>Drag & drop images here or click to upload</p>';
-  html += '<p style="font-size:12px;color:#94a3b8;">PNG, JPG, WEBP up to 10MB each</p>';
-  html += '<input type="file" id="imglibFileInput" accept="image/*" multiple style="display:none" />';
+  html += '<p>Drag & drop images or videos here or click to upload</p>';
+  html += '<p style="font-size:12px;color:#94a3b8;">PNG, JPG, WEBP up to 10MB — MP4, MOV up to 100MB</p>';
+  html += '<input type="file" id="imglibFileInput" accept="image/*,video/*" multiple style="display:none" />';
   html += '<button type="button" class="btn btn-primary" id="imglibBrowseBtn" style="font-size:13px;padding:8px 20px;">Browse Files</button>';
   html += '</div>';
 
@@ -5710,50 +5806,52 @@ function imglibBindEvents(root) {
 
 function imglibHandleFiles(files) {
   if (!currentClientId) { if (typeof showToast === 'function') showToast('Select a client first'); return; }
-  var imageFiles = Array.from(files).filter(function(f){ return f.type.startsWith('image/'); });
-  if (imageFiles.length === 0) { if (typeof showToast === 'function') showToast('No image files selected'); return; }
+  var mediaFiles = Array.from(files).filter(function(f){ return f.type.startsWith('image/') || f.type.startsWith('video/'); });
+  if (mediaFiles.length === 0) { if (typeof showToast === 'function') showToast('No image or video files selected'); return; }
   var count = 0;
   var failed = 0;
-  var total = imageFiles.length;
+  var total = mediaFiles.length;
 
   // Show uploading state
   var dropZone = document.getElementById('imglibDropZone');
   if (dropZone) { dropZone.style.opacity = '0.5'; dropZone.style.pointerEvents = 'none'; }
 
-  imageFiles.forEach(function(file){
-    if (file.size > 10 * 1024 * 1024) {
-      if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)');
+  mediaFiles.forEach(function(file){
+    var isVideo = file.type.startsWith('video/');
+    var maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      if (typeof showToast === 'function') showToast(file.name + ' is too large (' + (isVideo ? '100MB' : '10MB') + ' max)');
       total--;
       return;
     }
 
-    // Read file, upload to server — no base64 in localStorage
+    // Read file, upload to server
     var reader = new FileReader();
     reader.onload = function(e){
       var dataUrl = e.target.result;
-      fetch(getApiBaseUrl() + '/api/upload/asset', {
+      // Use /api/upload/media for both image and video
+      fetch(getApiBaseUrl() + '/api/upload/media', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl })
+        body: JSON.stringify({ media: dataUrl, filename: file.name })
       })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.url) {
-          // Build full URL if server returned relative path
           var fullUrl = j.url.startsWith('http') ? j.url : getApiBaseUrl() + j.url;
           saveAsset(currentClientId, {
             title: file.name.replace(/\.[^.]+$/, ''),
             sourceType: 'UPLOAD',
             sourceProvider: 'LOCAL_UPLOAD',
             url: fullUrl,
-            mediaType: 'PHOTO',
+            mediaType: isVideo ? 'VIDEO' : 'PHOTO',
             formatUse: 'ANY',
             pillars: [],
             approvalStatus: 'PENDING',
             clientNotes: '',
             internalNotes: '',
-            thumbnailUrl: fullUrl
+            thumbnailUrl: isVideo ? '' : fullUrl
           });
           count++;
         } else {
@@ -5777,7 +5875,7 @@ function imglibHandleFiles(files) {
       if (dropZone) { dropZone.style.opacity = ''; dropZone.style.pointerEvents = ''; }
       imglibFilter = 'all';
       renderContentLibraryTab();
-      if (count > 0 && typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
+      if (count > 0 && typeof showToast === 'function') showToast(count + ' file' + (count > 1 ? 's' : '') + ' uploaded', 'success');
     }
   }
 }
@@ -7292,59 +7390,102 @@ function setupImageUpload() {
     }
     
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        showToast(`${file.name} is not an image file`, 'error');
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      if (!isImage && !isVideo) {
+        showToast(`${file.name} is not an image or video file`, 'error');
         continue;
       }
-      
-      // Check file size (max 10MB before compression)
-      if (file.size > 10 * 1024 * 1024) {
-        showToast(`${file.name} is too large. Maximum size is 10MB.`, 'error');
+
+      // Check file size (max 10MB for images, 100MB for videos)
+      const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showToast(`${file.name} is too large. Maximum size is ${isVideo ? '100MB' : '10MB'}.`, 'error');
         continue;
       }
-      
+
       try {
-        showToast(`Compressing ${file.name}...`, 'info');
-        let compressed = await compressImage(file);
+        if (isVideo) {
+          // Video: read as data URL directly (no compression)
+          showToast(`Processing ${file.name}...`, 'info');
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
 
-        if (compressed.size > 2 * 1024 * 1024) {
-          const moreCompressed = await compressImage(file, 1600, 1600, 0.6);
-          if (moreCompressed.size > 2 * 1024 * 1024) {
-            showToast(`${file.name} is still too large after compression. Please use a smaller image.`, 'error');
-            continue;
+          if (currentClientId) {
+            var assetId = 'asset' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            var uploadAsset = {
+              id: assetId,
+              title: file.name,
+              sourceType: 'UPLOAD',
+              sourceProvider: 'LOCAL_UPLOAD',
+              url: dataUrl,
+              mediaType: 'VIDEO',
+              formatUse: 'ANY',
+              pillars: [],
+              approvalStatus: 'PENDING',
+              clientNotes: '',
+              internalNotes: ''
+            };
+            saveAsset(currentClientId, uploadAsset);
+            postSelectedAssetIds.push(assetId);
+            renderApprovedVisualsSection();
+            updatePostFormFromAssets();
+            var warnEl = $('#postUploadApprovalWarning');
+            if (warnEl) warnEl.style.display = 'block';
+            showToast(`${file.name} added; you can use it in posts.`, 'success');
+          } else {
+            uploadedImages.push({ dataUrl: dataUrl, name: file.name, type: file.type, size: file.size });
+            displayUploadedImages();
+            showToast(`${file.name} uploaded successfully`, 'success');
           }
-          compressed = moreCompressed;
-        }
-
-        if (currentClientId) {
-          var assetId = 'asset' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-          var uploadAsset = {
-            id: assetId,
-            title: file.name,
-            sourceType: 'UPLOAD',
-            sourceProvider: 'LOCAL_UPLOAD',
-            url: compressed.dataUrl,
-            mediaType: 'PHOTO',
-            formatUse: 'ANY',
-            pillars: [],
-            approvalStatus: 'PENDING',
-            clientNotes: '',
-            internalNotes: ''
-          };
-          saveAsset(currentClientId, uploadAsset);
-          postSelectedAssetIds.push(assetId);
-          renderApprovedVisualsSection();
-          updatePostFormFromAssets();
-          var warnEl = $('#postUploadApprovalWarning');
-          if (warnEl) warnEl.style.display = 'block';
-          showToast(`${file.name} added; you can use it in posts.`, 'success');
         } else {
-          uploadedImages.push(compressed);
-          displayUploadedImages();
-          showToast(`${file.name} uploaded successfully`, 'success');
+          // Image: compress as before
+          showToast(`Compressing ${file.name}...`, 'info');
+          let compressed = await compressImage(file);
+
+          if (compressed.size > 2 * 1024 * 1024) {
+            const moreCompressed = await compressImage(file, 1600, 1600, 0.6);
+            if (moreCompressed.size > 2 * 1024 * 1024) {
+              showToast(`${file.name} is still too large after compression. Please use a smaller image.`, 'error');
+              continue;
+            }
+            compressed = moreCompressed;
+          }
+
+          if (currentClientId) {
+            var assetId = 'asset' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            var uploadAsset = {
+              id: assetId,
+              title: file.name,
+              sourceType: 'UPLOAD',
+              sourceProvider: 'LOCAL_UPLOAD',
+              url: compressed.dataUrl,
+              mediaType: 'PHOTO',
+              formatUse: 'ANY',
+              pillars: [],
+              approvalStatus: 'PENDING',
+              clientNotes: '',
+              internalNotes: ''
+            };
+            saveAsset(currentClientId, uploadAsset);
+            postSelectedAssetIds.push(assetId);
+            renderApprovedVisualsSection();
+            updatePostFormFromAssets();
+            var warnEl = $('#postUploadApprovalWarning');
+            if (warnEl) warnEl.style.display = 'block';
+            showToast(`${file.name} added; you can use it in posts.`, 'success');
+          } else {
+            uploadedImages.push(compressed);
+            displayUploadedImages();
+            showToast(`${file.name} uploaded successfully`, 'success');
+          }
         }
       } catch (error) {
-        console.error('Error compressing image:', error);
+        console.error('Error processing file:', error);
         showToast(`Error processing ${file.name}`, 'error');
       }
     }

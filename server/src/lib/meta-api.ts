@@ -108,18 +108,54 @@ export async function publishPhotoToFacebook(
 }
 
 /**
+ * Publish a video to Facebook Page (uses /videos endpoint).
+ * Facebook requires file_url for hosted videos.
+ */
+export async function publishVideoToFacebook(
+  pageId: string,
+  pageAccessToken: string,
+  options: { file_url: string; description?: string; title?: string; published?: boolean }
+): Promise<{ id: string }> {
+  const body: Record<string, any> = {
+    file_url: options.file_url,
+    access_token: pageAccessToken,
+  };
+  if (options.description) body.description = options.description;
+  if (options.title) body.title = options.title;
+  if (options.published === false) body.published = false;
+
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/videos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish video to Facebook');
+  return { id: data.id };
+}
+
+/**
  * Create Instagram media container (Step 1 of 2-step publish)
+ * Supports both images (image_url) and videos/reels (video_url).
  */
 export async function createInstagramMediaContainer(
   igAccountId: string,
   accessToken: string,
-  options: { image_url: string; caption?: string }
+  options: { image_url?: string; video_url?: string; caption?: string; media_type?: string }
 ): Promise<{ id: string }> {
-  const body = {
-    image_url: options.image_url,
+  const body: Record<string, any> = {
     caption: options.caption || '',
     access_token: accessToken,
   };
+
+  if (options.video_url) {
+    // Video / Reel
+    body.video_url = options.video_url;
+    body.media_type = options.media_type || 'REELS';
+  } else if (options.image_url) {
+    body.image_url = options.image_url;
+  }
+
   const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -128,6 +164,29 @@ export async function createInstagramMediaContainer(
   const data: any = await res.json();
   if (data.error) throw new Error(data.error.message || 'Failed to create Instagram container');
   return { id: data.id };
+}
+
+/**
+ * Wait for Instagram video container to finish processing.
+ * Videos take time to process — poll status_code until FINISHED.
+ */
+export async function waitForInstagramContainer(
+  containerId: string,
+  accessToken: string,
+  maxWaitMs: number = 120000
+): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWaitMs) {
+    const url = `${META_GRAPH_BASE}/${containerId}?fields=status_code&access_token=${accessToken}`;
+    const res = await fetch(url);
+    const data: any = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Failed to check container status');
+    if (data.status_code === 'FINISHED') return;
+    if (data.status_code === 'ERROR') throw new Error('Instagram video processing failed');
+    // Wait 3 seconds before polling again
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  throw new Error('Instagram video processing timed out');
 }
 
 /**

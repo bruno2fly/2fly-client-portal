@@ -16,8 +16,10 @@ import { getMetaIntegrationByClient, saveMetaIntegration } from '../db.js';
 import {
   publishToFacebook,
   publishPhotoToFacebook,
+  publishVideoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
+  waitForInstagramContainer,
   getPages,
   getInstagramAccount,
   refreshLongLivedToken,
@@ -27,17 +29,20 @@ import { sendPushToRole, sendPushToClient, NOTIFY } from '../lib/pushService.js'
 const router = Router();
 
 /**
- * Helper: if mediaUrl is base64 data URI, upload to Vercel Blob and return public URL.
+ * Helper: if mediaUrl is base64 data URI (image or video), upload to Vercel Blob and return public URL.
  * If already a public URL, return as-is.
  */
 async function ensurePublicMediaUrl(mediaUrl: string, agencyId: string): Promise<string> {
-  if (!mediaUrl || !mediaUrl.startsWith('data:image/')) {
-    return mediaUrl; // already a URL (or empty)
+  if (!mediaUrl) return mediaUrl;
+  const isBase64Image = mediaUrl.startsWith('data:image/');
+  const isBase64Video = mediaUrl.startsWith('data:video/');
+  if (!isBase64Image && !isBase64Video) {
+    return mediaUrl; // already a URL
   }
 
   const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
   if (!blobToken) {
-    throw new Error('Image upload not configured. Set BLOB_PUBLIC_READ_WRITE_TOKEN or BLOB_READ_WRITE_TOKEN.');
+    throw new Error('Media upload not configured. Set BLOB_PUBLIC_READ_WRITE_TOKEN or BLOB_READ_WRITE_TOKEN.');
   }
 
   let put: any;
@@ -46,25 +51,35 @@ async function ensurePublicMediaUrl(mediaUrl: string, agencyId: string): Promise
     const blob = await import('@vercel/blob');
     put = blob.put;
   } catch {
-    throw new Error('Image upload not available. Install @vercel/blob package.');
+    throw new Error('Media upload not available. Install @vercel/blob package.');
   }
 
-  const match = mediaUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  const match = mediaUrl.match(/^data:(image|video)\/(\w+);base64,(.+)$/);
   if (!match) {
-    throw new Error('Invalid base64 image format');
+    throw new Error('Invalid base64 media format');
   }
 
-  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-  const buffer = Buffer.from(match[2], 'base64');
+  const mediaType = match[1]; // 'image' or 'video'
+  let ext = match[2];
+  if (ext === 'jpeg') ext = 'jpg';
+  if (ext === 'quicktime') ext = 'mov';
+  const buffer = Buffer.from(match[3], 'base64');
   const filename = `posts/${agencyId}/${Date.now()}.${ext}`;
 
   const result = await put(filename, buffer, {
     access: 'public',
-    contentType: `image/${match[1]}`,
+    contentType: `${mediaType}/${match[2]}`,
     token: blobToken,
   });
 
   return result.url;
+}
+
+/** Check if a URL points to a video file */
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return /\.(mp4|mov|webm|avi|wmv|flv|mkv|m4v)(\?|$)/.test(lower) || lower.includes('video');
 }
 
 function generateId(): string {
@@ -85,7 +100,7 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
     }
     const platformsList = platforms.filter((p: string) => p === 'instagram' || p === 'facebook');
     if (platformsList.includes('instagram') && (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.trim())) {
-      return res.status(400).json({ error: 'Instagram requires an image. Provide mediaUrl or post to Facebook only.' });
+      return res.status(400).json({ error: 'Instagram requires media (image or video). Provide mediaUrl or post to Facebook only.' });
     }
 
     const client = getClient(clientId);
@@ -102,13 +117,13 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
     const tz = timezone || 'America/New_York';
     const now = new Date().toISOString();
 
-    // Convert base64 images to public URLs at schedule time
+    // Convert base64 media (image or video) to public URLs at schedule time
     let finalMediaUrl = (typeof mediaUrl === 'string' && mediaUrl.trim()) ? mediaUrl.trim() : '';
-    if (finalMediaUrl.startsWith('data:image/')) {
+    if (finalMediaUrl.startsWith('data:image/') || finalMediaUrl.startsWith('data:video/')) {
       try {
         finalMediaUrl = await ensurePublicMediaUrl(finalMediaUrl, agencyId);
       } catch (uploadErr: any) {
-        console.error('[schedule] Failed to upload base64 image:', uploadErr.message);
+        console.error('[schedule] Failed to upload base64 media:', uploadErr.message);
         // Keep original URL, publish-now will retry upload
       }
     }
@@ -281,16 +296,27 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     try {
       // Convert base64 to public URL if needed (Instagram requires public HTTPS URLs)
       let publicMediaUrl = post.mediaUrl;
-      if (publicMediaUrl && publicMediaUrl.startsWith('data:image/')) {
-        console.log('[publish-now] Converting base64 image to public URL via Vercel Blob...');
+      if (publicMediaUrl && (publicMediaUrl.startsWith('data:image/') || publicMediaUrl.startsWith('data:video/'))) {
+        console.log('[publish-now] Converting base64 media to public URL via Vercel Blob...');
         publicMediaUrl = await ensurePublicMediaUrl(publicMediaUrl, post.agencyId);
         // Update the stored post with the public URL so we don't re-upload next time
         post.mediaUrl = publicMediaUrl;
         console.log('[publish-now] Public URL obtained:', publicMediaUrl);
       }
 
+      const hasMedia = publicMediaUrl && publicMediaUrl.startsWith('http');
+      const isVideo = hasMedia && isVideoUrl(publicMediaUrl);
+
       if (post.platforms.includes('facebook')) {
-        if (publicMediaUrl && publicMediaUrl.startsWith('http')) {
+        if (hasMedia && isVideo) {
+          // Post with video
+          console.log('[publish-now] Publishing VIDEO to Facebook...');
+          const result = await publishVideoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            file_url: publicMediaUrl,
+            description: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else if (hasMedia) {
           // Post with photo
           const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             url: publicMediaUrl,
@@ -307,20 +333,40 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       }
 
       if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        if (!publicMediaUrl || !publicMediaUrl.startsWith('http')) {
-          throw new Error('Instagram requires an image. Please attach an image to this post.');
+        if (!hasMedia) {
+          throw new Error('Instagram requires media (image or video). Please attach media to this post.');
         }
-        const container = await createInstagramMediaContainer(
-          integration.metaInstagramAccountId,
-          integration.metaAccessToken,
-          { image_url: publicMediaUrl, caption: post.caption }
-        );
-        const publishResult = await publishInstagramContainer(
-          integration.metaInstagramAccountId,
-          integration.metaAccessToken,
-          container.id
-        );
-        metaPostIds.instagram = publishResult.id;
+
+        if (isVideo) {
+          // Video / Reel — create container with video_url, wait for processing, then publish
+          console.log('[publish-now] Publishing VIDEO to Instagram as Reel...');
+          const container = await createInstagramMediaContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            { video_url: publicMediaUrl, caption: post.caption, media_type: 'REELS' }
+          );
+          // Wait for Instagram to finish processing the video
+          await waitForInstagramContainer(container.id, integration.metaAccessToken);
+          const publishResult = await publishInstagramContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            container.id
+          );
+          metaPostIds.instagram = publishResult.id;
+        } else {
+          // Image post
+          const container = await createInstagramMediaContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            { image_url: publicMediaUrl, caption: post.caption }
+          );
+          const publishResult = await publishInstagramContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            container.id
+          );
+          metaPostIds.instagram = publishResult.id;
+        }
       }
 
       post.status = 'published';
