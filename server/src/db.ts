@@ -49,9 +49,25 @@ if (!existsSync(DB_DIR)) {
 }
 console.log(`[db] Data directory: ${DB_DIR} (volume: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'yes' : 'no'})`);
 
+/** Atomic replace: tmp file then rename (avoids half-written JSON if process dies mid-write). */
+function atomicWriteUtf8(targetPath: string, content: string): void {
+  const tmpFile = targetPath + '.tmp';
+  writeFileSync(tmpFile, content, 'utf-8');
+  try {
+    renameSync(tmpFile, targetPath);
+  } catch {
+    writeFileSync(targetPath, content, 'utf-8');
+    try {
+      unlinkSync(tmpFile);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function readJSON<T>(file: string, defaultValue: T): T {
   if (!existsSync(file)) {
-    writeFileSync(file, JSON.stringify(defaultValue, null, 2), 'utf-8');
+    atomicWriteUtf8(file, JSON.stringify(defaultValue, null, 2));
     return defaultValue;
   }
   try {
@@ -65,7 +81,7 @@ function readJSON<T>(file: string, defaultValue: T): T {
         if (backupContent && backupContent.trim()) {
           const restored = JSON.parse(backupContent) as T;
           console.log(`[db] Restored ${file} from backup`);
-          writeFileSync(file, backupContent, 'utf-8');
+          atomicWriteUtf8(file, backupContent);
           return restored;
         }
       }
@@ -82,7 +98,7 @@ function readJSON<T>(file: string, defaultValue: T): T {
         if (backupContent && backupContent.trim()) {
           const restored = JSON.parse(backupContent) as T;
           console.log(`[db] Restored ${file} from backup after read error`);
-          writeFileSync(file, backupContent, 'utf-8');
+          atomicWriteUtf8(file, backupContent);
           return restored;
         }
       }
@@ -100,28 +116,57 @@ function writeJSON<T>(file: string, data: T): void {
     console.error(`[db] BLOCKED write of suspiciously small data to ${file} (${json.length} bytes)`);
     return;
   }
-  // Create backup before writing
+  const isCriticalBak = file === PORTAL_STATE_FILE || file === CLIENTS_FILE;
   try {
     if (existsSync(file)) {
       const existing = readFileSync(file, 'utf-8');
-      if (existing && existing.trim().length > 20) {
-        writeFileSync(file + '.bak', existing, 'utf-8');
+      if (isCriticalBak && existing.trim().length > 0) {
+        atomicWriteUtf8(file + '.bak', existing);
+      } else if (!isCriticalBak && existing.trim().length > 20) {
+        atomicWriteUtf8(file + '.bak', existing);
       }
     }
-  } catch (e) {
+  } catch {
     // Don't fail the write if backup fails
   }
-  // Atomic write: write to temp file, then rename
-  const tmpFile = file + '.tmp';
-  writeFileSync(tmpFile, json, 'utf-8');
-  try {
-    renameSync(tmpFile, file);
-  } catch (e) {
-    // If rename fails (cross-device), fall back to direct write
-    writeFileSync(file, json, 'utf-8');
-    try { unlinkSync(tmpFile); } catch (_) {}
+  atomicWriteUtf8(file, json);
+}
+
+/** If portal-state.json or clients.json is corrupt on boot, restore from .bak before any request runs. */
+function validateCriticalJsonStoresAtStartup(): void {
+  for (const file of [PORTAL_STATE_FILE, CLIENTS_FILE]) {
+    const shortName = file.split(/[/\\]/).pop() || file;
+    if (!existsSync(file)) continue;
+    let content: string;
+    try {
+      content = readFileSync(file, 'utf-8');
+    } catch {
+      continue;
+    }
+    if (!content.trim()) continue;
+    try {
+      JSON.parse(content);
+      continue;
+    } catch {
+      console.warn(`[db] WARNING: ${shortName} has corrupted JSON on startup. Trying ${shortName}.bak...`);
+      const bak = file + '.bak';
+      if (!existsSync(bak)) {
+        console.error(`[db] ERROR: No backup found at ${bak}`);
+        continue;
+      }
+      try {
+        const bakContent = readFileSync(bak, 'utf-8');
+        JSON.parse(bakContent);
+        atomicWriteUtf8(file, bakContent);
+        console.warn(`[db] Restored ${shortName} from .bak on startup.`);
+      } catch (e) {
+        console.error(`[db] ERROR: ${shortName}.bak is missing or invalid.`, e);
+      }
+    }
   }
 }
+
+validateCriticalJsonStoresAtStartup();
 
 // Workspaces
 export function getWorkspaces(): Record<string, Workspace> {
