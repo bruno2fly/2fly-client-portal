@@ -5563,12 +5563,6 @@ function _imglibRenderGrid() {
       html += '<div class="imglib-card__name">' + (asset.title || 'Untitled') + '</div>';
       html += '<span class="imglib-card__badge imglib-card__badge--' + badgeClass + '">' + statusLabel + '</span>';
       html += '<div class="imglib-card__actions">';
-      if (asset.approvalStatus !== 'APPROVED') {
-        html += '<button class="btn btn-primary" data-imglib-action="approve" data-imglib-id="' + asset.id + '" style="background:#22c55e;border-color:#22c55e;">Approve</button>';
-      }
-      if (asset.approvalStatus === 'APPROVED') {
-        html += '<button class="btn btn-secondary" data-imglib-action="unapprove" data-imglib-id="' + asset.id + '" style="font-size:11px;">Unapprove</button>';
-      }
       html += '<button class="btn btn-danger" data-imglib-action="delete" data-imglib-id="' + asset.id + '">Delete</button>';
       html += '</div></div></div>';
     });
@@ -5626,14 +5620,7 @@ function imglibBindEvents(root) {
     var action = btn.getAttribute('data-imglib-action');
     var id = btn.getAttribute('data-imglib-id');
     btn.addEventListener('click', function(){
-      if (action === 'approve') {
-        updateAssetStatus(currentClientId, id, 'APPROVED');
-        if (typeof showToast === 'function') showToast('Image approved', 'success');
-        renderContentLibraryTab();
-      } else if (action === 'unapprove') {
-        updateAssetStatus(currentClientId, id, 'PENDING');
-        renderContentLibraryTab();
-      } else if (action === 'delete') {
+      if (action === 'delete') {
         if (typeof showConfirmModal === 'function') {
           showConfirmModal({
             title: 'Delete this image?',
