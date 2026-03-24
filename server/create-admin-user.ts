@@ -1,7 +1,8 @@
 /**
  * Create or update admin user (username: admin, password: 2fly2026).
- * Run from server directory: npx tsx create-admin-user.ts
- * On Railway this runs automatically before server start (npm run start) so admin exists after every deploy.
+ * Run manually: npm run seed (from server directory) or: npx tsx create-admin-user.ts
+ * Does NOT run on deploy — use npm run start:with-seed only if you need seed + server in one command.
+ * Never overwrites agencies.json / users.json when existing files are corrupt (exits with error instead).
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
@@ -20,14 +21,21 @@ const ADMIN_NAME = 'Admin';
 /** Must match DEFAULT_AGENCY_ID in public/staff-login.html so login finds the admin */
 const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
 
-function readJSON<T>(file: string, defaultValue: T): T {
+/**
+ * Seed-only reader: missing or whitespace-only file → default (first-time init).
+ * File with non-empty content that is not valid JSON → exit (never clobber with defaults).
+ */
+function readJSONForSeed<T>(file: string, defaultValue: T): T {
   if (!existsSync(file)) return defaultValue;
+  const content = readFileSync(file, 'utf-8');
+  const trimmed = content.trim();
+  if (!trimmed) return defaultValue;
   try {
-    const content = readFileSync(file, 'utf-8');
     return JSON.parse(content) as T;
   } catch (e) {
-    console.error(`Error reading ${file}:`, e);
-    return defaultValue;
+    console.error(`[seed] ERROR: ${file} exists but is not valid JSON. Refusing to overwrite.`, e);
+    console.error('[seed] Restore from backup or fix the file, then run seed again.');
+    process.exit(1);
   }
 }
 
@@ -41,7 +49,7 @@ async function main() {
   }
   console.log(`[seed] Data directory: ${DATA_DIR} (volume: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'yes' : 'no'})`);
 
-  const agencies = readJSON<Record<string, Agency>>(AGENCIES_FILE, {});
+  const agencies = readJSONForSeed<Record<string, Agency>>(AGENCIES_FILE, {});
   const agencyIds = Object.keys(agencies);
   let agencyId: string;
 
@@ -62,7 +70,7 @@ async function main() {
     console.log(`Created agency: 2Fly Agency (${agencyId})`);
   }
 
-  const users = readJSON<Record<string, User>>(USERS_FILE, {});
+  const users = readJSONForSeed<Record<string, User>>(USERS_FILE, {});
   const passwordHash = await hashPassword(ADMIN_PASSWORD);
   const now = Date.now();
 

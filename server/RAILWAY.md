@@ -4,7 +4,8 @@
 
 - **Root directory:** In Railway project settings, set **Root Directory** to `server` (or the path to this folder from repo root).
 - **Build:** `npm run build`
-- **Start:** `npm run start` (runs seed then `node dist/server.js`)
+- **Start:** `npm run start` → `node dist/server.js` only (does **not** run seed on deploy).
+- **One-off admin seed:** `npm run seed` (or `npm run start:with-seed` only when you intentionally want seed + server).
 
 ## Environment variables
 
@@ -28,6 +29,11 @@ Railway's filesystem is ephemeral: every deploy creates a new container.
 - `db.ts` and `create-admin-user.ts` use this env var to resolve the data directory
 - Local development falls back to `process.cwd()/data` (no env var set)
 
-**Important:** The `create-admin-user.ts` seed script runs on every deploy (`npm run start`).
-It only creates `agencies.json` and `users.json` if they don't already exist — it does NOT
-overwrite existing data. This is safe with the Volume because files persist across deploys.
+**Important:** If the Railway service **Start Command** was set manually to something like
+`sh -c "npm run seed && node dist/server.js"`, change it to `npm run start` (or `node dist/server.js`)
+so deploys do not run the seed every time.
+
+The seed script (`create-admin-user.ts`) only touches `agencies.json` and `users.json` — not
+`portal-state.json`. It refuses to run if those JSON files exist but are corrupt (invalid JSON),
+so it cannot wipe them with empty defaults. Run `npm run seed` manually after first deploy or
+when you need to ensure the admin user exists.

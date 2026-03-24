@@ -27,6 +27,7 @@ import designersRoutes from './routes/designers.js';
 import aiCopilotRoutes from './routes/aiCopilot.js';
 import notificationRoutes from './routes/notifications.js';
 import aiLibraryRoutes from './routes/aiLibrary.js';
+import debugVolumeRoutes from './routes/debugVolume.js';
 import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import { getAgencies, getUsersByAgency, getInviteTokensByUser, saveInviteToken, markInviteTokenUsed, getUserByEmail, saveUser, saveAuditLog } from './db.js';
@@ -345,6 +346,8 @@ app.use('/api/designers', designersRoutes);
 app.use('/api/ai-copilot', aiCopilotRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai-library', aiLibraryRoutes);
+// TEMPORARY: volume recovery — remove after data recovered (see debugVolume.ts)
+app.use(debugVolumeRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

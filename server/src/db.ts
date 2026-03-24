@@ -5,7 +5,7 @@
  * Production: Migrate to PostgreSQL/MongoDB
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import type {
   Workspace,
@@ -56,15 +56,71 @@ function readJSON<T>(file: string, defaultValue: T): T {
   }
   try {
     const content = readFileSync(file, 'utf-8');
+    if (!content || !content.trim()) {
+      // File exists but is empty — try backup
+      console.error(`[db] WARNING: ${file} is empty, trying backup`);
+      const backupFile = file + '.bak';
+      if (existsSync(backupFile)) {
+        const backupContent = readFileSync(backupFile, 'utf-8');
+        if (backupContent && backupContent.trim()) {
+          const restored = JSON.parse(backupContent) as T;
+          console.log(`[db] Restored ${file} from backup`);
+          writeFileSync(file, backupContent, 'utf-8');
+          return restored;
+        }
+      }
+      return defaultValue;
+    }
     return JSON.parse(content) as T;
   } catch (e) {
-    console.error(`Error reading ${file}:`, e);
+    console.error(`[db] Error reading ${file}:`, e);
+    // Try backup before falling back to empty default (which causes data loss)
+    const backupFile = file + '.bak';
+    try {
+      if (existsSync(backupFile)) {
+        const backupContent = readFileSync(backupFile, 'utf-8');
+        if (backupContent && backupContent.trim()) {
+          const restored = JSON.parse(backupContent) as T;
+          console.log(`[db] Restored ${file} from backup after read error`);
+          writeFileSync(file, backupContent, 'utf-8');
+          return restored;
+        }
+      }
+    } catch (backupErr) {
+      console.error(`[db] Backup read also failed for ${file}:`, backupErr);
+    }
     return defaultValue;
   }
 }
 
 function writeJSON<T>(file: string, data: T): void {
-  writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+  const json = JSON.stringify(data, null, 2);
+  // Safety: never write empty or tiny data to portal-state (likely corruption)
+  if (file === PORTAL_STATE_FILE && json.length < 20) {
+    console.error(`[db] BLOCKED write of suspiciously small data to ${file} (${json.length} bytes)`);
+    return;
+  }
+  // Create backup before writing
+  try {
+    if (existsSync(file)) {
+      const existing = readFileSync(file, 'utf-8');
+      if (existing && existing.trim().length > 20) {
+        writeFileSync(file + '.bak', existing, 'utf-8');
+      }
+    }
+  } catch (e) {
+    // Don't fail the write if backup fails
+  }
+  // Atomic write: write to temp file, then rename
+  const tmpFile = file + '.tmp';
+  writeFileSync(tmpFile, json, 'utf-8');
+  try {
+    renameSync(tmpFile, file);
+  } catch (e) {
+    // If rename fails (cross-device), fall back to direct write
+    writeFileSync(file, json, 'utf-8');
+    try { unlinkSync(tmpFile); } catch (_) {}
+  }
 }
 
 // Workspaces
@@ -370,7 +426,16 @@ export function getPortalState(agencyId: string, clientId: string): PortalStateD
 
 export function savePortalState(agencyId: string, clientId: string, data: PortalStateData): void {
   const map = readJSON<PortalStateMap>(PORTAL_STATE_FILE, {});
-  map[portalKey(agencyId, clientId)] = data;
+  const key = portalKey(agencyId, clientId);
+  // Safety: if incoming data has empty approvals but existing data had approvals, log a warning
+  const existing = map[key];
+  if (existing && Array.isArray(existing.approvals) && existing.approvals.length > 0) {
+    if (!data.approvals || !Array.isArray(data.approvals) || data.approvals.length === 0) {
+      console.warn(`[db] WARNING: savePortalState for ${key} would clear ${existing.approvals.length} approvals. Preserving existing approvals.`);
+      data.approvals = existing.approvals;
+    }
+  }
+  map[key] = data;
   writeJSON(PORTAL_STATE_FILE, map);
 }
 

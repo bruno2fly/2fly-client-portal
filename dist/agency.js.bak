@@ -308,6 +308,27 @@ async function fetchPortalStateFromAPI(clientId) {
     }
     portalStateCache[clientId] = data;
     portalStateFetched.add(clientId);
+
+    // Sync client-side asset status changes back into localStorage
+    if (Array.isArray(data.assets) && data.assets.length > 0) {
+      try {
+        var localAssets = loadAssets(clientId);
+        var changed = false;
+        data.assets.forEach(function(serverAsset) {
+          var local = localAssets.find(function(a){ return a.id === serverAsset.id; });
+          if (local && local.approvalStatus !== serverAsset.approvalStatus) {
+            local.approvalStatus = serverAsset.approvalStatus;
+            local.updatedAt = serverAsset.updatedAt || new Date().toISOString();
+            if (serverAsset.approvalStatus === 'APPROVED') local.approvedAt = serverAsset.approvedAt || new Date().toISOString();
+            changed = true;
+          }
+        });
+        if (changed) {
+          var key = getAssetsStorageKey(clientId);
+          if (key) try { localStorage.setItem(key, JSON.stringify(localAssets)); } catch(e){}
+        }
+      } catch(e) { console.warn('Asset sync from portal state:', e); }
+    }
   }
   return data;
 }
@@ -527,7 +548,17 @@ function syncAssetsToPortalState(clientId) {
   var assets = loadAssets(clientId);
   var state = portalStateCache[clientId];
   if (!state) return;
-  state.assets = assets;
+  // Ensure all URLs are absolute before syncing to client portal
+  var base = getApiBaseUrl();
+  state.assets = assets.map(function(a) {
+    var copy = Object.assign({}, a);
+    if (copy.url && copy.url.startsWith('/uploads/')) copy.url = base + copy.url;
+    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('/uploads/')) copy.thumbnailUrl = base + copy.thumbnailUrl;
+    // Strip broken base64 data URLs
+    if (copy.url && copy.url.startsWith('data:')) copy.url = '';
+    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('data:')) copy.thumbnailUrl = '';
+    return copy;
+  });
   savePortalStateToAPI(clientId, state).catch(function(e){ console.warn('syncAssetsToPortalState', e); });
 }
 
@@ -5376,21 +5407,29 @@ function removeNeed(id) {
 
 function setupNeedsHandlers() {
   const needForm = $('#needForm');
-  if (needForm) {
+  if (needForm && !needForm._needsHandlerBound) {
+    needForm._needsHandlerBound = true;
     needForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
+
+    var needText = ($('#needText') && $('#needText').value) ? $('#needText').value.trim() : '';
+    if (!needText) return;
+
     const state = load();
     if (!state.needs) state.needs = [];
-    
+
+    // Prevent duplicate: check if same text was just added (within 5 seconds)
+    var recentDupe = state.needs.some(function(n){ return n.text === needText && (Date.now() - (n.createdAt || 0)) < 5000; });
+    if (recentDupe) { if (typeof showToast === 'function') showToast('Already added'); return; }
+
     const need = {
       id: `n${Date.now()}`,
-      text: $('#needText').value.trim(),
+      text: needText,
       severity: $('#needSeverity').value,
       status: 'open',
       createdAt: Date.now()
     };
-    
+
     state.needs.push(need);
     
     // Update missing assets count (only count open needs)
@@ -5415,8 +5454,17 @@ function setupNeedsHandlers() {
 
 /* ================== Image Library (Content Library) Tab ================== */
 
+// Fix asset URLs: convert relative paths to full URLs
+function imglibFixUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('data:')) return ''; // Skip base64 data URLs (old broken uploads)
+  if (url.startsWith('/uploads/')) return getApiBaseUrl() + url;
+  return url;
+}
+
 var imglibFilter = 'all'; // all | pending | approved | rejected
 
+var _imglibLastRefresh = 0;
 function renderContentLibraryTab() {
   var root = document.getElementById('imageLibraryRoot');
   if (!root) return;
@@ -5424,6 +5472,23 @@ function renderContentLibraryTab() {
     root.innerHTML = '<div class="imglib-empty"><p>Select a client to manage their image library.</p></div>';
     return;
   }
+
+  // Silently re-fetch portal state to pick up client-side approval changes (max once per 10s)
+  var now = Date.now();
+  if (now - _imglibLastRefresh > 10000) {
+    _imglibLastRefresh = now;
+    fetchPortalStateFromAPI(currentClientId).then(function() {
+      // Re-render after fresh data (but don't loop — check timestamp)
+      if (Date.now() - now < 12000) _imglibRenderGrid();
+    }).catch(function(){});
+  }
+
+  _imglibRenderGrid();
+}
+
+function _imglibRenderGrid() {
+  var root = document.getElementById('imageLibraryRoot');
+  if (!root || !currentClientId) return;
 
   var assets = loadAssets(currentClientId);
   var approvedCount = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; }).length;
@@ -5457,6 +5522,18 @@ function renderContentLibraryTab() {
   html += '<button type="button" class="btn btn-primary" id="imglibBrowseBtn" style="font-size:13px;padding:8px 20px;">Browse Files</button>';
   html += '</div>';
 
+  // Check for broken assets (data: URLs or empty URLs)
+  var brokenCount = assets.filter(function(a) {
+    var url = a.thumbnailUrl || a.url || '';
+    return !url || url.startsWith('data:') || (!url.startsWith('http') && !url.startsWith('/uploads/'));
+  }).length;
+  if (brokenCount > 0) {
+    html += '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">';
+    html += '<span style="font-size:13px;color:#92400e;">' + brokenCount + ' image(s) have broken previews (old uploads). Clean them up to fix the library.</span>';
+    html += '<button type="button" class="btn btn-danger" id="imglibCleanupBtn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">Remove Broken</button>';
+    html += '</div>';
+  }
+
   // Filter bar
   html += '<div class="imglib-filter-bar">';
   ['all','pending','approved','rejected'].forEach(function(f){
@@ -5478,7 +5555,7 @@ function renderContentLibraryTab() {
       var statusLower = (asset.approvalStatus || 'PENDING').toLowerCase().replace(/_/g,'-');
       var statusLabel = statusLower === 'needs-changes' ? 'Needs changes' : statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
       var badgeClass = statusLower === 'needs-changes' ? 'rejected' : statusLower;
-      var previewUrl = asset.thumbnailUrl || asset.url || '';
+      var previewUrl = imglibFixUrl(asset.thumbnailUrl) || imglibFixUrl(asset.url) || '';
       var imgTag = previewUrl ? '<img class="imglib-card__img" src="' + previewUrl + '" alt="' + (asset.title || '').replace(/"/g,'&quot;') + '" loading="lazy" referrerpolicy="no-referrer" data-imglib-preview="' + previewUrl + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" /><div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>' : '<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:24px;">No preview</div>';
       html += '<div class="imglib-card">';
       html += imgTag;
@@ -5486,12 +5563,6 @@ function renderContentLibraryTab() {
       html += '<div class="imglib-card__name">' + (asset.title || 'Untitled') + '</div>';
       html += '<span class="imglib-card__badge imglib-card__badge--' + badgeClass + '">' + statusLabel + '</span>';
       html += '<div class="imglib-card__actions">';
-      if (asset.approvalStatus !== 'APPROVED') {
-        html += '<button class="btn btn-primary" data-imglib-action="approve" data-imglib-id="' + asset.id + '" style="background:#22c55e;border-color:#22c55e;">Approve</button>';
-      }
-      if (asset.approvalStatus === 'APPROVED') {
-        html += '<button class="btn btn-secondary" data-imglib-action="unapprove" data-imglib-id="' + asset.id + '" style="font-size:11px;">Unapprove</button>';
-      }
       html += '<button class="btn btn-danger" data-imglib-action="delete" data-imglib-id="' + asset.id + '">Delete</button>';
       html += '</div></div></div>';
     });
@@ -5505,6 +5576,12 @@ function renderContentLibraryTab() {
 }
 
 function imglibBindEvents(root) {
+  // Cleanup broken images button
+  var cleanupBtn = document.getElementById('imglibCleanupBtn');
+  if (cleanupBtn) {
+    cleanupBtn.addEventListener('click', function(){ imglibClearBroken(); });
+  }
+
   // File input & browse
   var fileInput = document.getElementById('imglibFileInput');
   var browseBtn = document.getElementById('imglibBrowseBtn');
@@ -5543,17 +5620,15 @@ function imglibBindEvents(root) {
     var action = btn.getAttribute('data-imglib-action');
     var id = btn.getAttribute('data-imglib-id');
     btn.addEventListener('click', function(){
-      if (action === 'approve') {
-        updateAssetStatus(currentClientId, id, 'APPROVED');
-        if (typeof showToast === 'function') showToast('Image approved', 'success');
-        renderContentLibraryTab();
-      } else if (action === 'unapprove') {
-        updateAssetStatus(currentClientId, id, 'PENDING');
-        renderContentLibraryTab();
-      } else if (action === 'delete') {
+      if (action === 'delete') {
         if (typeof showConfirmModal === 'function') {
-          showConfirmModal('Delete this image?', 'This cannot be undone.', function(){
-            deleteAsset(id);
+          showConfirmModal({
+            title: 'Delete this image?',
+            message: 'This cannot be undone.',
+            confirmLabel: 'Delete',
+            confirmColor: '#ef4444',
+            icon: '🗑️',
+            onConfirm: function(){ deleteAsset(id); }
           });
         } else {
           if (confirm('Delete this image?')) deleteAsset(id);
@@ -5577,37 +5652,76 @@ function imglibBindEvents(root) {
 
 function imglibHandleFiles(files) {
   if (!currentClientId) { if (typeof showToast === 'function') showToast('Select a client first'); return; }
+  var imageFiles = Array.from(files).filter(function(f){ return f.type.startsWith('image/'); });
+  if (imageFiles.length === 0) { if (typeof showToast === 'function') showToast('No image files selected'); return; }
   var count = 0;
-  Array.from(files).forEach(function(file){
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > 10 * 1024 * 1024) { if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)'); return; }
+  var failed = 0;
+  var total = imageFiles.length;
+
+  // Show uploading state
+  var dropZone = document.getElementById('imglibDropZone');
+  if (dropZone) { dropZone.style.opacity = '0.5'; dropZone.style.pointerEvents = 'none'; }
+
+  imageFiles.forEach(function(file){
+    if (file.size > 10 * 1024 * 1024) {
+      if (typeof showToast === 'function') showToast(file.name + ' is too large (10MB max)');
+      total--;
+      return;
+    }
+
+    // Read file, upload to server — no base64 in localStorage
     var reader = new FileReader();
     reader.onload = function(e){
       var dataUrl = e.target.result;
-      saveAsset(currentClientId, {
-        title: file.name.replace(/\.[^.]+$/, ''),
-        sourceType: 'UPLOAD',
-        sourceProvider: 'LOCAL_UPLOAD',
-        url: dataUrl,
-        mediaType: 'PHOTO',
-        formatUse: 'ANY',
-        pillars: [],
-        approvalStatus: 'PENDING',
-        clientNotes: '',
-        internalNotes: '',
-        thumbnailUrl: dataUrl
+      fetch(getApiBaseUrl() + '/api/upload/asset', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.url) {
+          // Build full URL if server returned relative path
+          var fullUrl = j.url.startsWith('http') ? j.url : getApiBaseUrl() + j.url;
+          saveAsset(currentClientId, {
+            title: file.name.replace(/\.[^.]+$/, ''),
+            sourceType: 'UPLOAD',
+            sourceProvider: 'LOCAL_UPLOAD',
+            url: fullUrl,
+            mediaType: 'PHOTO',
+            formatUse: 'ANY',
+            pillars: [],
+            approvalStatus: 'PENDING',
+            clientNotes: '',
+            internalNotes: '',
+            thumbnailUrl: fullUrl
+          });
+          count++;
+        } else {
+          failed++;
+          if (typeof showToast === 'function') showToast('Failed: ' + (j.error || file.name));
+        }
+        imglibCheckDone();
+      })
+      .catch(function(err){
+        console.error('Upload error:', err);
+        failed++;
+        if (typeof showToast === 'function') showToast('Upload failed: ' + file.name);
+        imglibCheckDone();
       });
-      count++;
-      if (count === files.length || count === Array.from(files).filter(function(f){ return f.type.startsWith('image/'); }).length) {
-        imglibFilter = 'all';
-        renderContentLibraryTab();
-        if (typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
-        // Sync to portal state so client sees them
-        if (typeof savePortalStateToAPI === 'function') savePortalStateToAPI();
-      }
     };
     reader.readAsDataURL(file);
   });
+
+  function imglibCheckDone() {
+    if (count + failed >= total) {
+      if (dropZone) { dropZone.style.opacity = ''; dropZone.style.pointerEvents = ''; }
+      imglibFilter = 'all';
+      renderContentLibraryTab();
+      if (count > 0 && typeof showToast === 'function') showToast(count + ' image' + (count > 1 ? 's' : '') + ' uploaded', 'success');
+    }
+  }
 }
 
 function approveAsset(id) {
@@ -5621,9 +5735,45 @@ function deleteAsset(id) {
   var key = getAssetsStorageKey(currentClientId);
   if (!key) return;
   var list = loadAssets(currentClientId).filter(function(a){ return a.id !== id; });
-  try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { console.warn('deleteAsset', e); }
+  // Strip any base64 data from remaining assets to free space
+  list = imglibStripBase64(list);
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) {
+    // Quota still exceeded — force clear and save clean list
+    console.warn('deleteAsset quota error, force clearing:', e);
+    try { localStorage.removeItem(key); } catch(e2){}
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch(e3){}
+  }
   syncAssetsToPortalState(currentClientId);
   renderContentLibraryTab();
+}
+
+/** Strip base64 data URLs from assets to prevent localStorage overflow */
+function imglibStripBase64(assets) {
+  return assets.map(function(a) {
+    var copy = Object.assign({}, a);
+    if (copy.url && copy.url.startsWith('data:')) copy.url = '';
+    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('data:')) copy.thumbnailUrl = '';
+    return copy;
+  });
+}
+
+/** Clear all broken assets (no valid image URL) for current client */
+function imglibClearBroken() {
+  if (!currentClientId) return;
+  var key = getAssetsStorageKey(currentClientId);
+  if (!key) return;
+  var list = loadAssets(currentClientId);
+  var clean = list.filter(function(a) {
+    var url = a.thumbnailUrl || a.url || '';
+    return url && !url.startsWith('data:') && url.startsWith('http');
+  });
+  try { localStorage.removeItem(key); } catch(e){}
+  try { localStorage.setItem(key, JSON.stringify(clean)); } catch(e){}
+  syncAssetsToPortalState(currentClientId);
+  renderContentLibraryTab();
+  if (typeof showToast === 'function') showToast('Cleaned up ' + (list.length - clean.length) + ' broken images', 'success');
 }
 
 // Setup asset handlers (simplified — events now bound inline by renderContentLibraryTab)
