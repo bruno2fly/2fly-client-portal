@@ -2265,10 +2265,11 @@ function render(){
     } else {
       openNeeds.forEach(n=>{
         const chipClass = n.severity==='bad'?'chip bad': (n.severity==='warn'?'chip warn':'chip');
+        const textHtml = (n.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
         const row = el("div",{class:"row"},
           el("div",{class:"left"},
             el("div",{class:"status-dot", style:"background:"+(n.severity==='bad'?'#ef4444':'#f59e0b')}),
-            el("div",{}, el("div",{html:n.text}), el("div",{class:"meta"}, "Missing from client"))
+            el("div",{}, el("div",{html:textHtml, style:"white-space:pre-wrap"}), el("div",{class:"meta"}, "Missing from client"))
           ),
           el("span",{class:chipClass},"Pending")
         );

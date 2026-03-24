@@ -548,7 +548,17 @@ function syncAssetsToPortalState(clientId) {
   var assets = loadAssets(clientId);
   var state = portalStateCache[clientId];
   if (!state) return;
-  state.assets = assets;
+  // Ensure all URLs are absolute before syncing to client portal
+  var base = getApiBaseUrl();
+  state.assets = assets.map(function(a) {
+    var copy = Object.assign({}, a);
+    if (copy.url && copy.url.startsWith('/uploads/')) copy.url = base + copy.url;
+    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('/uploads/')) copy.thumbnailUrl = base + copy.thumbnailUrl;
+    // Strip broken base64 data URLs
+    if (copy.url && copy.url.startsWith('data:')) copy.url = '';
+    if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('data:')) copy.thumbnailUrl = '';
+    return copy;
+  });
   savePortalStateToAPI(clientId, state).catch(function(e){ console.warn('syncAssetsToPortalState', e); });
 }
 
@@ -5397,21 +5407,29 @@ function removeNeed(id) {
 
 function setupNeedsHandlers() {
   const needForm = $('#needForm');
-  if (needForm) {
+  if (needForm && !needForm._needsHandlerBound) {
+    needForm._needsHandlerBound = true;
     needForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
+
+    var needText = ($('#needText') && $('#needText').value) ? $('#needText').value.trim() : '';
+    if (!needText) return;
+
     const state = load();
     if (!state.needs) state.needs = [];
-    
+
+    // Prevent duplicate: check if same text was just added (within 5 seconds)
+    var recentDupe = state.needs.some(function(n){ return n.text === needText && (Date.now() - (n.createdAt || 0)) < 5000; });
+    if (recentDupe) { if (typeof showToast === 'function') showToast('Already added'); return; }
+
     const need = {
       id: `n${Date.now()}`,
-      text: $('#needText').value.trim(),
+      text: needText,
       severity: $('#needSeverity').value,
       status: 'open',
       createdAt: Date.now()
     };
-    
+
     state.needs.push(need);
     
     // Update missing assets count (only count open needs)
