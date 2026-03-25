@@ -167,8 +167,10 @@ export async function createInstagramMediaContainer(
 }
 
 /**
- * Wait for Instagram video container to finish processing.
- * Videos take time to process — poll status_code until FINISHED.
+ * Wait for Instagram media container to finish processing.
+ * Both images AND videos need processing time — images are usually fast (1-5s)
+ * but can fail with "Media ID is not available" if published before ready.
+ * Videos take longer (up to 2 minutes).
  */
 export async function waitForInstagramContainer(
   containerId: string,
@@ -176,17 +178,22 @@ export async function waitForInstagramContainer(
   maxWaitMs: number = 120000
 ): Promise<void> {
   const startTime = Date.now();
+  let lastStatus = '';
   while (Date.now() - startTime < maxWaitMs) {
-    const url = `${META_GRAPH_BASE}/${containerId}?fields=status_code&access_token=${accessToken}`;
+    const url = `${META_GRAPH_BASE}/${containerId}?fields=status_code,status&access_token=${accessToken}`;
     const res = await fetch(url);
     const data: any = await res.json();
     if (data.error) throw new Error(data.error.message || 'Failed to check container status');
+    lastStatus = data.status_code || data.status || '';
+    console.log(`[IG container ${containerId}] status: ${lastStatus}`);
     if (data.status_code === 'FINISHED') return;
-    if (data.status_code === 'ERROR') throw new Error('Instagram video processing failed');
-    // Wait 3 seconds before polling again
-    await new Promise(r => setTimeout(r, 3000));
+    if (data.status_code === 'ERROR') {
+      throw new Error(`Instagram media processing failed (status: ${data.status || 'ERROR'})`);
+    }
+    // Wait 2 seconds before polling again (shorter for images)
+    await new Promise(r => setTimeout(r, 2000));
   }
-  throw new Error('Instagram video processing timed out');
+  throw new Error(`Instagram media processing timed out (last status: ${lastStatus})`);
 }
 
 /**
@@ -207,20 +214,38 @@ export async function refreshLongLivedToken(currentToken: string): Promise<{ acc
 }
 
 /**
- * Publish Instagram container (Step 2)
+ * Publish Instagram container (Step 2).
+ * Retries up to 3 times on "Media ID is not available" — a transient error
+ * that happens when the container hasn't fully propagated yet.
  */
 export async function publishInstagramContainer(
   igAccountId: string,
   accessToken: string,
   creationId: string
 ): Promise<{ id: string }> {
-  const body = { creation_id: creationId, access_token: accessToken };
-  const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media_publish`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data: any = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Failed to publish to Instagram');
-  return { id: data.id };
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 3000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const body = { creation_id: creationId, access_token: accessToken };
+    const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data: any = await res.json();
+
+    if (data.error) {
+      const msg = data.error.message || 'Failed to publish to Instagram';
+      // "Media ID is not available" is transient — retry after a short wait
+      if (msg.includes('Media ID is not available') && attempt < MAX_RETRIES) {
+        console.log(`[IG publish] Attempt ${attempt}/${MAX_RETRIES} got "${msg}", retrying in ${RETRY_DELAY_MS}ms...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+      throw new Error(msg);
+    }
+    return { id: data.id };
+  }
+  throw new Error('Failed to publish to Instagram after retries');
 }

@@ -16,6 +16,7 @@ import {
   publishPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
+  waitForInstagramContainer,
   getPages,
   getInstagramAccount,
   refreshLongLivedToken,
@@ -145,6 +146,8 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
           integration.metaAccessToken,
           { image_url: post.mediaUrl, caption: post.caption }
         );
+        // Wait for container to be ready before publishing
+        await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
         const publishResult = await publishInstagramContainer(
           integration.metaInstagramAccountId,
           integration.metaAccessToken,
@@ -320,6 +323,8 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
           integration.metaInstagramAccountId, integration.metaAccessToken,
           { image_url: post.mediaUrl, caption: post.caption }
         );
+        // Wait for container to be ready before publishing
+        await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
         const publishResult = await publishInstagramContainer(
           integration.metaInstagramAccountId, integration.metaAccessToken, container.id
         );

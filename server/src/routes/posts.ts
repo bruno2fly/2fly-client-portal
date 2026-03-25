@@ -354,12 +354,17 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
           );
           metaPostIds.instagram = publishResult.id;
         } else {
-          // Image post
+          // Image post — also wait for container to be ready before publishing
+          // Instagram needs time to download & validate the image; publishing immediately
+          // can cause "Media ID is not available" errors
+          console.log('[publish-now] Publishing IMAGE to Instagram...');
           const container = await createInstagramMediaContainer(
             integration.metaInstagramAccountId,
             integration.metaAccessToken,
             { image_url: publicMediaUrl, caption: post.caption }
           );
+          // Wait for container to be FINISHED (usually <5s for images)
+          await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
           const publishResult = await publishInstagramContainer(
             integration.metaInstagramAccountId,
             integration.metaAccessToken,
