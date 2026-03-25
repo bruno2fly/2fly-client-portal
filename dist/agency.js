@@ -1617,6 +1617,113 @@ function setupTabHandlers() {
 }
 
 /* ================== Scheduled Posts Tab ================== */
+
+// Listen for messages from OAuth popup (page picker or direct connect)
+window.addEventListener('message', function(event) {
+  if (!event.data || typeof event.data !== 'object') return;
+
+  if (event.data.type === 'META_CONNECTED') {
+    // Single page auto-connected
+    renderScheduledPostsConnectionSection();
+    renderScheduledPostsTab();
+  }
+
+  if (event.data.type === 'META_PAGES') {
+    // Multiple pages — show page picker modal
+    showMetaPagePicker(event.data.sessionKey, event.data.pages, event.data.clientId);
+  }
+});
+
+function showMetaPagePicker(sessionKey, pages, clientId) {
+  // Remove existing modal if any
+  var existing = document.getElementById('metaPagePickerOverlay');
+  if (existing) existing.remove();
+
+  var clients = loadClientsRegistry();
+  var clientName = (clients && clients[clientId]) ? clients[clientId].name : clientId;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'metaPagePickerOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:white;border-radius:16px;padding:28px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,0.25);';
+
+  var h = '<h2 style="margin:0 0 6px;font-size:18px;font-weight:700;color:#0f172a;">Select a Facebook Page</h2>';
+  h += '<p style="margin:0 0 20px;font-size:14px;color:#64748b;">Choose which page to connect for <strong>' + (clientName || 'this client') + '</strong>:</p>';
+
+  pages.forEach(function(page, idx) {
+    var picHtml = page.picture
+      ? '<img src="' + page.picture + '" style="width:44px;height:44px;border-radius:10px;object-fit:cover;" />'
+      : '<div style="width:44px;height:44px;border-radius:10px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:18px;color:#94a3b8;">F</div>';
+
+    h += '<label style="display:flex;align-items:center;gap:14px;padding:14px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;margin-bottom:10px;transition:border-color 0.15s;" ';
+    h += 'onmouseover="this.style.borderColor=\'#93c5fd\'" onmouseout="if(!this.querySelector(\'input\').checked)this.style.borderColor=\'#e2e8f0\'">';
+    h += '<input type="radio" name="metaPageSelect" value="' + page.id + '" style="width:18px;height:18px;accent-color:#2563eb;" ' + (idx === 0 ? 'checked' : '') + ' />';
+    h += picHtml;
+    h += '<div style="flex:1;min-width:0;">';
+    h += '<div style="font-size:14px;font-weight:600;color:#0f172a;">' + (page.name || 'Unnamed Page') + '</div>';
+    if (page.instagram && page.instagram.username) {
+      h += '<div style="font-size:12px;color:#059669;margin-top:2px;">@' + page.instagram.username + '</div>';
+    } else {
+      h += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">No Instagram Business Account</div>';
+    }
+    h += '</div></label>';
+  });
+
+  h += '<div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">';
+  h += '<button type="button" id="metaPagePickerCancel" class="btn btn-secondary" style="padding:10px 20px;font-size:14px;">Cancel</button>';
+  h += '<button type="button" id="metaPagePickerConfirm" class="btn btn-primary" style="padding:10px 24px;font-size:14px;font-weight:600;">Connect Selected</button>';
+  h += '</div>';
+
+  modal.innerHTML = h;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Cancel
+  document.getElementById('metaPagePickerCancel').addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Confirm
+  document.getElementById('metaPagePickerConfirm').addEventListener('click', async function() {
+    var selected = modal.querySelector('input[name="metaPageSelect"]:checked');
+    if (!selected) { showToast('Select a page', 'error'); return; }
+    var pageId = selected.value;
+
+    var confirmBtn = document.getElementById('metaPagePickerConfirm');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Connecting...';
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/meta/select-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sessionKey: sessionKey, pageId: pageId })
+      });
+      var d = await r.json();
+      if (d.success) {
+        overlay.remove();
+        showToast('Connected ' + (d.connection.pageName || 'Facebook Page') + (d.connection.instagramUsername ? ' + @' + d.connection.instagramUsername : ''), 'success');
+        renderScheduledPostsConnectionSection();
+        renderScheduledPostsTab();
+      } else {
+        throw new Error(d.error || 'Failed to connect');
+      }
+    } catch (e) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Connect Selected';
+      showToast('Connection failed: ' + (e.message || 'Unknown error'), 'error');
+    }
+  });
+}
+
 async function renderScheduledPostsConnectionSection() {
   const wrap = $('#scheduledPostsConnectionSection');
   const content = $('#scheduledPostsConnectionContent');
@@ -1634,79 +1741,144 @@ async function renderScheduledPostsConnectionSection() {
   wrap.style.display = 'block';
 
   try {
-    const r = await fetch(`${getApiBaseUrl()}/api/integrations/meta/status?clientId=${encodeURIComponent(currentClientId)}`, { credentials: 'include' });
-    const j = await r.json();
+    // Use new API endpoint
+    var r = await fetch(getApiBaseUrl() + '/api/meta/connections/client/' + encodeURIComponent(currentClientId), { credentials: 'include' });
+    var j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed to check status');
 
-    let html = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><span style="font-size:14px;font-weight:600;color:#0f172a;">' + (client.name || currentClientId) + '</span><span style="font-size:11px;color:#94a3b8;font-weight:500;">Social Accounts</span></div>';
-    if (j.connected) {
-      html += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
-      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#059669;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ig2" x1="0" y1="24" x2="24" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="25%" stop-color="#fa7e1e"/><stop offset="50%" stop-color="#d62976"/><stop offset="75%" stop-color="#962fbf"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect width="20" height="20" x="2" y="2" rx="5" stroke="url(#ig2)" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="4.5" stroke="url(#ig2)" stroke-width="2" fill="none"/><circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig2)"/></svg>' + (j.instagramUsername ? '@' + j.instagramUsername : 'Connected') + '</div>';
-      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#059669;"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>' + (j.pageName ? j.pageName : 'Connected') + '</div>';
-      html += '</div>';
+    var clientName = client.name || currentClientId;
+    var html = '';
+
+    // Header
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">';
+    html += '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:15px;font-weight:700;color:#0f172a;">Meta</span><span style="font-size:11px;color:#94a3b8;font-weight:500;background:#f1f5f9;padding:2px 8px;border-radius:4px;">Facebook + Instagram</span></div>';
+    if (j.status === 'connected') {
+      html += '<span style="font-size:11px;font-weight:600;color:#059669;background:#d1fae5;padding:3px 10px;border-radius:6px;">CONNECTED</span>';
+    } else if (j.status === 'expired') {
+      html += '<span style="font-size:11px;font-weight:600;color:#dc2626;background:#fee2e2;padding:3px 10px;border-radius:6px;">EXPIRED</span>';
+    }
+    html += '</div>';
+
+    if (j.status === 'connected') {
+      // Connected state — show page info with picture
+      html += '<div style="display:flex;align-items:center;gap:14px;padding:14px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">';
+      if (j.pagePicture) {
+        html += '<img src="' + j.pagePicture + '" style="width:48px;height:48px;border-radius:10px;object-fit:cover;" />';
+      } else {
+        html += '<div style="width:48px;height:48px;border-radius:10px;background:#dbeafe;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="#2563eb"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg></div>';
+      }
+      html += '<div style="flex:1;">';
+      html += '<div style="font-size:14px;font-weight:600;color:#0f172a;">' + (j.pageName || 'Facebook Page') + '</div>';
+      if (j.instagramUsername) {
+        html += '<div style="font-size:13px;color:#059669;margin-top:2px;">@' + j.instagramUsername + '</div>';
+      } else {
+        html += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">No Instagram account linked</div>';
+      }
+      if (j.connectedAt) {
+        var connDate = new Date(j.connectedAt);
+        html += '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">Connected ' + connDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + '</div>';
+      }
+      html += '</div></div>';
+
       // Token expiry warning
       if (j.daysUntilExpiry != null && j.daysUntilExpiry <= 14) {
         var warnColor = j.daysUntilExpiry <= 3 ? '#dc2626' : '#b45309';
         var warnBg = j.daysUntilExpiry <= 3 ? '#fee2e2' : '#fef3c7';
         html += '<div style="margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;background:' + warnBg + ';color:' + warnColor + ';">';
-        html += '<strong>⚠ Token expires in ' + j.daysUntilExpiry + ' day' + (j.daysUntilExpiry !== 1 ? 's' : '') + '</strong> — Click Reconnect to refresh it before it stops working.';
+        html += '<strong>Token expires in ' + j.daysUntilExpiry + ' day' + (j.daysUntilExpiry !== 1 ? 's' : '') + '</strong> — Click Reconnect to refresh.';
         html += '</div>';
       }
-      html += '<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">';
+
+      // Action buttons
+      html += '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">';
       html += '<button type="button" class="btn btn-secondary" id="scheduledMetaTestBtn" style="padding:8px 18px;font-size:13px;">Test Connection</button>';
       html += '<button type="button" class="btn btn-secondary" id="scheduledMetaReconnectBtn" style="padding:8px 18px;font-size:13px;">Reconnect</button>';
       html += '<button type="button" class="btn btn-secondary" id="scheduledMetaDisconnectBtn" style="padding:8px 18px;font-size:13px;color:#dc2626;border-color:#fecaca;">Disconnect</button>';
       html += '</div>';
       html += '<div id="scheduledMetaTestResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;"></div>';
+
+    } else if (j.status === 'expired') {
+      // Expired state
+      html += '<div style="padding:16px;background:#fef2f2;border-radius:12px;border:1px solid #fecaca;">';
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">';
+      if (j.pagePicture) html += '<img src="' + j.pagePicture + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;opacity:0.7;" />';
+      html += '<div><div style="font-size:14px;font-weight:600;color:#0f172a;">' + (j.pageName || 'Facebook Page') + '</div>';
+      if (j.instagramUsername) html += '<div style="font-size:12px;color:#94a3b8;">@' + j.instagramUsername + '</div>';
+      html += '</div></div>';
+      html += '<p style="margin:0 0 12px;font-size:13px;color:#dc2626;">Connection expired. Reconnect to restore scheduling and analytics.</p>';
+      if (j.errorMessage) html += '<p style="margin:0 0 12px;font-size:12px;color:#94a3b8;">' + j.errorMessage + '</p>';
+      html += '<div style="display:flex;gap:10px;">';
+      html += '<button type="button" class="btn btn-primary" id="scheduledMetaReconnectBtn" style="padding:8px 20px;font-size:13px;">Reconnect Now</button>';
+      html += '<button type="button" class="btn btn-secondary" id="scheduledMetaDisconnectBtn" style="padding:8px 18px;font-size:13px;color:#dc2626;border-color:#fecaca;">Remove</button>';
+      html += '</div></div>';
+
     } else {
-      html += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
-      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ig1" x1="0" y1="24" x2="24" y2="0"><stop offset="0%" stop-color="#feda75"/><stop offset="25%" stop-color="#fa7e1e"/><stop offset="50%" stop-color="#d62976"/><stop offset="75%" stop-color="#962fbf"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect width="20" height="20" x="2" y="2" rx="5" stroke="url(#ig1)" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="4.5" stroke="url(#ig1)" stroke-width="2" fill="none"/><circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig1)"/></svg>Not linked</div>';
-      html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>Not linked</div>';
+      // Not connected
+      html += '<div style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;text-align:center;">';
+      html += '<div style="margin-bottom:12px;">';
+      html += '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" style="margin:0 auto 8px;display:block;"><path d="M13.5 2H10.5C7.46243 2 5 4.46243 5 7.5V8.5C5 9.05228 5.44772 9.5 6 9.5H18C18.5523 9.5 19 9.05228 19 8.5V7.5C19 4.46243 16.5376 2 13.5 2Z" stroke="#94a3b8" stroke-width="1.5"/><path d="M12 14V18M12 18L15 15M12 18L9 15" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       html += '</div>';
-      if (j.error) html += '<p style="font-size:12px;color:#dc2626;margin:8px 0 0 0;">' + j.error + '</p>';
-      html += '<button type="button" class="btn btn-primary" id="scheduledMetaConnectBtn" style="padding:8px 16px;font-size:13px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;margin-top:12px;"><svg width="18" height="18" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="#0081FB"/><path d="M18 8c-5.523 0-10 4.16-10 9.29 0 2.57 1.07 4.88 2.82 6.56v3.15l2.94-1.63c.83.23 1.72.35 2.63.35h.61c-.04-.33-.06-.66-.06-1 0-4.83 4.07-8.73 9.06-8.73.29 0 .58.01.87.04C26.24 11.66 22.5 8 18 8zm-1.1 7.93l-2.55 2.72-4.7-2.72 5.17-5.48 2.62 2.72 4.63-2.72-5.17 5.48z" fill="white"/><path d="M30.97 17.29c0-4.28-4.07-7.73-9.06-7.73-5 0-9.07 3.46-9.07 7.73s4.07 7.73 9.07 7.73c.78 0 1.54-.09 2.26-.26l2.48 1.37v-2.65c1.46-1.49 2.32-3.42 2.32-5.52v.33zm-11.1-1.26l1.88-2 3.38 2-3.71 3.93-1.88-2-3.38 2 3.71-3.93z" fill="white"/></svg>Connect with Meta</button>';
+      html += '<p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#0f172a;">Connect Facebook & Instagram</p>';
+      html += '<p style="margin:0 0 16px;font-size:13px;color:#64748b;">Enable post scheduling and publishing to Meta platforms.</p>';
+      html += '<button type="button" class="btn btn-primary" id="scheduledMetaConnectBtn" style="padding:10px 24px;font-size:14px;font-weight:600;border-radius:10px;display:inline-flex;align-items:center;gap:8px;">';
+      html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>';
+      html += 'Connect with Meta</button>';
+      html += '</div>';
     }
+
+    // Future platforms (subtle)
+    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;gap:16px;">';
+    html += '<span style="font-size:12px;color:#cbd5e1;">TikTok — Coming Soon</span>';
+    html += '<span style="font-size:12px;color:#cbd5e1;">LinkedIn — Coming Soon</span>';
+    html += '</div>';
+
     content.innerHTML = html;
 
-    // Connect button
+    // ── Wire up buttons ──
     var connectBtn = $('#scheduledMetaConnectBtn');
     var reconnectBtn = $('#scheduledMetaReconnectBtn');
     var disconnectBtn = $('#scheduledMetaDisconnectBtn');
     var testBtn = $('#scheduledMetaTestBtn');
 
     function openMetaOAuth() {
-      fetch(getApiBaseUrl() + '/api/auth/meta?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' })
+      // Use new /api/meta/connect endpoint
+      fetch(getApiBaseUrl() + '/api/meta/connect?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' })
         .then(function(r) { return r.json(); })
         .then(function(d) { if (d.authUrl) window.open(d.authUrl, 'meta_oauth', 'width=600,height=700'); })
-        .catch(function(e) { console.error('Meta connect:', e); });
+        .catch(function(e) { console.error('Meta connect:', e); showToast('Failed to start connection', 'error'); });
     }
 
     if (connectBtn) connectBtn.addEventListener('click', openMetaOAuth);
 
     if (reconnectBtn) {
       reconnectBtn.addEventListener('click', async function() {
-        // Disconnect from our DB (without revoking on Facebook) then re-open OAuth
+        reconnectBtn.disabled = true;
+        reconnectBtn.textContent = 'Connecting...';
+        // Soft disconnect (DB only, no Facebook revocation) then reconnect
         try {
-          await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ clientId: currentClientId, revokeOnFacebook: false })
+          await fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(currentClientId) + '/disconnect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
           });
-        } catch (e) { console.error('Meta reconnect-disconnect:', e); }
+        } catch (e) { console.error('Reconnect disconnect:', e); }
         openMetaOAuth();
+        setTimeout(function() { if (reconnectBtn) { reconnectBtn.disabled = false; reconnectBtn.textContent = 'Reconnect'; } }, 3000);
       });
     }
 
     if (disconnectBtn) {
       disconnectBtn.addEventListener('click', async function() {
-        if (!confirm('Disconnect Meta for this client? This will also revoke access on Facebook.')) return;
+        if (!confirm('Disconnect Meta for ' + clientName + '?')) return;
         try {
-          var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ clientId: currentClientId, revokeOnFacebook: true })
+          var r = await fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(currentClientId) + '/disconnect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
           });
           var d = await r.json();
-          if (d.success) { renderScheduledPostsConnectionSection(); renderScheduledPostsTab(); }
-        } catch (e) { console.error('Meta disconnect:', e); }
+          if (d.success) {
+            showToast('Disconnected', 'success');
+            renderScheduledPostsConnectionSection();
+            renderScheduledPostsTab();
+          }
+        } catch (e) { console.error('Disconnect:', e); }
       });
     }
 
@@ -1718,48 +1890,31 @@ async function renderScheduledPostsConnectionSection() {
         resultEl.style.background = '#f8fafc';
         resultEl.style.color = '#475569';
         resultEl.textContent = 'Testing connection...';
-        try {
-          var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/debug?clientId=' + encodeURIComponent(currentClientId), { credentials: 'include' });
-          var d = await r.json();
-          var perms = d.permissions || [];
-          var declined = d.declinedPermissions || [];
-          var hasManage = d.hasManagePosts || perms.indexOf('pages_manage_posts') !== -1;
-          var hasIg = perms.indexOf('instagram_content_publish') !== -1;
+        testBtn.disabled = true;
 
-          if (d.autoFixed && d.pageValid) {
-            // Auto-recovery succeeded
+        try {
+          var r = await fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(currentClientId) + '/verify', {
+            method: 'POST', credentials: 'include'
+          });
+          var d = await r.json();
+
+          if (d.autoFixed) {
             resultEl.style.background = '#d1fae5';
             resultEl.style.color = '#059669';
-            resultEl.innerHTML = '<strong>Connection fixed automatically!</strong> Page token was refreshed. You\'re ready to post.';
-          } else if (d.pageValid && hasManage) {
+            resultEl.innerHTML = '<strong>Connection fixed automatically!</strong> Tokens were refreshed. Ready to post.';
+          } else if (d.status === 'connected' && d.pageValid) {
             resultEl.style.background = '#d1fae5';
             resultEl.style.color = '#059669';
-            var msg = '<strong>Ready to post!</strong> Page token valid, pages_manage_posts granted.';
-            if (hasIg) msg += ' Instagram publishing enabled.';
-            else msg += '<br><span style="color:#b45309;">Instagram publishing not enabled — only Facebook posting will work.</span>';
-            if (perms.length > 0) msg += '<br>Permissions: ' + perms.join(', ');
-            if (declined.length > 0) msg += '<br><span style="color:#dc2626;">Declined: ' + declined.join(', ') + '</span>';
+            var msg = '<strong>Ready to post!</strong>';
+            if (d.permissions && d.permissions.indexOf('instagram_content_publish') !== -1) msg += ' Facebook + Instagram enabled.';
+            else msg += ' Facebook enabled.';
             resultEl.innerHTML = msg;
-          } else if (d.pageValid && !hasManage && !d.hasUserToken) {
-            resultEl.style.background = '#fef3c7';
-            resultEl.style.color = '#b45309';
-            resultEl.innerHTML = '<strong>Page accessible</strong> but cannot verify posting permissions (old connection).<br>Try posting — if it fails, click Reconnect below.';
           } else {
             resultEl.style.background = '#fee2e2';
             resultEl.style.color = '#dc2626';
-            var errMsg = '<strong>Connection issue:</strong><br>';
-            if (d.postError) errMsg += d.postError + '<br>';
-            if (d.pageError && d.pageError !== d.postError) errMsg += d.pageError + '<br>';
-            if (d.permError) errMsg += d.permError + '<br>';
-            if (d.tokenExpired) errMsg += 'Token expired.<br>';
-            if (declined.length > 0) errMsg += 'Declined permissions: ' + declined.join(', ') + '<br>';
-            errMsg += '<br><strong>To fix — click Reconnect below.</strong><br>';
-            errMsg += 'If Reconnect doesn\'t work:<br>';
-            errMsg += '1. Click Disconnect<br>';
-            errMsg += '2. Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" style="color:#1e40af;">Facebook Settings → Business Integrations</a><br>';
-            errMsg += '3. Remove "2Fly Marketing API" from the list<br>';
-            errMsg += '4. Come back and click Connect Facebook & Instagram<br>';
-            errMsg += '5. Approve ALL permissions in the dialog';
+            var errMsg = '<strong>Connection issue</strong><br>';
+            if (d.errorMessage) errMsg += d.errorMessage + '<br>';
+            errMsg += '<br>Click <strong>Reconnect</strong> to fix this.';
             resultEl.innerHTML = errMsg;
           }
         } catch (e) {
@@ -1767,6 +1922,7 @@ async function renderScheduledPostsConnectionSection() {
           resultEl.style.color = '#dc2626';
           resultEl.textContent = 'Test failed: ' + (e.message || 'Unknown error');
         }
+        testBtn.disabled = false;
       });
     }
   } catch (e) {

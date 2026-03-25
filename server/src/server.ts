@@ -15,6 +15,7 @@ import { join } from 'path';
 import googleDriveRoutes from './routes/googleDrive.js';
 import metaAuthRoutes from './routes/metaAuth.js';
 import metaRoutes from './routes/meta.js';
+import metaConnectRoutes from './routes/metaConnect.js';
 import postsRoutes from './routes/posts.js';
 import cronRoutes from './routes/cron.js';
 import uploadRoutes from './routes/upload.js';
@@ -342,6 +343,8 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
 app.use('/api/integrations/google-drive', googleDriveRoutes);
 app.use('/api/integrations/meta', metaRoutes);
 app.use('/api/auth/meta', metaAuthRoutes);
+// New unified Meta connection system (keeps old routes working via legacy endpoints)
+app.use('/api/meta', metaConnectRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postsRoutes);
 app.use('/api/cron', cronRoutes);
