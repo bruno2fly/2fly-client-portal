@@ -7,6 +7,7 @@ import { authenticate, getAgencyScope, requireCanViewDashboard } from '../middle
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { getMetaIntegrationByAgency, saveMetaIntegration, deleteMetaIntegration } from '../db.js';
 import { exchangeForLongLivedToken, getPages, getInstagramAccount } from '../lib/meta-api.js';
+import { signState, parseMetaOAuthState } from '../lib/meta-oauth-state.js';
 
 const router = Router();
 const META_APP_ID = process.env.META_APP_ID;
@@ -40,9 +41,10 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
     return res.status(400).json({ error: 'clientId query parameter is required' });
   }
   const { agencyId } = getAgencyScope(req);
-  const state = Buffer.from(JSON.stringify({ agencyId, clientId, userId: req.userId })).toString('base64');
+  // Same signed format as /api/meta/connect so META_REDIRECT_URI can stay on /api/auth/meta/callback
+  const state = signState({ agencyId, clientId, userId: req.userId, ts: Date.now() });
   // auth_type=rerequest forces Meta to re-ask for permissions if previously declined
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code&auth_type=rerequest`;
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${encodeURIComponent(state)}&response_type=code&auth_type=rerequest`;
   res.json({ authUrl });
 });
 
@@ -52,27 +54,31 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
  */
 router.get('/callback', async (req: Request, res: Response) => {
   try {
-    const { code, state } = req.query;
+    const { code } = req.query;
+    const rawState = req.query.state;
+    const stateParam: string | undefined =
+      typeof rawState === 'string'
+        ? rawState
+        : Array.isArray(rawState) && typeof rawState[0] === 'string'
+          ? rawState[0]
+          : undefined;
+
     if (!code || typeof code !== 'string') {
       return res.status(400).send(renderCallbackPage(false, 'Missing authorization code'));
     }
 
     let agencyId: string;
     let clientId: string;
-    if (state && typeof state === 'string') {
-      try {
-        const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-        agencyId = decoded.agencyId;
-        clientId = decoded.clientId;
-        if (!clientId) {
-          return res.status(400).send(renderCallbackPage(false, 'Missing clientId in state'));
-        }
-      } catch {
-        return res.status(400).send(renderCallbackPage(false, 'Invalid state parameter'));
-      }
-    } else {
+    if (!stateParam) {
       return res.status(400).send(renderCallbackPage(false, 'Missing state parameter'));
     }
+
+    const decoded = parseMetaOAuthState(stateParam);
+    if (!decoded?.clientId || !decoded.agencyId) {
+      return res.status(400).send(renderCallbackPage(false, 'Invalid state parameter'));
+    }
+    agencyId = decoded.agencyId;
+    clientId = decoded.clientId;
 
     if (!META_APP_ID || !META_APP_SECRET || !META_REDIRECT_URI) {
       return res.status(500).send(renderCallbackPage(false, 'Meta OAuth not configured'));

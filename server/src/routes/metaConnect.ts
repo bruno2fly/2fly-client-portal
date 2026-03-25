@@ -9,6 +9,7 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import { signState, verifySignedState } from '../lib/meta-oauth-state.js';
 import { authenticate, getAgencyScope, requireCanViewDashboard } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import {
@@ -29,7 +30,6 @@ const META_APP_ID = process.env.META_APP_ID;
 const META_APP_SECRET = process.env.META_APP_SECRET;
 const META_REDIRECT_URI = process.env.META_REDIRECT_URI || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8000';
-const STATE_SECRET = process.env.META_STATE_SECRET || process.env.META_APP_SECRET || 'fallback-secret-change-me';
 
 // ═══════════════════════════════════════════════════════
 // OAuth Scopes — everything we need
@@ -81,27 +81,6 @@ setInterval(() => {
 // Helpers
 // ═══════════════════════════════════════════════════════
 
-/** Sign the OAuth state parameter to prevent CSRF */
-function signState(payload: object): string {
-  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const hmac = crypto.createHmac('sha256', STATE_SECRET).update(data).digest('base64url');
-  return `${data}.${hmac}`;
-}
-
-/** Verify and decode signed state */
-function verifyState(state: string): object | null {
-  const parts = state.split('.');
-  if (parts.length !== 2) return null;
-  const [data, sig] = parts;
-  const expected = crypto.createHmac('sha256', STATE_SECRET).update(data).digest('base64url');
-  if (sig !== expected) return null;
-  try {
-    return JSON.parse(Buffer.from(data, 'base64url').toString('utf-8'));
-  } catch {
-    return null;
-  }
-}
-
 /** Get page profile picture URL */
 async function getPagePicture(pageId: string, accessToken: string): Promise<string | undefined> {
   try {
@@ -144,7 +123,7 @@ router.get('/connect', authenticate, requireCanViewDashboard, (req: Authenticate
   const state = signState({ agencyId, clientId, userId: req.userId, ts: Date.now() });
 
   // auth_type=rerequest forces re-asking for any previously declined permissions
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${state}&response_type=code&auth_type=rerequest`;
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${encodeURIComponent(state)}&response_type=code&auth_type=rerequest`;
 
   res.json({ authUrl });
 });
@@ -157,7 +136,14 @@ router.get('/connect', authenticate, requireCanViewDashboard, (req: Authenticate
  */
 router.get('/callback', async (req: Request, res: Response) => {
   try {
-    const { code, state, error: fbError, error_description } = req.query;
+    const { code, error: fbError, error_description } = req.query;
+    const rawState = req.query.state;
+    const state: string | undefined =
+      typeof rawState === 'string'
+        ? rawState
+        : Array.isArray(rawState) && typeof rawState[0] === 'string'
+          ? rawState[0]
+          : undefined;
 
     if (fbError) {
       console.error(`[Meta OAuth] Facebook error: ${fbError} — ${error_description}`);
@@ -169,10 +155,10 @@ router.get('/callback', async (req: Request, res: Response) => {
     }
 
     // Verify signed state
-    if (!state || typeof state !== 'string') {
+    if (!state) {
       return res.send(renderResultPage(false, 'Missing state parameter'));
     }
-    const stateData = verifyState(state) as any;
+    const stateData = verifySignedState(state) as any;
     if (!stateData || !stateData.clientId || !stateData.agencyId) {
       return res.send(renderResultPage(false, 'Invalid or tampered state parameter. Please try connecting again.'));
     }
