@@ -5,7 +5,8 @@
 import { Router } from 'express';
 import { authenticate, getAgencyScope, requireCanViewDashboard } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { getMetaIntegrations, getMetaIntegrationByClient, deleteMetaIntegrationByClient } from '../db.js';
+import { getMetaIntegrations, getMetaIntegrationByClient, deleteMetaIntegrationByClient, saveMetaIntegration } from '../db.js';
+import { getPages, getInstagramAccount, refreshLongLivedToken } from '../lib/meta-api.js';
 
 const router = Router();
 
@@ -94,8 +95,9 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
     if (!integration) return res.json({ connected: false, message: 'No integration found' });
 
     const tokenExpired = integration.tokenExpiresAt < Date.now();
-    const userToken = (integration as any).metaUserAccessToken;
+    let userToken = (integration as any).metaUserAccessToken;
     const hasUserToken = !!userToken;
+    let autoFixed = false;
 
     // Check permissions using USER token (page tokens can't call /me/permissions)
     let permissions: any[] = [];
@@ -122,26 +124,84 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
       else pageValid = true;
     } catch (e: any) { pageError = e.message; }
 
-    // Test if page token can actually post by checking token info (not /feed which needs read perms)
+    // Test if page token can actually post
     let canPost = false;
     let postError: string | undefined;
     try {
-      // Check the page token's permissions via debug_token using the app credentials, or just verify the token type
       const tokenInfoUrl = `https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name,access_token&access_token=${integration.metaAccessToken}`;
       const testRes = await fetch(tokenInfoUrl);
       const testData: any = await testRes.json();
       if (testData.error) {
         postError = testData.error.message;
-      } else if (testData.access_token) {
-        // Page returned its own access_token, meaning our token has page manage access
+      } else if (testData.access_token || testData.id) {
         canPost = true;
-      } else if (testData.id) {
-        // Can read page info but no access_token field = limited access
-        canPost = true; // Still likely can post, page info accessible
       }
     } catch (e: any) { postError = e.message; }
 
-    // Also check if user token has pages_manage_posts granted
+    // AUTO-RECOVERY: If page token is failing but user token is still valid, try to get a fresh page token
+    if ((!pageValid || !canPost) && userToken && !permError) {
+      console.log(`[Meta debug] Page token failed for client ${clientId}, attempting auto-recovery...`);
+      try {
+        // First try refreshing the user token
+        try {
+          const refreshed = await refreshLongLivedToken(userToken);
+          userToken = refreshed.access_token;
+          (integration as any).metaUserAccessToken = refreshed.access_token;
+          integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
+          console.log('[Meta debug] User token refreshed successfully');
+        } catch (refreshErr: any) {
+          console.log(`[Meta debug] User token refresh skipped: ${refreshErr.message}`);
+        }
+
+        // Get fresh page tokens from user token
+        const freshPages = await getPages(userToken);
+        const freshPage = freshPages.find(p => p.id === integration.metaPageId) || freshPages[0];
+        if (freshPage) {
+          integration.metaAccessToken = freshPage.access_token;
+          integration.metaPageId = freshPage.id;
+          integration.metaPageName = freshPage.name;
+          integration.updatedAt = Date.now();
+
+          // Also refresh Instagram account
+          try {
+            const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
+            if (igAcct) {
+              integration.metaInstagramAccountId = igAcct.id;
+              integration.metaInstagramUsername = igAcct.username;
+            }
+          } catch (igErr: any) {
+            console.log(`[Meta debug] IG account refresh failed: ${igErr.message}`);
+          }
+
+          saveMetaIntegration(integration);
+          autoFixed = true;
+
+          // Re-test with new token
+          pageError = undefined;
+          postError = undefined;
+          try {
+            const pageUrl2 = `https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`;
+            const pageRes2 = await fetch(pageUrl2);
+            const pageData2: any = await pageRes2.json();
+            if (pageData2.error) pageError = pageData2.error.message;
+            else pageValid = true;
+          } catch (e: any) { pageError = e.message; }
+
+          try {
+            const tokenInfoUrl2 = `https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name,access_token&access_token=${integration.metaAccessToken}`;
+            const testRes2 = await fetch(tokenInfoUrl2);
+            const testData2: any = await testRes2.json();
+            if (testData2.error) postError = testData2.error.message;
+            else canPost = true;
+          } catch (e: any) { postError = e.message; }
+
+          console.log(`[Meta debug] Auto-recovery ${pageValid && canPost ? 'SUCCEEDED' : 'FAILED'} for client ${clientId}`);
+        }
+      } catch (recoveryErr: any) {
+        console.log(`[Meta debug] Auto-recovery failed: ${recoveryErr.message}`);
+      }
+    }
+
     const hasManagePosts = permissions.some((p: any) => p.permission === 'pages_manage_posts' && p.status === 'granted');
 
     res.json({
@@ -149,6 +209,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
       tokenExpired,
       hasUserToken,
       hasManagePosts,
+      autoFixed,
       expiresAt: new Date(integration.tokenExpiresAt).toISOString(),
       pageId: integration.metaPageId,
       pageName: integration.metaPageName,
@@ -178,20 +239,24 @@ router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: Au
       return res.status(400).json({ error: 'clientId is required in request body' });
     }
     const { agencyId } = getAgencyScope(req);
+    const revokeOnFacebook = req.body?.revokeOnFacebook === true;
 
-    // Try to revoke the token on Facebook's side so reconnect gets a fresh auth
     const integration = getMetaIntegrationByClient(agencyId, clientId);
-    if (integration) {
+
+    // Only revoke on Facebook if explicitly requested (full reset)
+    // By default, just delete from our DB so reconnect is smooth
+    if (revokeOnFacebook && integration) {
       const tokenToRevoke = (integration as any).metaUserAccessToken || integration.metaAccessToken;
       try {
         await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${tokenToRevoke}`, { method: 'DELETE' });
-        console.log(`[Meta disconnect] Revoked token for client ${clientId}`);
+        console.log(`[Meta disconnect] Revoked token on Facebook for client ${clientId}`);
       } catch (e: any) {
         console.log(`[Meta disconnect] Token revocation failed (non-critical): ${e.message}`);
       }
     }
 
     deleteMetaIntegrationByClient(agencyId, clientId);
+    console.log(`[Meta disconnect] Removed integration for client ${clientId}${revokeOnFacebook ? ' (with Facebook revocation)' : ''}`);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to disconnect' });

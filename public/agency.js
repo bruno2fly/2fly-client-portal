@@ -1682,15 +1682,27 @@ async function renderScheduledPostsConnectionSection() {
     }
 
     if (connectBtn) connectBtn.addEventListener('click', openMetaOAuth);
-    if (reconnectBtn) reconnectBtn.addEventListener('click', openMetaOAuth);
+
+    if (reconnectBtn) {
+      reconnectBtn.addEventListener('click', async function() {
+        // Disconnect from our DB (without revoking on Facebook) then re-open OAuth
+        try {
+          await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ clientId: currentClientId, revokeOnFacebook: false })
+          });
+        } catch (e) { console.error('Meta reconnect-disconnect:', e); }
+        openMetaOAuth();
+      });
+    }
 
     if (disconnectBtn) {
       disconnectBtn.addEventListener('click', async function() {
-        if (!confirm('Disconnect Meta for this client?')) return;
+        if (!confirm('Disconnect Meta for this client? This will also revoke access on Facebook.')) return;
         try {
           var r = await fetch(getApiBaseUrl() + '/api/integrations/meta/disconnect', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ clientId: currentClientId })
+            body: JSON.stringify({ clientId: currentClientId, revokeOnFacebook: true })
           });
           var d = await r.json();
           if (d.success) { renderScheduledPostsConnectionSection(); renderScheduledPostsTab(); }
@@ -1714,7 +1726,12 @@ async function renderScheduledPostsConnectionSection() {
           var hasManage = d.hasManagePosts || perms.indexOf('pages_manage_posts') !== -1;
           var hasIg = perms.indexOf('instagram_content_publish') !== -1;
 
-          if (d.pageValid && hasManage) {
+          if (d.autoFixed && d.pageValid) {
+            // Auto-recovery succeeded
+            resultEl.style.background = '#d1fae5';
+            resultEl.style.color = '#059669';
+            resultEl.innerHTML = '<strong>Connection fixed automatically!</strong> Page token was refreshed. You\'re ready to post.';
+          } else if (d.pageValid && hasManage) {
             resultEl.style.background = '#d1fae5';
             resultEl.style.color = '#059669';
             var msg = '<strong>Ready to post!</strong> Page token valid, pages_manage_posts granted.';
@@ -1724,21 +1741,21 @@ async function renderScheduledPostsConnectionSection() {
             if (declined.length > 0) msg += '<br><span style="color:#dc2626;">Declined: ' + declined.join(', ') + '</span>';
             resultEl.innerHTML = msg;
           } else if (d.pageValid && !hasManage && !d.hasUserToken) {
-            // Old connection without user token — can't verify permissions but page is accessible
             resultEl.style.background = '#fef3c7';
             resultEl.style.color = '#b45309';
-            resultEl.innerHTML = '<strong>Page accessible</strong> but cannot verify posting permissions (old connection).<br>Try posting — if it fails, do a full reconnect:<br>1. Click Disconnect below<br>2. Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" style="color:#1e40af;">Facebook Settings → Business Integrations</a><br>3. Remove "2Fly Marketing API"<br>4. Come back here and click Connect';
+            resultEl.innerHTML = '<strong>Page accessible</strong> but cannot verify posting permissions (old connection).<br>Try posting — if it fails, click Reconnect below.';
           } else {
             resultEl.style.background = '#fee2e2';
             resultEl.style.color = '#dc2626';
             var errMsg = '<strong>Connection issue:</strong><br>';
-            if (d.postError) errMsg += 'Page test: ' + d.postError + '<br>';
-            if (d.pageError) errMsg += 'Page access: ' + d.pageError + '<br>';
-            if (d.permError) errMsg += 'Permissions: ' + d.permError + '<br>';
+            if (d.postError) errMsg += d.postError + '<br>';
+            if (d.pageError && d.pageError !== d.postError) errMsg += d.pageError + '<br>';
+            if (d.permError) errMsg += d.permError + '<br>';
             if (d.tokenExpired) errMsg += 'Token expired.<br>';
             if (declined.length > 0) errMsg += 'Declined permissions: ' + declined.join(', ') + '<br>';
-            errMsg += '<br><strong>To fix:</strong><br>';
-            errMsg += '1. Click Disconnect below<br>';
+            errMsg += '<br><strong>To fix — click Reconnect below.</strong><br>';
+            errMsg += 'If Reconnect doesn\'t work:<br>';
+            errMsg += '1. Click Disconnect<br>';
             errMsg += '2. Go to <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" style="color:#1e40af;">Facebook Settings → Business Integrations</a><br>';
             errMsg += '3. Remove "2Fly Marketing API" from the list<br>';
             errMsg += '4. Come back and click Connect Facebook & Instagram<br>';
