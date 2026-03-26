@@ -2105,7 +2105,23 @@ async function renderScheduledPostsTab() {
           h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
           h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
           // Show all media (carousel support)
-          var allMediaUrls = (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
+          // Try post.mediaUrls first, then fall back to the original approval's imageUrls
+          var allMediaUrls = [];
+          if (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) {
+            allMediaUrls = post.mediaUrls;
+          } else {
+            // Look up the source approval to get all images (for posts created before carousel support)
+            var state = load();
+            var sourceApproval = post.contentId ? (state.approvals || []).find(function(a) { return a.id === post.contentId; }) : null;
+            if (sourceApproval && Array.isArray(sourceApproval.imageUrls) && sourceApproval.imageUrls.length > 1) {
+              allMediaUrls = sourceApproval.imageUrls.filter(function(u) { return u && String(u).trim(); });
+            } else if (sourceApproval && Array.isArray(sourceApproval.finalArtUrls) && sourceApproval.finalArtUrls.length > 1) {
+              allMediaUrls = sourceApproval.finalArtUrls.filter(function(u) { return u && String(u).trim(); });
+            }
+            if (allMediaUrls.length <= 1) {
+              allMediaUrls = post.mediaUrl ? [post.mediaUrl] : [];
+            }
+          }
           if (allMediaUrls.length > 0) {
             if (allMediaUrls.length === 1) {
               var mUrl = allMediaUrls[0];
@@ -2185,8 +2201,8 @@ async function renderScheduledPostsTab() {
                   clientId: post.clientId,
                   contentId: post.contentId || post.id,
                   caption: post.caption || '',
-                  mediaUrl: post.mediaUrl || '',
-                  mediaUrls: (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : undefined,
+                  mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
+                  mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
                   platforms: post.platforms || [],
                   scheduledAt: new Date().toISOString(),
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -2233,8 +2249,8 @@ async function renderScheduledPostsTab() {
                     clientId: post.clientId,
                     contentId: post.contentId || post.id,
                     caption: post.caption || '',
-                    mediaUrl: post.mediaUrl || '',
-                    mediaUrls: (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : undefined,
+                    mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
+                    mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
                     platforms: post.platforms || [],
                     scheduledAt: new Date(dateInput.value).toISOString(),
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
