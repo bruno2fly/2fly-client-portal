@@ -249,3 +249,114 @@ export async function publishInstagramContainer(
   }
   throw new Error('Failed to publish to Instagram after retries');
 }
+
+/**
+ * Publish an Instagram CAROUSEL post (multiple images).
+ * Flow: 1) create a container per image (is_carousel_item=true)
+ *       2) create a carousel container referencing all children
+ *       3) wait for carousel container, then publish
+ */
+export async function publishInstagramCarousel(
+  igAccountId: string,
+  accessToken: string,
+  imageUrls: string[],
+  caption: string
+): Promise<{ id: string }> {
+  if (imageUrls.length < 2) throw new Error('Carousel requires at least 2 images');
+  if (imageUrls.length > 10) throw new Error('Instagram carousel supports max 10 images');
+
+  // Step 1: Create individual child containers
+  const childIds: string[] = [];
+  for (const url of imageUrls) {
+    const body: Record<string, any> = {
+      image_url: url,
+      is_carousel_item: true,
+      access_token: accessToken,
+    };
+    const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data: any = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Failed to create carousel item container');
+    childIds.push(data.id);
+    console.log(`[IG carousel] Created child container ${data.id} for ${url}`);
+  }
+
+  // Wait for all children to be ready
+  for (const childId of childIds) {
+    await waitForInstagramContainer(childId, accessToken, 30000);
+  }
+
+  // Step 2: Create the carousel container
+  const carouselBody: Record<string, any> = {
+    media_type: 'CAROUSEL',
+    children: childIds.join(','),
+    caption: caption || '',
+    access_token: accessToken,
+  };
+  const carouselRes = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(carouselBody),
+  });
+  const carouselData: any = await carouselRes.json();
+  if (carouselData.error) throw new Error(carouselData.error.message || 'Failed to create carousel container');
+  console.log(`[IG carousel] Created carousel container ${carouselData.id}`);
+
+  // Wait for carousel to be ready
+  await waitForInstagramContainer(carouselData.id, accessToken, 60000);
+
+  // Step 3: Publish
+  return publishInstagramContainer(igAccountId, accessToken, carouselData.id);
+}
+
+/**
+ * Publish multiple photos to a Facebook Page as a single multi-photo post.
+ * Uses unpublished photos attached to a feed post via attached_media.
+ */
+export async function publishMultiPhotoToFacebook(
+  pageId: string,
+  pageAccessToken: string,
+  options: { urls: string[]; caption?: string }
+): Promise<{ id: string }> {
+  if (options.urls.length < 2) throw new Error('Multi-photo requires at least 2 images');
+
+  // Step 1: Upload each photo as unpublished
+  const photoIds: string[] = [];
+  for (const url of options.urls) {
+    const body: Record<string, any> = {
+      url,
+      published: false,
+      access_token: pageAccessToken,
+    };
+    const res = await fetch(`${META_GRAPH_BASE}/${pageId}/photos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data: any = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Failed to upload unpublished photo');
+    photoIds.push(data.id);
+    console.log(`[FB multi-photo] Uploaded unpublished photo ${data.id}`);
+  }
+
+  // Step 2: Create feed post with attached_media
+  const feedBody: Record<string, any> = {
+    message: options.caption || '',
+    access_token: pageAccessToken,
+  };
+  photoIds.forEach((pid, i) => {
+    feedBody[`attached_media[${i}]`] = `{"media_fbid":"${pid}"}`;
+  });
+
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/feed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(feedBody),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish multi-photo post');
+  return { id: data.id };
+}

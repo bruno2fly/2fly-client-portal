@@ -2034,7 +2034,9 @@ async function renderScheduledPostsTab() {
       var statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
       html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:pointer;" title="Click to view details">';
       html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
-      html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span></div>';
+      var mediaCount = (Array.isArray(p.mediaUrls) && p.mediaUrls.length > 1) ? p.mediaUrls.length : (p.mediaUrl ? 1 : 0);
+      var mediaLabel = mediaCount > 1 ? ' <span style="background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">' + mediaCount + ' imgs</span>' : '';
+      html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span>' + mediaLabel + '</div>';
       html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
       html += '<div class="cal-status" style="font-size:10px;font-weight:600;">' + statusLabel + '</div></div>';
     });
@@ -2102,12 +2104,32 @@ async function renderScheduledPostsTab() {
           var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
           h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
           h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
-          if (post.mediaUrl) {
-            var isVideo = post.mediaUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) || post.mediaUrl.indexOf('video') !== -1;
-            if (isVideo) {
-              h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><video src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" controls preload="metadata" playsinline></video></div>';
+          // Show all media (carousel support)
+          var allMediaUrls = (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
+          if (allMediaUrls.length > 0) {
+            if (allMediaUrls.length === 1) {
+              var mUrl = allMediaUrls[0];
+              var isVid = mUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) || mUrl.indexOf('video') !== -1;
+              if (isVid) {
+                h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><video src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" controls preload="metadata" playsinline></video></div>';
+              } else {
+                h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><img src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" /></div>';
+              }
             } else {
-              h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;"><img src="' + post.mediaUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:300px;object-fit:cover;" /></div>';
+              // Multi-image carousel
+              h += '<div class="cal-carousel" style="margin-bottom:16px;position:relative;">';
+              h += '<div class="cal-carousel-track" style="display:flex;overflow:hidden;border-radius:10px;background:#f1f5f9;">';
+              for (var ci = 0; ci < allMediaUrls.length; ci++) {
+                h += '<div class="cal-carousel-slide" style="min-width:100%;display:flex;align-items:center;justify-content:center;' + (ci > 0 ? 'display:none;' : '') + '">';
+                h += '<img src="' + allMediaUrls[ci].replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" />';
+                h += '</div>';
+              }
+              h += '</div>';
+              h += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">';
+              h += '<button type="button" class="cal-carousel-prev" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8249;</button>';
+              h += '<span class="cal-carousel-counter" style="font-size:13px;color:#64748b;">1 / ' + allMediaUrls.length + '</span>';
+              h += '<button type="button" class="cal-carousel-next" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8250;</button>';
+              h += '</div></div>';
             }
           }
           h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</span>';
@@ -2130,6 +2152,23 @@ async function renderScheduledPostsTab() {
           h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
           h += '</div>';
           modal.innerHTML = h;
+          // Carousel navigation
+          (function() {
+            var carousel = modal.querySelector('.cal-carousel');
+            if (!carousel) return;
+            var slides = carousel.querySelectorAll('.cal-carousel-slide');
+            var counter = carousel.querySelector('.cal-carousel-counter');
+            var curSlide = 0;
+            function showSlide(idx) {
+              for (var s = 0; s < slides.length; s++) slides[s].style.display = s === idx ? 'flex' : 'none';
+              curSlide = idx;
+              if (counter) counter.textContent = (idx + 1) + ' / ' + slides.length;
+            }
+            var prevBtn = carousel.querySelector('.cal-carousel-prev');
+            var nextBtn = carousel.querySelector('.cal-carousel-next');
+            if (prevBtn) prevBtn.addEventListener('click', function() { showSlide(curSlide > 0 ? curSlide - 1 : slides.length - 1); });
+            if (nextBtn) nextBtn.addEventListener('click', function() { showSlide(curSlide < slides.length - 1 ? curSlide + 1 : 0); });
+          })();
           modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
           // Repost Now button
           modal.querySelector('.cal-modal-repost').addEventListener('click', async function() {
@@ -2147,6 +2186,7 @@ async function renderScheduledPostsTab() {
                   contentId: post.contentId || post.id,
                   caption: post.caption || '',
                   mediaUrl: post.mediaUrl || '',
+                  mediaUrls: (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : undefined,
                   platforms: post.platforms || [],
                   scheduledAt: new Date().toISOString(),
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -2194,6 +2234,7 @@ async function renderScheduledPostsTab() {
                     contentId: post.contentId || post.id,
                     caption: post.caption || '',
                     mediaUrl: post.mediaUrl || '',
+                    mediaUrls: (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) ? post.mediaUrls : undefined,
                     platforms: post.platforms || [],
                     scheduledAt: new Date(dateInput.value).toISOString(),
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -4765,18 +4806,32 @@ function setupSchedulePostHandlers() {
 }
 
 async function getMediaUrlForApproval() {
+  const all = await getAllMediaUrlsForApprovalPanel();
+  return all.length > 0 ? all[0] : null;
+}
+
+/** Get ALL media URLs from the approval detail panel (for carousel support) */
+async function getAllMediaUrlsForApprovalPanel() {
   const state = load();
   const item = (state.approvals || []).find(a => a.id === selectedApprovalId);
-  if (!item || !currentClientId) return null;
+  if (!item || !currentClientId) return [];
   const urls = getApprovalImageUrls();
-  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
+  // If all are http URLs, return all of them
+  var httpUrls = urls.filter(u => u && u.startsWith('http'));
+  if (httpUrls.length > 0 && httpUrls.length === urls.length) return httpUrls;
   if (postSelectedAssetIds.length > 0) {
     const assets = loadAssets(currentClientId);
-    const first = assets.find(a => a.id === postSelectedAssetIds[0]);
-    if (first) return first.thumbnailUrl || getPreviewUrl(first) || first.url || null;
+    var assetUrls = [];
+    for (var i = 0; i < postSelectedAssetIds.length; i++) {
+      var asset = assets.find(a => a.id === postSelectedAssetIds[i]);
+      if (asset) {
+        var aUrl = asset.thumbnailUrl || getPreviewUrl(asset) || asset.url || null;
+        if (aUrl) assetUrls.push(aUrl);
+      }
+    }
+    if (assetUrls.length > 0) return assetUrls;
   }
   const uploadBase64 = function(base64) {
-    // Use /api/upload/media to support both image and video
     return fetch(`${getApiBaseUrl()}/api/upload/media`, {
       method: 'POST',
       credentials: 'include',
@@ -4784,30 +4839,43 @@ async function getMediaUrlForApproval() {
       body: JSON.stringify({ media: base64 })
     }).then(function(r) { return r.json(); }).then(function(j) { return j && j.url ? j.url : null; });
   };
-  if (uploadedImages && uploadedImages.length > 0 && (uploadedImages[0].dataUrl || uploadedImages[0].data)) {
-    const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
-    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
-      const url = await uploadBase64(base64);
-      if (url) return url;
+  if (uploadedImages && uploadedImages.length > 0) {
+    var uploaded = [];
+    for (var ui = 0; ui < uploadedImages.length; ui++) {
+      var base64 = uploadedImages[ui].dataUrl || uploadedImages[ui].data;
+      if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
+        var url = await uploadBase64(base64);
+        if (url) uploaded.push(url);
+      }
     }
+    if (uploaded.length > 0) return uploaded;
   }
-  if (item.uploadedImages && item.uploadedImages.length > 0 && (item.uploadedImages[0].dataUrl || item.uploadedImages[0].data)) {
-    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
-    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
-      const url = await uploadBase64(base64);
-      if (url) return url;
+  if (item.uploadedImages && item.uploadedImages.length > 0) {
+    var savedUploaded = [];
+    for (var si = 0; si < item.uploadedImages.length; si++) {
+      var sb64 = item.uploadedImages[si].dataUrl || item.uploadedImages[si].data;
+      if (sb64 && (String(sb64).startsWith('data:image/') || String(sb64).startsWith('data:video/'))) {
+        var su = await uploadBase64(sb64);
+        if (su) savedUploaded.push(su);
+      }
     }
+    if (savedUploaded.length > 0) return savedUploaded;
   }
-  return urls[0] || null;
+  return httpUrls.length > 0 ? httpUrls : (urls.length > 0 ? [urls[0]] : []);
 }
 
 async function getMediaUrlForApprovalId(approvalId) {
+  const allUrls = await getAllMediaUrlsForApprovalId(approvalId);
+  return allUrls.length > 0 ? allUrls[0] : null;
+}
+
+/** Get ALL media URLs for an approval (for carousel support) */
+async function getAllMediaUrlsForApprovalId(approvalId) {
   const state = load();
   const item = (state.approvals || []).find(a => a.id === approvalId);
-  if (!currentClientId) return null;
+  if (!currentClientId) return [];
   const uploadBase64 = async function(base64) {
     try {
-      // Use /api/upload/media to support both image and video
       const r = await fetch(getApiBaseUrl() + '/api/upload/media', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -4820,29 +4888,47 @@ async function getMediaUrlForApprovalId(approvalId) {
   const urls = item ? (Array.isArray(item.imageUrls) && item.imageUrls.length > 0
     ? item.imageUrls.filter(u => u && String(u).trim())
     : (item.imageUrl ? [item.imageUrl] : [])) : [];
-  if (urls.length > 0 && urls[0].startsWith('http')) return urls[0];
-  // Check global uploadedImages from file input first
+  // If all URLs are already HTTP, return them all
+  var httpUrls = urls.filter(u => u && u.startsWith('http'));
+  if (httpUrls.length > 0 && httpUrls.length === urls.length) return httpUrls;
+  // Check global uploadedImages from file input (multiple files)
   if (typeof uploadedImages !== 'undefined' && uploadedImages.length > 0) {
-    const base64 = uploadedImages[0].dataUrl || uploadedImages[0].data;
-    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
-      const url = await uploadBase64(base64);
-      if (url) return url;
+    var uploaded = [];
+    for (var i = 0; i < uploadedImages.length; i++) {
+      var base64 = uploadedImages[i].dataUrl || uploadedImages[i].data;
+      if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
+        var url = await uploadBase64(base64);
+        if (url) uploaded.push(url);
+      }
     }
+    if (uploaded.length > 0) return uploaded;
   }
-  // Check saved approval images
+  // Check saved approval images (multiple)
   if (item && item.uploadedImages && item.uploadedImages.length > 0) {
-    const base64 = item.uploadedImages[0].dataUrl || item.uploadedImages[0].data;
-    if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
-      const url = await uploadBase64(base64);
-      if (url) return url;
+    var savedUploaded = [];
+    for (var j = 0; j < item.uploadedImages.length; j++) {
+      var b64 = item.uploadedImages[j].dataUrl || item.uploadedImages[j].data;
+      if (b64 && (String(b64).startsWith('data:image/') || String(b64).startsWith('data:video/'))) {
+        var u = await uploadBase64(b64);
+        if (u) savedUploaded.push(u);
+      }
     }
+    if (savedUploaded.length > 0) return savedUploaded;
   }
-  // If urls has a base64, upload it too
-  if (urls.length > 0 && (urls[0].startsWith('data:image/') || urls[0].startsWith('data:video/'))) {
-    const url = await uploadBase64(urls[0]);
-    if (url) return url;
+  // If urls have base64, upload them all
+  if (urls.length > 0) {
+    var converted = [];
+    for (var k = 0; k < urls.length; k++) {
+      if (urls[k].startsWith('data:image/') || urls[k].startsWith('data:video/')) {
+        var cu = await uploadBase64(urls[k]);
+        if (cu) converted.push(cu);
+      } else if (urls[k].startsWith('http')) {
+        converted.push(urls[k]);
+      }
+    }
+    if (converted.length > 0) return converted;
   }
-  return urls[0] || null;
+  return httpUrls.length > 0 ? httpUrls : (urls.length > 0 ? [urls[0]] : []);
 }
 
 async function scheduleFromApproval(approvalId) {
@@ -4860,7 +4946,8 @@ async function scheduleFromApproval(approvalId) {
     showToast('Select at least one platform', 'error');
     return;
   }
-  const mediaUrl = await getMediaUrlForApprovalId(approvalId);
+  const allMediaUrls = await getAllMediaUrlsForApprovalId(approvalId);
+  const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
   if (platforms.includes('instagram') && !mediaUrl) {
     showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
     return;
@@ -4879,6 +4966,7 @@ async function scheduleFromApproval(approvalId) {
         contentId: approvalId,
         caption,
         mediaUrl: mediaUrl || '',
+        mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -4911,7 +4999,8 @@ async function postNowFromApproval(approvalId) {
     return;
   }
   if (!confirm('Post now to ' + platforms.join(' & ') + '?')) return;
-  const mediaUrl = await getMediaUrlForApprovalId(approvalId);
+  const allMediaUrls = await getAllMediaUrlsForApprovalId(approvalId);
+  const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
   if (platforms.includes('instagram') && !mediaUrl) {
     showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
     return;
@@ -4929,6 +5018,7 @@ async function postNowFromApproval(approvalId) {
         contentId: approvalId,
         caption,
         mediaUrl: mediaUrl || '',
+        mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -4961,7 +5051,8 @@ async function schedulePostToMeta() {
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
-    const mediaUrl = await getMediaUrlForApproval();
+    const allMediaUrls = await getAllMediaUrlsForApprovalPanel();
+    const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
     if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const dateVal = $('#schedulePostDate') ? $('#schedulePostDate').value : '';
@@ -4976,6 +5067,7 @@ async function schedulePostToMeta() {
         contentId: selectedApprovalId,
         caption,
         mediaUrl: mediaUrl || '',
+        mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -5006,7 +5098,8 @@ async function postNowToMeta() {
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
-    const mediaUrl = await getMediaUrlForApproval();
+    const allMediaUrls = await getAllMediaUrlsForApprovalPanel();
+    const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
     if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
     const caption = ($('#approvalCaption') && $('#approvalCaption').value) || ($('#approvalTitle') && $('#approvalTitle').value) || '';
     const r = await fetch(`${getApiBaseUrl()}/api/posts/schedule`, {
@@ -5018,6 +5111,7 @@ async function postNowToMeta() {
         contentId: selectedApprovalId,
         caption,
         mediaUrl: mediaUrl || '',
+        mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'

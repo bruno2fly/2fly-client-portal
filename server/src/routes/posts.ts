@@ -17,8 +17,10 @@ import {
   publishToFacebook,
   publishPhotoToFacebook,
   publishVideoToFacebook,
+  publishMultiPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
+  publishInstagramCarousel,
   waitForInstagramContainer,
   getPages,
   getInstagramAccount,
@@ -93,7 +95,7 @@ function generateId(): string {
 router.post('/schedule', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const { clientId, contentId, caption, mediaUrl, platforms, scheduledAt, timezone } = req.body;
+    const { clientId, contentId, caption, mediaUrl, mediaUrls, platforms, scheduledAt, timezone } = req.body;
 
     if (!clientId || !contentId || !caption || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
       return res.status(400).json({ error: 'clientId, contentId, caption, and platforms required' });
@@ -124,7 +126,27 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
         finalMediaUrl = await ensurePublicMediaUrl(finalMediaUrl, agencyId);
       } catch (uploadErr: any) {
         console.error('[schedule] Failed to upload base64 media:', uploadErr.message);
-        // Keep original URL, publish-now will retry upload
+      }
+    }
+
+    // Handle multiple media URLs for carousel posts
+    let finalMediaUrls: string[] = [];
+    if (Array.isArray(mediaUrls) && mediaUrls.length > 0) {
+      for (const mUrl of mediaUrls) {
+        let url = (typeof mUrl === 'string' && mUrl.trim()) ? mUrl.trim() : '';
+        if (!url) continue;
+        if (url.startsWith('data:image/') || url.startsWith('data:video/')) {
+          try {
+            url = await ensurePublicMediaUrl(url, agencyId);
+          } catch (uploadErr: any) {
+            console.error('[schedule] Failed to upload media from mediaUrls:', uploadErr.message);
+          }
+        }
+        finalMediaUrls.push(url);
+      }
+      // If mediaUrl wasn't set but we have mediaUrls, use the first one as primary
+      if (!finalMediaUrl && finalMediaUrls.length > 0) {
+        finalMediaUrl = finalMediaUrls[0];
       }
     }
 
@@ -135,6 +157,7 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
       contentId,
       caption: String(caption).slice(0, 2200),
       mediaUrl: finalMediaUrl,
+      ...(finalMediaUrls.length > 1 ? { mediaUrls: finalMediaUrls } : {}),
       platforms: platformsList,
       scheduledAt: scheduledAtStr,
       timezone: tz,
@@ -291,7 +314,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
 
-    console.log(`[publish-now] Post ${post.id}: platforms=${post.platforms.join(',')}, pageId=${integration.metaPageId}, igId=${integration.metaInstagramAccountId || 'none'}, hasMedia=${!!post.mediaUrl}`);
+    const isCarousel = Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1;
+    console.log(`[publish-now] Post ${post.id}: platforms=${post.platforms.join(',')}, pageId=${integration.metaPageId}, igId=${integration.metaInstagramAccountId || 'none'}, hasMedia=${!!post.mediaUrl}, isCarousel=${isCarousel}, mediaCount=${isCarousel ? post.mediaUrls!.length : (post.mediaUrl ? 1 : 0)}`);
 
     try {
       // Convert base64 to public URL if needed (Instagram requires public HTTPS URLs)
@@ -299,17 +323,38 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       if (publicMediaUrl && (publicMediaUrl.startsWith('data:image/') || publicMediaUrl.startsWith('data:video/'))) {
         console.log('[publish-now] Converting base64 media to public URL via Vercel Blob...');
         publicMediaUrl = await ensurePublicMediaUrl(publicMediaUrl, post.agencyId);
-        // Update the stored post with the public URL so we don't re-upload next time
         post.mediaUrl = publicMediaUrl;
         console.log('[publish-now] Public URL obtained:', publicMediaUrl);
+      }
+
+      // Ensure all carousel URLs are public
+      let publicMediaUrls: string[] = [];
+      if (isCarousel) {
+        for (const mUrl of post.mediaUrls!) {
+          if (mUrl.startsWith('data:image/') || mUrl.startsWith('data:video/')) {
+            publicMediaUrls.push(await ensurePublicMediaUrl(mUrl, post.agencyId));
+          } else {
+            publicMediaUrls.push(mUrl);
+          }
+        }
+        publicMediaUrls = publicMediaUrls.filter(u => u && u.startsWith('http'));
+        post.mediaUrls = publicMediaUrls;
+        console.log(`[publish-now] Carousel has ${publicMediaUrls.length} public URLs`);
       }
 
       const hasMedia = publicMediaUrl && publicMediaUrl.startsWith('http');
       const isVideo = hasMedia && isVideoUrl(publicMediaUrl);
 
       if (post.platforms.includes('facebook')) {
-        if (hasMedia && isVideo) {
-          // Post with video
+        if (isCarousel && publicMediaUrls.length >= 2) {
+          // Multi-photo post
+          console.log('[publish-now] Publishing CAROUSEL to Facebook...');
+          const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            urls: publicMediaUrls,
+            caption: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else if (hasMedia && isVideo) {
           console.log('[publish-now] Publishing VIDEO to Facebook...');
           const result = await publishVideoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             file_url: publicMediaUrl,
@@ -317,14 +362,12 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
           });
           metaPostIds.facebook = result.id;
         } else if (hasMedia) {
-          // Post with photo
           const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             url: publicMediaUrl,
             caption: post.caption,
           });
           metaPostIds.facebook = result.id;
         } else {
-          // Text-only post
           const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
             message: post.caption,
           });
@@ -333,19 +376,27 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       }
 
       if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        if (!hasMedia) {
+        if (!hasMedia && !isCarousel) {
           throw new Error('Instagram requires media (image or video). Please attach media to this post.');
         }
 
-        if (isVideo) {
-          // Video / Reel — create container with video_url, wait for processing, then publish
+        if (isCarousel && publicMediaUrls.length >= 2) {
+          // Carousel post (multiple images)
+          console.log(`[publish-now] Publishing CAROUSEL (${publicMediaUrls.length} images) to Instagram...`);
+          const publishResult = await publishInstagramCarousel(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            publicMediaUrls,
+            post.caption
+          );
+          metaPostIds.instagram = publishResult.id;
+        } else if (isVideo) {
           console.log('[publish-now] Publishing VIDEO to Instagram as Reel...');
           const container = await createInstagramMediaContainer(
             integration.metaInstagramAccountId,
             integration.metaAccessToken,
             { video_url: publicMediaUrl, caption: post.caption, media_type: 'REELS' }
           );
-          // Wait for Instagram to finish processing the video
           await waitForInstagramContainer(container.id, integration.metaAccessToken);
           const publishResult = await publishInstagramContainer(
             integration.metaInstagramAccountId,
@@ -354,16 +405,12 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
           );
           metaPostIds.instagram = publishResult.id;
         } else {
-          // Image post — also wait for container to be ready before publishing
-          // Instagram needs time to download & validate the image; publishing immediately
-          // can cause "Media ID is not available" errors
           console.log('[publish-now] Publishing IMAGE to Instagram...');
           const container = await createInstagramMediaContainer(
             integration.metaInstagramAccountId,
             integration.metaAccessToken,
             { image_url: publicMediaUrl, caption: post.caption }
           );
-          // Wait for container to be FINISHED (usually <5s for images)
           await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
           const publishResult = await publishInstagramContainer(
             integration.metaInstagramAccountId,

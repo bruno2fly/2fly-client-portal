@@ -203,6 +203,7 @@ export interface ScheduledPost {
   contentId: string;
   caption: string;
   mediaUrl: string;
+  mediaUrls?: string[];  // For multi-image carousel posts
   platforms: ('instagram' | 'facebook')[];
   scheduledAt: string;
   timezone: string;

@@ -14,8 +14,10 @@ import {
 import {
   publishToFacebook,
   publishPhotoToFacebook,
+  publishMultiPhotoToFacebook,
   createInstagramMediaContainer,
   publishInstagramContainer,
+  publishInstagramCarousel,
   waitForInstagramContainer,
   getPages,
   getInstagramAccount,
@@ -122,17 +124,25 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
 
+    const isCarousel = Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1;
+    const carouselUrls = isCarousel ? post.mediaUrls!.filter((u: string) => u && u.startsWith('http')) : [];
+
     try {
       if (post.platforms.includes('facebook')) {
-        if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
-          // Photo post
+        if (isCarousel && carouselUrls.length >= 2) {
+          // Multi-photo carousel
+          console.log(`[cron] Publishing CAROUSEL (${carouselUrls.length} images) to Facebook...`);
+          const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            urls: carouselUrls, caption: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
           const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             url: post.mediaUrl,
             caption: post.caption,
           });
           metaPostIds.facebook = result.id;
         } else {
-          // Text-only post
           const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
             message: post.caption,
           });
@@ -141,19 +151,28 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       }
 
       if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        const container = await createInstagramMediaContainer(
-          integration.metaInstagramAccountId,
-          integration.metaAccessToken,
-          { image_url: post.mediaUrl, caption: post.caption }
-        );
-        // Wait for container to be ready before publishing
-        await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
-        const publishResult = await publishInstagramContainer(
-          integration.metaInstagramAccountId,
-          integration.metaAccessToken,
-          container.id
-        );
-        metaPostIds.instagram = publishResult.id;
+        if (isCarousel && carouselUrls.length >= 2) {
+          // Carousel post
+          console.log(`[cron] Publishing CAROUSEL (${carouselUrls.length} images) to Instagram...`);
+          const publishResult = await publishInstagramCarousel(
+            integration.metaInstagramAccountId, integration.metaAccessToken,
+            carouselUrls, post.caption
+          );
+          metaPostIds.instagram = publishResult.id;
+        } else {
+          const container = await createInstagramMediaContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            { image_url: post.mediaUrl, caption: post.caption }
+          );
+          await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
+          const publishResult = await publishInstagramContainer(
+            integration.metaInstagramAccountId,
+            integration.metaAccessToken,
+            container.id
+          );
+          metaPostIds.instagram = publishResult.id;
+        }
       }
 
       post.status = 'published';
@@ -303,9 +322,17 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
 
+    const isCarousel = Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1;
+    const carouselUrls = isCarousel ? post.mediaUrls!.filter((u: string) => u && u.startsWith('http')) : [];
+
     try {
       if (post.platforms.includes('facebook')) {
-        if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
+        if (isCarousel && carouselUrls.length >= 2) {
+          const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+            urls: carouselUrls, caption: post.caption,
+          });
+          metaPostIds.facebook = result.id;
+        } else if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
           const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             url: post.mediaUrl, caption: post.caption,
           });
@@ -319,16 +346,23 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
       }
 
       if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        const container = await createInstagramMediaContainer(
-          integration.metaInstagramAccountId, integration.metaAccessToken,
-          { image_url: post.mediaUrl, caption: post.caption }
-        );
-        // Wait for container to be ready before publishing
-        await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
-        const publishResult = await publishInstagramContainer(
-          integration.metaInstagramAccountId, integration.metaAccessToken, container.id
-        );
-        metaPostIds.instagram = publishResult.id;
+        if (isCarousel && carouselUrls.length >= 2) {
+          const publishResult = await publishInstagramCarousel(
+            integration.metaInstagramAccountId, integration.metaAccessToken,
+            carouselUrls, post.caption
+          );
+          metaPostIds.instagram = publishResult.id;
+        } else {
+          const container = await createInstagramMediaContainer(
+            integration.metaInstagramAccountId, integration.metaAccessToken,
+            { image_url: post.mediaUrl, caption: post.caption }
+          );
+          await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
+          const publishResult = await publishInstagramContainer(
+            integration.metaInstagramAccountId, integration.metaAccessToken, container.id
+          );
+          metaPostIds.instagram = publishResult.id;
+        }
       }
 
       post.status = 'published';
