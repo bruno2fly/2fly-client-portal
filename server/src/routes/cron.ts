@@ -8,6 +8,7 @@ import {
   getScheduledPosts,
   saveScheduledPost,
   getMetaIntegrationByClient,
+  getMetaIntegrations,
   saveMetaIntegration,
   getClient,
 } from '../db.js';
@@ -82,33 +83,33 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       continue;
     }
 
-    // ── Refresh tokens before publishing (same logic as publish-now) ──
-    const userToken = (integration as any).metaUserAccessToken;
+    // ── ALWAYS refresh tokens before publishing ──
+    let userToken = (integration as any).metaUserAccessToken;
     if (userToken) {
       try {
-        // Proactively refresh the user token if it expires within 7 days
-        const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-        if (integration.tokenExpiresAt - Date.now() < SEVEN_DAYS) {
-          console.log(`[cron] Token for ${integration.metaPageId} expires soon, refreshing user token...`);
+        // Always try to refresh user token to keep it alive
+        try {
+          console.log(`[cron] Refreshing user token for ${integration.metaPageId}...`);
           const refreshed = await refreshLongLivedToken(userToken);
+          userToken = refreshed.access_token;
           (integration as any).metaUserAccessToken = refreshed.access_token;
           integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
           console.log(`[cron] User token refreshed, new expiry: ${new Date(integration.tokenExpiresAt).toISOString()}`);
+        } catch (refreshUserErr: any) {
+          console.log(`[cron] User token refresh failed (using existing): ${refreshUserErr.message}`);
         }
 
-        // Refresh page token from user token
+        // Always get fresh page token from user token
         const freshPages = await getPages(userToken);
         const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
-        if (freshPage && freshPage.access_token !== integration.metaAccessToken) {
-          console.log(`[cron] Refreshed page token for ${integration.metaPageId}`);
+        if (freshPage) {
+          console.log(`[cron] Got fresh page token for ${integration.metaPageId}`);
           integration.metaAccessToken = freshPage.access_token;
           integration.updatedAt = Date.now();
-          if (freshPage.id) {
-            const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
-            if (igAcct) {
-              integration.metaInstagramAccountId = igAcct.id;
-              integration.metaInstagramUsername = igAcct.username;
-            }
+          const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
+          if (igAcct) {
+            integration.metaInstagramAccountId = igAcct.id;
+            integration.metaInstagramUsername = igAcct.username;
           }
         }
         saveMetaIntegration(integration);
@@ -391,6 +392,76 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, retried: results.length, results });
+});
+
+/**
+ * GET /api/cron/refresh-tokens
+ * Proactively refreshes ALL Meta integration tokens.
+ * Run daily via Railway cron or external scheduler to keep tokens alive.
+ * This prevents the "#200 Subject does not have permission" errors.
+ */
+router.get('/refresh-tokens', async (req: Request, res: Response) => {
+  if (!verifyCronAuth(req, res)) return;
+
+  const integrations = Object.values(getMetaIntegrations());
+  const results: { clientId: string; pageId: string; status: string; error?: string; expiresAt?: string }[] = [];
+
+  for (const integration of integrations) {
+    let userToken = (integration as any).metaUserAccessToken;
+    if (!userToken) {
+      results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'skipped', error: 'No user token stored' });
+      continue;
+    }
+
+    try {
+      // Step 1: Refresh the long-lived user token (extends by 60 days)
+      try {
+        const refreshed = await refreshLongLivedToken(userToken);
+        userToken = refreshed.access_token;
+        (integration as any).metaUserAccessToken = refreshed.access_token;
+        integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
+        console.log(`[refresh-tokens] User token refreshed for page ${integration.metaPageId}, expires: ${new Date(integration.tokenExpiresAt).toISOString()}`);
+      } catch (e: any) {
+        console.log(`[refresh-tokens] User token refresh failed for ${integration.metaPageId}: ${e.message}`);
+        // Continue anyway — try to get fresh page token with existing user token
+      }
+
+      // Step 2: Get fresh page token
+      const freshPages = await getPages(userToken);
+      const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
+      if (freshPage) {
+        integration.metaAccessToken = freshPage.access_token;
+        integration.updatedAt = Date.now();
+
+        // Step 3: Refresh Instagram account info
+        const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
+        if (igAcct) {
+          integration.metaInstagramAccountId = igAcct.id;
+          integration.metaInstagramUsername = igAcct.username;
+        }
+
+        saveMetaIntegration(integration);
+        results.push({
+          clientId: integration.clientId,
+          pageId: integration.metaPageId,
+          status: 'refreshed',
+          expiresAt: new Date(integration.tokenExpiresAt).toISOString()
+        });
+      } else {
+        results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'failed', error: 'No pages found for user token' });
+      }
+    } catch (err: any) {
+      results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'failed', error: err.message });
+    }
+  }
+
+  res.json({
+    success: true,
+    refreshed: results.filter(r => r.status === 'refreshed').length,
+    failed: results.filter(r => r.status === 'failed').length,
+    skipped: results.filter(r => r.status === 'skipped').length,
+    results
+  });
 });
 
 export default router;

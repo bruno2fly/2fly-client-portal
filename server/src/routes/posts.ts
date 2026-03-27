@@ -277,34 +277,33 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
 
-    // Refresh tokens before publishing
+    // ALWAYS refresh tokens before publishing — ensures fresh page token
     let userToken = (integration as any).metaUserAccessToken;
     if (userToken) {
       try {
-        // Proactively refresh user token if it expires within 7 days
-        const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-        if (integration.tokenExpiresAt - Date.now() < SEVEN_DAYS) {
-          console.log(`[publish-now] Token expires soon, refreshing user token...`);
+        // Always try to refresh user token to keep it alive
+        try {
+          console.log(`[publish-now] Refreshing user token...`);
           const refreshed = await refreshLongLivedToken(userToken);
           userToken = refreshed.access_token;
           (integration as any).metaUserAccessToken = refreshed.access_token;
           integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
           console.log(`[publish-now] User token refreshed, new expiry: ${new Date(integration.tokenExpiresAt).toISOString()}`);
+        } catch (refreshUserErr: any) {
+          console.log(`[publish-now] User token refresh failed (using existing): ${refreshUserErr.message}`);
         }
 
-        // Refresh page token from user token
+        // Always get fresh page token from user token
         const freshPages = await getPages(userToken);
         const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
-        if (freshPage && freshPage.access_token !== integration.metaAccessToken) {
-          console.log(`[publish-now] Refreshed page token for ${integration.metaPageId}`);
+        if (freshPage) {
+          console.log(`[publish-now] Got fresh page token for ${integration.metaPageId}`);
           integration.metaAccessToken = freshPage.access_token;
           integration.updatedAt = Date.now();
-          if (freshPage.id) {
-            const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
-            if (igAcct) {
-              integration.metaInstagramAccountId = igAcct.id;
-              integration.metaInstagramUsername = igAcct.username;
-            }
+          const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
+          if (igAcct) {
+            integration.metaInstagramAccountId = igAcct.id;
+            integration.metaInstagramUsername = igAcct.username;
           }
         }
         saveMetaIntegration(integration);
