@@ -22,6 +22,11 @@ import {
   publishInstagramContainer,
   publishInstagramCarousel,
   waitForInstagramContainer,
+  publishInstagramStory,
+  publishInstagramReel,
+  publishFacebookPhotoStory,
+  publishFacebookVideoStory,
+  publishFacebookReel,
   getPages,
   getInstagramAccount,
   refreshLongLivedToken,
@@ -95,7 +100,7 @@ function generateId(): string {
 router.post('/schedule', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const { clientId, contentId, caption, mediaUrl, mediaUrls, platforms, scheduledAt, timezone } = req.body;
+    const { clientId, contentId, caption, mediaUrl, mediaUrls, platforms, placements, scheduledAt, timezone } = req.body;
 
     if (!clientId || !contentId || !caption || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
       return res.status(400).json({ error: 'clientId, contentId, caption, and platforms required' });
@@ -159,6 +164,7 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
       mediaUrl: finalMediaUrl,
       ...(finalMediaUrls.length > 1 ? { mediaUrls: finalMediaUrls } : {}),
       platforms: platformsList,
+      placements: Array.isArray(placements) && placements.length > 0 ? placements.filter((p: string) => ['feed', 'stories', 'reels'].includes(p)) : ['feed'],
       scheduledAt: scheduledAtStr,
       timezone: tz,
       status: 'scheduled' as const,
@@ -315,7 +321,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     let error: string | undefined;
 
     const isCarousel = Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1;
-    console.log(`[publish-now] Post ${post.id}: platforms=${post.platforms.join(',')}, pageId=${integration.metaPageId}, igId=${integration.metaInstagramAccountId || 'none'}, hasMedia=${!!post.mediaUrl}, isCarousel=${isCarousel}, mediaCount=${isCarousel ? post.mediaUrls!.length : (post.mediaUrl ? 1 : 0)}`);
+    const placements: string[] = Array.isArray(post.placements) && post.placements.length > 0 ? post.placements : ['feed'];
+    console.log(`[publish-now] Post ${post.id}: platforms=${post.platforms.join(',')}, placements=${placements.join(',')}, pageId=${integration.metaPageId}, igId=${integration.metaInstagramAccountId || 'none'}, hasMedia=${!!post.mediaUrl}, isCarousel=${isCarousel}, mediaCount=${isCarousel ? post.mediaUrls!.length : (post.mediaUrl ? 1 : 0)}`);
 
     try {
       // Convert base64 to public URL if needed (Instagram requires public HTTPS URLs)
@@ -345,81 +352,121 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       const hasMedia = publicMediaUrl && publicMediaUrl.startsWith('http');
       const isVideo = hasMedia && isVideoUrl(publicMediaUrl);
 
-      if (post.platforms.includes('facebook')) {
-        if (isCarousel && publicMediaUrls.length >= 2) {
-          // Multi-photo post
-          console.log('[publish-now] Publishing CAROUSEL to Facebook...');
-          const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
-            urls: publicMediaUrls,
-            caption: post.caption,
-          });
-          metaPostIds.facebook = result.id;
-        } else if (hasMedia && isVideo) {
-          console.log('[publish-now] Publishing VIDEO to Facebook...');
-          const result = await publishVideoToFacebook(integration.metaPageId, integration.metaAccessToken, {
-            file_url: publicMediaUrl,
-            description: post.caption,
-          });
-          metaPostIds.facebook = result.id;
-        } else if (hasMedia) {
-          const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
-            url: publicMediaUrl,
-            caption: post.caption,
-          });
-          metaPostIds.facebook = result.id;
-        } else {
-          const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
-            message: post.caption,
-          });
-          metaPostIds.facebook = result.id;
+      // Publish to each placement for each platform
+      for (const placement of placements) {
+        // ========== FACEBOOK ==========
+        if (post.platforms.includes('facebook')) {
+          if (placement === 'feed') {
+            if (isCarousel && publicMediaUrls.length >= 2) {
+              console.log('[publish-now] Publishing CAROUSEL to Facebook Feed...');
+              const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+                urls: publicMediaUrls,
+                caption: post.caption,
+              });
+              metaPostIds.facebook = result.id;
+            } else if (hasMedia && isVideo) {
+              console.log('[publish-now] Publishing VIDEO to Facebook Feed...');
+              const result = await publishVideoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+                file_url: publicMediaUrl,
+                description: post.caption,
+              });
+              metaPostIds.facebook = result.id;
+            } else if (hasMedia) {
+              const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
+                url: publicMediaUrl,
+                caption: post.caption,
+              });
+              metaPostIds.facebook = result.id;
+            } else {
+              const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
+                message: post.caption,
+              });
+              metaPostIds.facebook = result.id;
+            }
+          } else if (placement === 'stories' && hasMedia) {
+            if (isVideo) {
+              console.log('[publish-now] Publishing VIDEO STORY to Facebook...');
+              const result = await publishFacebookVideoStory(integration.metaPageId, integration.metaAccessToken, { url: publicMediaUrl });
+              metaPostIds.facebook = metaPostIds.facebook || result.id;
+            } else {
+              console.log('[publish-now] Publishing PHOTO STORY to Facebook...');
+              const result = await publishFacebookPhotoStory(integration.metaPageId, integration.metaAccessToken, { url: publicMediaUrl });
+              metaPostIds.facebook = metaPostIds.facebook || result.id;
+            }
+          } else if (placement === 'reels' && hasMedia && isVideo) {
+            console.log('[publish-now] Publishing REEL to Facebook...');
+            const result = await publishFacebookReel(integration.metaPageId, integration.metaAccessToken, {
+              url: publicMediaUrl,
+              description: post.caption,
+            });
+            metaPostIds.facebook = metaPostIds.facebook || result.id;
+          }
         }
-      }
 
-      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        if (!hasMedia && !isCarousel) {
-          throw new Error('Instagram requires media (image or video). Please attach media to this post.');
-        }
+        // ========== INSTAGRAM ==========
+        if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
+          if (!hasMedia && !isCarousel) {
+            throw new Error('Instagram requires media (image or video). Please attach media to this post.');
+          }
 
-        if (isCarousel && publicMediaUrls.length >= 2) {
-          // Carousel post (multiple images)
-          console.log(`[publish-now] Publishing CAROUSEL (${publicMediaUrls.length} images) to Instagram...`);
-          const publishResult = await publishInstagramCarousel(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            publicMediaUrls,
-            post.caption
-          );
-          metaPostIds.instagram = publishResult.id;
-        } else if (isVideo) {
-          console.log('[publish-now] Publishing VIDEO to Instagram as Reel...');
-          const container = await createInstagramMediaContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            { video_url: publicMediaUrl, caption: post.caption, media_type: 'REELS' }
-          );
-          await waitForInstagramContainer(container.id, integration.metaAccessToken);
-          const publishResult = await publishInstagramContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            container.id
-          );
-          metaPostIds.instagram = publishResult.id;
-        } else {
-          console.log('[publish-now] Publishing IMAGE to Instagram...');
-          const container = await createInstagramMediaContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            { image_url: publicMediaUrl, caption: post.caption }
-          );
-          await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
-          const publishResult = await publishInstagramContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            container.id
-          );
-          metaPostIds.instagram = publishResult.id;
+          if (placement === 'feed') {
+            if (isCarousel && publicMediaUrls.length >= 2) {
+              console.log(`[publish-now] Publishing CAROUSEL (${publicMediaUrls.length} images) to Instagram Feed...`);
+              const publishResult = await publishInstagramCarousel(
+                integration.metaInstagramAccountId,
+                integration.metaAccessToken,
+                publicMediaUrls,
+                post.caption
+              );
+              metaPostIds.instagram = publishResult.id;
+            } else if (isVideo) {
+              console.log('[publish-now] Publishing VIDEO to Instagram Feed as Reel...');
+              const container = await createInstagramMediaContainer(
+                integration.metaInstagramAccountId,
+                integration.metaAccessToken,
+                { video_url: publicMediaUrl, caption: post.caption, media_type: 'REELS' }
+              );
+              await waitForInstagramContainer(container.id, integration.metaAccessToken);
+              const publishResult = await publishInstagramContainer(
+                integration.metaInstagramAccountId,
+                integration.metaAccessToken,
+                container.id
+              );
+              metaPostIds.instagram = publishResult.id;
+            } else {
+              console.log('[publish-now] Publishing IMAGE to Instagram Feed...');
+              const container = await createInstagramMediaContainer(
+                integration.metaInstagramAccountId,
+                integration.metaAccessToken,
+                { image_url: publicMediaUrl, caption: post.caption }
+              );
+              await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
+              const publishResult = await publishInstagramContainer(
+                integration.metaInstagramAccountId,
+                integration.metaAccessToken,
+                container.id
+              );
+              metaPostIds.instagram = publishResult.id;
+            }
+          } else if (placement === 'stories' && hasMedia) {
+            console.log(`[publish-now] Publishing STORY to Instagram (${isVideo ? 'video' : 'image'})...`);
+            const publishResult = await publishInstagramStory(
+              integration.metaInstagramAccountId,
+              integration.metaAccessToken,
+              isVideo ? { video_url: publicMediaUrl } : { image_url: publicMediaUrl }
+            );
+            metaPostIds.instagram = metaPostIds.instagram || publishResult.id;
+          } else if (placement === 'reels' && hasMedia && isVideo) {
+            console.log('[publish-now] Publishing REEL to Instagram...');
+            const publishResult = await publishInstagramReel(
+              integration.metaInstagramAccountId,
+              integration.metaAccessToken,
+              { video_url: publicMediaUrl, caption: post.caption }
+            );
+            metaPostIds.instagram = metaPostIds.instagram || publishResult.id;
+          }
         }
-      }
+      } // end placements loop
 
       post.status = 'published';
       post.publishedAt = new Date().toISOString();

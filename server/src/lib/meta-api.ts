@@ -360,3 +360,179 @@ export async function publishMultiPhotoToFacebook(
   if (data.error) throw new Error(data.error.message || 'Failed to publish multi-photo post');
   return { id: data.id };
 }
+
+// ==================== STORIES ====================
+
+/**
+ * Publish an image story to Instagram
+ * Creates a container with media_type: STORIES, waits, then publishes
+ */
+export async function publishInstagramStory(
+  igAccountId: string,
+  accessToken: string,
+  options: { image_url?: string; video_url?: string }
+): Promise<{ id: string }> {
+  const body: Record<string, any> = {
+    media_type: 'STORIES',
+    access_token: accessToken,
+  };
+  if (options.video_url) {
+    body.video_url = options.video_url;
+  } else if (options.image_url) {
+    body.image_url = options.image_url;
+  } else {
+    throw new Error('Stories require either image_url or video_url');
+  }
+
+  console.log(`[IG Story] Creating story container for ${igAccountId}...`);
+  const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to create story container');
+  const containerId = data.id;
+  console.log(`[IG Story] Container created: ${containerId}, waiting for readiness...`);
+
+  // Wait for container to be ready
+  await waitForInstagramContainer(containerId, accessToken, options.video_url ? 120000 : 30000);
+
+  // Publish
+  const publishResult = await publishInstagramContainer(igAccountId, accessToken, containerId);
+  console.log(`[IG Story] Story published: ${publishResult.id}`);
+  return publishResult;
+}
+
+/**
+ * Publish a photo story to Facebook Page
+ */
+export async function publishFacebookPhotoStory(
+  pageId: string,
+  pageAccessToken: string,
+  options: { url: string }
+): Promise<{ id: string }> {
+  console.log(`[FB Story] Publishing photo story to page ${pageId}...`);
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/photo_stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      photo_id: await uploadUnpublishedFacebookPhoto(pageId, pageAccessToken, options.url),
+      access_token: pageAccessToken,
+    }),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish Facebook photo story');
+  console.log(`[FB Story] Photo story published: ${data.id}`);
+  return { id: data.id };
+}
+
+/**
+ * Publish a video story to Facebook Page
+ */
+export async function publishFacebookVideoStory(
+  pageId: string,
+  pageAccessToken: string,
+  options: { url: string }
+): Promise<{ id: string }> {
+  console.log(`[FB Story] Publishing video story to page ${pageId}...`);
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/video_stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      upload_phase: 'start',
+      file_url: options.url,
+      access_token: pageAccessToken,
+    }),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish Facebook video story');
+  console.log(`[FB Story] Video story published: ${data.id}`);
+  return { id: data.id };
+}
+
+/**
+ * Helper: upload unpublished photo to Facebook and return photo_id
+ */
+async function uploadUnpublishedFacebookPhoto(
+  pageId: string,
+  pageAccessToken: string,
+  url: string
+): Promise<string> {
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/photos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url,
+      published: false,
+      access_token: pageAccessToken,
+    }),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to upload unpublished photo');
+  return data.id;
+}
+
+// ==================== REELS ====================
+
+/**
+ * Publish a Reel to Instagram (video only)
+ * Uses media_type: REELS
+ */
+export async function publishInstagramReel(
+  igAccountId: string,
+  accessToken: string,
+  options: { video_url: string; caption?: string }
+): Promise<{ id: string }> {
+  console.log(`[IG Reel] Creating reel container for ${igAccountId}...`);
+  const body: Record<string, any> = {
+    media_type: 'REELS',
+    video_url: options.video_url,
+    caption: options.caption || '',
+    access_token: accessToken,
+  };
+
+  const res = await fetch(`${META_GRAPH_BASE}/${igAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to create reel container');
+  const containerId = data.id;
+  console.log(`[IG Reel] Container created: ${containerId}, waiting for video processing...`);
+
+  // Wait for video to process (reels can take longer)
+  await waitForInstagramContainer(containerId, accessToken, 180000);
+
+  // Publish
+  const publishResult = await publishInstagramContainer(igAccountId, accessToken, containerId);
+  console.log(`[IG Reel] Reel published: ${publishResult.id}`);
+  return publishResult;
+}
+
+/**
+ * Publish a Reel to Facebook Page (video only)
+ */
+export async function publishFacebookReel(
+  pageId: string,
+  pageAccessToken: string,
+  options: { url: string; description?: string }
+): Promise<{ id: string }> {
+  console.log(`[FB Reel] Publishing reel to page ${pageId}...`);
+  const res = await fetch(`${META_GRAPH_BASE}/${pageId}/video_reels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      upload_phase: 'finish',
+      video_state: 'PUBLISHED',
+      file_url: options.url,
+      description: options.description || '',
+      access_token: pageAccessToken,
+    }),
+  });
+  const data: any = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to publish Facebook reel');
+  console.log(`[FB Reel] Reel published: ${data.id}`);
+  return { id: data.id };
+}

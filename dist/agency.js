@@ -4431,39 +4431,84 @@ function renderApprovalsTab() {
           scheduleSection.appendChild(heading);
           const connectedWrap = el('div', { class: 'schedule-section-connected', style: 'display: none;' });
           const platformsRow = el('div', { style: 'display: flex; gap: 12px; align-items: center; flex-wrap: wrap;' });
-          const igLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px;' });
+          // Platform checkboxes row
+          const igLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 13px;' });
           const igCheck = document.createElement('input');
           igCheck.type = 'checkbox';
           igCheck.checked = true;
           igCheck.dataset.platform = 'instagram';
           igLabel.appendChild(igCheck);
           igLabel.appendChild(document.createTextNode(' Instagram'));
-          const fbLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px;' });
+          const fbLabel = el('label', { style: 'display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 13px;' });
           const fbCheck = document.createElement('input');
           fbCheck.type = 'checkbox';
           fbCheck.checked = true;
           fbCheck.dataset.platform = 'facebook';
           fbLabel.appendChild(fbCheck);
           fbLabel.appendChild(document.createTextNode(' Facebook'));
+          platformsRow.appendChild(igLabel);
+          platformsRow.appendChild(fbLabel);
+          connectedWrap.appendChild(platformsRow);
+
+          // Placement picker (Feed / Stories / Reels)
+          const placementSection = el('div', { class: 'placement-picker', style: 'margin-top: 8px; padding: 10px; background: #e8f0fe; border-radius: 8px;' });
+          const placementTitle = el('div', { style: 'font-size: 12px; font-weight: 600; color: #1a56db; margin-bottom: 6px;' }, 'Post to:');
+          placementSection.appendChild(placementTitle);
+          const placementRow = el('div', { style: 'display: flex; gap: 8px; flex-wrap: wrap;' });
+          const placementOptions = ['feed', 'stories', 'reels'];
+          const placementLabels = { feed: 'Feed', stories: 'Stories', reels: 'Reels' };
+          const placementIcons = {
+            feed: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>',
+            stories: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>',
+            reels: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M10 8l6 4-6 4V8z"/></svg>'
+          };
+          placementOptions.forEach(p => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.placement = p;
+            btn.className = 'placement-btn' + (p === 'feed' ? ' active' : '');
+            btn.innerHTML = placementIcons[p] + ' ' + placementLabels[p];
+            btn.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid ' + (p === 'feed' ? '#1a56db; background: #1a56db; color: white;' : '#cbd5e1; background: white; color: #64748b;');
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              // Toggle active state
+              if (btn.classList.contains('active')) {
+                // Don't allow deselecting if it's the only one active
+                const allActive = btn.parentElement.querySelectorAll('.placement-btn.active');
+                if (allActive.length <= 1) return;
+                btn.classList.remove('active');
+                btn.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #cbd5e1; background: white; color: #64748b;';
+              } else {
+                btn.classList.add('active');
+                btn.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #1a56db; background: #1a56db; color: white;';
+              }
+            });
+            placementRow.appendChild(btn);
+          });
+          placementSection.appendChild(placementRow);
+          const placementNote = el('div', { style: 'font-size: 11px; color: #6b7280; margin-top: 6px;' }, 'Stories = 24h temporary. Reels = video only.');
+          placementSection.appendChild(placementNote);
+          connectedWrap.appendChild(placementSection);
+
+          // Date / Schedule / Post Now row
+          const actionsRow = el('div', { style: 'display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px;' });
           const dateInput = document.createElement('input');
           dateInput.type = 'datetime-local';
           dateInput.className = 'schedule-datetime';
           dateInput.value = prefillDate;
-          dateInput.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;';
+          dateInput.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; flex: 1; min-width: 160px;';
           const scheduleBtn = document.createElement('button');
           scheduleBtn.textContent = 'Schedule';
-          scheduleBtn.style.cssText = 'padding: 6px 16px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer;';
+          scheduleBtn.style.cssText = 'padding: 6px 16px; background: #1a56db; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;';
           scheduleBtn.addEventListener('click', () => { if (typeof scheduleFromApproval === 'function') scheduleFromApproval(item.id); });
           const postNowBtn = document.createElement('button');
           postNowBtn.textContent = 'Post Now';
-          postNowBtn.style.cssText = 'padding: 6px 16px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer;';
+          postNowBtn.style.cssText = 'padding: 6px 16px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;';
           postNowBtn.addEventListener('click', () => { if (typeof postNowFromApproval === 'function') postNowFromApproval(item.id); });
-          platformsRow.appendChild(igLabel);
-          platformsRow.appendChild(fbLabel);
-          platformsRow.appendChild(dateInput);
-          platformsRow.appendChild(scheduleBtn);
-          platformsRow.appendChild(postNowBtn);
-          connectedWrap.appendChild(platformsRow);
+          actionsRow.appendChild(dateInput);
+          actionsRow.appendChild(scheduleBtn);
+          actionsRow.appendChild(postNowBtn);
+          connectedWrap.appendChild(actionsRow);
           const notConnectedWrap = el('div', { class: 'schedule-section-not-connected', style: 'display: none;' });
           const notConnectedP = el('p', { style: 'color: #6b7280; margin: 0;' }, "Connect this client's social accounts first.");
           const link = el('a', { href: '#', style: 'color: #1a56db; text-decoration: underline;' }, 'Go to Scheduled Posts → Connect');
@@ -4962,10 +5007,21 @@ async function scheduleFromApproval(approvalId) {
     showToast('Select at least one platform', 'error');
     return;
   }
+  // Get selected placements (feed/stories/reels)
+  const placements = [];
+  const activePlacementBtns = card.querySelectorAll('.placement-btn.active');
+  activePlacementBtns.forEach(btn => { if (btn.dataset.placement) placements.push(btn.dataset.placement); });
+  if (placements.length === 0) placements.push('feed'); // default to feed
+
   const allMediaUrls = await getAllMediaUrlsForApprovalId(approvalId);
   const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
   if (platforms.includes('instagram') && !mediaUrl) {
     showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
+    return;
+  }
+  // Validate: Reels requires video
+  if (placements.includes('reels') && mediaUrl && !mediaUrl.match(/\.(mp4|mov|avi|webm)/i) && !mediaUrl.startsWith('data:video/')) {
+    showToast('Reels requires a video file. Please use Feed or Stories for images.', 'error');
     return;
   }
   const state = load();
@@ -4984,6 +5040,7 @@ async function scheduleFromApproval(approvalId) {
         mediaUrl: mediaUrl || '',
         mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
+        placements,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
       })
@@ -4998,7 +5055,7 @@ async function scheduleFromApproval(approvalId) {
     }
     renderApprovalsTab();
     renderScheduledPostsTab();
-    createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: 'Post scheduled to publish at ' + new Date(scheduledAt).toLocaleString(), clientId: currentClientId, action: { label: 'View scheduled', href: '#scheduled' } });
+    createNotification({ type: 'PROGRESS', title: 'Post scheduled', message: 'Post scheduled to publish at ' + new Date(scheduledAt).toLocaleString() + ' (' + placements.join(', ') + ')', clientId: currentClientId, action: { label: 'View scheduled', href: '#scheduled' } });
   } catch (e) {
     showToast(e.message || 'Failed to schedule', 'error');
   }
@@ -5014,11 +5071,21 @@ async function postNowFromApproval(approvalId) {
     showToast('Select at least one platform', 'error');
     return;
   }
-  if (!confirm('Post now to ' + platforms.join(' & ') + '?')) return;
+  // Get selected placements
+  const placements = [];
+  const activePlacementBtns = card.querySelectorAll('.placement-btn.active');
+  activePlacementBtns.forEach(btn => { if (btn.dataset.placement) placements.push(btn.dataset.placement); });
+  if (placements.length === 0) placements.push('feed');
+
+  if (!confirm('Post now to ' + platforms.join(' & ') + ' (' + placements.join(', ') + ')?')) return;
   const allMediaUrls = await getAllMediaUrlsForApprovalId(approvalId);
   const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
   if (platforms.includes('instagram') && !mediaUrl) {
     showToast('Instagram requires media (image or video). Add media in the approval or post to Facebook only.', 'error');
+    return;
+  }
+  if (placements.includes('reels') && mediaUrl && !mediaUrl.match(/\.(mp4|mov|avi|webm)/i) && !mediaUrl.startsWith('data:video/')) {
+    showToast('Reels requires a video file. Please use Feed or Stories for images.', 'error');
     return;
   }
   const state = load();
@@ -5036,6 +5103,7 @@ async function postNowFromApproval(approvalId) {
         mediaUrl: mediaUrl || '',
         mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
+        placements,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
       })
@@ -5053,7 +5121,7 @@ async function postNowFromApproval(approvalId) {
     }
     renderApprovalsTab();
     renderScheduledPostsTab();
-    createNotification({ type: 'REWARD', title: 'Post published', message: 'Post published to ' + platforms.join(' & '), clientId: currentClientId, action: { label: 'View', href: '#scheduled' } });
+    createNotification({ type: 'REWARD', title: 'Post published', message: 'Post published to ' + platforms.join(' & ') + ' (' + placements.join(', ') + ')', clientId: currentClientId, action: { label: 'View', href: '#scheduled' } });
   } catch (e) {
     showToast(e.message || 'Failed to publish', 'error');
   }
@@ -5067,6 +5135,8 @@ async function schedulePostToMeta() {
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
+    // Get placements from form panel (if available) or default to feed
+    const placements = ['feed'];
     const allMediaUrls = await getAllMediaUrlsForApprovalPanel();
     const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
     if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
@@ -5085,6 +5155,7 @@ async function schedulePostToMeta() {
         mediaUrl: mediaUrl || '',
         mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
+        placements,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
       })
@@ -5114,6 +5185,7 @@ async function postNowToMeta() {
     if ($('#schedulePlatformIg') && $('#schedulePlatformIg').checked) platforms.push('instagram');
     if ($('#schedulePlatformFb') && $('#schedulePlatformFb').checked) platforms.push('facebook');
     if (platforms.length === 0) throw new Error('Select at least one platform');
+    const placements = ['feed'];
     const allMediaUrls = await getAllMediaUrlsForApprovalPanel();
     const mediaUrl = allMediaUrls.length > 0 ? allMediaUrls[0] : '';
     if (platforms.includes('instagram') && !mediaUrl) throw new Error('Instagram requires media (image or video). Add media or post to Facebook only.');
@@ -5129,6 +5201,7 @@ async function postNowToMeta() {
         mediaUrl: mediaUrl || '',
         mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
         platforms,
+        placements,
         scheduledAt: new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
       })

@@ -205,6 +205,7 @@ export interface ScheduledPost {
   mediaUrl: string;
   mediaUrls?: string[];  // For multi-image carousel posts
   platforms: ('instagram' | 'facebook')[];
+  placements?: ('feed' | 'stories' | 'reels')[];  // Where to publish: feed, stories, reels (default: ['feed'])
   scheduledAt: string;
   timezone: string;
   status: 'scheduled' | 'publishing' | 'published' | 'failed';
