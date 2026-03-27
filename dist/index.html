@@ -63,6 +63,10 @@
     min-height:100vh;
     min-height:100dvh;
   }
+  @media (max-width: 768px){
+    .wrap{padding-left:10px;padding-right:10px;}
+    .wrap > *:not(header){padding:12px !important;}
+  }
   header{
     display:flex;gap:16px;align-items:center;justify-content:space-between;
     margin:16px 16px 0;padding:20px 24px;
@@ -646,8 +650,9 @@
   body[data-theme="dark"] .modal__body textarea{background:#1e293b;border-color:#334155;color:#f1f5f9;}
   @media (max-width: 960px){
     .cards{grid-template-columns:1fr 1fr}
-    .grid{grid-template-columns:1fr}
+    .grid{grid-template-columns:1fr;gap:10px;}
     .grid > *{grid-column:1 / -1 !important;min-width:0;}
+    .panel{border-radius:14px;padding:14px;}
     /* Keep upcoming feed as 3-col Instagram grid on mobile */
     #upcomingFeedGrid{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:2px !important;}
     #upcomingFeedGrid > *{grid-column:auto !important;}
@@ -905,28 +910,28 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 }
 @media (max-width: 768px){
   .alert-banner{
-    margin: 16px 16px 0;
-    padding: 24px 22px;
-    border-radius: 16px;
+    margin: 10px 0 0;
+    padding: 18px 16px;
+    border-radius: 14px;
   }
-  .alert-banner__text{ font-size: 17px; line-height: 24px; }
-  .alert-banner__dot{ width: 24px; height: 24px; min-width: 24px; }
-  .alert-banner__btn{ padding: 12px 24px; width: auto; }
-  .section-overview{ background: #f8f9fb !important; margin-top: 8px !important; }
+  .alert-banner__text{ font-size: 16px; line-height: 22px; }
+  .alert-banner__dot{ width: 22px; height: 22px; min-width: 22px; }
+  .alert-banner__btn{ padding: 10px 20px; width: auto; }
+  .section-overview{ background: #f8f9fb !important; margin-top: 8px !important; padding: 16px 12px !important; border-radius: 14px; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
     display: grid;
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 12px;
     overflow: visible;
     margin: 0;
     padding: 0;
   }
   #overviewRow .kpi-card{
     grid-column: span 1;
-    min-height: 110px;
-    padding: 24px;
-    border-radius: 16px;
+    min-height: 90px;
+    padding: 18px 16px;
+    border-radius: 14px;
     min-width: 0;
     border: 1px solid #e2e8f0;
   }
@@ -937,9 +942,9 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 /* --- MOBILE HEADER (pill style, 2Fly branding) --- */
 @media (max-width: 768px){
   header{
-    margin: 12px 12px 0;
-    padding: 12px 20px;
-    border-radius: 20px;
+    margin: 10px 0 0;
+    padding: 12px 16px;
+    border-radius: 14px;
   }
   header .brand{ display: none; }
   .header-brand-mobile{
