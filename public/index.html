@@ -460,25 +460,47 @@
   /* Request Stats */
   .request-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
   .stat-circle{
-    display:flex;flex-direction:column;align-items:center;gap:4px;
-    background:#ffffff;border-radius:16px;padding:20px;
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    background:#ffffff;border-radius:16px;padding:24px 16px;
     box-shadow:0 1px 3px rgba(0,0,0,.1);
   }
-  .stat-title{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:2px;}
-  .stat-label{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
-  .stat-context{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:0;}
-  .circular-progress{position:relative;width:120px;height:120px;}
-  .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
+  .stat-title{font-size:14px;line-height:20px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:4px;text-align:center;}
+  .stat-label{font-size:13px;line-height:18px;font-weight:500;color:var(--text-secondary);margin-top:4px;}
+  .stat-context{font-size:12px;line-height:16px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  .circular-progress{position:relative;width:100px;height:100px;}
+  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
   .progress-ring-background{stroke:#e5e7eb;}
   .progress-ring-fill{stroke:var(--brand-blue,#1e3a8a);}
   .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
   .progress-ring{transform:rotate(-90deg);}
   .progress-ring-background{stroke:var(--stroke);}
   body[data-theme="dark"] .progress-ring-background{stroke:#374151;}
-  .progress-ring-fill{stroke-dasharray:314.16;stroke-dashoffset:314.16;transition:stroke-dashoffset 0.6s ease;}
+  .progress-ring-fill{stroke-dasharray:251.33;stroke-dashoffset:251.33;transition:stroke-dashoffset 0.6s ease;}
   .progress-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
-  .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
+  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
   .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  /* Request card styles */
+  .request-card{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:#ffffff;border-radius:14px;padding:16px 18px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+    transition:all 0.2s ease;margin-bottom:0;
+  }
+  body[data-theme="dark"] .request-card{background:#334155;box-shadow:0 2px 4px rgba(0,0,0,.2);}
+  .request-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-1px);}
+  .request-card-info{flex:1;min-width:0;}
+  .request-card-title{font-size:15px;font-weight:600;color:var(--text-primary);margin:0 0 4px 0;line-height:1.3;}
+  .request-card-meta{font-size:13px;font-weight:400;color:var(--text-secondary);margin:0;}
+  .request-card-details{font-size:13px;color:var(--text-secondary);margin:6px 0 0;line-height:1.4;white-space:pre-wrap;}
+  .mark-done-btn{
+    flex-shrink:0;padding:8px 18px;border-radius:20px;
+    border:1.5px solid var(--brand-blue,#1e3a8a);background:transparent;
+    color:var(--brand-blue,#1e3a8a);font-size:13px;font-weight:600;
+    cursor:pointer;transition:all 0.2s ease;white-space:nowrap;
+  }
+  .mark-done-btn:hover{background:var(--brand-blue,#1e3a8a);color:#fff;}
+  body[data-theme="dark"] .mark-done-btn{border-color:#60a5fa;color:#60a5fa;}
+  body[data-theme="dark"] .mark-done-btn:hover{background:#60a5fa;color:#0f172a;}
   .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   .card{background:var(--panel);border:1px solid var(--stroke);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px}
   body[data-theme="dark"] .card{background:#0f1117}
@@ -1274,41 +1296,41 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         <!-- Request Stats -->
         <div class="request-stats" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-show-tabs="requests">
           <div class="stat-circle">
-            <div class="stat-title">Request From clients</div>
+            <div class="stat-title">Request from clients</div>
             <div class="circular-progress" id="completedProgress">
-              <svg class="progress-ring" width="120" height="120">
-                <circle class="progress-ring-background" cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"/>
-                <circle class="progress-ring-fill" id="completedRing" cx="60" cy="60" r="50" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+              <svg class="progress-ring" width="100" height="100">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="completedRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="completedPercent">0%</div>
-                <div class="stat-context" id="completedContext">Not started</div>
               </div>
             </div>
+            <div class="stat-context" id="completedContext">Not started</div>
             <div class="stat-label">Completed</div>
           </div>
-          
+
           <div class="stat-circle">
             <div class="stat-title">What we need from you</div>
             <div class="circular-progress" id="needsProgress">
-              <svg class="progress-ring" width="120" height="120">
-                <circle class="progress-ring-background" cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"/>
-                <circle class="progress-ring-fill" id="needsRing" cx="60" cy="60" r="50" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+              <svg class="progress-ring" width="100" height="100">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="needsRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="needsPercent">0%</div>
-                <div class="stat-context" id="needsContext">Not started</div>
               </div>
             </div>
+            <div class="stat-context" id="needsContext">Not started</div>
             <div class="stat-label">Completed</div>
           </div>
         </div>
       </section>
 
       <!-- Open Requests -->
-      <section class="panel section-requests" style="grid-column: span 6;" aria-label="Open Requests" data-show-tabs="requests">
-        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">Open Requests</h3>
-        <p style="font-size:14px;line-height:18px;font-weight:400;color:var(--text-on-dark);opacity:.85;margin:0 0 20px 0;">Most requests are resolved within 1–3 business days.</p>
+      <section class="panel section-requests" style="grid-column: span 6;background:transparent;border:none;box-shadow:none;padding:0 0 12px 0;" aria-label="Open Requests" data-show-tabs="requests">
+        <h3 style="font-size:18px;font-weight:700;color:var(--text-primary);margin:0 0 4px 0;">Open Requests</h3>
+        <p style="font-size:13px;line-height:18px;font-weight:400;color:var(--text-secondary);margin:0 0 16px 0;">Most requests are resolved within 1–3 business days.</p>
         <div id="requests" class="list" aria-live="polite"></div>
       </section>
 
@@ -2294,154 +2316,57 @@ function render(){
   }
 
   // Requests
-  const reqList = $("#requests"); 
+  const reqList = $("#requests");
   if (reqList) {
     reqList.innerHTML="";
     const openRequests = (state.requests || []).filter(r=>r.status!=='done').sort((a,b)=>b.createdAt-a.createdAt);
     if (openRequests.length === 0) {
-      reqList.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No open requests</div>';
+      reqList.innerHTML = '<div style="text-align:center;padding:32px 16px;color:#94a3b8;font-size:14px;">No open requests</div>';
     } else {
       openRequests.forEach(r=>{
-        var detailsHtml = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
-        var detailsDiv = el("div",{class:"meta", style:"margin-top:4px;white-space:pre-wrap", html: detailsHtml});
+        // Format date like "15 NOV - 14:12"
+        var d = new Date(r.createdAt);
+        var day = d.getDate();
+        var months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        var mon = months[d.getMonth()];
+        var hours = String(d.getHours()).padStart(2,'0');
+        var mins = String(d.getMinutes()).padStart(2,'0');
+        var dateStr = day + ' ' + mon + ' - ' + hours + ':' + mins;
 
-        // --- Attachments area (shown below details, managed in edit mode) ---
-        var attachArea = el("div",{style:"margin-top:6px"});
-        function renderAttachArea(editing) {
-          attachArea.innerHTML = '';
-          if (r.images && r.images.length) {
-            r.images.forEach(function(imgData, idx) {
-              var fileRow = el("div",{style:"display:flex;align-items:center;gap:6px;margin-bottom:4px;"});
-              fileRow.innerHTML = '<svg width="12" height="12" fill="none" stroke="#64748b" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><span style="font-size:12px;color:#64748b;">File ' + (idx+1) + '</span>';
-              if (editing) {
-                var removeBtn = el("button",{style:"background:none;border:none;color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;padding:0 4px"}, "Remove");
-                removeBtn.addEventListener('click', function() {
-                  r.images.splice(idx, 1);
-                  var st = load();
-                  var match = (st.requests || []).find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
-                  if (match) match.images = r.images.slice();
-                  save(st);
-                  renderAttachArea(true);
-                });
-                fileRow.appendChild(removeBtn);
-              }
-              attachArea.appendChild(fileRow);
-            });
-          }
-          if (editing) {
-            var addFileLabel = el("label",{style:"display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;font-weight:600;cursor:pointer;margin-top:4px"});
-            addFileLabel.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Upload file';
-            var addFileInput = document.createElement('input');
-            addFileInput.type = 'file';
-            addFileInput.accept = 'image/*';
-            addFileInput.multiple = true;
-            addFileInput.style.display = 'none';
-            addFileLabel.appendChild(addFileInput);
-            addFileInput.addEventListener('change', function() {
-              var files = addFileInput.files;
-              if (!files || !files.length) return;
-              if (!r.images) r.images = [];
-              var loaded = 0;
-              for (var fi = 0; fi < files.length; fi++) {
-                (function(file) {
-                  var reader = new FileReader();
-                  reader.onload = function() {
-                    r.images.push(reader.result);
-                    loaded++;
-                    if (loaded === files.length) {
-                      var st = load();
-                      var match = (st.requests || []).find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
-                      if (match) match.images = r.images.slice();
-                      save(st);
-                      renderAttachArea(true);
-                    }
-                  };
-                  reader.readAsDataURL(file);
-                })(files[fi]);
-              }
-            });
-            attachArea.appendChild(addFileLabel);
-          } else if (!r.images || !r.images.length) {
-            // no attachments, show nothing in view mode
-          }
+        var detailsText = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+
+        // Card container
+        var card = el("div",{class:"request-card"});
+
+        // Left: info
+        var infoDiv = el("div",{class:"request-card-info"});
+        infoDiv.appendChild(el("div",{class:"request-card-title"}, r.type || 'Request'));
+        if (r.details && r.details !== '(no details)') {
+          infoDiv.appendChild(el("div",{class:"request-card-details", html: detailsText}));
         }
-        renderAttachArea(false);
-
-        var editBtn = el("button",{style:"background:none;border:none;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;padding:4px 0;margin-top:4px"}, "Edit");
-        editBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          var currentText = r.details || '';
-          var textarea = el("textarea",{style:"width:100%;min-height:80px;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;resize:vertical;margin-top:4px"});
-          textarea.value = currentText;
-          var saveBtn = el("button",{style:"padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px;margin-right:6px"}, "Save");
-          var cancelBtn = el("button",{style:"padding:6px 14px;background:#e2e8f0;color:#475569;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px"}, "Cancel");
-          detailsDiv.innerHTML = '';
-          detailsDiv.style.whiteSpace = 'normal';
-          detailsDiv.appendChild(textarea);
-          var btnRow = el("div",{style:"display:flex;gap:6px"});
-          btnRow.appendChild(saveBtn);
-          btnRow.appendChild(cancelBtn);
-          detailsDiv.appendChild(btnRow);
-          editBtn.style.display = 'none';
-          renderAttachArea(true);
-          textarea.focus();
-          cancelBtn.addEventListener('click', function() {
-            detailsHtml = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
-            detailsDiv.innerHTML = detailsHtml;
-            detailsDiv.style.whiteSpace = 'pre-wrap';
-            editBtn.style.display = '';
-            renderAttachArea(false);
-          });
-          saveBtn.addEventListener('click', function() {
-            var newText = textarea.value.trim();
-            if (!newText) return;
-            r.details = newText;
-            var st = load();
-            var reqs = st.requests || [];
-            var match = reqs.find(function(x) { return x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type); });
-            if (match) match.details = newText;
-            save(st);
-            detailsHtml = newText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
-            detailsDiv.innerHTML = detailsHtml;
-            detailsDiv.style.whiteSpace = 'pre-wrap';
-            editBtn.style.display = '';
-            renderAttachArea(false);
-          });
-        });
-        var infoDiv = el("div",{style:"flex:1"});
-        infoDiv.appendChild(el("div",{class:"title-text", html:`${r.type}`}));
-        infoDiv.appendChild(detailsDiv);
-        infoDiv.appendChild(editBtn);
         if (r.link && r.link.trim()) {
           var linkEl = el("div",{style:"margin-top:4px;font-size:12px;"});
           linkEl.innerHTML = '<svg width="12" height="12" fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="' + r.link.replace(/"/g,'&quot;') + '" target="_blank" style="color:#2563eb;text-decoration:underline;">' + r.link.replace(/</g,'&lt;').slice(0,50) + (r.link.length > 50 ? '...' : '') + '</a>';
           infoDiv.appendChild(linkEl);
         }
-        infoDiv.appendChild(attachArea);
-        infoDiv.appendChild(el("div",{class:"meta", style:"margin-top:2px;font-size:14px;line-height:18px;font-weight:400"}, `${fmtDate(r.createdAt)} • ${r.by||'Client'}`));
-        const left = el("div",{class:"left"},
-          el("div",{class:"status-dot", style:"background:#2563eb"}),
-          infoDiv
-        );
-        const row = el("div",{class:"row", style:"position:relative"}, left);
+        if (r.images && r.images.length) {
+          var attachRow = el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:var(--text-secondary);"});
+          attachRow.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg> ' + r.images.length + ' file' + (r.images.length > 1 ? 's' : '');
+          infoDiv.appendChild(attachRow);
+        }
+        infoDiv.appendChild(el("div",{class:"request-card-meta"}, dateStr + ' \u00b7 ' + (r.by || 'Client')));
 
-        // Delete X button
-        var delBtn = document.createElement('button');
-        delBtn.innerHTML = '&times;';
-        delBtn.style.cssText = 'position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:none;background:transparent;font-size:16px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:2;';
-        delBtn.addEventListener('mouseenter', function() { delBtn.style.background='#fee2e2'; delBtn.style.color='#ef4444'; });
-        delBtn.addEventListener('mouseleave', function() { delBtn.style.background='transparent'; delBtn.style.color='#94a3b8'; });
-        delBtn.addEventListener('click', function(e) {
+        card.appendChild(infoDiv);
+
+        // Right: Mark done button
+        var doneBtn = el("button",{class:"mark-done-btn"}, "Mark done");
+        doneBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          if (!confirm('Delete this request?\n\nThis action cannot be undone.')) return;
-          var st = load();
-          st.requests = (st.requests || []).filter(function(x) { return !(x.id === r.id || (x.createdAt === r.createdAt && x.type === r.type)); });
-          save(st);
-          render();
+          closeRequest(r.id);
         });
-        row.appendChild(delBtn);
+        card.appendChild(doneBtn);
 
-        reqList.append(row);
+        reqList.append(card);
       });
     }
   }
@@ -4080,7 +4005,7 @@ function getTypeEmoji(type) {
 
 function renderRequestStats(){
   const s = load();
-  const circumference = 2 * Math.PI * 50; // radius = 50
+  const circumference = 2 * Math.PI * 40; // radius = 40
   
   // Calculate Request From clients / Completed %
   const allRequests = s.requests || [];
