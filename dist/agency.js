@@ -10008,12 +10008,13 @@ function renderProductionView() {
             html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 130px;"><span class="pv-due-label ' + dueClass + '">' + deadlineLabel + '</span></td>';
             // Assignee
             html += '<td style="padding: 12px 16px 12px 0; white-space: nowrap; width: 160px;"><div class="pv-assignee"><span class="pv-assignee-avatar">' + initial + '</span><span class="pv-assignee-name">' + (designerName + '').replace(/</g, '&lt;') + '</span></div></td>';
-            // Status
-            html += '<td style="padding:12px 16px 12px 0;width:150px;position:relative;">';
+            // Status + delete (same row — avoids extra grid line from a 6th <td>)
+            html += '<td style="padding:12px 16px 12px 0;min-width:0;position:relative;">';
+            html += '<div class="pv-status-actions">';
             html += '<button type="button" class="pv-status-badge pv-inline-status" data-task-id="' + (t.id + '').replace(/"/g, '&quot;') + '" data-current="' + (t.status || '').replace(/"/g, '&quot;') + '" style="cursor:pointer;border:1px solid ' + cfg.borderColor + ';background:' + cfg.bgColor + ';color:' + cfg.textColor + ';padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">';
-            html += '<span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + ' <span style="font-size:9px;opacity:0.55;">▾</span></button></td>';
-            // Delete button
-            html += '<td style="padding: 12px 4px 12px 0; width: 36px;"><button type="button" class="pv-delete-task-btn" data-task-id="' + t.id + '" data-task-title="' + displayTitle.replace(/"/g, '&quot;') + '" title="Delete task" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s;" onmouseenter="this.style.color=\'#dc2626\';this.style.background=\'#fee2e2\'" onmouseleave="this.style.color=\'#94a3b8\';this.style.background=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>';
+            html += '<span class="pv-status-icon">' + cfg.icon + '</span> ' + cfg.label + ' <span style="font-size:9px;opacity:0.55;">▾</span></button>';
+            html += '<button type="button" class="pv-delete-task-btn" data-task-id="' + t.id + '" data-task-title="' + displayTitle.replace(/"/g, '&quot;') + '" title="Delete task" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s;" onmouseenter="this.style.color=\'#dc2626\';this.style.background=\'#fee2e2\'" onmouseleave="this.style.color=\'#94a3b8\';this.style.background=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+            html += '</div></td>';
             html += '</tr>';
           });
           html += '</table>';

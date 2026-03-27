@@ -691,7 +691,7 @@
     .pv-client-count { font-size: 12px; color: #94a3b8; font-weight: 500; }
     .pv-client-dots { display: flex; align-items: center; gap: 6px; margin-left: auto; opacity: 0; transition: opacity 0.15s; }
     .pv-client-header:hover .pv-client-dots { opacity: 1; }
-    .pv-task-row { display: grid; grid-template-columns: 40px 1fr 130px 160px 130px; align-items: center; padding: 0 16px; min-height: 52px; background: #ffffff; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
+    .pv-task-row { display: grid; grid-template-columns: 40px 1fr 130px 160px minmax(150px, 1fr); align-items: center; padding: 0 16px; min-height: 52px; background: #ffffff; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
     .pv-task-row:hover { background: rgba(239,246,255,0.4); }
     .pv-task-row:last-child { border-bottom: none; }
     .pv-task-title { font-size: 14px; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
@@ -708,6 +708,8 @@
     .pv-assignee-name { font-size: 13px; color: #475569; }
     .pv-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; border: 1px solid; white-space: nowrap; min-width: 88px; justify-content: center; }
     .pv-status-icon { font-size: 10px; line-height: 1; }
+    .pv-status-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+    .pv-status-actions .pv-delete-task-btn { flex-shrink: 0; }
     .pv-ghost-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 13px; color: #94a3b8; border: none; background: none; border-top: 1px solid #f1f5f9; cursor: pointer; transition: all 0.15s; }
     .pv-ghost-row:hover { color: #2563eb; background: rgba(239,246,255,0.4); }
     .pv-ghost-plus { opacity: 0; transition: opacity 0.15s; }
@@ -3677,7 +3679,7 @@
   }
 </style>
 
-  <script src="/agency.js?v=79"></script>
+  <script src="/agency.js?v=80"></script>
 </body>
 </html>
 
