@@ -3,7 +3,8 @@
  *
  * Endpoints for:
  * - Brand Kit CRUD
- * - AI Image generation with Gemini Imagen
+ * - AI prompt enhancement with OpenAI GPT
+ * - AI Image generation with DALL-E 3
  * - AI Image approval workflow
  * - Image management (list, filter, delete, regenerate)
  */
@@ -19,6 +20,202 @@ import {
 import { generateId } from '../utils/auth.js';
 
 const router = Router();
+
+// ── Helpers ──
+
+function getOpenAIKey(): string {
+  return process.env.OPENAI_API_KEY || '';
+}
+
+/**
+ * Use GPT-4o-mini to enhance a user prompt with brand kit context
+ * into an optimized DALL-E 3 image generation prompt
+ */
+async function enhancePromptWithAI(
+  userPrompt: string,
+  brandKit: BrandKit | null,
+  format: { w: number; h: number; label: string }
+): Promise<string> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) {
+    // Fallback: manual enhancement without AI
+    return buildFallbackPrompt(userPrompt, brandKit, format);
+  }
+
+  let brandContext = '';
+  if (brandKit) {
+    const parts: string[] = [];
+    if (brandKit.colors.length) parts.push('Brand colors: ' + brandKit.colors.map(c => `${c.name || ''} ${c.hex}`).join(', '));
+    if (brandKit.styleTags.length) parts.push('Visual style: ' + brandKit.styleTags.join(', '));
+    if (brandKit.photoStyle) parts.push('Photo style: ' + brandKit.photoStyle);
+    if (brandKit.rulesText) parts.push('Brand rules: ' + brandKit.rulesText);
+    if (brandKit.fonts?.heading) parts.push('Font style: ' + brandKit.fonts.heading);
+    brandContext = parts.join('\n');
+  }
+
+  const systemPrompt = `You are an expert social media visual designer and prompt engineer for DALL-E 3 image generation.
+
+Your job: Take a brief content description and brand guidelines, then create a detailed, optimized DALL-E 3 prompt that will generate a professional, high-quality social media image.
+
+Rules:
+- Output ONLY the image generation prompt, nothing else
+- Be specific about composition, lighting, colors, mood, and style
+- Incorporate the brand colors and style naturally (don't just list them)
+- Specify the image should be ${format.label} aspect ratio
+- Make it feel like premium, agency-quality social media content
+- Do NOT include any text/typography in the image description (DALL-E handles text poorly)
+- Focus on visuals, photography style, and mood
+- Keep the prompt under 300 words`;
+
+  const userMessage = brandContext
+    ? `Content brief: ${userPrompt}\n\nBrand guidelines:\n${brandContext}\n\nFormat: ${format.label} (${format.w}x${format.h})`
+    : `Content brief: ${userPrompt}\n\nFormat: ${format.label} (${format.w}x${format.h})`;
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        max_tokens: 500,
+        temperature: 0.8
+      })
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error('[AI Library] OpenAI prompt enhancement failed:', errBody);
+      return buildFallbackPrompt(userPrompt, brandKit, format);
+    }
+
+    const data = await res.json() as any;
+    const enhanced = data.choices?.[0]?.message?.content?.trim();
+    if (!enhanced) return buildFallbackPrompt(userPrompt, brandKit, format);
+
+    console.log(`[AI Library] Prompt enhanced: "${userPrompt.slice(0, 50)}..." → ${enhanced.length} chars`);
+    return enhanced;
+  } catch (err: any) {
+    console.error('[AI Library] Prompt enhancement error:', err.message);
+    return buildFallbackPrompt(userPrompt, brandKit, format);
+  }
+}
+
+/**
+ * Fallback prompt builder when OpenAI is unavailable
+ */
+function buildFallbackPrompt(
+  userPrompt: string,
+  brandKit: BrandKit | null,
+  format: { w: number; h: number; label: string }
+): string {
+  const parts: string[] = [userPrompt];
+  if (brandKit) {
+    if (brandKit.styleTags.length) parts.push('Visual style: ' + brandKit.styleTags.join(', '));
+    if (brandKit.photoStyle) parts.push('Photo style: ' + brandKit.photoStyle);
+    if (brandKit.colors.length) parts.push('Using brand colors: ' + brandKit.colors.map(c => c.hex).join(', '));
+    if (brandKit.rulesText) parts.push(brandKit.rulesText);
+  }
+  parts.push(`Professional social media image, ${format.label} format, high quality`);
+  return parts.join('. ');
+}
+
+/**
+ * Generate an image using DALL-E 3 and upload to Vercel Blob
+ */
+async function generateWithDallE3(
+  prompt: string,
+  size: '1024x1024' | '1024x1792' | '1792x1024'
+): Promise<{ url: string; revisedPrompt: string }> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+
+  console.log(`[AI Library] Calling DALL-E 3 (size: ${size})...`);
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size,
+      quality: 'hd',
+      response_format: 'b64_json'
+    })
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    console.error('[AI Library] DALL-E 3 error:', errBody);
+    let errMsg = 'DALL-E 3 generation failed';
+    try {
+      const errJson = JSON.parse(errBody);
+      errMsg = errJson.error?.message || errMsg;
+    } catch {}
+    throw new Error(errMsg);
+  }
+
+  const data = await res.json() as any;
+  const imageB64 = data.data?.[0]?.b64_json;
+  const revisedPrompt = data.data?.[0]?.revised_prompt || prompt;
+
+  if (!imageB64) throw new Error('No image data in DALL-E 3 response');
+
+  // Upload to Vercel Blob for persistence
+  const imageUrl = await uploadToVercelBlob(imageB64, `ai-library/ai_${generateId()}_${Date.now()}.png`);
+  console.log(`[AI Library] Image uploaded to Vercel Blob: ${imageUrl}`);
+
+  return { url: imageUrl, revisedPrompt };
+}
+
+/**
+ * Upload base64 image data to Vercel Blob
+ */
+async function uploadToVercelBlob(base64Data: string, pathname: string): Promise<string> {
+  const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+  if (!blobToken) {
+    // Fallback: save locally
+    console.warn('[AI Library] No Vercel Blob token, saving locally');
+    return saveLocally(base64Data, pathname);
+  }
+
+  try {
+    const blob = await import('@vercel/blob');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const result = await blob.put(pathname, buffer, {
+      access: 'public',
+      token: blobToken,
+      contentType: 'image/png'
+    });
+    return result.url;
+  } catch (err: any) {
+    console.error('[AI Library] Vercel Blob upload failed, saving locally:', err.message);
+    return saveLocally(base64Data, pathname);
+  }
+}
+
+/**
+ * Fallback: save image locally
+ */
+async function saveLocally(base64Data: string, pathname: string): Promise<string> {
+  const { writeFileSync, existsSync, mkdirSync } = await import('fs');
+  const { join, basename } = await import('path');
+  const uploadsDir = join(process.cwd(), 'uploads', 'ai-library');
+  if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+  const filename = basename(pathname);
+  writeFileSync(join(uploadsDir, filename), Buffer.from(base64Data, 'base64'));
+  return `/uploads/ai-library/${filename}`;
+}
+
 
 // ── Brand Kit CRUD ──
 
@@ -100,7 +297,7 @@ router.delete('/brand-kit', authenticate, async (req: AuthenticatedRequest, res)
   }
 });
 
-// ── AI Image Generation ──
+// ── AI Image Generation (DALL-E 3) ──
 
 // POST /api/ai-library/generate
 router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) => {
@@ -112,87 +309,34 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
     const userId = (req as any).user?.id || '';
     const kit = getBrandKitByClient(clientId);
 
-    const formatMap: Record<string, { w: number; h: number; label: string }> = {
-      feed: { w: 1080, h: 1080, label: '1080x1080' },
-      story: { w: 1080, h: 1920, label: '1080x1920' },
-      carousel: { w: 1080, h: 1350, label: '1080x1350' },
-      ad_banner: { w: 1200, h: 628, label: '1200x628' }
+    const formatMap: Record<string, { w: number; h: number; label: string; dalleSize: '1024x1024' | '1024x1792' | '1792x1024' }> = {
+      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       dalleSize: '1024x1024' },
+      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      dalleSize: '1024x1792' },
+      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   dalleSize: '1024x1024' },
+      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   dalleSize: '1792x1024' }
     };
     const fmt = formatMap[format] || formatMap.feed;
-
-    // Build enhanced prompt with brand kit
-    let enhancedPrompt = prompt;
-    if (kit) {
-      const parts: string[] = [prompt];
-      if (kit.styleTags.length) parts.push('Visual style: ' + kit.styleTags.join(', '));
-      if (kit.photoStyle) parts.push('Photo style: ' + kit.photoStyle);
-      if (kit.colors.length) parts.push('Brand colors: ' + kit.colors.map(c => c.hex).join(', '));
-      if (kit.rulesText) parts.push('Rules: ' + kit.rulesText);
-      enhancedPrompt = parts.join('. ');
-    }
-    enhancedPrompt += `. Image dimensions: ${fmt.label}. High quality, professional social media content.`;
 
     const count = Math.min(Math.max(variationsCount || 3, 1), 5);
     const batchId = generateId();
     const generatedImages: AIImage[] = [];
 
-    // Call Gemini Imagen API
-    const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
-    if (!apiKey) {
-      return res.status(500).json({ error: 'Google AI API key not configured. Set GOOGLE_AI_API_KEY in environment.' });
-    }
+    // Step 1: Enhance prompt with AI (once for the batch)
+    console.log(`[AI Library] Enhancing prompt for ${count} variations...`);
+    const enhancedPrompt = await enhancePromptWithAI(prompt, kit, fmt);
+    console.log(`[AI Library] Enhanced prompt (${enhancedPrompt.length} chars): "${enhancedPrompt.slice(0, 100)}..."`);
 
+    // Step 2: Generate each variation with DALL-E 3
     for (let i = 0; i < count; i++) {
       try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: `Generate an image: ${enhancedPrompt}` }] }],
-              generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-            })
-          }
-        );
+        console.log(`[AI Library] Generating variation ${i + 1}/${count}...`);
 
-        if (!geminiRes.ok) {
-          const errBody = await geminiRes.text();
-          console.error('[AI Library] Gemini error:', errBody);
-          continue; // Skip failed variation, try next
-        }
+        // Slight variation in prompt for each generation to get different results
+        const variationPrompt = count > 1 && i > 0
+          ? `${enhancedPrompt} (Variation ${i + 1}: different composition and angle)`
+          : enhancedPrompt;
 
-        const geminiData = await geminiRes.json() as any;
-
-        // Extract image from response
-        let imageData: string | null = null;
-        const candidates = geminiData.candidates || [];
-        for (const c of candidates) {
-          for (const part of (c.content?.parts || [])) {
-            if (part.inlineData?.mimeType?.startsWith('image/')) {
-              imageData = part.inlineData.data; // base64
-              break;
-            }
-          }
-          if (imageData) break;
-        }
-
-        if (!imageData) {
-          console.warn('[AI Library] No image in Gemini response for variation', i);
-          continue;
-        }
-
-        // Save image to uploads directory
-        const { writeFileSync, existsSync, mkdirSync } = await import('fs');
-        const { join } = await import('path');
-        const uploadsDir = join(process.cwd(), 'uploads', 'ai-library');
-        if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-
-        const filename = `ai_${batchId}_${i}_${Date.now()}.png`;
-        const filepath = join(uploadsDir, filename);
-        writeFileSync(filepath, Buffer.from(imageData, 'base64'));
-
-        const imageUrl = `/uploads/ai-library/${filename}`;
+        const result = await generateWithDallE3(variationPrompt, fmt.dalleSize);
         const now = Date.now();
 
         const aiImg: AIImage = {
@@ -201,10 +345,10 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
           agencyId,
           brandKitId: kit?.id || null,
           prompt,
-          enhancedPrompt,
-          imageUrl,
-          thumbnailUrl: imageUrl,
-          format: format || 'feed',
+          enhancedPrompt: result.revisedPrompt || enhancedPrompt,
+          imageUrl: result.url,
+          thumbnailUrl: result.url,
+          format: format as AIImage['format'] || 'feed',
           formatDimensions: fmt.label,
           status: 'pending_approval',
           generatedBy: userId,
@@ -212,7 +356,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
           approvalDate: null,
           feedback: '',
           usedInPostId: null,
-          modelUsed: 'gemini-2.0-flash-exp',
+          modelUsed: 'dall-e-3',
           batchId,
           createdAt: now,
           updatedAt: now
@@ -220,17 +364,23 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
 
         saveAIImage(aiImg);
         generatedImages.push(aiImg);
+        console.log(`[AI Library] Variation ${i + 1} saved: ${aiImg.id}`);
       } catch (err: any) {
-        console.error('[AI Library] Variation generation error:', err);
+        console.error(`[AI Library] Variation ${i + 1} failed:`, err.message);
         // Continue with next variation
       }
     }
 
     if (generatedImages.length === 0) {
-      return res.status(500).json({ error: 'Failed to generate any images. Check API key and quota.' });
+      return res.status(500).json({ error: 'Failed to generate any images. Check your OpenAI API key and quota.' });
     }
 
-    res.json({ images: generatedImages, batchId, count: generatedImages.length });
+    res.json({
+      images: generatedImages,
+      batchId,
+      count: generatedImages.length,
+      enhancedPrompt
+    });
   } catch (err: any) {
     console.error('[AI Library] Generation error:', err);
     res.status(500).json({ error: 'Image generation failed: ' + (err.message || 'Unknown error') });
@@ -334,76 +484,39 @@ router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedReq
     if (!img) return res.status(404).json({ error: 'Image not found' });
 
     const newPrompt = req.body.prompt || img.prompt;
-    const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
-    if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
-
     const kit = getBrandKitByClient(img.clientId);
-    let enhancedPrompt = newPrompt;
-    if (kit) {
-      const parts: string[] = [newPrompt];
-      if (kit.styleTags.length) parts.push('Visual style: ' + kit.styleTags.join(', '));
-      if (kit.photoStyle) parts.push('Photo style: ' + kit.photoStyle);
-      if (kit.colors.length) parts.push('Brand colors: ' + kit.colors.map(c => c.hex).join(', '));
-      if (kit.rulesText) parts.push('Rules: ' + kit.rulesText);
-      enhancedPrompt = parts.join('. ');
-    }
 
-    const formatMap: Record<string, { w: number; h: number; label: string }> = {
-      feed: { w: 1080, h: 1080, label: '1080x1080' },
-      story: { w: 1080, h: 1920, label: '1080x1920' },
-      carousel: { w: 1080, h: 1350, label: '1080x1350' },
-      ad_banner: { w: 1200, h: 628, label: '1200x628' }
+    const formatMap: Record<string, { w: number; h: number; label: string; dalleSize: '1024x1024' | '1024x1792' | '1792x1024' }> = {
+      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       dalleSize: '1024x1024' },
+      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      dalleSize: '1024x1792' },
+      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   dalleSize: '1024x1024' },
+      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   dalleSize: '1792x1024' }
     };
     const fmt = formatMap[img.format] || formatMap.feed;
-    enhancedPrompt += `. Image dimensions: ${fmt.label}. High quality, professional social media content.`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Generate an image: ${enhancedPrompt}` }] }],
-          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-        })
-      }
-    );
+    // Enhance prompt
+    const enhancedPrompt = await enhancePromptWithAI(newPrompt, kit, fmt);
 
-    if (!geminiRes.ok) throw new Error('Gemini API returned ' + geminiRes.status);
-
-    const geminiData = await geminiRes.json() as any;
-    let imageData: string | null = null;
-    for (const c of (geminiData.candidates || [])) {
-      for (const part of (c.content?.parts || [])) {
-        if (part.inlineData?.mimeType?.startsWith('image/')) { imageData = part.inlineData.data; break; }
-      }
-      if (imageData) break;
-    }
-
-    if (!imageData) throw new Error('No image in response');
-
-    const { writeFileSync, existsSync, mkdirSync } = await import('fs');
-    const { join } = await import('path');
-    const uploadsDir = join(process.cwd(), 'uploads', 'ai-library');
-    if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-    const filename = `ai_regen_${img.id}_${Date.now()}.png`;
-    writeFileSync(join(uploadsDir, filename), Buffer.from(imageData, 'base64'));
-
+    // Generate with DALL-E 3
+    const result = await generateWithDallE3(enhancedPrompt, fmt.dalleSize);
     const now = Date.now();
+
     const newImg: AIImage = {
       ...img,
       id: generateId(),
       prompt: newPrompt,
-      enhancedPrompt,
-      imageUrl: `/uploads/ai-library/${filename}`,
-      thumbnailUrl: `/uploads/ai-library/${filename}`,
+      enhancedPrompt: result.revisedPrompt || enhancedPrompt,
+      imageUrl: result.url,
+      thumbnailUrl: result.url,
       status: 'pending_approval',
       approvedBy: null,
       approvalDate: null,
       feedback: '',
+      modelUsed: 'dall-e-3',
       createdAt: now,
       updatedAt: now
     };
+
     saveAIImage(newImg);
     res.json({ image: newImg });
   } catch (err: any) {
