@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" href="/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#f1f5f9" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>2Fly Client Portal — Status & Approvals</title>
 <link rel="manifest" href="/manifest.webmanifest" />
-<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box; font-family:'Montserrat',sans-serif;}
-  html,body{margin:0;height:100%}
+  html,body{margin:0;min-height:100%;height:100%}
   body{
     font-family:'Montserrat',sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -58,12 +60,17 @@
     max-width:1200px;margin:0 auto;padding:0 16px 80px;
     padding-top:env(safe-area-inset-top, 20px);
     padding-bottom:env(safe-area-inset-bottom, 20px);
+    min-height:100vh;
+    min-height:100dvh;
+  }
+  @media (max-width: 768px){
+    .wrap{padding-left:10px;padding-right:10px;}
+    .wrap > *:not(header){padding:12px !important;}
   }
   header{
     display:flex;gap:16px;align-items:center;justify-content:space-between;
     margin:16px 16px 0;padding:20px 24px;
     padding-top:calc(20px + env(safe-area-inset-top, 0));
-    padding-bottom:calc(20px + env(safe-area-inset-bottom, 0));
     background:var(--header-bg);color:var(--header-text);
     border-radius:16px;box-shadow:0 4px 12px rgba(37,99,235,.2);
   }
@@ -82,6 +89,7 @@
     display:flex;align-items:center;justify-content:center;
     font-size:18px;line-height:24px;font-weight:600;letter-spacing:0;flex-shrink:0;
   }
+  .settings-icon{ display: none; }
   .notification-icon{
     width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;
     background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
@@ -140,25 +148,34 @@
   .client-notif-mark-all{font-size:14px;line-height:18px;font-weight:500;color:var(--text-secondary);cursor:pointer;text-decoration:none;}
   .client-notif-mark-all:hover{color:var(--text-primary);text-decoration:underline;}
   .client-notif-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:18px;font-weight:400;}
-  .action-required-card{
-    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #93c5fd;
-    border-radius:14px;padding:20px;margin-bottom:24px;
-    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  /* Alert Banner — primary attention component, sits above everything */
+  .alert-banner{
+    background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);
+    border:2px solid #1e3a8a;
+    border-radius:16px;
+    padding:28px 28px;
+    margin:24px 24px 8px;
   }
-  body[data-theme="dark"] .action-required-card{
+  body[data-theme="dark"] .alert-banner{
     background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);border-color:#3b82f6;
   }
-  .action-required-card.all-clear{
-    background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border-color:#6ee7b7;
+  .alert-banner__content{display:flex;flex-direction:column;align-items:flex-start;gap:16px;}
+  .alert-banner__top{display:flex;align-items:center;gap:14px;}
+  .alert-banner__dot{width:28px;height:28px;min-width:28px;border-radius:50%;background:#1e3a8a;display:block;}
+  body[data-theme="dark"] .alert-banner__dot{background:#60a5fa;}
+  .alert-banner__text{font-size:18px;line-height:26px;font-weight:700;color:#0f172a;}
+  body[data-theme="dark"] .alert-banner__text{color:#e0eaff;}
+  .alert-banner__btn{
+    padding:14px 28px;
+    border-radius:12px;
+    font-size:15px;font-weight:600;
+    background:#1e3a8a;color:#ffffff;
+    border:none;cursor:pointer;
+    transition:background .15s;
   }
-  body[data-theme="dark"] .action-required-card.all-clear{
-    background:linear-gradient(135deg,#064e3b 0%,#047857 100%);border-color:#34d399;
-  }
-  .action-required-card__text{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
-  body[data-theme="dark"] .action-required-card__text{color:#93c5fd;}
-  .action-required-card.all-clear .action-required-card__text{color:#047857;}
-  body[data-theme="dark"] .action-required-card.all-clear .action-required-card__text{color:#6ee7b7;}
-  .action-required-card .btn.primary{flex-shrink:0;}
+  .alert-banner__btn:hover{background:#1e40af;}
+  body[data-theme="dark"] .alert-banner__btn{background:#3b82f6;color:#ffffff;}
+  body[data-theme="dark"] .alert-banner__btn:hover{background:#2563eb;}
   /* Mobile header brand (2Fly logo + text) - hidden on desktop */
   .header-brand-mobile{display:none;}
   .logout-link{
@@ -443,25 +460,47 @@
   /* Request Stats */
   .request-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
   .stat-circle{
-    display:flex;flex-direction:column;align-items:center;gap:4px;
-    background:#ffffff;border-radius:16px;padding:20px;
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    background:#ffffff;border-radius:16px;padding:24px 16px;
     box-shadow:0 1px 3px rgba(0,0,0,.1);
   }
-  .stat-title{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:2px;}
-  .stat-label{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
-  .stat-context{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:0;}
-  .circular-progress{position:relative;width:120px;height:120px;}
-  .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
+  .stat-title{font-size:14px;line-height:20px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:4px;text-align:center;}
+  .stat-label{font-size:13px;line-height:18px;font-weight:500;color:var(--text-secondary);margin-top:4px;}
+  .stat-context{font-size:12px;line-height:16px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  .circular-progress{position:relative;width:100px;height:100px;}
+  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
   .progress-ring-background{stroke:#e5e7eb;}
   .progress-ring-fill{stroke:var(--brand-blue,#1e3a8a);}
   .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
   .progress-ring{transform:rotate(-90deg);}
   .progress-ring-background{stroke:var(--stroke);}
   body[data-theme="dark"] .progress-ring-background{stroke:#374151;}
-  .progress-ring-fill{stroke-dasharray:314.16;stroke-dashoffset:314.16;transition:stroke-dashoffset 0.6s ease;}
+  .progress-ring-fill{stroke-dasharray:251.33;stroke-dashoffset:251.33;transition:stroke-dashoffset 0.6s ease;}
   .progress-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
-  .progress-value{font-size:32px;line-height:42px;font-weight:600;letter-spacing:0;color:var(--text-primary);}
+  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
   .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  /* Request card styles */
+  .request-card{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:#ffffff;border-radius:14px;padding:16px 18px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+    transition:all 0.2s ease;margin-bottom:0;
+  }
+  body[data-theme="dark"] .request-card{background:#334155;box-shadow:0 2px 4px rgba(0,0,0,.2);}
+  .request-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-1px);}
+  .request-card-info{flex:1;min-width:0;}
+  .request-card-title{font-size:15px;font-weight:600;color:var(--text-primary);margin:0 0 4px 0;line-height:1.3;}
+  .request-card-meta{font-size:13px;font-weight:400;color:var(--text-secondary);margin:0;}
+  .request-card-details{font-size:13px;color:var(--text-secondary);margin:6px 0 0;line-height:1.4;white-space:pre-wrap;}
+  .mark-done-btn{
+    flex-shrink:0;padding:8px 18px;border-radius:20px;
+    border:1.5px solid var(--brand-blue,#1e3a8a);background:transparent;
+    color:var(--brand-blue,#1e3a8a);font-size:13px;font-weight:600;
+    cursor:pointer;transition:all 0.2s ease;white-space:nowrap;
+  }
+  .mark-done-btn:hover{background:var(--brand-blue,#1e3a8a);color:#fff;}
+  body[data-theme="dark"] .mark-done-btn{border-color:#60a5fa;color:#60a5fa;}
+  body[data-theme="dark"] .mark-done-btn:hover{background:#60a5fa;color:#0f172a;}
   .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   .card{background:var(--panel);border:1px solid var(--stroke);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px}
   body[data-theme="dark"] .card{background:#0f1117}
@@ -633,12 +672,40 @@
   body[data-theme="dark"] .modal__body textarea{background:#1e293b;border-color:#334155;color:#f1f5f9;}
   @media (max-width: 960px){
     .cards{grid-template-columns:1fr 1fr}
-    .grid{grid-template-columns:1fr}
+    .grid{grid-template-columns:1fr;gap:10px;}
     .grid > *{grid-column:1 / -1 !important;min-width:0;}
+    .panel{border-radius:14px;padding:14px;}
+    /* Keep upcoming feed as 3-col Instagram grid on mobile */
+    #upcomingFeedGrid{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:2px !important;}
+    #upcomingFeedGrid > *{grid-column:auto !important;}
   }
   @media (max-width: 640px){
     .request-stats{grid-template-columns:1fr !important;}
   }
+
+  /* Client Image Library */
+  .cil-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;transition:all .2s;}
+  .cil-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.2);}
+  .cil-card__img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:rgba(255,255,255,.04);cursor:pointer;}
+  .cil-card__body{padding:8px 10px;}
+  .cil-card__name{font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+  .cil-badge{font-size:10px;padding:2px 8px;border-radius:8px;display:inline-block;}
+  .cil-badge--pending{background:rgba(245,158,11,.15);color:#fbbf24;}
+  .cil-badge--approved{background:rgba(34,197,94,.15);color:#4ade80;}
+  .cil-badge--rejected{background:rgba(239,68,68,.15);color:#f87171;}
+  .cil-actions{display:flex;gap:6px;margin-top:6px;}
+  .cil-actions button{padding:4px 10px;font-size:11px;border-radius:6px;border:none;cursor:pointer;font-weight:500;}
+  .cil-btn-approve{background:#22c55e;color:#fff;}
+  .cil-btn-approve:hover{background:#16a34a;}
+  .cil-btn-reject{background:rgba(239,68,68,.15);color:#f87171;}
+  .cil-btn-reject:hover{background:rgba(239,68,68,.25);}
+  .cil-filter-btn{padding:5px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.6);font-size:12px;cursor:pointer;transition:all .15s;}
+  .cil-filter-btn:hover{border-color:rgba(255,255,255,.3);color:#fff;}
+  .cil-filter-btn.active{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);}
+  .cil-empty{text-align:center;padding:32px 16px;color:rgba(255,255,255,.4);font-size:14px;}
+  .cil-lightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;}
+  .cil-lightbox img{max-width:90vw;max-height:85vh;border-radius:12px;object-fit:contain;}
+  .cil-lightbox__close{position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer;background:none;border:none;}
 
   /* Bottom tab navigation (iOS) */
   .bottom-nav{
@@ -674,6 +741,7 @@
     body.has-bottom-nav[data-active-tab="content"] .main-content-area [data-show-tabs="content"]{display:block !important;}
     body.has-bottom-nav[data-active-tab="requests"] .main-content-area [data-show-tabs="requests"]{display:block !important;}
     body.has-bottom-nav[data-active-tab="activity"] .main-content-area [data-show-tabs="activity"]{display:block !important;}
+    body.has-bottom-nav[data-active-tab="images"] .main-content-area [data-show-tabs="images"]{display:block !important;}
   }
   @keyframes tabFadeIn{ from{ opacity:0; } to{ opacity:1; } }
   @media (prefers-reduced-motion: reduce){ @keyframes tabFadeIn{ from{ opacity:1; } to{ opacity:1; } } }
@@ -690,6 +758,7 @@
   @media (prefers-reduced-motion: reduce){ .pull-refresh-spinner{ animation: none; } }
 
   @keyframes gentle-pulse{ 0%, 100%{ transform: scale(1); } 50%{ transform: scale(1.15); } }
+  @keyframes gentlePulse{ 0%, 100%{ opacity:1; } 50%{ opacity:0.7; } }
   .client-notif-badge:not(.hidden){ animation: gentle-pulse 2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce){ .client-notif-badge:not(.hidden){ animation: none; } }
 
@@ -749,9 +818,9 @@ body[data-theme="dark"]{
 
 /* --- OVERVIEW SECTION (Reference A) --- */
 .section-overview{
-  background: #f1f5f9 !important;
+  background: #f8f9fb !important;
   border-radius: 16px;
-  padding: 24px !important;
+  padding: 28px 24px !important;
   box-shadow: none !important;
   border: none !important;
 }
@@ -764,24 +833,24 @@ body[data-theme="dark"] .section-overview{
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text-primary);
-  margin: 0 0 20px 0;
+  margin: 0 0 28px 0;
 }
 body[data-theme="dark"] .section-overview h3{
   color: var(--text-primary);
 }
 .overview{
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: repeat(12, 1fr);
 }
 .kpi-card{
   grid-column: span 4;
   background: #ffffff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.05);
-  padding: 16px;
-  min-height: 100px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  padding: 24px;
+  min-height: 110px;
   position: relative;
   overflow: hidden;
 }
@@ -791,27 +860,27 @@ body[data-theme="dark"] .kpi-card{
   box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
 .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 500;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
   letter-spacing: 0;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin-bottom: 16px;
   display: block;
 }
 body[data-theme="dark"] .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word;
-  color: var(--text-secondary);
+  color: #e2e8f0;
 }
 .kpi-card .value{
-  font-size: 32px;
-  line-height: 42px;
-  font-weight: 600;
-  letter-spacing: 0;
-  margin: 0 0 12px;
-  color: var(--text-primary);
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  color: #0f172a;
 }
 body[data-theme="dark"] .kpi-card .value{
-  color: var(--text-primary);
+  color: #f1f5f9;
 }
 .kpi-card .sub{
   margin-top: 0;
@@ -819,37 +888,40 @@ body[data-theme="dark"] .kpi-card .value{
 .kpi-card .pill{
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 5px 12px;
   border-radius: 9999px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 18px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   border: none;
 }
-.kpi-card.success .pill{
+/* Default pill: blue/informational */
+.kpi-card .pill{
   background: #e8f0fe;
-  color: #5170b1;
+  color: #1e40af;
 }
-body[data-theme="dark"] .kpi-card.success .pill{
-  background: rgba(81,112,177,.25);
+body[data-theme="dark"] .kpi-card .pill{
+  background: rgba(59,130,246,.2);
   color: #93c5fd;
 }
-.kpi-card.warning .pill{
-  background: #faeed0;
-  color: #c88e07;
+/* Warning pill: amber — only when action needed */
+.kpi-card .pill.pill--warning{
+  background: #fef3c7;
+  color: #b45309;
 }
-body[data-theme="dark"] .kpi-card.warning .pill{
-  background: rgba(200,142,7,.2);
+body[data-theme="dark"] .kpi-card .pill.pill--warning{
+  background: rgba(245,158,11,.2);
   color: #fcd34d;
 }
-.kpi-card.approved .pill{
-  background: #e0f2f1;
-  color: #0d9488;
+/* Success pill: green — all clear */
+.kpi-card .pill.pill--success{
+  background: #ecfdf5;
+  color: #059669;
 }
-body[data-theme="dark"] .kpi-card.approved .pill{
-  background: rgba(13,148,136,.2);
-  color: #5eead4;
+body[data-theme="dark"] .kpi-card .pill.pill--success{
+  background: rgba(5,150,105,.2);
+  color: #6ee7b7;
 }
 .kpi-card .icon{
   display: none;
@@ -859,39 +931,42 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .kpi-card{ grid-column: span 6; }
 }
 @media (max-width: 768px){
-  .section-overview{ background: #f1f5f9 !important; }
+  .alert-banner{
+    margin: 10px 0 0;
+    padding: 18px 16px;
+    border-radius: 14px;
+  }
+  .alert-banner__text{ font-size: 16px; line-height: 22px; }
+  .alert-banner__dot{ width: 22px; height: 22px; min-width: 22px; }
+  .alert-banner__btn{ padding: 10px 20px; width: auto; }
+  .section-overview{ background: #f8f9fb !important; margin-top: 8px !important; padding: 16px 12px !important; border-radius: 14px; }
   body[data-theme="dark"] .section-overview{ background: #0f172a !important; }
   #overviewRow.overview{
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    grid-template-columns: 1fr;
+    gap: 12px;
     overflow: visible;
     margin: 0;
     padding: 0;
   }
   #overviewRow .kpi-card{
     grid-column: span 1;
-    min-height: 100px;
-    padding: 16px;
-    border-radius: 12px;
+    min-height: 90px;
+    padding: 18px 16px;
+    border-radius: 14px;
     min-width: 0;
+    border: 1px solid #e2e8f0;
   }
-  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 14px; line-height: 18px; font-weight: 500; }
-  #overviewRow .kpi-card .value{ font-size: 32px; line-height: 42px; font-weight: 600; }
-  #overviewRow .kpi-card:nth-child(3){ grid-column: 1 / -1; }
-}
-@media (max-width: 400px){
-  #overviewRow.overview{ grid-template-columns: 1fr; }
-  #overviewRow .kpi-card{ grid-column: span 1; }
-  #overviewRow .kpi-card:nth-child(3){ grid-column: span 1; }
+  #overviewRow .kpi-card .label{word-wrap:break-word;overflow-wrap:break-word; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text-primary); }
+  #overviewRow .kpi-card .value{ font-size: 40px; line-height: 48px; font-weight: 700; }
 }
 
 /* --- MOBILE HEADER (pill style, 2Fly branding) --- */
 @media (max-width: 768px){
   header{
-    margin: 12px 12px 0;
-    padding: 12px 20px;
-    border-radius: 9999px;
+    margin: 10px 0 0;
+    padding: 12px 16px;
+    border-radius: 14px;
   }
   header .brand{ display: none; }
   .header-brand-mobile{
@@ -904,12 +979,13 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0,41,102,.5);
+    background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     overflow: hidden;
+    border: 2px solid #1e40af;
   }
   .header-logo-img{
     width: 24px;
@@ -919,7 +995,7 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   .header-logo-initials{
     font-size: 16px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1e40af;
     text-transform: uppercase;
   }
   .header-2fly-text{
@@ -927,24 +1003,29 @@ body[data-theme="dark"] .kpi-card.approved .pill{
     font-weight: 600;
     color: #ffffff;
   }
-  header .actions .logout-link{ display: inline-flex !important; font-size: 0; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: none; padding: 0; color: #1e40af; }
+  header .actions .logout-link{ display: inline-flex !important; font-size: 0; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: 2px solid #1e40af; padding: 0; color: #1e40af; }
   header .actions .logout-link .logout-link-text{ display: none; }
   header .actions .logout-link .logout-link-icon{ display: block; }
-  body[data-theme="dark"] header .actions .logout-link{ background: rgba(255,255,255,.15); color: #93c5fd; }
-  #toggleMode{ display: flex !important; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: #ffffff; border: none; padding: 0; font-size: 18px; margin-left: 4px; }
-  body[data-theme="dark"] #toggleMode{ background: rgba(255,255,255,.15); }
+  body[data-theme="dark"] header .actions .logout-link{ background: rgba(255,255,255,.15); color: #93c5fd; border-color: rgba(255,255,255,.3); }
+  #toggleMode{ display: none !important; }
+  header .actions .settings-icon{ display: inline-flex !important; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; background: #ffffff; border-radius: 50%; border: 2px solid #1e40af; padding: 0; color: #1e40af; cursor: pointer; }
+  header .actions .settings-icon svg{ width: 20px; height: 20px; stroke: #1e40af; fill: none; stroke-width: 2; }
+  body[data-theme="dark"] header .actions .settings-icon{ background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
+  body[data-theme="dark"] header .actions .settings-icon svg{ stroke: #93c5fd; }
   header .notification-icon{
     width: 44px;
     height: 44px;
     min-width: 44px;
     min-height: 44px;
     background: #ffffff;
-    border: none;
+    border: 2px solid #1e40af;
   }
   header .notification-icon svg{
     stroke: #1e40af;
     stroke-width: 2;
   }
+  body[data-theme="dark"] header .notification-icon{ background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
+  body[data-theme="dark"] header .notification-icon svg{ stroke: #93c5fd; }
 }
 
 /* === MOBILE APPROVAL TABS FIX v2 === */
@@ -1006,7 +1087,16 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   }
 }
 
+
+  /* ===== UPCOMING POSTS (Instagram-style grid uses Tailwind utilities) ===== */
 </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: ["selector", '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+  };
+</script>
 </head>
 <body>
   <button type="button" class="pwa-refresh-btn" id="pwaRefreshBtn" aria-label="Refresh content" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
@@ -1026,9 +1116,9 @@ body[data-theme="dark"] .kpi-card.approved .pill{
   <div class="wrap">
     <header>
       <div class="brand">
-        <div id="clientLogoContainer" class="profile-logo-container" style="width: 60px; height: 60px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; border-radius: 0;">
-          <img id="clientLogoImg" src="" alt="Client Logo" style="max-width: 60px; max-height: 60px; width: auto; height: auto; object-fit: contain; display: none;">
-          <span id="clientLogoInitials" style="font-size: 32px; line-height: 42px; font-weight: 600; letter-spacing: 0; color: var(--text-on-dark); text-transform: uppercase;">CN</span>
+        <div id="clientLogoContainer" class="profile-logo-container" style="width: 60px; height: 60px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+          <img id="clientLogoImg" src="" alt="Client Logo" style="width: 60px; height: 60px; object-fit: cover; display: none;">
+          <span id="clientLogoInitials" style="font-size: 24px; line-height: 1; font-weight: 800; letter-spacing: -0.02em; color: var(--text-on-dark); text-transform: uppercase;">CN</span>
         </div>
         <div class="title">
           <h1 id="clientName">Loading...</h1>
@@ -1061,6 +1151,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
             </div>
           </div>
         </div>
+        <button class="settings-icon" id="settingsBtn" aria-label="Settings" title="Settings" onclick="document.getElementById('settingsPanel')&&(document.getElementById('settingsPanel').style.display=document.getElementById('settingsPanel').style.display==='none'?'block':'none')">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
         <a href="#" class="logout-link" id="logoutBtn" onclick="handleLogout(event); return false;"><span class="logout-link-text">Logout</span><svg class="logout-link-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
         <button class="btn small" id="toggleMode" style="display:none">☀️</button>
       </div>
@@ -1068,33 +1164,49 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 
     <main id="mainContent">
     <div class="main-content-area" id="mainContentArea">
-    <div class="pull-refresh-zone hidden" id="pullRefreshZone"><div class="pull-refresh-spinner"></div><span style="font-size:14px;line-height:18px;color:var(--text-secondary);">Release to refresh</span></div>
-    <section class="panel section-overview" style="margin-top:24px;" aria-label="Overview" data-show-tabs="dashboard">
-      <h3>Overview</h3>
-
-      <div class="action-required-card" id="actionRequiredCard" aria-live="polite">
-        <span class="action-required-card__text" id="actionRequiredText">Nothing needed right now ✅</span>
-        <button type="button" class="btn primary" id="actionRequiredBtn" style="display:none;">Review now</button>
+    <!-- Push notification opt-in banner -->
+    <div id="pushOptInBanner" style="display:none;margin:12px 16px 0;padding:14px 18px;border-radius:14px;background:linear-gradient(135deg,#1e3a8a,#312e81);color:#fff;align-items:center;gap:12px;cursor:pointer;">
+      <span style="font-size:24px;">🔔</span>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:700;">Never miss an update!</div>
+        <div style="font-size:12px;opacity:0.8;margin-top:2px;">Tap to enable notifications when your content is ready</div>
       </div>
+      <span style="font-size:18px;">→</span>
+    </div>
+    <div id="pushDebugMsg" style="display:none;margin:8px 16px 0;padding:10px 14px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;"></div>
+    <div class="pull-refresh-zone hidden" id="pullRefreshZone"><div class="pull-refresh-spinner"></div><span style="font-size:14px;line-height:18px;color:var(--text-secondary);">Release to refresh</span></div>
+    <!-- ALERT BANNER — first element on screen, above everything -->
+    <div class="alert-banner" id="actionRequiredCard" aria-live="polite" style="display:none;" data-show-tabs="dashboard">
+      <div class="alert-banner__content">
+        <div class="alert-banner__top">
+          <span class="alert-banner__dot"></span>
+          <span class="alert-banner__text" id="actionRequiredText"></span>
+        </div>
+        <button type="button" class="alert-banner__btn" id="actionRequiredBtn">Review now</button>
+      </div>
+    </div>
+
+    <section class="panel section-overview" style="margin-top:16px;" aria-label="Overview" data-show-tabs="dashboard">
+      <h3>Overview</h3>
 
       <div class="overview" id="overviewRow">
 
-        <article class="kpi-card success" id="cardScheduled">
-          <div class="label">Posts scheduled<br>(next 15 days)</div>
+        <article class="kpi-card" id="cardScheduled">
+          <div class="label">Posts scheduled (next 15 days)</div>
           <div class="value" id="kpiValScheduled">0</div>
           <div class="sub"><span class="pill" id="kpiSubScheduled">On track</span></div>
         </article>
 
-        <article class="kpi-card warning" id="cardApproval">
-          <div class="label">Waiting for your<br>approval</div>
+        <article class="kpi-card" id="cardApproval">
+          <div class="label">Waiting for your approval</div>
           <div class="value" id="kpiValApproval">0</div>
-          <div class="sub"><span class="pill" id="kpiSubApproval">Needs review</span></div>
+          <div class="sub"><span class="pill" id="kpiSubApproval">All clear</span></div>
         </article>
 
-        <article class="kpi-card approved" id="cardMissing">
+        <article class="kpi-card" id="cardMissing">
           <div class="label">Approved for publication</div>
           <div class="value" id="kpiValMissing">0</div>
-          <div class="sub"><span class="pill" id="kpiSubMissing">Ready</span></div>
+          <div class="sub"><span class="pill" id="kpiSubMissing">None yet</span></div>
         </article>
 
       </div>
@@ -1126,10 +1238,22 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       </div>
     </section>
 
+    <!-- Client Image Library — moved to Images tab -->
+    <section class="panel" id="clientImageLibrary" style="border-radius:16px;" aria-label="Image Library" data-show-tabs="images">
+      <h2 style="font-size:22px;font-weight:700;color:#ffffff;margin:0 0 8px 0;">Image Library</h2>
+      <p style="font-size:14px;color:rgba(255,255,255,.7);margin:0 0 20px 0;line-height:1.5;">Review and approve photos and videos for your upcoming posts. Your team uploads media here for your review — approve the ones you'd like us to use in your content.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0;">Your Media</h3>
+        <div id="clientImgLibStats" style="display:flex;gap:12px;font-size:13px;color:rgba(255,255,255,.6);"></div>
+      </div>
+      <div id="clientImgLibFilter" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
+      <div id="clientImgLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
+    </section>
+
     <div class="grid" style="margin-top:16px">
       <!-- What we need + Quick Request -->
-      <section class="panel section-requests" style="grid-column: span 6;" aria-label="What we need from you and Quick Request">
-        <div data-show-tabs="content">
+      <section class="panel section-requests" style="grid-column: span 6;" aria-label="What we need from you and Quick Request" data-show-tabs="requests">
+        <div data-show-tabs="requests">
           <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">What We Need From You</h3>
           <div id="needs" class="list"></div>
         </div>
@@ -1153,6 +1277,15 @@ body[data-theme="dark"] .kpi-card.approved .pill{
             <textarea id="reqDetails" rows="4" placeholder="Describe your request…" style="min-height:100px;"></textarea>
             <label for="reqLink" class="sr-only">Link to files</label>
             <input id="reqLink" type="text" placeholder="Link to files (Drive/WeTransfer)">
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+              <label for="reqFileUpload" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--brand-blue,#1e3a8a);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.2s;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                Upload image
+              </label>
+              <input id="reqFileUpload" type="file" accept="image/*" multiple style="display:none;">
+              <span id="reqFileNames" style="font-size:12px;color:rgba(255,255,255,0.7);"></span>
+            </div>
+            <div id="reqImagePreviews" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
             <button type="submit" class="btn primary submit-request-btn" style="width:100%;height:48px;border-radius:12px;background:var(--brand-blue,#1e3a8a);color:#fff;border:none;font-weight:600;">Submit request</button>
           </div>
           <div id="reqTypeError" class="form-error" role="alert" aria-live="polite" style="display:none;"></div>
@@ -1163,58 +1296,63 @@ body[data-theme="dark"] .kpi-card.approved .pill{
         <!-- Request Stats -->
         <div class="request-stats" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-show-tabs="requests">
           <div class="stat-circle">
-            <div class="stat-title">Request From clients</div>
+            <div class="stat-title">Request from clients</div>
             <div class="circular-progress" id="completedProgress">
-              <svg class="progress-ring" width="120" height="120">
-                <circle class="progress-ring-background" cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"/>
-                <circle class="progress-ring-fill" id="completedRing" cx="60" cy="60" r="50" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+              <svg class="progress-ring" width="100" height="100">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="completedRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="completedPercent">0%</div>
-                <div class="stat-context" id="completedContext">Not started</div>
               </div>
             </div>
+            <div class="stat-context" id="completedContext">Not started</div>
             <div class="stat-label">Completed</div>
           </div>
-          
+
           <div class="stat-circle">
             <div class="stat-title">What we need from you</div>
             <div class="circular-progress" id="needsProgress">
-              <svg class="progress-ring" width="120" height="120">
-                <circle class="progress-ring-background" cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"/>
-                <circle class="progress-ring-fill" id="needsRing" cx="60" cy="60" r="50" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+              <svg class="progress-ring" width="100" height="100">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="needsRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="needsPercent">0%</div>
-                <div class="stat-context" id="needsContext">Not started</div>
               </div>
             </div>
+            <div class="stat-context" id="needsContext">Not started</div>
             <div class="stat-label">Completed</div>
           </div>
         </div>
       </section>
 
       <!-- Open Requests -->
-      <section class="panel section-requests" style="grid-column: span 6;" aria-label="Open Requests" data-show-tabs="requests">
-        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">Open Requests</h3>
-        <p style="font-size:14px;line-height:18px;font-weight:400;color:var(--text-on-dark);opacity:.85;margin:0 0 20px 0;">Most requests are resolved within 1–3 business days.</p>
+      <section class="panel section-requests" style="grid-column: span 6;background:transparent;border:none;box-shadow:none;padding:0 0 12px 0;" aria-label="Open Requests" data-show-tabs="requests">
+        <h3 style="font-size:18px;font-weight:700;color:var(--text-primary);margin:0 0 4px 0;">Open Requests</h3>
+        <p style="font-size:13px;line-height:18px;font-weight:400;color:var(--text-secondary);margin:0 0 16px 0;">Most requests are resolved within 1–3 business days.</p>
         <div id="requests" class="list" aria-live="polite"></div>
       </section>
 
-      <!-- Recent Activity -->
-      <section class="panel" style="grid-column: span 12;" aria-label="Recent Activity" data-show-tabs="activity">
-        <h3>Recent Activity</h3>
-        <div class="timeline" id="timeline" role="list" aria-label="Activity timeline"></div>
-      </section>
-
-      <!-- Calendar -->
+      <!-- Calendar (card format) -->
       <section class="panel calendar-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;" aria-label="Calendar" data-show-tabs="activity">
         <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0 0 20px 0;">Calendar</h3>
         <div id="calendarView"></div>
       </section>
 
-      <!-- Progress (formerly Reports) -->
-      <section class="panel section-reports" id="reports" style="grid-column: span 12;" aria-label="Progress" data-show-tabs="activity">
+      <!-- Upcoming Posts — Instagram-style profile grid -->
+      <section class="panel upcoming-feed-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;margin-top:8px;" aria-label="Upcoming Posts" data-show-tabs="activity">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="m-0 text-lg font-semibold text-blue-800 dark:text-blue-300">Upcoming Posts</h3>
+          <span class="upcoming-feed-count shrink-0 text-sm font-medium text-slate-500 dark:text-slate-400" id="upcomingFeedCount"></span>
+        </div>
+        <div class="mx-auto w-full max-w-[600px]">
+          <div id="upcomingFeedGrid" class="grid w-full grid-cols-3 gap-1"></div>
+        </div>
+      </section>
+
+      <!-- Progress (formerly Reports) — hidden for now -->
+      <section class="panel section-reports" id="reports" style="grid-column: span 12; display:none;" aria-label="Progress" data-show-tabs="activity">
         <h3 style="display:flex;align-items:center;gap:10px;">Progress <span class="chip" id="progressSampleBadge" style="font-size:14px;line-height:18px;font-weight:500;padding:2px 8px;display:none;">Sample data</span></h3>
         <div id="progressSampleBanner" role="alert" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px;color:#92400e;font-weight:500;">⚠️ Sample data — These metrics are for demonstration only. Your team will update this with real data.</div>
 
@@ -1254,6 +1392,12 @@ body[data-theme="dark"] .kpi-card.approved .pill{
       </section>
     </div>
 
+    <!-- Recent Activity (moved to bottom) -->
+    <section class="panel" style="margin-top:20px;" aria-label="Recent Activity" data-show-tabs="activity">
+      <h3>Recent Activity</h3>
+      <div class="timeline" id="timeline" role="list" aria-label="Activity timeline"></div>
+    </section>
+
     <footer>© 2026 2Fly Marketing. All rights reserved.</footer>
     </div>
     </main>
@@ -1261,21 +1405,25 @@ body[data-theme="dark"] .kpi-card.approved .pill{
 
   <nav class="bottom-nav" id="bottomNav" aria-label="Main navigation">
     <div class="bottom-nav-inner">
-      <button type="button" class="bottom-nav-btn active" data-tab="dashboard" aria-label="Dashboard" aria-current="page">
+      <button type="button" class="bottom-nav-btn active" data-tab="dashboard" aria-label="Overview" aria-current="page">
         <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <span>Dashboard</span>
+        <span>Overview</span>
       </button>
       <button type="button" class="bottom-nav-btn" data-tab="content" aria-label="Content">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         <span>Content</span>
       </button>
+      <button type="button" class="bottom-nav-btn" data-tab="activity" aria-label="Calendar">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Calendar</span>
+      </button>
       <button type="button" class="bottom-nav-btn" data-tab="requests" aria-label="Requests">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span>Requests</span>
       </button>
-      <button type="button" class="bottom-nav-btn" data-tab="activity" aria-label="Activity">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span>Activity</span>
+      <button type="button" class="bottom-nav-btn" data-tab="images" aria-label="Images">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>Images</span>
       </button>
     </div>
   </nav>
@@ -1322,8 +1470,8 @@ body[data-theme="dark"] .kpi-card.approved .pill{
           <div id="approvalCaption" style="background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;color:#0f172a;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
         </div>
         
-        <!-- Change Request Notes (shown only for items with status "changes" or "copy_changes") -->
-        <div id="changeRequestContainer" style="display:none;margin-bottom:20px;">
+        <!-- Change Request Notes (shown for active changes AND revised items) -->
+        <div id="changeRequestContainer" style="display:none;margin-bottom:20px;padding:16px;border-radius:12px;">
           <h5 style="font-size:14px;font-weight:600;color:#ea580c;margin-bottom:8px;">Change Request:</h5>
           <div id="changeRequestNotes" style="background:#fff7ed;padding:16px;border-radius:8px;border:1px solid #fed7aa;color:#9a3412;line-height:1.6;white-space:pre-wrap;font-size:14px;"></div>
         </div>
@@ -1371,10 +1519,8 @@ window.handleLogout = function(e) {
     e.preventDefault();
     e.stopPropagation();
   }
-  console.log("Logout clicked - clearing session");
   // Clear session from localStorage
   localStorage.removeItem(LS_SESSION_KEY);
-  console.log("Session cleared, redirecting to login...");
   // Redirect to login page
   window.location.href = 'login.html';
 };
@@ -1436,7 +1582,6 @@ const isStaffPage = pathname.includes('staff-login') ||
 
 // Don't run client portal code on staff/agency pages
 if (isStaffPage) {
-  console.log('Staff/agency page detected, skipping client portal initialization');
   // Stop execution - this is not the client portal
   throw new Error('Not a client portal page');
 }
@@ -1447,7 +1592,6 @@ if (!isLoginPage) {
     // Redirect is happening, stop execution of this script
     // The redirect will navigate away, but wrap rest of code in session check
     // to prevent errors during redirect transition
-    console.log("No session found, redirecting to login...");
   }
 }
 
@@ -1455,14 +1599,9 @@ if (!isLoginPage) {
 if (!session) {
   // No session - either redirecting or on login page
   // Don't execute the rest of the code to prevent errors
-  console.log("No session - redirecting to login or on login page");
   // Early return - wrap everything else in else block
 } else {
-  console.log("Session found, initializing application...");
   // Debug logging
-  console.log("Session loaded:", session);
-  console.log("Client ID:", session.clientId);
-  console.log("Client Name:", session.clientName);
 
   // Get client ID from session - normalize to lowercase for consistency
   const currentClientId = (session.clientId || "").toLowerCase().trim();
@@ -1476,7 +1615,6 @@ if (!session) {
   }
   if (session.clientName) {
     setClientNameDisplay(session.clientName);
-    console.log("Client name set immediately to:", session.clientName);
   }
 
   function syncMobileLogo(showImg, src, initials) {
@@ -1573,7 +1711,7 @@ if (!session) {
 
   /* ================== State (API-backed, same as agency) ================== */
   const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001' : 'https://api.2flyflow.com';
+    ? 'http://localhost:3003' : 'https://api.2flyflow.com';
   let portalStateCache = null;
   let portalStateFetchedFromAPI = false;
 
@@ -1928,18 +2066,19 @@ function renderActionRequiredCard() {
   const unreadAction = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id));
   const top = unreadAction[0];
 
-  const card = document.getElementById('actionRequiredCard');
+  const banner = document.getElementById('actionRequiredCard');
   const textEl = document.getElementById('actionRequiredText');
   const btn = document.getElementById('actionRequiredBtn');
-  if (!card || !textEl) return;
+  if (!banner || !textEl) return;
 
+  // Determine what needs attention — priority: approvals > requests > notifications
   if (pendingApprovals.length > 0) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = pendingApprovals.length === 1
       ? 'You have 1 item waiting for approval'
-      : 'You have ' + pendingApprovals.length + ' item(s) waiting for approval';
+      : 'You have ' + pendingApprovals.length + ' items waiting for approval';
     if (btn) {
-      btn.style.display = 'inline-flex';
+      btn.textContent = 'Review now';
       btn.onclick = function() {
         document.body.setAttribute('data-active-tab', 'content');
         var nav = document.getElementById('bottomNav');
@@ -1954,12 +2093,11 @@ function renderActionRequiredCard() {
       };
     }
   } else if (openRequests.length > 0) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = openRequests.length === 1
       ? 'You have 1 open request'
-      : 'You have ' + openRequests.length + ' open request(s)';
+      : 'You have ' + openRequests.length + ' open requests';
     if (btn) {
-      btn.style.display = 'inline-flex';
       btn.textContent = 'View requests';
       btn.onclick = function() {
         document.body.setAttribute('data-active-tab', 'requests');
@@ -1975,13 +2113,12 @@ function renderActionRequiredCard() {
       };
     }
   } else if (top) {
-    card.classList.remove('all-clear');
+    banner.style.display = 'flex';
     textEl.textContent = top.title + (top.message ? ': ' + top.message.slice(0, 50) + (top.message.length > 50 ? '…' : '') : '');
-    if (btn) { btn.style.display = 'inline-flex'; btn.textContent = 'Review now'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
+    if (btn) { btn.textContent = 'Review now'; btn.onclick = () => { markNotificationRead(top.id); navigateToNotificationHref(top.href); renderClientNotificationBell(); renderActionRequiredCard(); }; }
   } else {
-    card.classList.add('all-clear');
-    textEl.textContent = 'Nothing needed right now ✅';
-    if (btn) { btn.style.display = 'none'; btn.textContent = 'Review now'; }
+    // Nothing needs attention — hide the banner completely
+    banner.style.display = 'none';
   }
 }
 
@@ -2073,7 +2210,6 @@ function render(){
     }
     
     setClientNameDisplay(displayName);
-    console.log("Client name set to:", displayName);
     
     // Update state if it's different (for consistency)
     if (currentSession && currentSession.clientName && state.client.name !== currentSession.clientName) {
@@ -2112,23 +2248,42 @@ function render(){
   if (state.kpis) state.kpis.waitingApproval = pendingCount;
   
   // Count approved items for the third card
-  const approvedCount = (state.approvals || []).filter(a => a.status === 'approved').length;
+  const approvedCount = (state.approvals || []).filter(a => a.status === 'approved' || a.status === 'scheduled').length;
   const kpiValMissing = $("#kpiValMissing");
   if (kpiValMissing) kpiValMissing.textContent = approvedCount;
   
   const kpiSubScheduled = $("#kpiSubScheduled");
   if (kpiSubScheduled) {
-    if (state.kpis.scheduled >= 14) kpiSubScheduled.textContent = "On track";
-    else if (state.kpis.scheduled > 0) kpiSubScheduled.textContent = state.kpis.scheduled + " upcoming";
-    else kpiSubScheduled.textContent = "No posts upcoming";
-    kpiSubScheduled.className = "pill " + (state.kpis.scheduled >= 14 ? "chip ok" : state.kpis.scheduled > 0 ? "chip" : "chip warn");
+    if (scheduledCount > 0) {
+      kpiSubScheduled.textContent = scheduledCount + " upcoming";
+      kpiSubScheduled.className = "pill";
+    } else {
+      kpiSubScheduled.textContent = "No posts scheduled";
+      kpiSubScheduled.className = "pill pill--warning";
+    }
   }
   
   const kpiSubApproval = $("#kpiSubApproval");
-  if (kpiSubApproval) kpiSubApproval.textContent = pendingCount > 0 ? (pendingCount === 1 ? "1 needs review" : pendingCount + " need review") : "All clear";
+  if (kpiSubApproval) {
+    if (pendingCount > 0) {
+      kpiSubApproval.textContent = pendingCount === 1 ? "1 needs review" : pendingCount + " need review";
+      kpiSubApproval.className = "pill pill--warning";
+    } else {
+      kpiSubApproval.textContent = "All clear";
+      kpiSubApproval.className = "pill pill--success";
+    }
+  }
   
   const kpiSubMissing = $("#kpiSubMissing");
-  if (kpiSubMissing) kpiSubMissing.textContent = approvedCount > 0 ? "Ready to publish" : "None yet";
+  if (kpiSubMissing) {
+    if (approvedCount > 0) {
+      kpiSubMissing.textContent = "Ready to publish";
+      kpiSubMissing.className = "pill pill--success";
+    } else {
+      kpiSubMissing.textContent = "None yet";
+      kpiSubMissing.className = "pill";
+    }
+  }
 
   // WhatsApp link
   const whatsappLink = $("#whatsappLink");
@@ -2147,10 +2302,11 @@ function render(){
     } else {
       openNeeds.forEach(n=>{
         const chipClass = n.severity==='bad'?'chip bad': (n.severity==='warn'?'chip warn':'chip');
+        const textHtml = (n.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\\n/g,'\n').replace(/\n/g,'<br>');
         const row = el("div",{class:"row"},
           el("div",{class:"left"},
             el("div",{class:"status-dot", style:"background:"+(n.severity==='bad'?'#ef4444':'#f59e0b')}),
-            el("div",{}, el("div",{html:n.text}), el("div",{class:"meta"}, "Missing from client"))
+            el("div",{}, el("div",{html:textHtml, style:"white-space:pre-wrap"}), el("div",{class:"meta"}, "Missing from client"))
           ),
           el("span",{class:chipClass},"Pending")
         );
@@ -2160,24 +2316,49 @@ function render(){
   }
 
   // Requests
-  const reqList = $("#requests"); 
+  const reqList = $("#requests");
   if (reqList) {
     reqList.innerHTML="";
     const openRequests = (state.requests || []).filter(r=>r.status!=='done').sort((a,b)=>b.createdAt-a.createdAt);
     if (openRequests.length === 0) {
-      reqList.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No open requests</div>';
+      reqList.innerHTML = '<div style="text-align:center;padding:32px 16px;color:#94a3b8;font-size:14px;">No open requests</div>';
     } else {
       openRequests.forEach(r=>{
-    const left = el("div",{class:"left"},
-          el("div",{class:"status-dot", style:"background:#2563eb"}),
-          el("div",{style:"flex:1"},
-            el("div",{class:"title-text", html:`${r.type}`}),
-            el("div",{class:"meta", style:"margin-top:4px"}, r.details),
-            el("div",{class:"meta", style:"margin-top:2px;font-size:14px;line-height:18px;font-weight:400"}, `${fmtDate(r.createdAt)} • ${r.by||'Client'}`)
-          )
-        );
-        const row = el("div",{class:"row"}, left);
-        reqList.append(row);
+        // Format date like "15 NOV - 14:12"
+        var d = new Date(r.createdAt);
+        var day = d.getDate();
+        var months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        var mon = months[d.getMonth()];
+        var hours = String(d.getHours()).padStart(2,'0');
+        var mins = String(d.getMinutes()).padStart(2,'0');
+        var dateStr = day + ' ' + mon + ' - ' + hours + ':' + mins;
+
+        var detailsText = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+
+        // Card container
+        var card = el("div",{class:"request-card"});
+
+        // Left: info
+        var infoDiv = el("div",{class:"request-card-info"});
+        infoDiv.appendChild(el("div",{class:"request-card-title"}, r.type || 'Request'));
+        if (r.details && r.details !== '(no details)') {
+          infoDiv.appendChild(el("div",{class:"request-card-details", html: detailsText}));
+        }
+        if (r.link && r.link.trim()) {
+          var linkEl = el("div",{style:"margin-top:4px;font-size:12px;"});
+          linkEl.innerHTML = '<svg width="12" height="12" fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="' + r.link.replace(/"/g,'&quot;') + '" target="_blank" style="color:#2563eb;text-decoration:underline;">' + r.link.replace(/</g,'&lt;').slice(0,50) + (r.link.length > 50 ? '...' : '') + '</a>';
+          infoDiv.appendChild(linkEl);
+        }
+        if (r.images && r.images.length) {
+          var attachRow = el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:var(--text-secondary);"});
+          attachRow.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg> ' + r.images.length + ' file' + (r.images.length > 1 ? 's' : '');
+          infoDiv.appendChild(attachRow);
+        }
+        infoDiv.appendChild(el("div",{class:"request-card-meta"}, dateStr + ' \u00b7 ' + (r.by || 'Client')));
+
+        card.appendChild(infoDiv);
+
+        reqList.append(card);
       });
     }
   }
@@ -2204,7 +2385,13 @@ function render(){
   
   // Calendar
   try { renderCalendar(); } catch(e){ console.warn("Calendar render skipped:", e); }
-  
+
+  // Upcoming Posts Feed
+  try { renderUpcomingFeed(); } catch(e){ console.warn("Upcoming feed render skipped:", e); }
+
+  // Client Image Library
+  try { renderClientImageLibrary(); } catch(e){ console.warn("Client image library render skipped:", e); }
+
   // Request Stats
   try { renderRequestStats(); } catch(e){ console.warn("Request stats render skipped:", e); }
 
@@ -2216,7 +2403,6 @@ function render(){
     const readIds = loadReadNotificationIds();
     const unreadActionCount = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id)).length;
     const topAction = notifications.filter(n => n.type === 'ACTION')[0];
-    console.log('Client notifications: computed=' + notifications.length + ', unread ACTION=' + unreadActionCount + ', top priority=' + (topAction ? topAction.title : '—'));
   } catch (e) { console.warn('Client notification render:', e); }
 }
 
@@ -2234,7 +2420,7 @@ function renderApprovalsSectioned(){
     return (status === '' || status === 'pending') && status !== 'copy_pending' && status !== 'copy_approved';
   });
   const changes = items.filter(i => i.status === 'changes');
-  const approved = items.filter(i => i.status === 'approved');
+  const approved = items.filter(i => i.status === 'approved' || i.status === 'scheduled');
 
   const $copy = $("#approvalsCopy"), $p = $("#approvalsPending"), $c = $("#approvalsChanges"), $a = $("#approvalsApproved"); 
   if (!$copy || !$p || !$c || !$a) {
@@ -2265,6 +2451,12 @@ function renderApprovalsSectioned(){
     const typeTag = el("span", { class: "tag type-tag", style: "background:#dbeafe;color:#1e40af;font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;" });
     typeTag.textContent = item.type || "Post";
     titleRow.appendChild(typeTag);
+    // "Revised" badge for items returned from changes
+    if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
+      const returnBadge = el("span", { style: "background:linear-gradient(135deg,#fef3c7,#fff7ed);color:#b45309;font-size:12px;line-height:18px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid #fbbf24;display:inline-flex;align-items:center;gap:5px;animation:gentlePulse 2s ease-in-out infinite;" });
+      returnBadge.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Revised';
+      titleRow.appendChild(returnBadge);
+    }
     if (item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes') {
       let statusStyle, statusText;
       if (item.status === 'copy_approved') {
@@ -2338,7 +2530,6 @@ document.addEventListener("click", (e)=>{
 
 /* ================== Approval Actions ================== */
 function approveItem(id){
-  console.log("approveItem called with id:", id);
   const s = load(); 
   const item = s.approvals.find(a=>a.id===id); 
   if(!item) {
@@ -2369,13 +2560,10 @@ function approveItem(id){
   
   // Re-render to update the list
   render();
-  console.log("Item approved and list updated");
 }
 
 function deleteApprovalItem(id){
-  console.log("deleteApprovalItem called with id:", id);
   if (!confirm("Are you sure you want to delete this approval item?")) {
-    console.log("Delete cancelled by user");
     return;
   }
   
@@ -2386,7 +2574,6 @@ function deleteApprovalItem(id){
     return;
   }
   
-  console.log("Deleting item:", item.title);
   s.approvals = s.approvals.filter(a => a.id !== id);
   
   // Update pending count
@@ -2403,14 +2590,12 @@ function deleteApprovalItem(id){
   
   // Re-render to update the list
   render();
-  console.log("Item deleted and list updated");
 }
 
 let CURRENT_APPROVAL_ITEM = null;
 
 // Make function globally accessible
 window.openApprovalModal = function(id){
-  console.log("openApprovalModal called with id:", id);
   const s = load(); 
   const item = s.approvals.find(a=>a.id===id); 
   if(!item) {
@@ -2418,12 +2603,17 @@ window.openApprovalModal = function(id){
     return;
   }
   
-  console.log("Found item:", item);
   CURRENT_APPROVAL_ITEM = id;
   
-  // Set title
+  // Set title (with "Revised" badge if returned from changes)
   const approvalTitle = $("#approvalTitle");
-  if (approvalTitle) approvalTitle.textContent = item.title;
+  if (approvalTitle) {
+    if (item.returnedFromChanges && (item.status === 'pending' || item.status === 'copy_pending')) {
+      approvalTitle.innerHTML = item.title + ' <span style="background:linear-gradient(135deg,#fef3c7,#fff7ed);color:#b45309;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid #fbbf24;vertical-align:middle;margin-left:8px;">Revised</span>';
+    } else {
+      approvalTitle.textContent = item.title;
+    }
+  }
   
   // Show/hide copy approval sections
   const copyTextContainer = $("#approvalCopyTextContainer");
@@ -2434,7 +2624,7 @@ window.openApprovalModal = function(id){
   const approvalImage = $("#approvalImage");
   
   // Check if this is a copy approval
-  const isCopyApproval = item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes' || item.copyText;
+  const isCopyApproval = item.status === 'copy_pending' || item.status === 'copy_approved' || item.status === 'copy_changes';
   
   if (isCopyApproval) {
     // Show copy text
@@ -2465,6 +2655,28 @@ window.openApprovalModal = function(id){
           });
         }
       } else {
+        // Video detection helper
+        function isVideoUrl(url) {
+          if (!url || typeof url !== 'string') return false;
+          var lower = url.toLowerCase();
+          return lower.match(/\.(mp4|mov|webm|avi)(\?|$)/) !== null || lower.indexOf('video') !== -1;
+        }
+        function mediaElement(url, alt, style) {
+          if (isVideoUrl(url)) {
+            var v = document.createElement('video');
+            v.src = url;
+            v.style.cssText = style || '';
+            v.controls = true;
+            v.preload = 'metadata';
+            v.playsInline = true;
+            return v;
+          }
+          var img = document.createElement('img');
+          img.src = url;
+          img.alt = alt || '';
+          img.style.cssText = style || '';
+          return img;
+        }
         // Try previewImageUrl or imageUrl (with Drive embeddable URL)
         function driveThumbnailUrl(url) {
           if (!url || typeof url !== 'string') return null;
@@ -2540,118 +2752,193 @@ window.openApprovalModal = function(id){
         var eid = encodeURIComponent(m[1]);
         return ['https://lh3.googleusercontent.com/d/' + eid, 'https://drive.google.com/thumbnail?id=' + eid + '&sz=w800', 'https://drive.google.com/uc?export=view&id=' + eid];
       }
-      var displayUrl = item.previewImageUrl || null;
-      if (!displayUrl && item.imageUrl) {
-        var thumb = driveThumbnailUrl2(item.imageUrl);
-        displayUrl = thumb || item.imageUrl;
+      function isVideoUrlContent(url) {
+        if (!url || typeof url !== 'string') return false;
+        var lower = url.toLowerCase();
+        return lower.match(/\.(mp4|mov|webm|avi)(\?|$)/) !== null || lower.indexOf('video/') !== -1;
       }
-      if (item.uploadedImages && item.uploadedImages.length > 0) {
-        item.uploadedImages.forEach((image, index) => {
-          const img = document.createElement('img');
-          img.src = image.dataUrl;
-          img.alt = image.name || item.title;
-          img.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; margin-bottom: 12px; border: 1px solid #e2e8f0;';
-          img.onerror = function() { this.style.display = 'none'; };
-          imageContainer.appendChild(img);
-        });
-        imageContainer.style.display = 'flex';
-        imageContainer.style.flexDirection = 'column';
-        imageContainer.style.alignItems = 'center';
-      } else if (item.imageUrls && item.imageUrls.length > 0) {
-        var urls = item.previewImageUrls && item.previewImageUrls.length === item.imageUrls.length
-          ? item.previewImageUrls
-          : item.imageUrls.map(function(u) {
-              var t = driveThumbnailUrl2(u);
-              return t || u;
-            });
-        if (urls.length === 1) {
-          var singleImg = document.createElement('img');
-          singleImg.src = urls[0];
-          singleImg.alt = item.title || 'Content preview';
-          singleImg.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
-          var singleFb = driveFallbackUrls2(item.imageUrls[0]);
-          var singleFbIdx = 1;
-          singleImg.onerror = function() {
-            if (singleFb && singleFbIdx < singleFb.length) { this.src = singleFb[singleFbIdx++]; return; }
-            this.style.display = 'none';
-          };
-          imageContainer.appendChild(singleImg);
-          imageContainer.style.display = 'flex';
-        } else {
-          var carouselId = 'clientCarousel_' + (item.id || Date.now());
-          var slidePct = (100 / urls.length).toFixed(4);
-          var trackWidthPct = urls.length * 100;
-          var carouselHtml = '<div class="client-approval-carousel" id="' + carouselId + '" style="position:relative;overflow:hidden;">';
-          carouselHtml += '<div class="client-carousel-track" style="display:flex;flex-wrap:nowrap;overflow:hidden;border-radius:12px;border:1px solid #e2e8f0;width:' + trackWidthPct + '%;">';
-          urls.forEach(function(url, i) {
-            carouselHtml += '<div class="client-carousel-slide" data-index="' + i + '" style="flex:0 0 ' + slidePct + '%;min-width:0;display:flex;align-items:center;justify-content:center;background:#f1f5f9;">';
-            carouselHtml += '<img src="' + url + '" alt="Slide ' + (i+1) + '" style="max-width:100%;max-height:500px;object-fit:contain;">';
-            carouselHtml += '</div>';
-          });
-          carouselHtml += '</div>';
-          carouselHtml += '<div class="client-carousel-nav" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;">';
-          carouselHtml += '<button type="button" class="client-carousel-prev" aria-label="Previous" style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;">‹</button>';
-          carouselHtml += '<span class="client-carousel-dots" style="display:flex;gap:6px;"></span>';
-          carouselHtml += '<button type="button" class="client-carousel-next" aria-label="Next" style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;">›</button>';
-          carouselHtml += '</div></div>';
-          imageContainer.innerHTML = carouselHtml;
-          imageContainer.style.display = 'block';
-          var track = document.querySelector('#' + carouselId + ' .client-carousel-track');
-          var slides = document.querySelectorAll('#' + carouselId + ' .client-carousel-slide');
-          var dotsEl = document.querySelector('#' + carouselId + ' .client-carousel-dots');
-          var prevBtn = document.querySelector('#' + carouselId + ' .client-carousel-prev');
-          var nextBtn = document.querySelector('#' + carouselId + ' .client-carousel-next');
-          var curIdx = 0;
-          function updateClientCarousel() {
-            if (track && slides.length) track.style.transform = 'translateX(-' + (curIdx * 100 / slides.length) + '%)';
-            if (dotsEl) {
-              dotsEl.innerHTML = '';
-              for (var d = 0; d < slides.length; d++) {
-                var dot = document.createElement('button');
-                dot.type = 'button';
-                dot.setAttribute('aria-label', 'Slide ' + (d+1));
-                dot.style.cssText = 'width:8px;height:8px;border-radius:50%;border:none;background:' + (d === curIdx ? '#2563eb' : '#cbd5e1') + ';cursor:pointer;';
-                (function(idx){ dot.addEventListener('click', function(){ curIdx = idx; updateClientCarousel(); }); })(d);
-                dotsEl.appendChild(dot);
-              }
-            }
-          }
-          if (prevBtn) prevBtn.addEventListener('click', function(){ curIdx = curIdx <= 0 ? slides.length - 1 : curIdx - 1; updateClientCarousel(); });
-          if (nextBtn) nextBtn.addEventListener('click', function(){ curIdx = curIdx >= slides.length - 1 ? 0 : curIdx + 1; updateClientCarousel(); });
-          updateClientCarousel();
-          var carouselImgs = document.querySelectorAll('#' + carouselId + ' .client-carousel-slide img');
-          carouselImgs.forEach(function(img, idx) {
-            var orig = item.imageUrls && item.imageUrls[idx];
-            if (!orig) return;
-            var fallbacks = driveFallbackUrls2(orig);
-            if (!fallbacks || fallbacks.length < 2) return;
-            var fbIdx = 1;
-            img.onerror = function() {
-              if (fbIdx < fallbacks.length) { img.src = fallbacks[fbIdx++]; }
-              else { img.style.display = 'none'; }
-            };
+      function collectContentOriginalUrls(it) {
+        var raw = [];
+        if (Array.isArray(it.imageUrls) && it.imageUrls.length > 0) {
+          it.imageUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+        }
+        if (raw.length === 0 && Array.isArray(it.finalArtUrls) && it.finalArtUrls.length > 0) {
+          it.finalArtUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+        }
+        var seen = {};
+        raw = raw.filter(function(u) { if (seen[u]) return false; seen[u] = true; return true; });
+        if (raw.length === 0 && Array.isArray(it.previewImageUrls) && it.previewImageUrls.length > 0) {
+          it.previewImageUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+        }
+        if (raw.length === 0 && it.previewImageUrl && String(it.previewImageUrl).trim()) raw.push(String(it.previewImageUrl).trim());
+        if (raw.length === 0 && it.imageUrl && String(it.imageUrl).trim()) raw.push(String(it.imageUrl).trim());
+        return raw;
+      }
+      function buildContentDisplayUrls(it, originals) {
+        if (!originals || originals.length === 0) return [];
+        if (Array.isArray(it.previewImageUrls) && it.previewImageUrls.length === originals.length) {
+          return originals.map(function(u, i) {
+            var p = it.previewImageUrls[i];
+            return (p && String(p).trim()) ? String(p).trim() : (driveThumbnailUrl2(u) || u);
           });
         }
-        imageContainer.style.display = 'block';
-      } else if (displayUrl) {
-        const img = approvalImage || document.createElement('img');
-        img.src = displayUrl;
-        img.alt = item.title || 'Content preview';
-        img.id = 'approvalImage';
-        img.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
-        var contentFallbacks = driveFallbackUrls2(item.imageUrl);
-        var contentFbIdx = 1;
-        img.onerror = function() {
-          if (contentFallbacks && contentFbIdx < contentFallbacks.length) {
-            this.src = contentFallbacks[contentFbIdx++];
-            return;
+        return originals.map(function(u) { return driveThumbnailUrl2(u) || u; });
+      }
+      function appendClientContentScrollCarousel(originals, displays) {
+        var n = originals.length;
+        if (n < 2) return false;
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;background:#f1f5f9;width:100%;';
+        var mediaRow = document.createElement('div');
+        mediaRow.style.cssText = 'position:relative;width:100%;';
+        var strip = document.createElement('div');
+        strip.style.cssText = 'display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;width:100%;gap:0;overscroll-behavior-x:contain;scrollbar-width:thin;';
+        for (var i = 0; i < n; i++) {
+          var slide = document.createElement('div');
+          slide.style.cssText = 'flex:0 0 100%;width:100%;min-width:100%;max-width:100%;scroll-snap-align:start;scroll-snap-stop:always;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:8px;min-height:260px;background:#f1f5f9;';
+          var url = displays[i] || originals[i];
+          var node;
+          if (isVideoUrlContent(url)) {
+            node = document.createElement('video');
+            node.src = url;
+            node.controls = true;
+            node.preload = 'metadata';
+            node.playsInline = true;
+            node.style.cssText = 'max-width:100%;max-height:500px;object-fit:contain;border-radius:8px;';
+          } else {
+            node = document.createElement('img');
+            node.src = url;
+            node.alt = (item.title || 'Content') + ' — ' + (i + 1) + ' of ' + n;
+            node.style.cssText = 'max-width:100%;max-height:500px;object-fit:contain;border-radius:8px;';
+            var o = originals[i];
+            if (o && String(o).indexOf('data:') !== 0) {
+              var fallbacks = driveFallbackUrls2(o);
+              if (fallbacks && fallbacks.length > 1) {
+                var fbIdx = 1;
+                node.onerror = function() {
+                  if (fbIdx < fallbacks.length) { node.src = fallbacks[fbIdx++]; }
+                  else { node.style.display = 'none'; }
+                };
+              }
+            } else {
+              node.onerror = function() { node.style.display = 'none'; };
+            }
           }
-          this.src = 'https://via.placeholder.com/600x400/2563eb/ffffff?text=' + encodeURIComponent(item.title || 'Image');
-        };
-        imageContainer.appendChild(img);
-        imageContainer.style.display = 'flex';
+          slide.appendChild(node);
+          strip.appendChild(slide);
+        }
+        mediaRow.appendChild(strip);
+        var prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.setAttribute('aria-label', 'Previous image');
+        prevBtn.style.cssText = 'position:absolute;top:50%;left:8px;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:none;background:rgba(15,23,42,0.55);color:#fff;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;';
+        prevBtn.textContent = '\u2039';
+        var nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.setAttribute('aria-label', 'Next image');
+        nextBtn.style.cssText = 'position:absolute;top:50%;right:8px;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:none;background:rgba(15,23,42,0.55);color:#fff;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;';
+        nextBtn.textContent = '\u203a';
+        mediaRow.appendChild(prevBtn);
+        mediaRow.appendChild(nextBtn);
+        wrap.appendChild(mediaRow);
+        var nav = document.createElement('div');
+        nav.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 8px 12px;background:#f1f5f9;border-top:1px solid #e2e8f0;';
+        var counter = document.createElement('span');
+        counter.style.cssText = 'font-size:13px;font-weight:600;color:#475569;';
+        var dots = document.createElement('div');
+        dots.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
+        nav.appendChild(counter);
+        nav.appendChild(dots);
+        wrap.appendChild(nav);
+        function pageW() { return strip.clientWidth || strip.offsetWidth || 320; }
+        function currentIdx() {
+          var w = pageW();
+          if (!w) return 0;
+          return Math.max(0, Math.min(n - 1, Math.round(strip.scrollLeft / w)));
+        }
+        function paintNav() {
+          var idx = currentIdx();
+          counter.textContent = (idx + 1) + ' / ' + n;
+          dots.innerHTML = '';
+          for (var d = 0; d < n; d++) {
+            var dot = document.createElement('button');
+            dot.type = 'button';
+            dot.setAttribute('aria-label', 'Go to image ' + (d + 1));
+            dot.style.cssText = 'width:9px;height:9px;padding:0;border-radius:50%;border:none;background:' + (d === idx ? '#2563eb' : '#cbd5e1') + ';cursor:pointer;';
+            (function(di) {
+              dot.addEventListener('click', function() {
+                strip.scrollTo({ left: di * pageW(), behavior: 'smooth' });
+              });
+            })(d);
+            dots.appendChild(dot);
+          }
+        }
+        prevBtn.addEventListener('click', function() { strip.scrollBy({ left: -pageW(), behavior: 'smooth' }); });
+        nextBtn.addEventListener('click', function() { strip.scrollBy({ left: pageW(), behavior: 'smooth' }); });
+        strip.addEventListener('scroll', function() { window.requestAnimationFrame(paintNav); }, { passive: true });
+        imageContainer.appendChild(wrap);
+        imageContainer.style.display = 'block';
+        paintNav();
+        return true;
+      }
+      if (item.uploadedImages && item.uploadedImages.length > 0) {
+        if (item.uploadedImages.length > 1) {
+          var upOrig = item.uploadedImages.map(function(im) { return im.dataUrl; });
+          appendClientContentScrollCarousel(upOrig, upOrig.slice());
+        } else {
+          var one = item.uploadedImages[0];
+          var img0 = document.createElement('img');
+          img0.src = one.dataUrl;
+          img0.alt = one.name || item.title;
+          img0.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
+          img0.onerror = function() { this.style.display = 'none'; };
+          imageContainer.appendChild(img0);
+          imageContainer.style.display = 'flex';
+          imageContainer.style.flexDirection = 'column';
+          imageContainer.style.alignItems = 'center';
+        }
       } else {
-        imageContainer.style.display = 'none';
+        var contentOriginals = collectContentOriginalUrls(item);
+        var contentDisplays = buildContentDisplayUrls(item, contentOriginals);
+        if (contentOriginals.length > 1) {
+          appendClientContentScrollCarousel(contentOriginals, contentDisplays);
+        } else if (contentOriginals.length === 1) {
+          var d0 = contentDisplays[0] || contentOriginals[0];
+          var o0 = contentOriginals[0];
+          var singleEl;
+          if (isVideoUrlContent(d0)) {
+            singleEl = document.createElement('video');
+            singleEl.src = d0;
+            singleEl.controls = true;
+            singleEl.preload = 'metadata';
+            singleEl.playsInline = true;
+            singleEl.id = 'approvalImage';
+            singleEl.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+          } else {
+            singleEl = approvalImage || document.createElement('img');
+            singleEl.src = d0;
+            singleEl.alt = item.title || 'Content preview';
+            singleEl.id = 'approvalImage';
+            singleEl.style.cssText = 'width:100%;height:auto;display:block;max-height:500px;object-fit:contain;';
+          }
+          var singleFallbacks = (o0 && String(o0).indexOf('data:') !== 0) ? driveFallbackUrls2(o0) : null;
+          var singleFbIdx = 1;
+          singleEl.onerror = function() {
+            if (singleFallbacks && singleFbIdx < singleFallbacks.length) {
+              this.src = singleFallbacks[singleFbIdx++];
+              return;
+            }
+            if (this.tagName === 'IMG') {
+              this.src = 'https://via.placeholder.com/600x400/2563eb/ffffff?text=' + encodeURIComponent(item.title || 'Image');
+            } else {
+              this.style.display = 'none';
+            }
+          };
+          imageContainer.appendChild(singleEl);
+          imageContainer.style.display = 'flex';
+        } else {
+          imageContainer.style.display = 'none';
+        }
       }
     }
   }
@@ -2677,12 +2964,41 @@ window.openApprovalModal = function(id){
   // Show/hide change request notes section
   const changeRequestContainer = $("#changeRequestContainer");
   const changeRequestNotes = $("#changeRequestNotes");
+  const changeRequestLabel = changeRequestContainer ? changeRequestContainer.querySelector("h5") : null;
   if (changeRequestContainer && changeRequestNotes) {
-    if ((item.status === "changes" || item.status === "copy_changes") && item.change_notes && item.change_notes.length > 0) {
-      // Show the most recent change request note
+    const hasChangeNotes = item.change_notes && item.change_notes.length > 0;
+    const isActiveChange = (item.status === "changes" || item.status === "copy_changes");
+    const isRevisedPending = item.returnedFromChanges && (item.status === "pending" || item.status === "copy_pending");
+
+    if ((isActiveChange || isRevisedPending) && hasChangeNotes) {
       const latestNote = item.change_notes[item.change_notes.length - 1];
-      changeRequestNotes.textContent = latestNote.note || "Change requested.";
-      changeRequestContainer.style.display = "block";
+      if (isRevisedPending) {
+        // Revised: show what they asked for + confirmation it was addressed
+        if (changeRequestLabel) {
+          changeRequestLabel.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display:inline;vertical-align:-2px;margin-right:4px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Your requested changes have been applied:';
+          changeRequestLabel.style.color = "#b45309";
+        }
+        changeRequestNotes.textContent = latestNote.note || "Change requested.";
+        changeRequestContainer.style.display = "block";
+        changeRequestContainer.style.background = "#fffbeb";
+        changeRequestContainer.style.borderColor = "#fbbf24";
+        changeRequestNotes.style.background = "#fef9c3";
+        changeRequestNotes.style.borderColor = "#fde68a";
+        changeRequestNotes.style.color = "#92400e";
+      } else {
+        // Active change request
+        if (changeRequestLabel) {
+          changeRequestLabel.textContent = "Change Request:";
+          changeRequestLabel.style.color = "#ea580c";
+        }
+        changeRequestNotes.textContent = latestNote.note || "Change requested.";
+        changeRequestContainer.style.display = "block";
+        changeRequestContainer.style.background = "transparent";
+        changeRequestContainer.style.borderColor = "transparent";
+        changeRequestNotes.style.background = "#fff7ed";
+        changeRequestNotes.style.borderColor = "#fed7aa";
+        changeRequestNotes.style.color = "#9a3412";
+      }
     } else {
       changeRequestContainer.style.display = "none";
     }
@@ -2697,9 +3013,9 @@ window.openApprovalModal = function(id){
   // Show/hide buttons based on status
   const approveBtn = $("#approveBtn");
   const requestChangesBtn = $("#requestChangesBtn");
-  if (item.status === "approved" || item.status === "copy_approved") {
+  if (item.status === "approved" || item.status === "scheduled" || item.status === "copy_approved") {
     // For copy_approved, still show buttons so client can request changes if needed
-    if (item.status === "approved") {
+    if (item.status === "approved" || item.status === "scheduled") {
       if (approveBtn) approveBtn.style.display = "none";
       if (requestChangesBtn) requestChangesBtn.style.display = "none";
     } else {
@@ -2718,10 +3034,8 @@ window.openApprovalModal = function(id){
   
   // Show modal
   const approvalModal = document.getElementById("approvalModal");
-  console.log("Modal element:", approvalModal);
   if (approvalModal) {
     approvalModal.classList.add("show");
-    console.log("Modal should be visible now, classList:", approvalModal.classList.toString());
     // Force display
     approvalModal.style.display = "flex";
   } else {
@@ -2736,7 +3050,6 @@ function openApprovalModal(id) {
 
 // Close modal function
 function closeApprovalModal() {
-  console.log("closeApprovalModal called");
   const modal = document.getElementById("approvalModal");
   if (modal) {
     modal.classList.remove("show");
@@ -2749,7 +3062,6 @@ function closeApprovalModal() {
     if (cancelBtn) cancelBtn.style.display = "none";
     const changesText = document.getElementById("changesText");
     if (changesText) changesText.value = "";
-    console.log("Modal closed");
   } else {
     console.error("Modal element not found for closing");
   }
@@ -2786,7 +3098,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'approveBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Approve button clicked");
       if (CURRENT_APPROVAL_ITEM) {
         approveItem(CURRENT_APPROVAL_ITEM);
       }
@@ -2797,7 +3108,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'deleteApprovalBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Delete button clicked");
       if (CURRENT_APPROVAL_ITEM) {
         deleteApprovalItem(CURRENT_APPROVAL_ITEM);
       }
@@ -2808,7 +3118,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'requestChangesBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Request Changes button clicked");
       const changesForm = document.getElementById("changesFormContainer");
       const cancelBtn = document.getElementById("cancelChangesBtn");
       if (changesForm) changesForm.style.display = "block";
@@ -2825,7 +3134,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'cancelChangesBtn') {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Cancel button clicked");
       const changesForm = document.getElementById("changesFormContainer");
       const cancelBtn = document.getElementById("cancelChangesBtn");
       if (changesForm) changesForm.style.display = "none";
@@ -2839,7 +3147,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'submitChangesBtn' || btn.classList.contains('submit-changes-btn')) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Submit Changes button clicked");
       const changesText = document.getElementById("changesText");
       const note = changesText ? changesText.value.trim() : "";
       
@@ -2859,6 +3166,8 @@ function setupModalEventDelegation() {
         return;
       }
       
+      // Clear returned flag when requesting changes again
+      item.returnedFromChanges = false;
       // If it's a copy approval, set status to copy_changes, otherwise changes
       if (item.status === 'copy_pending' || item.status === 'copy_approved') {
         item.status = "copy_changes";
@@ -2868,9 +3177,18 @@ function setupModalEventDelegation() {
       item.change_notes = item.change_notes || []; 
       item.change_notes.push({ when: Date.now(), note });
       
-      save(s); 
+      save(s);
   var changeNote = (note || '').substring(0, 60) + ((note || '').length > 60 ? '...' : '');
   notifyTeam({ type:"needs_changes", itemId:item.id, title:item.title, note, activityText:'✏️ Requested changes on "' + item.title + '": "' + changeNote + '"' });
+  // Also notify production task system so designer sees the change request
+  var cToken = (session && session.token) || null;
+  if (cToken) {
+    fetch(API_BASE + '/api/client/request-changes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cToken },
+      body: JSON.stringify({ approvalId: item.id, note: note })
+    }).catch(function(err) { console.warn('Failed to notify production:', err); });
+  }
       
       closeApprovalModal();
   render();
@@ -2881,7 +3199,6 @@ function setupModalEventDelegation() {
     if (btn.id === 'closeModalBtn' || btn.hasAttribute('data-close-modal')) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Close button clicked via delegation");
       closeApprovalModal();
       return;
     }
@@ -2895,7 +3212,6 @@ function setupModalEventDelegation() {
     closeBtn.onclick = function(e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Close button clicked directly");
       closeApprovalModal();
     };
   }
@@ -2905,7 +3221,6 @@ function setupModalEventDelegation() {
     deleteBtn.onclick = function(e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Delete button clicked directly");
       if (CURRENT_APPROVAL_ITEM) {
         deleteApprovalItem(CURRENT_APPROVAL_ITEM);
       }
@@ -2937,6 +3252,41 @@ document.addEventListener('click', function(e) {
 const requestForm = $("#requestForm");
 const reqTypeEl = $("#reqType");
 const reqTypeErrorEl = document.getElementById("reqTypeError");
+// Request image upload handling
+var reqUploadedImages = [];
+var reqFileInput = document.getElementById('reqFileUpload');
+if (reqFileInput) {
+  reqFileInput.addEventListener('change', function() {
+    var files = reqFileInput.files;
+    if (!files || !files.length) return;
+    var namesEl = document.getElementById('reqFileNames');
+    var previewsEl = document.getElementById('reqImagePreviews');
+    for (var i = 0; i < files.length; i++) {
+      (function(file) {
+        var reader = new FileReader();
+        reader.onload = function() {
+          reqUploadedImages.push({ name: file.name, data: reader.result });
+          if (namesEl) namesEl.textContent = reqUploadedImages.length + ' file(s) selected';
+          if (previewsEl) {
+            var thumb = document.createElement('div');
+            thumb.style.cssText = 'position:relative;width:48px;height:48px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.3);';
+            thumb.innerHTML = '<img src="' + reader.result + '" style="width:100%;height:100%;object-fit:cover;"><button type="button" style="position:absolute;top:-2px;right:-2px;width:16px;height:16px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
+            var idx = reqUploadedImages.length - 1;
+            thumb.querySelector('button').addEventListener('click', function() {
+              reqUploadedImages.splice(idx, 1);
+              thumb.remove();
+              if (namesEl) namesEl.textContent = reqUploadedImages.length ? reqUploadedImages.length + ' file(s) selected' : '';
+            });
+            previewsEl.appendChild(thumb);
+          }
+        };
+        reader.readAsDataURL(file);
+      })(files[i]);
+    }
+    reqFileInput.value = '';
+  });
+}
+
 if (requestForm) {
   if (reqTypeEl) reqTypeEl.removeAttribute("aria-invalid");
   requestForm.addEventListener("submit", e=>{
@@ -2960,18 +3310,24 @@ if (requestForm) {
     by: $("#reqContact").value.trim() || "Client",
     details: $("#reqDetails").value.trim() || "(no details)",
     link: $("#reqLink").value.trim(),
-    status: "open", 
+    images: reqUploadedImages.map(function(img) { return img.data; }),
+    status: "open",
     createdAt: Date.now()
   };
-  
+
   if (!s.requests) s.requests = [];
   s.requests.push(req);
   if (!s.activity) s.activity = [];
   const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
   s.activity.unshift({when:Date.now(), text:activityText});
-  
+
   save(s);
   e.target.reset();
+  reqUploadedImages = [];
+  var namesEl2 = document.getElementById('reqFileNames');
+  var previewsEl2 = document.getElementById('reqImagePreviews');
+  if (namesEl2) namesEl2.textContent = '';
+  if (previewsEl2) previewsEl2.innerHTML = '';
   if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
   
   var toast = document.getElementById("toastContainer");
@@ -3048,7 +3404,7 @@ function renderCalendar(){
   // Get all approvals with postDate (pending or approved)
   const itemsWithDate = (s.approvals || []).filter(a => 
     a.postDate && 
-    (a.status === 'pending' || a.status === 'approved' || !a.status)
+    (a.status === 'pending' || a.status === 'approved' || a.status === 'scheduled' || !a.status)
   );
   
   if (itemsWithDate.length === 0) {
@@ -3090,7 +3446,8 @@ function renderCalendar(){
       daysWithPosts[day] = (daysWithPosts[day] || []).concat(item);
     }
   });
-  var miniWrap = el("div", { class: "calendar-mini-wrap" });
+  // Mini calendar grid hidden — only card view shown
+  var miniWrap = el("div", { class: "calendar-mini-wrap", style: "display:none;" });
   var miniGrid = el("div", { class: "calendar-mini-grid" });
   dayAbbrs.forEach(function(abbr){
     var cell = el("div", { class: "cal-day-abbr" });
@@ -3222,9 +3579,425 @@ function renderCalendar(){
 }
 
 /* ================== Request Stats ================== */
+
+
+/* ================== Upcoming Posts Feed (Instagram-style grid) ================== */
+function upcomingFeedPlaceholderGradientClass(type) {
+  var t = (type || "").toLowerCase();
+  if (t === "reel" || t === "reels") return "bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-950/50 dark:to-pink-950/50";
+  if (t === "story" || t === "stories") return "bg-gradient-to-br from-green-50 to-teal-100 dark:from-green-950/40 dark:to-teal-950/40";
+  if (t === "carousel") return "bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950/40 dark:to-orange-950/40";
+  return "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-950/50 dark:to-blue-900/50";
+}
+
+function upcomingFeedStatusDotClass(status) {
+  var st = (status || "pending").toLowerCase();
+  if (st === "approved") return "bg-green-500";
+  if (st === "pending") return "bg-amber-400";
+  return "bg-gray-400";
+}
+
+function upcomingFeedTypeLabel(type) {
+  var t = (type || "post").toLowerCase();
+  if (t === "reel" || t === "reels") return "REEL";
+  if (t === "story" || t === "stories") return "STORY";
+  if (t === "carousel") return "CAROUSEL";
+  return "POST";
+}
+
+function upcomingFeedOpenModal(itemId) {
+  if (typeof window.openApprovalModal === "function") {
+    window.openApprovalModal(itemId);
+  }
+}
+
+function renderUpcomingFeed(){
+  var s = load();
+  var grid = document.querySelector("#upcomingFeedGrid");
+  var countEl = document.querySelector("#upcomingFeedCount");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  // Use dedicated upcomingFeed (set by agency Feed Builder) if available
+  var upcoming = [];
+  var usingSample = false;
+
+  if (s.upcomingFeed && s.upcomingFeed.length > 0) {
+    upcoming = s.upcomingFeed.slice(0, 12);
+  } else {
+    var now = new Date();
+    now.setHours(0,0,0,0);
+    upcoming = (s.approvals || []).filter(function(a){
+      if (!a.postDate) return false;
+      var d = new Date(a.postDate);
+      return d >= now && (a.status === 'pending' || a.status === 'approved' || a.status === 'scheduled' || !a.status);
+    }).sort(function(a,b){
+      return new Date(a.postDate) - new Date(b.postDate);
+    }).slice(0, 12);
+  }
+
+  if (upcoming.length === 0) {
+    usingSample = true;
+    var d1 = new Date(); d1.setDate(d1.getDate() + 2);
+    var d2 = new Date(); d2.setDate(d2.getDate() + 4);
+    var d3 = new Date(); d3.setDate(d3.getDate() + 6);
+    var d4 = new Date(); d4.setDate(d4.getDate() + 9);
+    var d5 = new Date(); d5.setDate(d5.getDate() + 11);
+    var d6 = new Date(); d6.setDate(d6.getDate() + 14);
+    upcoming = [
+      { id: "sample-1", title: "Spring Collection Launch", type: "Post", status: "approved", postDate: d1.toISOString(), copyText: "Introducing our new spring collection — fresh styles for a fresh season \u2728" },
+      { id: "sample-2", title: "Behind the Scenes", type: "Reel", status: "pending", postDate: d2.toISOString(), copyText: "Take a peek behind the curtain at how we create your favorite content \ud83c\udfac" },
+      { id: "sample-3", title: "Client Success Story", type: "Carousel", status: "approved", postDate: d3.toISOString(), copyText: "See how we helped grow engagement by 340% in just 3 months \ud83d\udcc8" },
+      { id: "sample-4", title: "Weekend Tips & Tricks", type: "Story", status: "pending", postDate: d4.toISOString(), copyText: "Quick tips to boost your social media game this weekend \ud83d\ude80" },
+      { id: "sample-5", title: "Product Highlight", type: "Post", status: "pending", postDate: d5.toISOString(), copyText: "This week\u2019s favorite \u2014 tap to shop the look." },
+      { id: "sample-6", title: "Team Spotlight", type: "Reel", status: "approved", postDate: d6.toISOString(), copyText: "Meet the people behind your content." }
+    ];
+  }
+
+  if (countEl) {
+    countEl.innerHTML = "";
+    countEl.className = "upcoming-feed-count shrink-0 text-sm font-medium text-slate-500 dark:text-slate-400";
+    if (usingSample) {
+      var previewLink = document.createElement("a");
+      previewLink.href = "#upcomingFeedGrid";
+      previewLink.className = "font-medium text-blue-800 hover:text-blue-600 hover:underline dark:text-blue-300 dark:hover:text-blue-200";
+      previewLink.textContent = "Preview";
+      previewLink.addEventListener("click", function(e) {
+        e.preventDefault();
+        var g = document.getElementById("upcomingFeedGrid");
+        if (g) g.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      countEl.appendChild(previewLink);
+    } else {
+      countEl.textContent = upcoming.length + " next up";
+    }
+  }
+
+  upcoming.forEach(function(item){
+    var st = (item.status || "pending").toLowerCase();
+    var statusTitle = st === "approved" ? "Approved" : st === "pending" ? "Pending Approval" : "Scheduled / Draft";
+    var tile = el("div", {
+      class: "group relative aspect-square cursor-pointer overflow-hidden rounded-md transition-transform duration-200 ease-out hover:z-10 hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900",
+      role: "button",
+      tabindex: "0",
+      "aria-label": (item.title || "Post") + " — " + upcomingFeedTypeLabel(item.type) + " — " + statusTitle
+    });
+
+    var feedUrls = resolveUpcomingDisplayUrlsList(item);
+    if (feedUrls.length > 1) {
+      var scroller = document.createElement("div");
+      scroller.className = "absolute inset-0 z-0 flex flex-row overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden";
+      scroller.style.scrollSnapType = "x mandatory";
+      scroller.style.webkitOverflowScrolling = "touch";
+      scroller.style.overscrollBehaviorX = "contain";
+      scroller.style.scrollbarWidth = "none";
+      scroller.style.setProperty("-ms-overflow-style", "none");
+      var dotRow = el("div", { class: "pointer-events-none absolute bottom-7 left-0 right-0 z-[2] flex justify-center gap-1" });
+      feedUrls.forEach(function(u, fi) {
+        var slide = document.createElement("div");
+        slide.className = "relative h-full shrink-0 snap-start";
+        slide.style.flex = "0 0 100%";
+        slide.style.width = "100%";
+        slide.style.minWidth = "100%";
+        slide.style.scrollSnapAlign = "start";
+        var im = el("img", {
+          class: "h-full w-full object-cover",
+          loading: "lazy",
+          alt: (item.title || "Post") + " — " + (fi + 1) + " / " + feedUrls.length
+        });
+        im.src = u;
+        im.onerror = function() {
+          var ph = el("div", {
+            class: "absolute inset-0 flex items-center justify-center text-4xl leading-none " + upcomingFeedPlaceholderGradientClass(item.type)
+          });
+          ph.innerHTML = getTypeEmoji(item.type);
+          if (this.parentNode) this.parentNode.replaceChild(ph, this);
+        };
+        slide.appendChild(im);
+        scroller.appendChild(slide);
+        var dot = el("span", {
+          class: "h-1.5 w-1.5 rounded-full bg-white shadow transition-opacity duration-150",
+          "aria-hidden": "true"
+        });
+        dot.style.opacity = fi === 0 ? "1" : "0.45";
+        dotRow.appendChild(dot);
+      });
+      scroller.addEventListener("scroll", function() {
+        window.requestAnimationFrame(function() {
+          var w = scroller.clientWidth || 1;
+          var idx = Math.max(0, Math.min(feedUrls.length - 1, Math.round(scroller.scrollLeft / w)));
+          var spans = dotRow.querySelectorAll("span");
+          for (var si = 0; si < spans.length; si++) {
+            spans[si].style.opacity = si === idx ? "1" : "0.45";
+          }
+        });
+      }, { passive: true });
+      tile.appendChild(scroller);
+      tile.appendChild(dotRow);
+    } else if (feedUrls.length === 1) {
+      var imgSrc = feedUrls[0];
+      var img = el("img", {
+        class: "absolute inset-0 h-full w-full object-cover",
+        loading: "lazy",
+        alt: item.title || "Post preview"
+      });
+      img.src = imgSrc;
+      img.onerror = function(){
+        var ph = el("div", {
+          class: "absolute inset-0 flex items-center justify-center text-4xl leading-none " + upcomingFeedPlaceholderGradientClass(item.type)
+        });
+        ph.innerHTML = getTypeEmoji(item.type);
+        this.parentNode.replaceChild(ph, this);
+      };
+      tile.appendChild(img);
+    } else {
+      var placeholder = el("div", {
+        class: "absolute inset-0 flex items-center justify-center text-4xl leading-none " + upcomingFeedPlaceholderGradientClass(item.type)
+      });
+      placeholder.innerHTML = getTypeEmoji(item.type);
+      tile.appendChild(placeholder);
+    }
+
+    tile.appendChild(el("div", {
+      class: "pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[30%] bg-gradient-to-t from-black/70 via-black/40 to-transparent transition-all duration-200 group-hover:from-black/85 group-hover:via-black/55"
+    }));
+
+    tile.appendChild(el("span", {
+      class: "absolute right-1.5 top-1.5 z-[2] h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white/90 shadow-sm " + upcomingFeedStatusDotClass(item.status),
+      title: statusTitle,
+      "aria-hidden": "true"
+    }));
+
+    var footer = el("div", { class: "absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-0.5 p-2 pt-6" });
+    var pill = el("span", { class: "inline-flex max-w-full self-start rounded-full bg-white/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-800 shadow-sm backdrop-blur-[2px] dark:bg-white/80 dark:text-slate-900" });
+    pill.textContent = upcomingFeedTypeLabel(item.type);
+    footer.appendChild(pill);
+
+    var captionText = item.copyText || item.caption || "";
+    if (captionText) {
+      var caption = el("p", { class: "line-clamp-2 text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]" });
+      caption.textContent = captionText;
+      footer.appendChild(caption);
+    }
+
+    var d = new Date(item.postDate);
+    var dateEl = el("p", { class: "text-[10px] text-white/70" });
+    dateEl.textContent = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    footer.appendChild(dateEl);
+
+    tile.appendChild(footer);
+
+    tile.addEventListener("click", function(){ upcomingFeedOpenModal(item.id); });
+    tile.addEventListener("keydown", function(e){
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        upcomingFeedOpenModal(item.id);
+      }
+    });
+
+    grid.appendChild(tile);
+  });
+
+  if (usingSample) {
+    grid.appendChild(el("div", {
+      class: "col-span-3 mt-2 rounded-lg border border-dashed border-slate-300 bg-white/80 px-4 py-2.5 text-center text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-400",
+      role: "note"
+    }, "\u2728 Sample posts — Your scheduled content will appear here automatically."));
+  }
+}
+
+function collectUpcomingOriginalUrls(item) {
+  var raw = [];
+  if (Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+    item.imageUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+  }
+  if (raw.length === 0 && Array.isArray(item.finalArtUrls) && item.finalArtUrls.length > 0) {
+    item.finalArtUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+  }
+  var seen = {};
+  raw = raw.filter(function(u) { if (seen[u]) return false; seen[u] = true; return true; });
+  if (raw.length === 0) {
+    if (item.previewImageUrl && String(item.previewImageUrl).trim()) raw.push(String(item.previewImageUrl).trim());
+    else if (item.copyImageUrl && String(item.copyImageUrl).trim()) raw.push(String(item.copyImageUrl).trim());
+    else if (Array.isArray(item.previewImageUrls) && item.previewImageUrls.length > 0) {
+      item.previewImageUrls.forEach(function(u) { if (u && String(u).trim()) raw.push(String(u).trim()); });
+    } else if (item.imageUrl && String(item.imageUrl).trim()) raw.push(String(item.imageUrl).trim());
+  }
+  return raw.filter(Boolean);
+}
+
+function resolveUpcomingDisplayUrlsList(item) {
+  var orig = collectUpcomingOriginalUrls(item);
+  if (orig.length === 0) return [];
+  if (Array.isArray(item.previewImageUrls) && item.previewImageUrls.length === orig.length) {
+    return orig.map(function(u, i) {
+      var p = item.previewImageUrls[i];
+      if (p && String(p).trim()) return String(p).trim();
+      if (typeof driveThumbnailUrl === "function") {
+        var th = driveThumbnailUrl(u);
+        if (th) return th;
+      }
+      return u;
+    });
+  }
+  return orig.map(function(u) {
+    if (typeof driveThumbnailUrl === "function") {
+      var thumb = driveThumbnailUrl(u);
+      if (thumb) return thumb;
+    }
+    return u;
+  });
+}
+
+function resolveUpcomingImage(item) {
+  var list = resolveUpcomingDisplayUrlsList(item);
+  return list.length > 0 ? list[0] : null;
+}
+
+/* ================== Client Image Library ================== */
+var cilFilter = 'pending'; // pending | approved | all
+
+function renderClientImageLibrary() {
+  var grid = document.getElementById('clientImgLibGrid');
+  var statsEl = document.getElementById('clientImgLibStats');
+  var filterEl = document.getElementById('clientImgLibFilter');
+  if (!grid) return;
+
+  var s = load();
+  // Images come from portal state assets array (synced by agency)
+  // Filter out broken assets (no valid URL)
+  var allAssets = Array.isArray(s.assets) ? s.assets : [];
+  var assets = allAssets.filter(function(a) {
+    var url = a.thumbnailUrl || a.url || '';
+    if (!url) return false;
+    if (url.startsWith('data:')) return false;
+    return true;
+  });
+
+  var approvedCount = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; }).length;
+  var pendingCount = assets.filter(function(a){ return a.approvalStatus === 'PENDING'; }).length;
+  var totalCount = assets.length;
+
+  // Stats
+  if (statsEl) {
+    statsEl.innerHTML = '<span>' + pendingCount + ' pending</span><span>' + approvedCount + ' approved</span><span>' + totalCount + ' total</span>';
+  }
+
+  // Filter buttons
+  if (filterEl) {
+    filterEl.innerHTML = '';
+    ['pending','approved','all'].forEach(function(f){
+      var btn = document.createElement('button');
+      btn.className = 'cil-filter-btn' + (cilFilter === f ? ' active' : '');
+      var label = f.charAt(0).toUpperCase() + f.slice(1);
+      var count = f === 'all' ? totalCount : f === 'pending' ? pendingCount : approvedCount;
+      btn.textContent = label + ' (' + count + ')';
+      btn.addEventListener('click', function(){
+        cilFilter = f;
+        renderClientImageLibrary();
+      });
+      filterEl.appendChild(btn);
+    });
+  }
+
+  // Filter assets
+  var filtered = assets;
+  if (cilFilter === 'pending') filtered = assets.filter(function(a){ return a.approvalStatus === 'PENDING'; });
+  else if (cilFilter === 'approved') filtered = assets.filter(function(a){ return a.approvalStatus === 'APPROVED'; });
+  filtered.sort(function(a,b){ return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime(); });
+
+  grid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="cil-empty" style="grid-column:1/-1;">' + (cilFilter === 'pending' ? 'No images waiting for your review.' : cilFilter === 'approved' ? 'No approved images yet.' : 'No images uploaded yet.') + '</div>';
+    return;
+  }
+
+  filtered.forEach(function(asset){
+    var card = document.createElement('div');
+    card.className = 'cil-card';
+
+    var statusLower = (asset.approvalStatus || 'PENDING').toLowerCase().replace(/_/g, '-');
+    var badgeClass = statusLower === 'needs-changes' ? 'rejected' : statusLower;
+    var statusLabel = statusLower === 'needs-changes' ? 'Needs changes' : statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
+
+    var rawPrev = asset.thumbnailUrl || asset.url || '';
+    var previewUrl = (rawPrev && rawPrev.startsWith('/uploads/')) ? API_BASE + rawPrev : rawPrev;
+    if (previewUrl && previewUrl.startsWith('data:')) previewUrl = '';
+    var imgHtml = previewUrl ? '<img class="cil-card__img" src="' + previewUrl + '" alt="' + (asset.title || '').replace(/"/g, '&quot;') + '" loading="lazy" referrerpolicy="no-referrer" />' : '<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);color:rgba(255,255,255,.3);font-size:20px;">No preview</div>';
+
+    card.innerHTML = imgHtml
+      + '<div class="cil-card__body">'
+      + '<div class="cil-card__name">' + (asset.title || 'Untitled') + '</div>'
+      + '<span class="cil-badge cil-badge--' + badgeClass + '">' + statusLabel + '</span>'
+      + '<div class="cil-actions">'
+      + (asset.approvalStatus !== 'APPROVED' ? '<button class="cil-btn-approve" data-cil-action="approve" data-cil-id="' + asset.id + '">Approve</button>' : '')
+      + (asset.approvalStatus === 'PENDING' ? '<button class="cil-btn-reject" data-cil-action="reject" data-cil-id="' + asset.id + '">Reject</button>' : '')
+      + '</div></div>';
+
+    grid.appendChild(card);
+
+    // Lightbox on image click
+    var imgEl = card.querySelector('.cil-card__img');
+    if (imgEl) {
+      imgEl.addEventListener('click', function(){
+        var lb = document.createElement('div');
+        lb.className = 'cil-lightbox';
+        lb.innerHTML = '<button class="cil-lightbox__close">&times;</button><img src="' + previewUrl + '" />';
+        lb.addEventListener('click', function(e){ if (e.target === lb || e.target.classList.contains('cil-lightbox__close')) lb.remove(); });
+        document.body.appendChild(lb);
+      });
+    }
+
+    // Action buttons
+    card.querySelectorAll('[data-cil-action]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var action = btn.getAttribute('data-cil-action');
+        var id = btn.getAttribute('data-cil-id');
+        var s = load();
+        var assets = Array.isArray(s.assets) ? s.assets : [];
+        var asset = assets.find(function(a){ return a.id === id; });
+        if (!asset) return;
+
+        if (action === 'approve') {
+          asset.approvalStatus = 'APPROVED';
+          asset.updatedAt = new Date().toISOString();
+          asset.approvedAt = new Date().toISOString();
+        } else if (action === 'reject') {
+          asset.approvalStatus = 'REJECTED';
+          asset.updatedAt = new Date().toISOString();
+        }
+
+        s.assets = assets;
+        save(s);
+        renderClientImageLibrary();
+      });
+    });
+  });
+
+  // Always show section on Images tab (show empty state message if no assets)
+  var section = document.getElementById('clientImageLibrary');
+  if (section) {
+    section.style.display = '';
+    var grid = document.getElementById('clientImgLibGrid');
+    if (grid && totalCount === 0) {
+      grid.innerHTML = '<div style="text-align:center;padding:32px 16px;color:rgba(255,255,255,.5);font-size:14px;">No media uploaded yet. Your team will add photos and videos here for your review.</div>';
+    }
+  }
+}
+
+function getTypeEmoji(type) {
+  var t = (type || "").toLowerCase();
+  if (t === "reel" || t === "reels") return "\ud83c\udfac";
+  if (t === "story" || t === "stories") return "\ud83d\udcf1";
+  if (t === "carousel") return "\ud83d\udcda";
+  return "\ud83d\udcf7";
+}
+
+
 function renderRequestStats(){
   const s = load();
-  const circumference = 2 * Math.PI * 50; // radius = 50
+  const circumference = 2 * Math.PI * 40; // radius = 40
   
   // Calculate Request From clients / Completed %
   const allRequests = s.requests || [];
@@ -3334,7 +4107,6 @@ function renderReports(){
         heroList.appendChild(li);
       });
     }
-    console.log("Progress: highlights rendered =", fallbackUsed ? ["Content engine active and consistent."] : highlights, fallbackUsed ? "(fallback copy used)" : "(data-driven)");
   }
 
   const rAdsRunning = $("#r-ads-running");
@@ -3434,7 +4206,7 @@ async function initializeApp() {
   var copyCount = approvals.filter(function(a){ return ['copy_pending','copy_approved','copy_changes'].includes((a.status || '')); }).length;
   var pendingCount = approvals.filter(function(a){ return !a.status || a.status === 'pending'; }).length;
   var changesCount = approvals.filter(function(a){ return a.status === 'changes'; }).length;
-  var approvedCount = approvals.filter(function(a){ return a.status === 'approved'; }).length;
+  var approvedCount = approvals.filter(function(a){ return a.status === 'approved' || a.status === 'scheduled'; }).length;
   var defaultTab = 'copy';
   if (pendingCount > 0) defaultTab = 'pending';
   else if (copyCount > 0) defaultTab = 'copy';
@@ -3480,7 +4252,6 @@ async function initializeApp() {
       }
     }
     setClientNameDisplay(displayName);
-    console.log("Initial client name set to:", displayName);
   }
   
   // Load logo after name is set (pass client from portal-state so logo from agency is shown)
@@ -3490,7 +4261,6 @@ async function initializeApp() {
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener("click", window.handleLogout);
-    console.log("Logout button event listener attached");
   }
 
   try { setupClientNotificationBell(); } catch (e) { console.warn('Client notification bell setup:', e); }
@@ -3510,6 +4280,29 @@ async function initializeApp() {
       console.error("Error in delayed render:", e);
     }
   }, 100);
+
+  // Auto-refresh portal state every 30 seconds so client sees agency updates (new images, status changes)
+  setInterval(async function() {
+    var token = (session && session.token) || null;
+    if (!token) return;
+    try {
+      var r = await fetch(API_BASE + '/api/client/portal-state?_=' + Date.now(), {
+        headers: { 'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache' }
+      });
+      if (!r.ok) return;
+      var j = await r.json();
+      if (j && j.data) {
+        var oldJSON = JSON.stringify(portalStateCache && portalStateCache.approvals);
+        var newJSON = JSON.stringify(j.data.approvals);
+        portalStateCache = j.data;
+        // Re-render if approvals changed (new images, status updates, etc.)
+        if (oldJSON !== newJSON) {
+          try { renderApprovalsSectioned(); } catch(e) {}
+          try { renderClientImageLibrary(); } catch(e) {}
+        }
+      }
+    } catch(e) { /* silent */ }
+  }, 30000);
   }
 
   // Run when DOM is ready
@@ -3581,12 +4374,167 @@ async function initializeApp() {
     }
   })();
 
-  // PWA: register service worker
+  // PWA: register service worker + push notifications
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/sw.js').catch(function () {});
+      navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        // Init push after 3 seconds
+        setTimeout(function() { initClientPush(reg); }, 3000);
+      }).catch(function () {});
     });
   }
+
+  var __pushReg = null;
+
+  function pushDebug(msg) {
+    console.log('[push] ' + msg);
+    var el = document.getElementById('pushDebugMsg');
+    if (el) { el.style.display = 'block'; el.textContent = msg; }
+  }
+
+  function initClientPush(reg) {
+    __pushReg = reg;
+
+    // Check if push is supported
+    if (!('PushManager' in window)) {
+      pushDebug('PushManager not available. iOS requires: Add to Home Screen + iOS 16.4+');
+      showPushBanner();
+      return;
+    }
+
+    // Force re-subscribe to fix old subscriptions saved with wrong userId
+    // This runs once per device — after re-subscribing, the flag prevents repeated unsubscribe
+    var resubKey = '2fly_push_resub_v3';
+    if (!localStorage.getItem(resubKey)) {
+      reg.pushManager.getSubscription().then(function(oldSub) {
+        if (oldSub) {
+          pushDebug('Re-subscribing to fix identity...');
+          oldSub.unsubscribe().then(function() {
+            localStorage.setItem(resubKey, '1');
+            subscribeClientPush(reg);
+          });
+        } else {
+          localStorage.setItem(resubKey, '1');
+        }
+      });
+      return; // Don't continue with normal flow — re-subscribe handles it
+    }
+
+    // Check Notification API
+    if (typeof Notification === 'undefined') {
+      pushDebug('Notification API not available. Make sure app is added to Home Screen.');
+      showPushBanner();
+      return;
+    }
+
+    pushDebug('Push supported. Permission: ' + Notification.permission);
+
+    reg.pushManager.getSubscription().then(function(sub) {
+      if (sub) {
+        pushDebug('Already subscribed!');
+        registerClientPush(sub);
+        hidePushBanner();
+        return;
+      }
+      if (Notification.permission === 'granted') {
+        pushDebug('Permission granted, subscribing...');
+        subscribeClientPush(reg);
+        hidePushBanner();
+      } else if (Notification.permission === 'denied') {
+        pushDebug('Notifications blocked. Go to Settings → Notifications → 2FlyFlow to enable.');
+        hidePushBanner();
+      } else {
+        pushDebug('Ready to ask permission. Tap the banner!');
+        showPushBanner();
+      }
+    }).catch(function(e) {
+      pushDebug('Error checking subscription: ' + e.message);
+      showPushBanner();
+    });
+  }
+
+  function showPushBanner() {
+    var banner = document.getElementById('pushOptInBanner');
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.addEventListener('click', requestPushPermission);
+    }
+  }
+
+  function hidePushBanner() {
+    var banner = document.getElementById('pushOptInBanner');
+    if (banner) banner.style.display = 'none';
+    var debug = document.getElementById('pushDebugMsg');
+    if (debug) setTimeout(function() { debug.style.display = 'none'; }, 5000);
+  }
+
+  function requestPushPermission() {
+    pushDebug('Requesting permission...');
+
+    if (typeof Notification === 'undefined') {
+      pushDebug('Notification API not available on this device. iOS needs: 1) Open in Safari 2) Add to Home Screen 3) Open from Home Screen icon');
+      return;
+    }
+
+    if (!__pushReg) {
+      pushDebug('Service worker not ready. Please reload the app.');
+      return;
+    }
+
+    Notification.requestPermission().then(function(perm) {
+      pushDebug('Permission result: ' + perm);
+      if (perm === 'granted') {
+        subscribeClientPush(__pushReg);
+        hidePushBanner();
+        pushDebug('Subscribed! You will now receive notifications.');
+      } else if (perm === 'denied') {
+        pushDebug('Permission denied. Go to iPhone Settings → Notifications → 2FlyFlow to enable.');
+      } else {
+        pushDebug('Permission dismissed. Try tapping the banner again.');
+      }
+    }).catch(function(e) {
+      pushDebug('Permission error: ' + e.message);
+    });
+  }
+
+  function subscribeClientPush(reg) {
+    var apiBase = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? 'https://api.2flyflow.com' : 'http://localhost:3004';
+    fetch(apiBase + '/api/notifications/vapid-public-key')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.publicKey) return;
+        var padding = '='.repeat((4 - d.publicKey.length % 4) % 4);
+        var b64 = (d.publicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var raw = atob(b64);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+      })
+      .then(function(sub) { if (sub) registerClientPush(sub); })
+      .catch(function() {});
+  }
+
+  function registerClientPush(sub) {
+    var apiBase = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? 'https://api.2flyflow.com' : 'http://localhost:3004';
+    var token = '';
+    try {
+      var session = JSON.parse(localStorage.getItem('2fly_client_session') || '{}');
+      token = session.token || '';
+    } catch(e) {}
+    if (!token) { pushDebug('No auth token — cannot register push'); return; }
+    pushDebug('Registering push with server...');
+    fetch(apiBase + '/api/notifications/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) pushDebug('Subscribed! You will now receive notifications.');
+        else pushDebug('Failed: ' + (d.error || 'unknown'));
+      })
+      .catch(function(e) { pushDebug('Registration error: ' + e.message); });
+  }
+
 </script>
 </body>
 </html>

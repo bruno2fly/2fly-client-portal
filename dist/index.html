@@ -2358,14 +2358,6 @@ function render(){
 
         card.appendChild(infoDiv);
 
-        // Right: Mark done button
-        var doneBtn = el("button",{class:"mark-done-btn"}, "Mark done");
-        doneBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          closeRequest(r.id);
-        });
-        card.appendChild(doneBtn);
-
         reqList.append(card);
       });
     }
