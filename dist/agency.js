@@ -2729,6 +2729,228 @@ function ailBindImageActions(container) {
   });
 }
 
+// ==================== REFERENCES PAGE ====================
+async function renderReferencesPage(container) {
+  var clientsRef = loadClientsRegistry();
+  var clientList = clientsRef ? Object.keys(clientsRef) : [];
+
+  // Header
+  var html = '<div style="padding: 0 0 24px;">';
+  html += '<h1 style="font-size: 24px; font-weight: 700; color: #0f172a; margin: 0 0 4px;">References</h1>';
+  html += '<p style="color: #64748b; font-size: 14px; margin: 0 0 20px;">All approved and published images automatically saved here. Open in new tab or save to your computer.</p>';
+
+  // Client filter
+  html += '<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">';
+  html += '<select id="refClientFilter" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; min-width: 180px;">';
+  html += '<option value="all">All Clients</option>';
+  clientList.forEach(function(cid) {
+    var c = clientsRef[cid];
+    var name = (c && c.name) || cid;
+    html += '<option value="' + cid + '">' + name + '</option>';
+  });
+  html += '</select>';
+  // Source filter
+  html += '<select id="refSourceFilter" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px;">';
+  html += '<option value="all">All Sources</option>';
+  html += '<option value="published">Published Posts</option>';
+  html += '<option value="approved">Approved (AI Library)</option>';
+  html += '<option value="client_approved">Client Approved</option>';
+  html += '</select>';
+  html += '<span id="refCount" style="font-size: 13px; color: #94a3b8;"></span>';
+  html += '</div>';
+
+  // Grid container
+  html += '<div id="refGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;"></div>';
+  html += '<div id="refLoading" style="text-align: center; padding: 48px; color: #94a3b8;">Loading images...</div>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // Load data
+  await loadReferencesData();
+
+  // Bind filter events
+  var clientFilter = document.getElementById('refClientFilter');
+  var sourceFilter = document.getElementById('refSourceFilter');
+  if (clientFilter) clientFilter.addEventListener('change', function() { renderReferencesGrid(); });
+  if (sourceFilter) sourceFilter.addEventListener('change', function() { renderReferencesGrid(); });
+}
+
+var _refImages = []; // cached reference images
+
+async function loadReferencesData() {
+  _refImages = [];
+  try {
+    // 1. Fetch published posts (images from scheduled posts that were published)
+    var postsRes = await fetch(getApiBaseUrl() + '/api/posts', { credentials: 'include' });
+    if (postsRes.ok) {
+      var postsData = await postsRes.json();
+      var posts = postsData.posts || [];
+      posts.filter(function(p) { return p.status === 'published' && (p.mediaUrl || (p.mediaUrls && p.mediaUrls.length)); }).forEach(function(p) {
+        var urls = [];
+        if (p.mediaUrls && p.mediaUrls.length) {
+          urls = p.mediaUrls.filter(function(u) { return u && u.startsWith('http'); });
+        } else if (p.mediaUrl && p.mediaUrl.startsWith('http')) {
+          urls = [p.mediaUrl];
+        }
+        urls.forEach(function(url, idx) {
+          _refImages.push({
+            url: url,
+            clientId: p.clientId,
+            source: 'published',
+            caption: p.caption || '',
+            date: p.publishedAt || p.createdAt,
+            platforms: p.platforms || [],
+            postId: p.id,
+            label: 'Published' + (urls.length > 1 ? ' (' + (idx + 1) + '/' + urls.length + ')' : '')
+          });
+        });
+      });
+    }
+
+    // 2. Fetch approved AI Library images
+    var aiRes = await fetch(getApiBaseUrl() + '/api/ai-library/images?status=approved', { credentials: 'include' });
+    if (aiRes.ok) {
+      var aiData = await aiRes.json();
+      (aiData.images || []).forEach(function(img) {
+        if (img.imageUrl) {
+          _refImages.push({
+            url: img.imageUrl,
+            clientId: img.clientId,
+            source: 'approved',
+            caption: img.prompt || '',
+            date: img.approvalDate || img.createdAt,
+            platforms: [],
+            postId: null,
+            label: 'AI Approved'
+          });
+        }
+      });
+    }
+
+    // 3. Also fetch "used_in_post" AI images
+    var usedRes = await fetch(getApiBaseUrl() + '/api/ai-library/images?status=used_in_post', { credentials: 'include' });
+    if (usedRes.ok) {
+      var usedData = await usedRes.json();
+      (usedData.images || []).forEach(function(img) {
+        if (img.imageUrl) {
+          _refImages.push({
+            url: img.imageUrl,
+            clientId: img.clientId,
+            source: 'approved',
+            caption: img.prompt || '',
+            date: img.updatedAt || img.createdAt,
+            platforms: [],
+            postId: img.usedInPostId,
+            label: 'Used in Post'
+          });
+        }
+      });
+    }
+
+    // 4. Fetch client-approved content (approvals with status 'approved' that have images)
+    var state = load();
+    if (state && state.approvals) {
+      state.approvals.filter(function(a) { return a.status === 'approved' || a.status === 'scheduled'; }).forEach(function(a) {
+        var imgUrls = a.imageUrls || a.finalArtUrls || [];
+        imgUrls.forEach(function(url, idx) {
+          if (url && url.startsWith('http')) {
+            _refImages.push({
+              url: url,
+              clientId: a.clientId || currentClientId,
+              source: 'client_approved',
+              caption: a.caption || a.title || '',
+              date: a.approvedAt || a.updatedAt || a.createdAt,
+              platforms: [],
+              postId: null,
+              label: 'Client Approved' + (imgUrls.length > 1 ? ' (' + (idx + 1) + '/' + imgUrls.length + ')' : '')
+            });
+          }
+        });
+      });
+    }
+
+    // Sort by date (newest first)
+    _refImages.sort(function(a, b) { return (b.date || 0) - (a.date || 0); });
+
+  } catch (err) {
+    console.error('[References] Load error:', err);
+  }
+
+  renderReferencesGrid();
+}
+
+function renderReferencesGrid() {
+  var grid = document.getElementById('refGrid');
+  var loading = document.getElementById('refLoading');
+  var countEl = document.getElementById('refCount');
+  if (loading) loading.style.display = 'none';
+  if (!grid) return;
+
+  var clientFilter = document.getElementById('refClientFilter');
+  var sourceFilter = document.getElementById('refSourceFilter');
+  var filterClient = clientFilter ? clientFilter.value : 'all';
+  var filterSource = sourceFilter ? sourceFilter.value : 'all';
+
+  var filtered = _refImages.filter(function(img) {
+    if (filterClient !== 'all' && img.clientId !== filterClient) return false;
+    if (filterSource !== 'all' && img.source !== filterSource) return false;
+    return true;
+  });
+
+  // Deduplicate by URL
+  var seen = {};
+  filtered = filtered.filter(function(img) {
+    if (seen[img.url]) return false;
+    seen[img.url] = true;
+    return true;
+  });
+
+  if (countEl) countEl.textContent = filtered.length + ' image' + (filtered.length !== 1 ? 's' : '');
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: #94a3b8;">' +
+      '<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin: 0 auto 12px; display: block; opacity: 0.5;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' +
+      '<p style="margin: 0; font-size: 14px;">No images found with these filters.</p>' +
+      '<p style="margin: 4px 0 0; font-size: 13px;">Images appear here automatically when posts are published or images are approved.</p></div>';
+    return;
+  }
+
+  var clientsRef = loadClientsRegistry();
+
+  grid.innerHTML = filtered.map(function(img) {
+    var clientName = '';
+    if (clientsRef && clientsRef[img.clientId]) clientName = clientsRef[img.clientId].name || '';
+    var dateStr = img.date ? new Date(img.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    var platformIcons = (img.platforms || []).map(function(p) {
+      return p === 'instagram' ? '<span style="color:#E1306C;" title="Instagram">IG</span>' : '<span style="color:#1877F2;" title="Facebook">FB</span>';
+    }).join(' ');
+
+    var sourceColor = img.source === 'published' ? '#10b981' : img.source === 'approved' ? '#6366f1' : '#f59e0b';
+    var sourceLabel = img.label || img.source;
+
+    return '<div style="border-radius: 12px; overflow: hidden; background: #fff; border: 1px solid #e2e8f0; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.06);" onmouseenter="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.1)\';this.style.transform=\'translateY(-2px)\'" onmouseleave="this.style.boxShadow=\'0 1px 3px rgba(0,0,0,0.06)\';this.style.transform=\'none\'">' +
+      '<div style="position: relative; aspect-ratio: 1; overflow: hidden; background: #f1f5f9; cursor: pointer;" onclick="window.open(\'' + img.url.replace(/'/g, "\\'") + '\', \'_blank\')">' +
+        '<img src="' + img.url + '" alt="" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '<div style="position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: ' + sourceColor + '; color: white;">' + sourceLabel + '</div>' +
+      '</div>' +
+      '<div style="padding: 10px 12px;">' +
+        (clientName ? '<div style="font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 2px;">' + clientName + '</div>' : '') +
+        '<div style="font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px;">' + dateStr + (platformIcons ? ' ' + platformIcons : '') + '</div>' +
+        (img.caption ? '<div style="font-size: 11px; color: #64748b; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;" title="' + img.caption.replace(/"/g, '&quot;').slice(0, 100) + '">' + img.caption.replace(/</g, '&lt;').slice(0, 60) + (img.caption.length > 60 ? '...' : '') + '</div>' : '') +
+        '<div style="display: flex; gap: 6px; margin-top: 8px;">' +
+          '<a href="' + img.url + '" target="_blank" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 11px; font-weight: 600; color: #475569; text-decoration: none; transition: all 0.15s;" onmouseenter="this.style.background=\'#f1f5f9\'" onmouseleave="this.style.background=\'transparent\'">' +
+            '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+            'Open</a>' +
+          '<a href="' + img.url + '" download="reference_' + (clientName || 'image').replace(/\s+/g, '_') + '_' + (dateStr || '').replace(/[\s,]+/g, '_') + '.png" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 11px; font-weight: 600; color: #475569; text-decoration: none; transition: all 0.15s;" onmouseenter="this.style.background=\'#f1f5f9\'" onmouseleave="this.style.background=\'transparent\'">' +
+            '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+            'Save</a>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
 async function renderGlobalAILibrary(container) {
   var clients = loadClientsRegistry();
   var clientIds = clients ? Object.keys(clients) : [];
@@ -9307,21 +9529,7 @@ function renderProductionView() {
     return;
   }
   if (currentProductionSection === 'references') {
-    var clientsRef = loadClientsRegistry();
-    var list = clientsRef ? Object.keys(clientsRef) : [];
-    var refHtml;
-    if (list.length === 0) {
-      refHtml = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">References</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">Check client references and visual identity guidelines.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Coming soon</span><p style="color: #94a3b8; margin-top: 16px; font-size: 13px;">No clients yet. References will appear here by client.</p></div>';
-    } else {
-      refHtml = '<div class="production-empty-state" style="max-width: 480px; margin: 0 auto; padding: 48px 24px; text-align: center; border: 2px dashed #e2e8f0; border-radius: 16px; background: #fafafa;"><div style="width: 64px; height: 64px; margin: 0 auto 16px; color: #cbd5e1;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5 7-5v10z"/><path d="M4 5v14l7-5 7-5V5"/></svg></div><h2 style="margin: 0 0 8px 0; font-size: 20px; color: #334155;">References</h2><p style="color: #64748b; margin-bottom: 12px; font-size: 14px;">Check client references and how the visual identity works.</p><span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #64748b;">Reference materials coming soon</span><ul style="list-style: none; padding: 0; margin-top: 24px; text-align: left;">';
-      list.forEach(function(cid) {
-        var c = clientsRef[cid];
-        var name = (c && c.name) || cid;
-        refHtml += '<li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;"><strong>' + name + '</strong><span style="color: #64748b; font-size: 13px;"> — Reference materials coming soon.</span></li>';
-      });
-      refHtml += '</ul></div>';
-    }
-    container.innerHTML = refHtml;
+    renderReferencesPage(container);
     return;
   }
   var clientsData = loadClientsRegistry();
