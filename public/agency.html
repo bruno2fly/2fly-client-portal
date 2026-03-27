@@ -683,8 +683,35 @@
     .pv-table-wrap { background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden; }
     .pv-sortable-header { padding: 10px 16px; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; cursor: pointer; user-select: none; transition: color 0.15s; white-space: nowrap; }
     .pv-sortable-header:hover { color: #475569; }
-    .pv-client-header { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: rgba(248,250,252,0.8); border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s; text-align: left; border-right: none; border-left: none; }
-    .pv-client-header:hover { background: rgba(241,245,249,0.8); }
+    .pv-client-header {
+      width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+      background: rgba(248,250,252,0.95); border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;
+      cursor: pointer; transition: filter 0.15s, background 0.15s; text-align: left; border-right: none; border-left: none;
+    }
+    .pv-client-header:not([data-pv-client-stripe]):hover { background: rgba(241,245,249,0.95); }
+    /* Per-client colored bands — white labels; task rows below stay default */
+    .pv-client-header[data-pv-client-stripe] {
+      border-top-color: rgba(255,255,255,0.14);
+      border-bottom-color: rgba(255,255,255,0.1);
+    }
+    .pv-client-header[data-pv-client-stripe="0"] { background: #1e3a8a; }
+    .pv-client-header[data-pv-client-stripe="1"] { background: #0f766e; }
+    .pv-client-header[data-pv-client-stripe="2"] { background: #6d28d9; }
+    .pv-client-header[data-pv-client-stripe="3"] { background: #1d4ed8; }
+    .pv-client-header[data-pv-client-stripe="4"] { background: #92400e; }
+    .pv-client-header[data-pv-client-stripe="5"] { background: #9f1239; }
+    .pv-client-header[data-pv-client-stripe="6"] { background: #0e7490; }
+    .pv-client-header[data-pv-client-stripe="7"] { background: #4338ca; }
+    .pv-client-header[data-pv-client-stripe]:hover { filter: brightness(1.06); }
+    .pv-client-header[data-pv-client-stripe] .pv-client-name { color: #ffffff; }
+    .pv-client-header[data-pv-client-stripe] .pv-client-count { color: rgba(255,255,255,0.88); }
+    .pv-client-header[data-pv-client-stripe] .pv-client-chevron { color: rgba(255,255,255,0.92); }
+    .pv-client-header[data-pv-client-stripe] .pv-client-progress-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.92); }
+    .pv-client-header[data-pv-client-stripe] .pv-client-progress-track {
+      width: 56px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.28); overflow: hidden;
+      display: inline-block; vertical-align: middle;
+    }
+    .pv-client-header[data-pv-client-stripe] .pv-client-progress-fill { display: block; height: 100%; border-radius: 2px; min-width: 0; }
     .pv-client-chevron { transition: transform 0.2s; color: #94a3b8; }
     .pv-client-chevron--collapsed { transform: rotate(-90deg); }
     .pv-client-name { font-size: 14px; font-weight: 600; color: #334155; text-transform: capitalize; }
@@ -3679,7 +3706,7 @@
   }
 </style>
 
-  <script src="/agency.js?v=80"></script>
+  <script src="/agency.js?v=81"></script>
 </body>
 </html>
 

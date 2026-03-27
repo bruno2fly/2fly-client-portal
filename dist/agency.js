@@ -9211,6 +9211,18 @@ function showDeleteTaskConfirm(taskId, taskTitle) {
   document.addEventListener('keydown', onEsc);
 }
 
+/** Stable 0..7 index for Production client header stripe colors (per client id). */
+var PV_CLIENT_STRIPE_MOD = 8;
+function hashClientIdToStripe(clientId) {
+  var s = String(clientId == null ? '' : clientId);
+  var h = 0;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h) % PV_CLIENT_STRIPE_MOD;
+}
+
 function renderProductionView() {
   const container = document.getElementById('productionViewInner');
   if (!container) return;
@@ -9949,16 +9961,17 @@ function renderProductionView() {
         var doneInGroup = group.tasks.filter(function(t) { return t.status === 'approved' || t.status === 'ready_to_post'; }).length;
         var totalInGroup = group.tasks.length;
         var pctGroup = totalInGroup > 0 ? Math.round((doneInGroup / totalInGroup) * 100) : 0;
-        html += '<button type="button" class="pv-client-header" data-client-id="' + clientId + '">';
+        var stripeIdx = hashClientIdToStripe(clientId);
+        var fillColor = pctGroup === 100 ? '#6ee7b7' : '#bfdbfe';
+        html += '<button type="button" class="pv-client-header" data-client-id="' + clientId + '" data-pv-client-stripe="' + stripeIdx + '">';
         html += '<span class="pv-client-chevron' + (isCollapsed ? ' pv-client-chevron--collapsed' : '') + '">' + svgChevron + '</span>';
         html += '<span class="pv-client-name">' + (group.name || '').replace(/</g, '&lt;').toLowerCase() + '</span>';
         html += '<span class="pv-client-count">' + group.tasks.length + ' task' + (group.tasks.length !== 1 ? 's' : '') + '</span>';
         html += '<span class="pv-client-meta-right" style="display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;">';
         html += '<span class="pv-client-dots" style="margin-left:0;">' + dotsHtml + '</span>';
-        html += '<span style="display:flex;align-items:center;gap:6px;">';
-        html += '<span style="width:56px;height:4px;border-radius:2px;background:#e2e8f0;overflow:hidden;display:inline-block;vertical-align:middle;">';
-        html += '<span style="display:block;width:' + pctGroup + '%;height:100%;border-radius:2px;background:' + (pctGroup === 100 ? '#059669' : '#3b82f6') + ';"></span></span>';
-        html += '<span style="font-size:10px;color:#94a3b8;font-weight:600;">' + doneInGroup + '/' + totalInGroup + '</span></span></span>';
+        html += '<span class="pv-client-progress-cluster" style="display:flex;align-items:center;gap:6px;">';
+        html += '<span class="pv-client-progress-track"><span class="pv-client-progress-fill" style="width:' + pctGroup + '%;background:' + fillColor + ';"></span></span>';
+        html += '<span class="pv-client-progress-label">' + doneInGroup + '/' + totalInGroup + '</span></span></span>';
         html += '</button>';
 
         if (!isCollapsed) {
