@@ -1934,7 +1934,7 @@ function injectCalendarStyles() {
   if (document.getElementById('scheduled-cal-css')) return;
   const style = document.createElement('style');
   style.id = 'scheduled-cal-css';
-  style.textContent = '.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:white;}.cal-header-cell{padding:10px;text-align:center;font-weight:600;font-size:12px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;}.cal-day{min-height:100px;padding:6px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;vertical-align:top;background:white;}.cal-day:nth-child(7n){border-right:none;}.cal-day.other-month{background:#f9fafb;opacity:0.6;}.cal-day.today{background:#eff6ff;}.cal-day-number{font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;}.cal-day.today .cal-day-number{background:#1a56db;color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;}.cal-posts{min-height:60px;}.cal-post-dismiss{position:absolute;top:4px;right:4px;width:18px;height:18px;padding:0;border:none;background:transparent;color:#94a3b8;font-size:16px;line-height:1;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;}.cal-post-dismiss:hover{color:#64748b;background:rgba(0,0,0,0.08);}';
+  style.textContent = '.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;background:white;}.cal-header-cell{padding:14px 8px;text-align:center;font-weight:700;font-size:13px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:0.5px;}.cal-day{min-height:130px;padding:10px 8px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;vertical-align:top;background:white;transition:background 0.15s;}.cal-day:hover{background:#f8fafc;}.cal-day:nth-child(7n){border-right:none;}.cal-day.other-month{background:#fafbfc;opacity:0.45;}.cal-day.today{background:#eff6ff;}.cal-day-number{font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;}.cal-day.today .cal-day-number{background:#1a56db;color:white;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;}.cal-day-events{display:flex;flex-direction:column;gap:3px;}.cal-chip{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;line-height:1.2;cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.cal-chip--copy{background:#fef3c7;color:#92400e;border-left:3px solid #f59e0b;}.cal-chip--post{background:#dbeafe;color:#1e40af;border-left:3px solid #3b82f6;}.cal-chip--scheduled{background:#d1fae5;color:#065f46;border-left:3px solid #10b981;}.cal-chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}.cal-chip-dot--copy{background:#f59e0b;}.cal-chip-dot--post{background:#3b82f6;}.cal-chip-dot--scheduled{background:#10b981;}.cal-post-dismiss{position:absolute;top:4px;right:4px;width:18px;height:18px;padding:0;border:none;background:transparent;color:#94a3b8;font-size:16px;line-height:1;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;}.cal-post-dismiss:hover{color:#64748b;background:rgba(0,0,0,0.08);}';
   document.head.appendChild(style);
 }
 
@@ -1966,7 +1966,7 @@ async function renderScheduledPostsTab() {
 
 
 
-  // Fetch posts — calendar renders regardless (empty if API fails)
+  // Fetch scheduled posts — calendar renders regardless (empty if API fails)
   var allPosts = [];
   try {
     const r = await fetch(`${getApiBaseUrl()}/api/posts/scheduled?${params}`, { credentials: 'include' });
@@ -1979,33 +1979,76 @@ async function renderScheduledPostsTab() {
     console.warn('Scheduled posts API unavailable:', e.message);
   }
 
+  // Load approvals for copy due dates and post dates
+  var state = load();
+  var approvals = (state && state.approvals) || [];
+
   // Always render calendar
   var calY = currentCalendarMonth.getFullYear();
   var calM = currentCalendarMonth.getMonth();
   var monthStart = new Date(calY, calM, 1).getTime();
   var monthEnd = new Date(calY, calM + 1, 0, 23, 59, 59).getTime();
-  var postsInMonth = allPosts.filter(function(p) {
-    var t = new Date(p.scheduledAt).getTime();
-    return t >= monthStart && t <= monthEnd;
+
+  // Build day data: copy due dates, post dates, scheduled posts
+  var dayData = {}; // key = 'YYYY-MM-DD' → { copy: [], postDates: [], scheduled: [] }
+  function ensureDay(key) { if (!dayData[key]) dayData[key] = { copy: [], postDates: [], scheduled: [] }; }
+
+  // 1. Copy due dates from approvals (a.date field)
+  approvals.forEach(function(a) {
+    if (!a.date || typeof a.date !== 'string') return;
+    var key = a.date.substring(0, 10);
+    ensureDay(key);
+    dayData[key].copy.push({ title: a.title || 'Untitled', status: a.status || 'pending', id: a.id });
   });
 
-  var postsByDay = {};
-  postsInMonth.forEach(function(p) {
-    var key = new Date(p.scheduledAt).toDateString();
-    if (!postsByDay[key]) postsByDay[key] = [];
-    postsByDay[key].push(p);
+  // 2. Post dates from approvals (a.postDate field) — planned to post
+  approvals.forEach(function(a) {
+    if (!a.postDate || typeof a.postDate !== 'string') return;
+    var key = a.postDate.substring(0, 10);
+    ensureDay(key);
+    dayData[key].postDates.push({ title: a.title || 'Untitled', status: a.status || 'pending', id: a.id });
+  });
+
+  // 3. Scheduled posts from the API
+  allPosts.forEach(function(p) {
+    if (!p.scheduledAt) return;
+    var d = new Date(p.scheduledAt);
+    var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    ensureDay(key);
+    dayData[key].scheduled.push({ id: p.id, caption: p.caption || '', status: p.status || 'scheduled', platforms: p.platforms || [], scheduledAt: p.scheduledAt });
   });
 
   var calDays = getCalendarDays(calY, calM);
   var todayStr = new Date().toDateString();
+  var todayKey = new Date().toISOString().slice(0, 10);
   var monthName = currentCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-  var html = '<div class="schedule-calendar-wrap">';
-  html += '<div class="cal-nav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">';
-  html += '<div style="display:flex;align-items:center;gap:12px;">';
-  html += '<button type="button" class="cal-nav-btn" data-offset="-1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&lsaquo;</button>';
-  html += '<h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;min-width:180px;text-align:center;">' + monthName + '</h3>';
-  html += '<button type="button" class="cal-nav-btn" data-offset="1" style="padding:8px 14px;border:1px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;">&rsaquo;</button>';
+  // Count totals for this month
+  var monthCopyCount = 0, monthPostDateCount = 0, monthScheduledCount = 0;
+  Object.keys(dayData).forEach(function(key) {
+    var dd = dayData[key];
+    var km = parseInt(key.split('-')[1], 10) - 1;
+    var ky = parseInt(key.split('-')[0], 10);
+    if (km === calM && ky === calY) {
+      monthCopyCount += dd.copy.length;
+      monthPostDateCount += dd.postDates.length;
+      monthScheduledCount += dd.scheduled.length;
+    }
+  });
+
+  var html = '<div class="schedule-calendar-wrap" style="width:100%;">';
+  html += '<div class="cal-nav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">';
+  html += '<div style="display:flex;align-items:center;gap:14px;">';
+  html += '<button type="button" class="cal-nav-btn" data-offset="-1" style="padding:10px 16px;border:1px solid #e2e8f0;background:white;border-radius:10px;cursor:pointer;font-size:20px;line-height:1;transition:background 0.15s;" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'white\'">&lsaquo;</button>';
+  html += '<h3 style="margin:0;font-size:24px;font-weight:800;color:#0f172a;min-width:220px;text-align:center;">' + monthName + '</h3>';
+  html += '<button type="button" class="cal-nav-btn" data-offset="1" style="padding:10px 16px;border:1px solid #e2e8f0;background:white;border-radius:10px;cursor:pointer;font-size:20px;line-height:1;transition:background 0.15s;" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'white\'">&rsaquo;</button>';
+  html += '</div>';
+  // Legend
+  html += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
+  html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#92400e;"><div style="width:10px;height:10px;border-radius:3px;background:#f59e0b;"></div> Copy Due</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1e40af;"><div style="width:10px;height:10px;border-radius:3px;background:#3b82f6;"></div> Post Date</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#065f46;"><div style="width:10px;height:10px;border-radius:3px;background:#10b981;"></div> Scheduled</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1e40af;"><div style="width:10px;height:10px;border-radius:50%;background:#1a56db;"></div> Today</div>';
   html += '</div></div>';
 
   html += '<div class="cal-grid">';
@@ -2016,45 +2059,62 @@ async function renderScheduledPostsTab() {
     var isOtherMonth = day.getMonth() !== calM;
     var isToday = day.toDateString() === todayStr;
     var dayNum = day.getDate();
-    var key = day.toDateString();
-    var dayPosts = postsByDay[key] || [];
+    var dateKey = day.getFullYear() + '-' + String(day.getMonth() + 1).padStart(2, '0') + '-' + String(day.getDate()).padStart(2, '0');
+    var dd = dayData[dateKey] || { copy: [], postDates: [], scheduled: [] };
     var cls = 'cal-day';
     if (isOtherMonth) cls += ' other-month';
     if (isToday) cls += ' today';
     html += '<div class="' + cls + '">';
     html += '<div class="cal-day-number">' + dayNum + '</div>';
-    html += '<div class="cal-posts">';
-    dayPosts.forEach(function(p) {
-      var timeStr = new Date(p.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      var platformIcons = (p.platforms || []).map(function(plat) { return plat === 'instagram' ? '📷' : plat === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '—';
-      var titleStr = (p.caption ? p.caption.slice(0, 40) + (p.caption.length > 40 ? '…' : '') : 'No caption').replace(/</g, '&lt;');
-      var status = p.status || 'scheduled';
-      var borderColor = status === 'published' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'publishing' ? '#f59e0b' : '#3b82f6';
-      var bgColor = status === 'published' ? '#ecfdf5' : status === 'failed' ? '#fef2f2' : status === 'publishing' ? '#fffbeb' : '#eff6ff';
-      var statusLabel = status === 'published' ? '✓ Published' : status === 'failed' ? '✗ Failed' : status === 'publishing' ? 'Publishing…' : '● Scheduled';
-      html += '<div class="cal-post" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" style="position:relative;padding:6px 24px 6px 8px;margin:2px 0;border-radius:6px;font-size:11px;border-left:3px solid ' + borderColor + ';background:' + bgColor + ';cursor:pointer;" title="Click to view details">';
-      html += '<button type="button" class="cal-post-dismiss" data-post-id="' + (p.id || '').replace(/"/g, '&quot;') + '" aria-label="Remove">×</button>';
-      var mediaCount = (Array.isArray(p.mediaUrls) && p.mediaUrls.length > 1) ? p.mediaUrls.length : (p.mediaUrl ? 1 : 0);
-      var mediaLabel = mediaCount > 1 ? ' <span style="background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">' + mediaCount + ' imgs</span>' : '';
-      html += '<div style="display:flex;align-items:center;gap:4px;"><span class="cal-time" style="font-weight:600;">' + timeStr + '</span><span class="cal-platforms">' + platformIcons + '</span>' + mediaLabel + '</div>';
-      html += '<div class="cal-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#1e293b;">' + titleStr + '</div>';
-      html += '<div class="cal-status" style="font-size:10px;font-weight:600;">' + statusLabel + '</div></div>';
-    });
+    html += '<div class="cal-day-events">';
+
+    // Copy due chips
+    if (dd.copy.length > 0) {
+      html += '<div class="cal-chip cal-chip--copy" title="' + dd.copy.length + ' copy due">';
+      html += '<div class="cal-chip-dot cal-chip-dot--copy"></div>';
+      html += dd.copy.length + ' Copy';
+      html += '</div>';
+    }
+
+    // Post date chips
+    if (dd.postDates.length > 0) {
+      html += '<div class="cal-chip cal-chip--post" title="' + dd.postDates.length + ' post planned">';
+      html += '<div class="cal-chip-dot cal-chip-dot--post"></div>';
+      html += dd.postDates.length + ' Post' + (dd.postDates.length > 1 ? 's' : '');
+      html += '</div>';
+    }
+
+    // Scheduled chips
+    if (dd.scheduled.length > 0) {
+      html += '<div class="cal-chip cal-chip--scheduled" title="' + dd.scheduled.length + ' scheduled">';
+      html += '<div class="cal-chip-dot cal-chip-dot--scheduled"></div>';
+      html += dd.scheduled.length + ' Scheduled';
+      html += '</div>';
+    }
+
     html += '</div></div>';
   });
   html += '</div>';
 
-  var summary = buildCalendarSummary(postsInMonth);
-  html += '<div class="schedule-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:24px;padding:20px;background:white;border-radius:12px;border:1px solid #e2e8f0;">';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1a56db;">' + summary.total + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Total Posts</div></div>';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#3b82f6;">' + summary.scheduled + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Scheduled</div></div>';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#10b981;">' + summary.published + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Published</div></div>';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#ef4444;">' + summary.failed + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">Failed</div></div>';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#e4405f;">' + summary.instagram + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📷 Instagram</div></div>';
-  html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:#1877f2;">' + summary.facebook + '</div><div style="font-size:12px;color:#64748b;font-weight:500;">📘 Facebook</div></div>';
+  // Summary stats
+  html += '<div class="schedule-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:24px;">';
+  html += '<div style="text-align:center;padding:20px;background:#fffbeb;border-radius:12px;border:1px solid #fde68a;">';
+  html += '<div style="font-size:32px;font-weight:800;color:#d97706;">' + monthCopyCount + '</div>';
+  html += '<div style="font-size:13px;color:#92400e;font-weight:600;margin-top:2px;">Copy Due</div></div>';
+  html += '<div style="text-align:center;padding:20px;background:#eff6ff;border-radius:12px;border:1px solid #bfdbfe;">';
+  html += '<div style="font-size:32px;font-weight:800;color:#2563eb;">' + monthPostDateCount + '</div>';
+  html += '<div style="font-size:13px;color:#1e40af;font-weight:600;margin-top:2px;">Post Dates</div></div>';
+  html += '<div style="text-align:center;padding:20px;background:#ecfdf5;border-radius:12px;border:1px solid #a7f3d0;">';
+  html += '<div style="font-size:32px;font-weight:800;color:#059669;">' + monthScheduledCount + '</div>';
+  html += '<div style="font-size:13px;color:#065f46;font-weight:600;margin-top:2px;">Scheduled</div></div>';
   html += '</div></div>';
 
   container.innerHTML = html;
+
+  // Store data for day-click modal
+  container._calDayData = dayData;
+  container._calPosts = allPosts;
+  container._calApprovals = approvals;
 
   container.querySelectorAll('.cal-nav-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -2063,217 +2123,87 @@ async function renderScheduledPostsTab() {
     });
   });
 
-  // Store posts for click-to-view
-  container._calPosts = allPosts;
+  // Day click — show detail popup for that day
+  container.querySelectorAll('.cal-day').forEach(function(dayCell) {
+    dayCell.style.cursor = 'pointer';
+    dayCell.addEventListener('click', function(e) {
+      if (e.target.closest('.cal-nav-btn')) return;
+      var dayNum = dayCell.querySelector('.cal-day-number');
+      if (!dayNum) return;
+      // Reconstruct the dateKey from the cell
+      var num = parseInt(dayNum.textContent, 10);
+      var isOther = dayCell.classList.contains('other-month');
+      if (isOther) return; // skip other month days
+      var dateKey = calY + '-' + String(calM + 1).padStart(2, '0') + '-' + String(num).padStart(2, '0');
+      var dd = container._calDayData[dateKey];
+      if (!dd || (dd.copy.length === 0 && dd.postDates.length === 0 && dd.scheduled.length === 0)) return;
 
-  if (!container._calDismissBound) {
-    container._calDismissBound = true;
-    container.addEventListener('click', async function(e) {
-      const dismiss = e.target && e.target.closest && e.target.closest('.cal-post-dismiss');
-      if (dismiss) {
-        e.preventDefault();
-        e.stopPropagation();
-        const postId = dismiss.getAttribute('data-post-id');
-        if (!postId) return;
-        try {
-          const r = await fetch(getApiBaseUrl() + '/api/posts/' + encodeURIComponent(postId) + '/cancel', { method: 'DELETE', credentials: 'include' });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error || 'Failed to remove');
-          renderScheduledPostsTab();
-        } catch (err) {
-          showToast(err.message || 'Failed to remove post', 'error');
-        }
-        return;
+      var modalBg = document.createElement('div');
+      modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
+      var modal = document.createElement('div');
+      modal.style.cssText = 'background:white;border-radius:16px;padding:28px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);';
+
+      var dateLabel = new Date(calY, calM, num).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      var mh = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+      mh += '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;">' + dateLabel + '</h3>';
+      mh += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
+
+      // Copy Due section
+      if (dd.copy.length > 0) {
+        mh += '<div style="margin-bottom:16px;">';
+        mh += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><div style="width:10px;height:10px;border-radius:3px;background:#f59e0b;"></div><span style="font-size:13px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.5px;">Copy Due (' + dd.copy.length + ')</span></div>';
+        dd.copy.forEach(function(item) {
+          var stColor = item.status === 'approved' ? '#059669' : item.status === 'changes' ? '#dc2626' : '#d97706';
+          var stLabel = item.status === 'approved' ? 'Approved' : item.status === 'changes' ? 'Changes' : item.status === 'copy_approved' ? 'Copy OK' : 'Pending';
+          mh += '<div style="padding:10px 14px;background:#fffbeb;border-radius:8px;border-left:3px solid #f59e0b;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">';
+          mh += '<span style="font-size:13px;font-weight:600;color:#1e293b;">' + (item.title || 'Untitled').replace(/</g, '&lt;').slice(0, 40) + '</span>';
+          mh += '<span style="font-size:11px;font-weight:700;color:' + stColor + ';padding:3px 8px;border-radius:6px;background:white;">' + stLabel + '</span>';
+          mh += '</div>';
+        });
+        mh += '</div>';
       }
-      // Click on post card — show detail modal
-      const postCard = e.target && e.target.closest && e.target.closest('.cal-post');
-      if (postCard) {
-        const postId = postCard.getAttribute('data-post-id');
-        const posts = container._calPosts || [];
-        const post = posts.find(function(p) { return p.id === postId; });
-        if (post) {
-          var modalBg = document.createElement('div');
-          modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-          modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
-          var modal = document.createElement('div');
-          modal.style.cssText = 'background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
-          var schedTime = new Date(post.scheduledAt).toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-          var platformStr = (post.platforms || []).map(function(p) { return p === 'instagram' ? '📷 Instagram' : p === 'facebook' ? '📘 Facebook' : p; }).join(', ') || 'No platforms';
-          var statusStr = post.status === 'published' ? '✓ Published' : post.status === 'failed' ? '✗ Failed' : post.status === 'publishing' ? 'Publishing…' : '● Scheduled';
-          var statusColor = post.status === 'published' ? '#10b981' : post.status === 'failed' ? '#ef4444' : '#3b82f6';
-          var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-          h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
-          h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
-          // Show all media (carousel support)
-          // Try post.mediaUrls first, then fall back to the original approval's imageUrls
-          var allMediaUrls = [];
-          if (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) {
-            allMediaUrls = post.mediaUrls;
-          } else {
-            // Look up the source approval to get all images (for posts created before carousel support)
-            var state = load();
-            var sourceApproval = post.contentId ? (state.approvals || []).find(function(a) { return a.id === post.contentId; }) : null;
-            if (sourceApproval && Array.isArray(sourceApproval.imageUrls) && sourceApproval.imageUrls.length > 1) {
-              allMediaUrls = sourceApproval.imageUrls.filter(function(u) { return u && String(u).trim(); });
-            } else if (sourceApproval && Array.isArray(sourceApproval.finalArtUrls) && sourceApproval.finalArtUrls.length > 1) {
-              allMediaUrls = sourceApproval.finalArtUrls.filter(function(u) { return u && String(u).trim(); });
-            }
-            if (allMediaUrls.length <= 1) {
-              allMediaUrls = post.mediaUrl ? [post.mediaUrl] : [];
-            }
-          }
-          if (allMediaUrls.length > 0) {
-            if (allMediaUrls.length === 1) {
-              var mUrl = allMediaUrls[0];
-              var isVid = mUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) || mUrl.indexOf('video') !== -1;
-              if (isVid) {
-                h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><video src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" controls preload="metadata" playsinline></video></div>';
-              } else {
-                h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><img src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" /></div>';
-              }
-            } else {
-              // Multi-image carousel
-              h += '<div class="cal-carousel" style="margin-bottom:16px;position:relative;">';
-              h += '<div class="cal-carousel-track" style="display:flex;overflow:hidden;border-radius:10px;background:#f1f5f9;">';
-              for (var ci = 0; ci < allMediaUrls.length; ci++) {
-                h += '<div class="cal-carousel-slide" style="min-width:100%;display:flex;align-items:center;justify-content:center;' + (ci > 0 ? 'display:none;' : '') + '">';
-                h += '<img src="' + allMediaUrls[ci].replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" />';
-                h += '</div>';
-              }
-              h += '</div>';
-              h += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">';
-              h += '<button type="button" class="cal-carousel-prev" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8249;</button>';
-              h += '<span class="cal-carousel-counter" style="font-size:13px;color:#64748b;">1 / ' + allMediaUrls.length + '</span>';
-              h += '<button type="button" class="cal-carousel-next" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8250;</button>';
-              h += '</div></div>';
-            }
-          }
-          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</span>';
-          h += '<div style="margin-top:4px;font-weight:600;color:' + statusColor + ';">' + statusStr + '</div></div>';
-          if (post.status === 'failed' && post.error) {
-            h += '<div style="margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><span style="font-size:12px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Error</span>';
-            h += '<div style="margin-top:4px;color:#991b1b;font-size:13px;">' + (post.error || 'Unknown error').replace(/</g, '&lt;') + '</div></div>';
-          }
-          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Scheduled For</span>';
-          h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + schedTime + '</div></div>';
-          h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Platforms</span>';
-          h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + platformStr + '</div></div>';
-          if (post.caption) {
-            h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Caption</span>';
-            h += '<div style="margin-top:4px;color:#334155;line-height:1.6;white-space:pre-wrap;">' + post.caption.replace(/</g, '&lt;') + '</div></div>';
-          }
-          // Action buttons
-          h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
-          h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
-          h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
-          h += '</div>';
-          modal.innerHTML = h;
-          // Carousel navigation
-          (function() {
-            var carousel = modal.querySelector('.cal-carousel');
-            if (!carousel) return;
-            var slides = carousel.querySelectorAll('.cal-carousel-slide');
-            var counter = carousel.querySelector('.cal-carousel-counter');
-            var curSlide = 0;
-            function showSlide(idx) {
-              for (var s = 0; s < slides.length; s++) slides[s].style.display = s === idx ? 'flex' : 'none';
-              curSlide = idx;
-              if (counter) counter.textContent = (idx + 1) + ' / ' + slides.length;
-            }
-            var prevBtn = carousel.querySelector('.cal-carousel-prev');
-            var nextBtn = carousel.querySelector('.cal-carousel-next');
-            if (prevBtn) prevBtn.addEventListener('click', function() { showSlide(curSlide > 0 ? curSlide - 1 : slides.length - 1); });
-            if (nextBtn) nextBtn.addEventListener('click', function() { showSlide(curSlide < slides.length - 1 ? curSlide + 1 : 0); });
-          })();
-          modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
-          // Repost Now button
-          modal.querySelector('.cal-modal-repost').addEventListener('click', async function() {
-            if (!confirm('Repost this now to ' + (post.platforms || []).join(' & ') + '?')) return;
-            this.disabled = true;
-            this.textContent = 'Publishing...';
-            try {
-              // Create new scheduled post with same content, then publish immediately
-              var schedR = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  clientId: post.clientId,
-                  contentId: post.contentId || post.id,
-                  caption: post.caption || '',
-                  mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
-                  mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
-                  platforms: post.platforms || [],
-                  scheduledAt: new Date().toISOString(),
-                  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
-                })
-              });
-              var schedJ = await schedR.json();
-              if (!schedR.ok) throw new Error(schedJ.error || 'Failed to create post');
-              var newPostId = schedJ.post && schedJ.post.id;
-              if (!newPostId) throw new Error('No post ID returned');
-              var pubR = await fetch(getApiBaseUrl() + '/api/posts/' + newPostId + '/publish-now', { method: 'POST', credentials: 'include' });
-              var pubJ = await pubR.json();
-              if (!pubR.ok) throw new Error(pubJ.error || 'Publish failed');
-              showToast('Post published successfully!', 'success');
-              modalBg.remove();
-              renderScheduledPostsTab();
-            } catch (err) {
-              showToast(err.message || 'Failed to repost', 'error');
-              this.disabled = false;
-              this.textContent = 'Repost Now';
-            }
-          });
-          // Schedule Again button
-          modal.querySelector('.cal-modal-reschedule').addEventListener('click', function() {
-            var btn = this;
-            // Replace button with datetime picker
-            var wrap = btn.parentNode;
-            var pickerHtml = '<div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px;">';
-            pickerHtml += '<input type="datetime-local" class="cal-modal-reschedule-input" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;" />';
-            pickerHtml += '<button type="button" class="cal-modal-reschedule-confirm" style="padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Confirm Schedule</button>';
-            pickerHtml += '</div>';
-            btn.outerHTML = pickerHtml;
-            var confirmBtn = wrap.querySelector('.cal-modal-reschedule-confirm');
-            var dateInput = wrap.querySelector('.cal-modal-reschedule-input');
-            confirmBtn.addEventListener('click', async function() {
-              if (!dateInput.value) { showToast('Select a date and time', 'error'); return; }
-              confirmBtn.disabled = true;
-              confirmBtn.textContent = 'Scheduling...';
-              try {
-                var r = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    clientId: post.clientId,
-                    contentId: post.contentId || post.id,
-                    caption: post.caption || '',
-                    mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
-                    mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
-                    platforms: post.platforms || [],
-                    scheduledAt: new Date(dateInput.value).toISOString(),
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
-                  })
-                });
-                var j = await r.json();
-                if (!r.ok) throw new Error(j.error || 'Failed to schedule');
-                showToast('Post rescheduled for ' + new Date(dateInput.value).toLocaleString(), 'success');
-                modalBg.remove();
-                renderScheduledPostsTab();
-              } catch (err) {
-                showToast(err.message || 'Failed to schedule', 'error');
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = 'Confirm Schedule';
-              }
-            });
-          });
-          modalBg.appendChild(modal);
-          document.body.appendChild(modalBg);
-        }
+
+      // Post Date section
+      if (dd.postDates.length > 0) {
+        mh += '<div style="margin-bottom:16px;">';
+        mh += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><div style="width:10px;height:10px;border-radius:3px;background:#3b82f6;"></div><span style="font-size:13px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;">Post Date (' + dd.postDates.length + ')</span></div>';
+        dd.postDates.forEach(function(item) {
+          var stColor = item.status === 'approved' ? '#059669' : item.status === 'changes' ? '#dc2626' : '#2563eb';
+          var stLabel = item.status === 'approved' ? 'Approved' : item.status === 'changes' ? 'Changes' : 'Pending';
+          mh += '<div style="padding:10px 14px;background:#eff6ff;border-radius:8px;border-left:3px solid #3b82f6;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">';
+          mh += '<span style="font-size:13px;font-weight:600;color:#1e293b;">' + (item.title || 'Untitled').replace(/</g, '&lt;').slice(0, 40) + '</span>';
+          mh += '<span style="font-size:11px;font-weight:700;color:' + stColor + ';padding:3px 8px;border-radius:6px;background:white;">' + stLabel + '</span>';
+          mh += '</div>';
+        });
+        mh += '</div>';
       }
+
+      // Scheduled section
+      if (dd.scheduled.length > 0) {
+        mh += '<div style="margin-bottom:16px;">';
+        mh += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><div style="width:10px;height:10px;border-radius:3px;background:#10b981;"></div><span style="font-size:13px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.5px;">Scheduled (' + dd.scheduled.length + ')</span></div>';
+        dd.scheduled.forEach(function(item) {
+          var timeStr = new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          var platformIcons = (item.platforms || []).map(function(pl) { return pl === 'instagram' ? '📷' : pl === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '';
+          var captionStr = item.caption ? item.caption.slice(0, 50).replace(/</g, '&lt;') : 'No caption';
+          mh += '<div style="padding:10px 14px;background:#ecfdf5;border-radius:8px;border-left:3px solid #10b981;margin-bottom:6px;">';
+          mh += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+          mh += '<span style="font-size:12px;font-weight:700;color:#065f46;">' + timeStr + ' ' + platformIcons + '</span>';
+          mh += '<span style="font-size:10px;font-weight:700;color:#059669;padding:2px 6px;border-radius:4px;background:white;">Scheduled</span>';
+          mh += '</div>';
+          mh += '<div style="font-size:12px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + captionStr + '</div>';
+          mh += '</div>';
+        });
+        mh += '</div>';
+      }
+
+      modal.innerHTML = mh;
+      modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
+      modalBg.appendChild(modal);
+      document.body.appendChild(modalBg);
     });
-  }
+  });
 
   // Render Feed Builder below the calendar
   try { renderFeedBuilder(); } catch(e) { console.warn('Feed builder render skipped:', e); }
@@ -3733,19 +3663,22 @@ function renderOverviewTab() {
   var calApiByDay = null;
 
   function mergeApprovalDayStats() {
-    var postDates = {};
-    var reviewSt = { pending: 1, changes: 1, copy_pending: 1, copy_approved: 1, copy_changes: 1 };
+    var dayStats = {}; // key → { copyCount, postCount, schCount }
+    // Copy due dates (a.date)
     approvals.forEach(function(a) {
-      var d = a.postDate || a.date;
-      if (!d || typeof d !== 'string') return;
-      var key = d.substring(0, 10);
-      if (!postDates[key]) postDates[key] = { count: 0, review: false, planned: false };
-      postDates[key].count++;
-      var st = a.status || 'pending';
-      if (reviewSt[st]) postDates[key].review = true;
-      if (st === 'approved') postDates[key].planned = true;
+      if (!a.date || typeof a.date !== 'string') return;
+      var key = a.date.substring(0, 10);
+      if (!dayStats[key]) dayStats[key] = { copyCount: 0, postCount: 0, schCount: 0 };
+      dayStats[key].copyCount++;
     });
-    return postDates;
+    // Post dates (a.postDate)
+    approvals.forEach(function(a) {
+      if (!a.postDate || typeof a.postDate !== 'string') return;
+      var key = a.postDate.substring(0, 10);
+      if (!dayStats[key]) dayStats[key] = { copyCount: 0, postCount: 0, schCount: 0 };
+      dayStats[key].postCount++;
+    });
+    return dayStats;
   }
 
   function renderMiniCal() {
@@ -3755,15 +3688,12 @@ function renderOverviewTab() {
     var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     monthLabel.textContent = months[calMonth] + ' ' + calYear;
 
-    var postDates = mergeApprovalDayStats();
+    var dayStats = mergeApprovalDayStats();
     if (calApiByDay) {
       Object.keys(calApiByDay).forEach(function(key) {
         var api = calApiByDay[key];
-        if (!postDates[key]) postDates[key] = { count: 0, review: false, planned: false, pub: 0, sch: 0 };
-        postDates[key].count = Math.max(postDates[key].count, api.n || 0);
-        postDates[key].pub = api.pub || 0;
-        postDates[key].sch = api.sch || 0;
-        if (api.pub > 0) postDates[key].hasPublished = true;
+        if (!dayStats[key]) dayStats[key] = { copyCount: 0, postCount: 0, schCount: 0 };
+        dayStats[key].schCount += (api.sch || 0) + (api.pub || 0);
       });
     }
 
@@ -3778,38 +3708,40 @@ function renderOverviewTab() {
     for (var e = 0; e < firstDay; e++) ch += '<div></div>';
     for (var d = 1; d <= daysInMonth; d++) {
       var dateKey = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-      var dayInfo = postDates[dateKey];
+      var ds = dayStats[dateKey];
       var isToday = dateKey === todayKey;
       var bg = 'transparent';
       var textColor = '#475569';
       var dotHtml = '';
-      var count = dayInfo ? dayInfo.count : 0;
-      if (dayInfo && count > 0) {
-        var tone = 'blue';
-        if (dayInfo.hasPublished || (dayInfo.pub && dayInfo.pub > 0)) tone = 'green';
-        else if (dayInfo.review) tone = 'orange';
-        if (tone === 'green') { bg = '#dcfce7'; textColor = '#166534'; }
-        else if (tone === 'orange') { bg = '#ffedd5'; textColor = '#c2410c'; }
-        else { bg = '#dbeafe'; textColor = '#1e40af'; }
-        var dotColor = tone === 'green' ? '#059669' : tone === 'orange' ? '#d97706' : '#2563eb';
-        if (count === 1) dotHtml = '<div style="width:4px;height:4px;border-radius:50%;background:' + dotColor + ';margin:1px auto 0;"></div>';
-        else dotHtml = '<div style="font-size:7px;color:' + dotColor + ';font-weight:900;line-height:1;">' + count + '</div>';
+      var hasAny = ds && (ds.copyCount > 0 || ds.postCount > 0 || ds.schCount > 0);
+      if (hasAny) {
+        // Show colored dots for each category present
+        var dots = [];
+        if (ds.copyCount > 0) dots.push('#f59e0b');
+        if (ds.postCount > 0) dots.push('#3b82f6');
+        if (ds.schCount > 0) dots.push('#10b981');
+        // Background tint based on primary category
+        if (ds.schCount > 0) { bg = '#ecfdf5'; textColor = '#065f46'; }
+        else if (ds.postCount > 0) { bg = '#eff6ff'; textColor = '#1e40af'; }
+        else if (ds.copyCount > 0) { bg = '#fffbeb'; textColor = '#92400e'; }
+        dotHtml = '<div style="display:flex;gap:2px;justify-content:center;margin-top:1px;">';
+        dots.forEach(function(c) { dotHtml += '<div style="width:4px;height:4px;border-radius:50%;background:' + c + ';"></div>'; });
+        dotHtml += '</div>';
       }
       if (isToday) {
         bg = '#1e40af';
         textColor = '#fff';
-        if (dayInfo && count > 0) dotHtml = dotHtml.replace(/#059669|#d97706|#2563eb/g, '#e0e7ff');
       }
       ch += '<div class="ov-cal-day" data-date="' + dateKey + '" style="padding:3px 0;border-radius:6px;background:' + bg + ';cursor:pointer;">';
-      ch += '<div style="font-size:11px;font-weight:' + (isToday || count > 0 ? '700' : '500') + ';color:' + textColor + ';line-height:1.3;">' + d + '</div>';
+      ch += '<div style="font-size:11px;font-weight:' + (isToday || hasAny ? '700' : '500') + ';color:' + textColor + ';line-height:1.3;">' + d + '</div>';
       ch += dotHtml + '</div>';
     }
     ch += '</div>';
 
     ch += '<div style="display:flex;gap:10px;margin-top:8px;justify-content:center;flex-wrap:wrap;">';
-    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dbeafe;"></div> Planned</div>';
-    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#ffedd5;"></div> In review</div>';
-    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dcfce7;"></div> Published</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#fef3c7;border:1px solid #f59e0b;"></div> Copy</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#dbeafe;border:1px solid #3b82f6;"></div> Post</div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:3px;background:#d1fae5;border:1px solid #10b981;"></div> Scheduled</div>';
     ch += '<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#64748b;font-weight:600;"><div style="width:8px;height:8px;border-radius:50%;background:#1e40af;"></div> Today</div>';
     ch += '</div>';
 
