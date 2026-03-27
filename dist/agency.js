@@ -1938,6 +1938,184 @@ function injectCalendarStyles() {
   document.head.appendChild(style);
 }
 
+/** Show full detail modal for a scheduled post with media, repost, and reschedule buttons */
+function showScheduledPostDetail(post, container) {
+  var modalBg = document.createElement('div');
+  modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+  var schedTime = new Date(post.scheduledAt).toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  var platformStr = (post.platforms || []).map(function(p) { return p === 'instagram' ? '📷 Instagram' : p === 'facebook' ? '📘 Facebook' : p; }).join(', ') || 'No platforms';
+  var statusStr = post.status === 'published' ? '✓ Published' : post.status === 'failed' ? '✗ Failed' : post.status === 'publishing' ? 'Publishing…' : '● Scheduled';
+  var statusColor = post.status === 'published' ? '#10b981' : post.status === 'failed' ? '#ef4444' : '#3b82f6';
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+  h += '<h3 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Scheduled Post</h3>';
+  h += '<button type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;" class="cal-modal-close">&times;</button></div>';
+
+  // Collect all media URLs
+  var allMediaUrls = [];
+  if (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1) {
+    allMediaUrls = post.mediaUrls;
+  } else {
+    var st = load();
+    var sourceApproval = post.contentId ? (st.approvals || []).find(function(a) { return a.id === post.contentId; }) : null;
+    if (sourceApproval && Array.isArray(sourceApproval.imageUrls) && sourceApproval.imageUrls.length > 1) {
+      allMediaUrls = sourceApproval.imageUrls.filter(function(u) { return u && String(u).trim(); });
+    } else if (sourceApproval && Array.isArray(sourceApproval.finalArtUrls) && sourceApproval.finalArtUrls.length > 1) {
+      allMediaUrls = sourceApproval.finalArtUrls.filter(function(u) { return u && String(u).trim(); });
+    }
+    if (allMediaUrls.length <= 1) {
+      allMediaUrls = post.mediaUrl ? [post.mediaUrl] : [];
+    }
+  }
+
+  // Show media
+  if (allMediaUrls.length > 0) {
+    if (allMediaUrls.length === 1) {
+      var mUrl = allMediaUrls[0];
+      var isVid = mUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i) || mUrl.indexOf('video') !== -1;
+      if (isVid) {
+        h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><video src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" controls preload="metadata" playsinline></video></div>';
+      } else {
+        h += '<div style="margin-bottom:16px;border-radius:10px;overflow:hidden;background:#f1f5f9;"><img src="' + mUrl.replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" /></div>';
+      }
+    } else {
+      h += '<div class="cal-carousel" style="margin-bottom:16px;position:relative;">';
+      h += '<div class="cal-carousel-track" style="display:flex;overflow:hidden;border-radius:10px;background:#f1f5f9;">';
+      for (var ci = 0; ci < allMediaUrls.length; ci++) {
+        h += '<div class="cal-carousel-slide" style="min-width:100%;display:flex;align-items:center;justify-content:center;' + (ci > 0 ? 'display:none;' : '') + '">';
+        h += '<img src="' + allMediaUrls[ci].replace(/"/g, '&quot;') + '" style="width:100%;max-height:400px;object-fit:contain;" />';
+        h += '</div>';
+      }
+      h += '</div>';
+      h += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">';
+      h += '<button type="button" class="cal-carousel-prev" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8249;</button>';
+      h += '<span class="cal-carousel-counter" style="font-size:13px;color:#64748b;">1 / ' + allMediaUrls.length + '</span>';
+      h += '<button type="button" class="cal-carousel-next" style="width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">&#8250;</button>';
+      h += '</div></div>';
+    }
+  }
+
+  h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</span>';
+  h += '<div style="margin-top:4px;font-weight:600;color:' + statusColor + ';">' + statusStr + '</div></div>';
+  if (post.status === 'failed' && post.error) {
+    h += '<div style="margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><span style="font-size:12px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Error</span>';
+    h += '<div style="margin-top:4px;color:#991b1b;font-size:13px;">' + (post.error || 'Unknown error').replace(/</g, '&lt;') + '</div></div>';
+  }
+  h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Scheduled For</span>';
+  h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + schedTime + '</div></div>';
+  h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Platforms</span>';
+  h += '<div style="margin-top:4px;font-weight:500;color:#1e293b;">' + platformStr + '</div></div>';
+  if (post.caption) {
+    h += '<div style="margin-bottom:12px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Caption</span>';
+    h += '<div style="margin-top:4px;color:#334155;line-height:1.6;white-space:pre-wrap;">' + post.caption.replace(/</g, '&lt;') + '</div></div>';
+  }
+
+  // Action buttons
+  h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
+  h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
+  h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
+  h += '</div>';
+
+  modal.innerHTML = h;
+
+  // Carousel navigation
+  (function() {
+    var carousel = modal.querySelector('.cal-carousel');
+    if (!carousel) return;
+    var slides = carousel.querySelectorAll('.cal-carousel-slide');
+    var counter = carousel.querySelector('.cal-carousel-counter');
+    var curSlide = 0;
+    function showSlide(idx) {
+      for (var s = 0; s < slides.length; s++) slides[s].style.display = s === idx ? 'flex' : 'none';
+      curSlide = idx;
+      if (counter) counter.textContent = (idx + 1) + ' / ' + slides.length;
+    }
+    var prevBtn = carousel.querySelector('.cal-carousel-prev');
+    var nextBtn = carousel.querySelector('.cal-carousel-next');
+    if (prevBtn) prevBtn.addEventListener('click', function() { showSlide(curSlide > 0 ? curSlide - 1 : slides.length - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function() { showSlide(curSlide < slides.length - 1 ? curSlide + 1 : 0); });
+  })();
+
+  modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
+
+  // Repost Now button
+  modal.querySelector('.cal-modal-repost').addEventListener('click', async function() {
+    if (!confirm('Repost this now to ' + (post.platforms || []).join(' & ') + '?')) return;
+    this.disabled = true;
+    this.textContent = 'Publishing...';
+    try {
+      var schedR = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: post.clientId, contentId: post.contentId || post.id,
+          caption: post.caption || '', mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
+          mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
+          platforms: post.platforms || [], scheduledAt: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+        })
+      });
+      var schedJ = await schedR.json();
+      if (!schedR.ok) throw new Error(schedJ.error || 'Failed to create post');
+      var newPostId = schedJ.post && schedJ.post.id;
+      if (!newPostId) throw new Error('No post ID returned');
+      var pubR = await fetch(getApiBaseUrl() + '/api/posts/' + newPostId + '/publish-now', { method: 'POST', credentials: 'include' });
+      var pubJ = await pubR.json();
+      if (!pubR.ok) throw new Error(pubJ.error || 'Publish failed');
+      showToast('Post published successfully!', 'success');
+      modalBg.remove();
+      renderScheduledPostsTab();
+    } catch (err) {
+      showToast(err.message || 'Failed to repost', 'error');
+      this.disabled = false;
+      this.textContent = 'Repost Now';
+    }
+  });
+
+  // Schedule Again button
+  modal.querySelector('.cal-modal-reschedule').addEventListener('click', function() {
+    var btn = this;
+    var wrap = btn.parentNode;
+    var pickerHtml = '<div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px;">';
+    pickerHtml += '<input type="datetime-local" class="cal-modal-reschedule-input" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;" />';
+    pickerHtml += '<button type="button" class="cal-modal-reschedule-confirm" style="padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Confirm Schedule</button>';
+    pickerHtml += '</div>';
+    btn.outerHTML = pickerHtml;
+    var confirmBtn = wrap.querySelector('.cal-modal-reschedule-confirm');
+    var dateInput = wrap.querySelector('.cal-modal-reschedule-input');
+    confirmBtn.addEventListener('click', async function() {
+      if (!dateInput.value) { showToast('Select a date and time', 'error'); return; }
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Scheduling...';
+      try {
+        var r = await fetch(getApiBaseUrl() + '/api/posts/schedule', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: post.clientId, contentId: post.contentId || post.id,
+            caption: post.caption || '', mediaUrl: allMediaUrls[0] || post.mediaUrl || '',
+            mediaUrls: allMediaUrls.length > 1 ? allMediaUrls : undefined,
+            platforms: post.platforms || [], scheduledAt: new Date(dateInput.value).toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+          })
+        });
+        var j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to schedule');
+        showToast('Post rescheduled for ' + new Date(dateInput.value).toLocaleString(), 'success');
+        modalBg.remove();
+        renderScheduledPostsTab();
+      } catch (err) {
+        showToast(err.message || 'Failed to schedule', 'error');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirm Schedule';
+      }
+    });
+  });
+
+  modalBg.appendChild(modal);
+  document.body.appendChild(modalBg);
+}
+
 async function renderScheduledPostsTab() {
   await renderScheduledPostsConnectionSection();
 
@@ -2179,20 +2357,23 @@ async function renderScheduledPostsTab() {
         mh += '</div>';
       }
 
-      // Scheduled section
+      // Scheduled section — each post card is clickable to show detail with repost/reschedule
       if (dd.scheduled.length > 0) {
         mh += '<div style="margin-bottom:16px;">';
         mh += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><div style="width:10px;height:10px;border-radius:3px;background:#10b981;"></div><span style="font-size:13px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.5px;">Scheduled (' + dd.scheduled.length + ')</span></div>';
-        dd.scheduled.forEach(function(item) {
+        dd.scheduled.forEach(function(item, idx) {
           var timeStr = new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
           var platformIcons = (item.platforms || []).map(function(pl) { return pl === 'instagram' ? '📷' : pl === 'facebook' ? '📘' : ''; }).filter(Boolean).join(' ') || '';
           var captionStr = item.caption ? item.caption.slice(0, 50).replace(/</g, '&lt;') : 'No caption';
-          mh += '<div style="padding:10px 14px;background:#ecfdf5;border-radius:8px;border-left:3px solid #10b981;margin-bottom:6px;">';
+          var stLabel = item.status === 'published' ? '✓ Published' : item.status === 'failed' ? '✗ Failed' : 'Scheduled';
+          var stColor = item.status === 'published' ? '#059669' : item.status === 'failed' ? '#dc2626' : '#059669';
+          mh += '<div class="cal-sched-card" data-sched-idx="' + idx + '" style="padding:10px 14px;background:#ecfdf5;border-radius:8px;border-left:3px solid #10b981;margin-bottom:6px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'#d1fae5\'" onmouseout="this.style.background=\'#ecfdf5\'">';
           mh += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
           mh += '<span style="font-size:12px;font-weight:700;color:#065f46;">' + timeStr + ' ' + platformIcons + '</span>';
-          mh += '<span style="font-size:10px;font-weight:700;color:#059669;padding:2px 6px;border-radius:4px;background:white;">Scheduled</span>';
+          mh += '<span style="font-size:10px;font-weight:700;color:' + stColor + ';padding:2px 6px;border-radius:4px;background:white;">' + stLabel + '</span>';
           mh += '</div>';
           mh += '<div style="font-size:12px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + captionStr + '</div>';
+          mh += '<div style="font-size:10px;color:#94a3b8;margin-top:4px;">Click to view details</div>';
           mh += '</div>';
         });
         mh += '</div>';
@@ -2200,6 +2381,20 @@ async function renderScheduledPostsTab() {
 
       modal.innerHTML = mh;
       modal.querySelector('.cal-modal-close').addEventListener('click', function() { modalBg.remove(); });
+
+      // Bind click on each scheduled card → open full post detail modal
+      modal.querySelectorAll('.cal-sched-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+          var idx = parseInt(card.getAttribute('data-sched-idx'), 10);
+          var schedItem = dd.scheduled[idx];
+          if (!schedItem || !schedItem.id) return;
+          var post = (container._calPosts || []).find(function(p) { return p.id === schedItem.id; });
+          if (!post) return;
+          modalBg.remove(); // close day modal
+          showScheduledPostDetail(post, container);
+        });
+      });
+
       modalBg.appendChild(modal);
       document.body.appendChild(modalBg);
     });
