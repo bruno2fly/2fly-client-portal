@@ -734,3 +734,50 @@ export function deleteAIImage(id: string): void {
   writeJSON(AI_IMAGES_FILE, images);
 }
 
+// ==================== Reference Images ====================
+const REFERENCES_FILE = join(DB_DIR, 'references.json');
+
+export interface ReferenceImage {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  imageUrl: string;
+  source: 'published_post' | 'ai_approved' | 'client_approved';
+  sourceId: string | null; // post ID, AI image ID, or approval ID
+  caption: string;
+  platforms: string[];
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export function getReferences(): Record<string, ReferenceImage> {
+  return readJSON(REFERENCES_FILE, {});
+}
+
+export function getReferencesByAgency(agencyId: string): ReferenceImage[] {
+  return Object.values(getReferences()).filter(r => r.agencyId === agencyId);
+}
+
+export function getReferencesByClient(clientId: string): ReferenceImage[] {
+  return Object.values(getReferences()).filter(r => r.clientId === clientId);
+}
+
+export function saveReference(ref: ReferenceImage): void {
+  const refs = getReferences();
+  refs[ref.id] = ref;
+  writeJSON(REFERENCES_FILE, refs);
+}
+
+export function deleteReference(id: string): void {
+  const refs = getReferences();
+  delete refs[id];
+  writeJSON(REFERENCES_FILE, refs);
+}
+
+/**
+ * Check if a reference already exists for a given URL + client combo (avoid duplicates)
+ */
+export function referenceExistsForUrl(clientId: string, imageUrl: string): boolean {
+  return Object.values(getReferences()).some(r => r.clientId === clientId && r.imageUrl === imageUrl);
+}
+

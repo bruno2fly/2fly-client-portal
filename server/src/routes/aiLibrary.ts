@@ -15,7 +15,8 @@ import type { AuthenticatedRequest } from '../middleware/auth.js';
 import {
   getBrandKitByClient, saveBrandKit, deleteBrandKit,
   getAIImages, getAIImagesByClient, getAIImagesByAgency, getAIImageById, saveAIImage, deleteAIImage,
-  type BrandKit, type AIImage
+  getReferencesByAgency, getReferencesByClient, saveReference, deleteReference, referenceExistsForUrl,
+  type BrandKit, type AIImage, type ReferenceImage
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
 
@@ -444,6 +445,28 @@ router.put('/images/:id/status', authenticate, async (req: AuthenticatedRequest,
       img.status = 'approved';
       img.approvedBy = userId;
       img.approvalDate = now;
+
+      // Auto-save to References
+      try {
+        const { saveReference, referenceExistsForUrl } = await import('../db.js');
+        if (img.imageUrl && !referenceExistsForUrl(img.clientId, img.imageUrl)) {
+          saveReference({
+            id: generateId(),
+            agencyId: img.agencyId,
+            clientId: img.clientId,
+            imageUrl: img.imageUrl,
+            source: 'ai_approved',
+            sourceId: img.id,
+            caption: img.prompt || '',
+            platforms: [],
+            publishedAt: null,
+            createdAt: new Date().toISOString()
+          });
+          console.log(`[AI Library] Reference auto-saved for approved image ${img.id}`);
+        }
+      } catch (refErr: any) {
+        console.warn('[AI Library] Failed to auto-save reference:', refErr.message);
+      }
     } else if (status === 'rejected') {
       img.status = 'rejected';
       img.feedback = feedback || '';
@@ -522,6 +545,78 @@ router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedReq
   } catch (err: any) {
     console.error('[AI Library] Regenerate error:', err);
     res.status(500).json({ error: 'Regeneration failed: ' + (err.message || 'Unknown') });
+  }
+});
+
+// ── References (auto-saved images) ──
+
+// GET /api/ai-library/references?clientId=xxx (optional)
+router.get('/references', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const clientId = req.query.clientId as string;
+    const agencyId = (req as any).user?.agencyId || '';
+
+    let refs: ReferenceImage[];
+    if (clientId) {
+      refs = getReferencesByClient(clientId);
+    } else {
+      refs = getReferencesByAgency(agencyId);
+    }
+
+    // Sort newest first
+    refs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Apply source filter
+    const source = req.query.source as string;
+    if (source) refs = refs.filter(r => r.source === source);
+
+    res.json({ references: refs, count: refs.length });
+  } catch (err: any) {
+    console.error('[References] List error:', err);
+    res.status(500).json({ error: 'Failed to fetch references', message: err.message });
+  }
+});
+
+// DELETE /api/ai-library/references/:id
+router.delete('/references/:id', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    deleteReference(req.params.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[References] Delete error:', err);
+    res.status(500).json({ error: 'Failed to delete reference', message: err.message });
+  }
+});
+
+// POST /api/ai-library/references — manually add a reference
+router.post('/references', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { clientId, imageUrl, caption, source } = req.body;
+    if (!clientId || !imageUrl) return res.status(400).json({ error: 'clientId and imageUrl required' });
+
+    const agencyId = (req as any).user?.agencyId || '';
+    if (referenceExistsForUrl(clientId, imageUrl)) {
+      return res.status(409).json({ error: 'Reference already exists for this image' });
+    }
+
+    const ref: ReferenceImage = {
+      id: generateId(),
+      agencyId,
+      clientId,
+      imageUrl,
+      source: source || 'client_approved',
+      sourceId: null,
+      caption: caption || '',
+      platforms: [],
+      publishedAt: null,
+      createdAt: new Date().toISOString()
+    };
+
+    saveReference(ref);
+    res.status(201).json({ reference: ref });
+  } catch (err: any) {
+    console.error('[References] Create error:', err);
+    res.status(500).json({ error: 'Failed to save reference', message: err.message });
   }
 });
 

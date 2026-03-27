@@ -481,6 +481,38 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     post.updatedAt = new Date().toISOString();
     saveScheduledPost(post);
 
+    // Auto-save images to References when published successfully
+    if (!error && post.status === 'published') {
+      try {
+        const { saveReference, referenceExistsForUrl, type ReferenceImage } = await import('../db.js');
+        const { generateId: genRefId } = await import('../utils/auth.js');
+        const allUrls: string[] = [];
+        if (post.mediaUrl && post.mediaUrl.startsWith('http')) allUrls.push(post.mediaUrl);
+        if (Array.isArray(post.mediaUrls)) {
+          post.mediaUrls.forEach((u: string) => { if (u && u.startsWith('http') && !allUrls.includes(u)) allUrls.push(u); });
+        }
+        for (const url of allUrls) {
+          if (!referenceExistsForUrl(post.clientId, url)) {
+            saveReference({
+              id: genRefId(),
+              agencyId: post.agencyId,
+              clientId: post.clientId,
+              imageUrl: url,
+              source: 'published_post',
+              sourceId: post.id,
+              caption: post.caption || '',
+              platforms: post.platforms || [],
+              publishedAt: post.publishedAt || new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            });
+            console.log(`[publish-now] Reference saved for ${url.slice(0, 60)}...`);
+          }
+        }
+      } catch (refErr: any) {
+        console.warn('[publish-now] Failed to save references:', refErr.message);
+      }
+    }
+
     if (error) {
       // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
       return res.status(422).json({ error, post });

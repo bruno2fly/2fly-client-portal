@@ -2780,8 +2780,34 @@ var _refImages = []; // cached reference images
 
 async function loadReferencesData() {
   _refImages = [];
+  var seenUrls = {};
   try {
-    // 1. Fetch published posts (images from scheduled posts that were published)
+    // 1. Primary source: dedicated References API (auto-saved on publish/approve)
+    var refsRes = await fetch(getApiBaseUrl() + '/api/ai-library/references', { credentials: 'include' });
+    if (refsRes.ok) {
+      var refsData = await refsRes.json();
+      (refsData.references || []).forEach(function(ref) {
+        if (ref.imageUrl && !seenUrls[ref.imageUrl]) {
+          seenUrls[ref.imageUrl] = true;
+          var sourceLabel = ref.source === 'published_post' ? 'Published' : ref.source === 'ai_approved' ? 'AI Approved' : 'Client Approved';
+          var sourceKey = ref.source === 'published_post' ? 'published' : ref.source === 'ai_approved' ? 'approved' : 'client_approved';
+          _refImages.push({
+            id: ref.id,
+            url: ref.imageUrl,
+            clientId: ref.clientId,
+            source: sourceKey,
+            caption: ref.caption || '',
+            date: ref.publishedAt || ref.createdAt,
+            platforms: ref.platforms || [],
+            postId: ref.sourceId,
+            label: sourceLabel
+          });
+        }
+      });
+    }
+
+    // 2. Fallback: scan published posts for images not yet in References DB
+    //    (covers posts published before this feature was deployed)
     var postsRes = await fetch(getApiBaseUrl() + '/api/posts', { credentials: 'include' });
     if (postsRes.ok) {
       var postsData = await postsRes.json();
@@ -2794,76 +2820,18 @@ async function loadReferencesData() {
           urls = [p.mediaUrl];
         }
         urls.forEach(function(url, idx) {
-          _refImages.push({
-            url: url,
-            clientId: p.clientId,
-            source: 'published',
-            caption: p.caption || '',
-            date: p.publishedAt || p.createdAt,
-            platforms: p.platforms || [],
-            postId: p.id,
-            label: 'Published' + (urls.length > 1 ? ' (' + (idx + 1) + '/' + urls.length + ')' : '')
-          });
-        });
-      });
-    }
-
-    // 2. Fetch approved AI Library images
-    var aiRes = await fetch(getApiBaseUrl() + '/api/ai-library/images?status=approved', { credentials: 'include' });
-    if (aiRes.ok) {
-      var aiData = await aiRes.json();
-      (aiData.images || []).forEach(function(img) {
-        if (img.imageUrl) {
-          _refImages.push({
-            url: img.imageUrl,
-            clientId: img.clientId,
-            source: 'approved',
-            caption: img.prompt || '',
-            date: img.approvalDate || img.createdAt,
-            platforms: [],
-            postId: null,
-            label: 'AI Approved'
-          });
-        }
-      });
-    }
-
-    // 3. Also fetch "used_in_post" AI images
-    var usedRes = await fetch(getApiBaseUrl() + '/api/ai-library/images?status=used_in_post', { credentials: 'include' });
-    if (usedRes.ok) {
-      var usedData = await usedRes.json();
-      (usedData.images || []).forEach(function(img) {
-        if (img.imageUrl) {
-          _refImages.push({
-            url: img.imageUrl,
-            clientId: img.clientId,
-            source: 'approved',
-            caption: img.prompt || '',
-            date: img.updatedAt || img.createdAt,
-            platforms: [],
-            postId: img.usedInPostId,
-            label: 'Used in Post'
-          });
-        }
-      });
-    }
-
-    // 4. Fetch client-approved content (approvals with status 'approved' that have images)
-    var state = load();
-    if (state && state.approvals) {
-      state.approvals.filter(function(a) { return a.status === 'approved' || a.status === 'scheduled'; }).forEach(function(a) {
-        var imgUrls = a.imageUrls || a.finalArtUrls || [];
-        imgUrls.forEach(function(url, idx) {
-          if (url && url.startsWith('http')) {
+          if (!seenUrls[url]) {
+            seenUrls[url] = true;
             _refImages.push({
+              id: null,
               url: url,
-              clientId: a.clientId || currentClientId,
-              source: 'client_approved',
-              caption: a.caption || a.title || '',
-              date: a.approvedAt || a.updatedAt || a.createdAt,
-              platforms: [],
-              postId: null,
-              label: 'Client Approved' + (imgUrls.length > 1 ? ' (' + (idx + 1) + '/' + imgUrls.length + ')' : '')
+              clientId: p.clientId,
+              source: 'published',
+              caption: p.caption || '',
+              date: p.publishedAt || p.createdAt,
+              platforms: p.platforms || [],
+              postId: p.id,
+              label: 'Published' + (urls.length > 1 ? ' (' + (idx + 1) + '/' + urls.length + ')' : '')
             });
           }
         });
@@ -2871,7 +2839,11 @@ async function loadReferencesData() {
     }
 
     // Sort by date (newest first)
-    _refImages.sort(function(a, b) { return (b.date || 0) - (a.date || 0); });
+    _refImages.sort(function(a, b) {
+      var da = a.date ? new Date(a.date).getTime() : 0;
+      var db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    });
 
   } catch (err) {
     console.error('[References] Load error:', err);
