@@ -457,28 +457,37 @@
   .toast-success.show{ padding-top: max(14px, env(safe-area-inset-top)); }
   @media (prefers-reduced-motion: reduce){ .toast-success{ transition: none; } }
   
-  /* Request Stats */
-  .request-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
-  .stat-circle{
-    display:flex;flex-direction:column;align-items:center;gap:8px;
-    background:#ffffff;border-radius:16px;padding:24px 16px;
-    box-shadow:0 1px 3px rgba(0,0,0,.1);
+  /* Request Stats — horizontal card: copy left, ring right (reference layout) */
+  .request-stats{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
+  .stat-card{
+    display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:14px;
+    background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;
+    box-shadow:none;
   }
-  .stat-title{font-size:14px;line-height:20px;font-weight:600;letter-spacing:0;color:var(--text-primary);margin-bottom:4px;text-align:center;}
-  .stat-label{font-size:13px;line-height:18px;font-weight:500;color:var(--text-secondary);margin-top:4px;}
-  .stat-context{font-size:12px;line-height:16px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
-  .circular-progress{position:relative;width:100px;height:100px;}
-  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
-  .progress-ring-background{stroke:#e5e7eb;}
-  .progress-ring-fill{stroke:var(--brand-blue,#1e3a8a);}
-  .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  body[data-theme="dark"] .stat-card{
+    background:#0f172a;border-color:#334155;
+  }
+  .stat-card-text{flex:1;min-width:0;text-align:left;}
+  .stat-card .stat-title{
+    font-size:15px;line-height:1.25;font-weight:700;letter-spacing:0;color:#002855;margin:0 0 6px 0;text-align:left;
+  }
+  body[data-theme="dark"] .stat-card .stat-title{color:#e2e8f0;}
+  .stat-subline{font-size:13px;line-height:1.35;font-weight:400;color:#99AABB;margin:0;}
+  body[data-theme="dark"] .stat-subline{color:#94a3b8;}
+  .circular-progress{position:relative;width:88px;height:88px;flex-shrink:0;}
   .progress-ring{transform:rotate(-90deg);}
-  .progress-ring-background{stroke:var(--stroke);}
-  body[data-theme="dark"] .progress-ring-background{stroke:#374151;}
-  .progress-ring-fill{stroke-dasharray:251.33;stroke-dashoffset:251.33;transition:stroke-dashoffset 0.6s ease;}
+  .stat-card .progress-ring-background{stroke:#E8F1FF;}
+  body[data-theme="dark"] .stat-card .progress-ring-background{stroke:#1e293b;}
+  .stat-card .progress-ring-fill{
+    stroke:#002855;
+    stroke-dasharray:251.33;
+    stroke-dashoffset:251.33;
+    transition:stroke-dashoffset 0.6s ease;
+  }
+  body[data-theme="dark"] .stat-card .progress-ring-fill{stroke:#60a5fa;}
   .progress-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
-  .progress-value{font-size:24px;line-height:32px;font-weight:700;letter-spacing:0;color:var(--text-primary);}
-  .progress-unit{font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;}
+  .stat-card .progress-value{font-size:20px;line-height:1.1;font-weight:700;letter-spacing:0;color:#002855;}
+  body[data-theme="dark"] .stat-card .progress-value{color:#f1f5f9;}
   /* Request card styles */
   .request-card{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -1294,35 +1303,37 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         
         </div>
         <!-- Request Stats -->
-        <div class="request-stats" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-show-tabs="requests">
-          <div class="stat-circle">
-            <div class="stat-title">Request from clients</div>
+        <div class="request-stats" style="margin-top:16px;" data-show-tabs="requests">
+          <div class="stat-card">
+            <div class="stat-card-text">
+              <div class="stat-title">Request from clients</div>
+              <p class="stat-subline" id="completedSubline">Not started</p>
+            </div>
             <div class="circular-progress" id="completedProgress">
-              <svg class="progress-ring" width="100" height="100">
-                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
-                <circle class="progress-ring-fill" id="completedRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
+              <svg class="progress-ring" width="88" height="88" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="completedRing" cx="50" cy="50" r="40" fill="none" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="completedPercent">0%</div>
               </div>
             </div>
-            <div class="stat-context" id="completedContext">Not started</div>
-            <div class="stat-label">Completed</div>
           </div>
 
-          <div class="stat-circle">
-            <div class="stat-title">What we need from you</div>
+          <div class="stat-card">
+            <div class="stat-card-text">
+              <div class="stat-title">What we need from you</div>
+              <p class="stat-subline" id="needsSubline">Not started</p>
+            </div>
             <div class="circular-progress" id="needsProgress">
-              <svg class="progress-ring" width="100" height="100">
-                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="7"/>
-                <circle class="progress-ring-fill" id="needsRing" cx="50" cy="50" r="40" fill="none" stroke="#1e3a8a" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
+              <svg class="progress-ring" width="88" height="88" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="progress-ring-background" cx="50" cy="50" r="40" fill="none" stroke-width="7"/>
+                <circle class="progress-ring-fill" id="needsRing" cx="50" cy="50" r="40" fill="none" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/>
               </svg>
               <div class="progress-content">
                 <div class="progress-value" id="needsPercent">0%</div>
               </div>
             </div>
-            <div class="stat-context" id="needsContext">Not started</div>
-            <div class="stat-label">Completed</div>
           </div>
         </div>
       </section>
@@ -4015,10 +4026,10 @@ function renderRequestStats(){
   if (completedPercentEl) {
     completedPercentEl.textContent = completedPercent + "%";
   }
-  const completedContextEl = $("#completedContext");
-  if (completedContextEl) {
-    if (totalRequests === 0) completedContextEl.textContent = "Not started";
-    else completedContextEl.textContent = completedRequests.length + " of " + totalRequests + " resolved";
+  const completedSublineEl = $("#completedSubline");
+  if (completedSublineEl) {
+    if (totalRequests === 0) completedSublineEl.textContent = "Not started";
+    else completedSublineEl.textContent = completedPercent + "% completed";
   }
   
   const allNeeds = s.needs || [];
@@ -4036,10 +4047,11 @@ function renderRequestStats(){
   if (needsPercentEl) {
     needsPercentEl.textContent = needsPercent + "%";
   }
-  const needsContextEl = $("#needsContext");
-  if (needsContextEl) {
-    if (totalNeeds === 0) needsContextEl.textContent = "Not started";
-    else needsContextEl.textContent = completedNeeds.length + " of " + totalNeeds + " completed";
+  const needsSublineEl = $("#needsSubline");
+  if (needsSublineEl) {
+    if (totalNeeds === 0) needsSublineEl.textContent = "Not started";
+    else if (needsPercent === 100) needsSublineEl.textContent = "Completed";
+    else needsSublineEl.textContent = needsPercent + "% completed";
   }
 }
 
