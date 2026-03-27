@@ -1254,8 +1254,8 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
       <!-- What we need + Quick Request -->
       <section class="panel section-requests" style="grid-column: span 6;" aria-label="What we need from you and Quick Request" data-show-tabs="requests">
         <div data-show-tabs="requests">
-          <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0 0 12px 0;">What We Need From You</h3>
-          <div id="needs" class="list"></div>
+          <h3 style="font-size:18px;font-weight:700;color:#ffffff;margin:0 0 12px 0;">What We Need From You</h3>
+          <div id="needs" class="list" style="gap:10px;"></div>
         </div>
         <hr style="border-color:rgba(255,255,255,.2);border-top:1px solid rgba(255,255,255,.2);margin:20px 0;" data-show-tabs="requests">
         <div data-show-tabs="requests">
@@ -2301,16 +2301,15 @@ function render(){
       needs.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No open needs</div>';
     } else {
       openNeeds.forEach(n=>{
-        const chipClass = n.severity==='bad'?'chip bad': (n.severity==='warn'?'chip warn':'chip');
         const textHtml = (n.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\\n/g,'\n').replace(/\n/g,'<br>');
-        const row = el("div",{class:"row"},
-          el("div",{class:"left"},
-            el("div",{class:"status-dot", style:"background:"+(n.severity==='bad'?'#ef4444':'#f59e0b')}),
-            el("div",{}, el("div",{html:textHtml, style:"white-space:pre-wrap"}), el("div",{class:"meta"}, "Missing from client"))
-          ),
-          el("span",{class:chipClass},"Pending")
-        );
-        needs.append(row);
+        const card = el("div",{style:"display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:#ffffff;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.08);"});
+        const infoDiv = el("div",{style:"flex:1;min-width:0;"});
+        infoDiv.appendChild(el("div",{html:textHtml, style:"font-size:15px;font-weight:600;color:#0f172a;line-height:1.4;white-space:pre-wrap;"}));
+        infoDiv.appendChild(el("div",{style:"font-size:13px;color:#94a3b8;margin-top:6px;"}, "Missing from client"));
+        card.appendChild(infoDiv);
+        const chipColor = n.severity==='bad' ? 'background:rgba(239,68,68,.12);color:#dc2626;border-color:rgba(239,68,68,.35);' : 'background:rgba(250,204,21,.12);color:#ca8a04;border-color:rgba(250,204,21,.35);';
+        card.appendChild(el("span",{style:"flex-shrink:0;display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid;" + chipColor}, "Pending"));
+        needs.append(card);
       });
     }
   }
