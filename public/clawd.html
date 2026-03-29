@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAWD.ai — Your AI Team, On Demand</title>
+<meta name="description" content="Skip the learning curve. Get a personal AI engineer that builds your automations, agents, and workflows — through chat. Pay once, get results.">
+<meta property="og:title" content="CLAWD.ai — Your AI Team, On Demand">
+<meta property="og:description" content="An AI engineer builds your automations live, through chat. No calls. No courses. Just results.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#a1a1aa;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{text-decoration:none;color:inherit}
+:root{
+--accent:#f97316;--accent2:#fb923c;--accent-glow:rgba(249,115,22,.15);
+--bg:#09090b;--bg2:#18181b;--bg3:#27272a;
+--border:#27272a;--border2:#3f3f46;
+--text:#fafafa;--text2:#a1a1aa;--text3:#71717a;
+--green:#22c55e;--purple:#a855f7;--blue:#3b82f6;
+}
+h1,h2,h3,h4,.logo,.btn,.price,.plan-name,.badge,.overtitle,.mono{font-family:'Space Grotesk',sans-serif}
+.mono{font-family:'JetBrains Mono',monospace}
+.container{max-width:1100px;margin:0 auto;padding:0 28px}
+.text-center{text-align:center}
+section{padding:100px 0}
+@media(max-width:768px){section{padding:64px 0}.container{padding:0 20px}}
+
+/* Animated gradient bg */
+.glow-bg{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0;overflow:hidden}
+.glow-bg .orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:.3;animation:orbFloat 20s ease-in-out infinite}
+.glow-bg .orb1{width:600px;height:600px;background:var(--accent);top:-200px;left:-100px;animation-delay:0s}
+.glow-bg .orb2{width:500px;height:500px;background:var(--purple);bottom:-200px;right:-100px;animation-delay:-7s}
+.glow-bg .orb3{width:400px;height:400px;background:var(--blue);top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:-14s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-40px) scale(1.1)}50%{transform:translate(-20px,30px) scale(.9)}75%{transform:translate(40px,20px) scale(1.05)}}
+.content{position:relative;z-index:1}
+
+.fade-up{opacity:0;transform:translateY(30px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+.delay-1{transition-delay:.1s}.delay-2{transition-delay:.2s}.delay-3{transition-delay:.3s}.delay-4{transition-delay:.4s}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(9,9,11,.8);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.05)}
+nav .container{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.5px}.logo span{color:var(--accent)}
+.logo .dot{color:var(--accent);font-size:28px}
+.nav-r{display:flex;align-items:center;gap:24px}
+.nav-r a{font-size:14px;color:var(--text2);transition:.2s}
+.nav-r a:hover{color:#fff}
+.nav-cta{background:var(--accent);color:#fff;font-size:14px;font-weight:700;padding:10px 24px;border-radius:8px;border:none;cursor:pointer;transition:.2s;font-family:'Space Grotesk',sans-serif}
+.nav-cta:hover{background:var(--accent2);transform:translateY(-1px)}
+@media(max-width:640px){.nav-r a:not(.nav-cta){display:none}}
+
+/* HERO */
+.hero{min-height:100vh;display:flex;align-items:center;padding:120px 0 80px;position:relative}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;border:1px solid var(--border2);background:var(--bg2);font-size:13px;color:var(--accent);font-weight:600;margin-bottom:24px}
+.hero-badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.5)}}
+.hero h1{font-size:clamp(40px,6vw,80px);font-weight:800;color:#fff;line-height:1;letter-spacing:-3px;max-width:900px;margin-bottom:24px}
+.hero h1 .gradient{background:linear-gradient(135deg,var(--accent),var(--accent2),#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:clamp(17px,2vw,21px);color:var(--text2);max-width:600px;line-height:1.7;margin-bottom:40px}
+.hero-ctas{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+.btn-fire{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,var(--accent),#ea580c);color:#fff;font-size:18px;font-weight:700;padding:18px 40px;border-radius:12px;border:none;cursor:pointer;transition:.3s;box-shadow:0 0 40px var(--accent-glow),0 4px 16px rgba(0,0,0,.3);font-family:'Space Grotesk',sans-serif}
+.btn-fire:hover{transform:translateY(-2px);box-shadow:0 0 60px rgba(249,115,22,.3),0 8px 32px rgba(0,0,0,.4)}
+.btn-ghost{display:inline-flex;align-items:center;gap:8px;background:transparent;color:#fff;font-size:16px;font-weight:600;padding:18px 32px;border-radius:12px;border:1px solid var(--border2);cursor:pointer;transition:.3s;font-family:'Space Grotesk',sans-serif}
+.btn-ghost:hover{border-color:var(--accent);background:rgba(249,115,22,.05)}
+.hero-proof{display:flex;gap:24px;flex-wrap:wrap;font-size:14px;color:var(--text3)}
+.hero-proof div{display:flex;align-items:center;gap:6px}
+.hero-proof .check{color:var(--green)}
+
+/* TERMINAL MOCKUP */
+.terminal{max-width:700px;margin:56px auto 0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.5),0 0 80px rgba(249,115,22,.05)}
+.terminal-bar{display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg)}
+.terminal-dot{width:12px;height:12px;border-radius:50%}
+.terminal-dot.r{background:#ef4444}.terminal-dot.y{background:#eab308}.terminal-dot.g{background:#22c55e}
+.terminal-title{margin-left:auto;margin-right:auto;font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.terminal-body{padding:24px;font-family:'JetBrains Mono',monospace;font-size:14px;line-height:1.8;min-height:200px}
+.terminal-body .line{opacity:0;animation:typeLine .3s forwards}
+.terminal-body .prompt{color:var(--accent)}
+.terminal-body .cmd{color:#fff}
+.terminal-body .output{color:var(--text2)}
+.terminal-body .success{color:var(--green)}
+.terminal-body .info{color:var(--blue)}
+@keyframes typeLine{to{opacity:1}}
+
+/* HOW IT WORKS */
+.how-section{background:var(--bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:56px}
+@media(max-width:768px){.steps{grid-template-columns:1fr}}
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;position:relative;transition:.3s}
+.step:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,.3)}
+.step-num{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#ea580c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;margin-bottom:20px;font-family:'Space Grotesk',sans-serif}
+.step h3{font-size:20px;font-weight:700;color:#fff;margin-bottom:10px}
+.step p{font-size:15px;color:var(--text2);line-height:1.7}
+
+/* WHAT YOU GET */
+.features-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:56px}
+@media(max-width:768px){.features-grid{grid-template-columns:1fr}}
+.feat-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;transition:.3s;display:flex;gap:16px;align-items:flex-start}
+.feat-card:hover{border-color:var(--border2);background:rgba(39,39,42,.8)}
+.feat-icon{font-size:28px;flex-shrink:0;margin-top:2px}
+.feat-card h4{font-size:16px;font-weight:700;color:#fff;margin-bottom:6px}
+.feat-card p{font-size:14px;color:var(--text2);line-height:1.6}
+
+/* SOCIAL PROOF MARQUEE */
+.marquee-section{padding:48px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);overflow:hidden}
+.marquee-track{display:flex;gap:48px;animation:marquee 20s linear infinite;width:max-content}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.marquee-item{display:flex;align-items:center;gap:12px;white-space:nowrap}
+.marquee-item .mi-avatar{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent);font-family:'Space Grotesk',sans-serif}
+.marquee-item .mi-text{font-size:14px;color:var(--text2)}
+.marquee-item .mi-name{font-weight:600;color:#fff}
+
+/* PRICING */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:56px}
+@media(max-width:900px){.pricing-grid{grid-template-columns:1fr}}
+.price-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px;position:relative;transition:.3s}
+.price-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,.3)}
+.price-card.featured{border-color:var(--accent);box-shadow:0 0 40px var(--accent-glow)}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--accent),#ea580c);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:100px;letter-spacing:1px;font-family:'Space Grotesk',sans-serif}
+.price-card .plan-icon{font-size:36px;margin-bottom:16px}
+.price-card .plan-name{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}
+.price-card .plan-desc{font-size:14px;color:var(--text3);margin-bottom:20px}
+.price-card .price{font-size:48px;font-weight:800;color:#fff;letter-spacing:-2px;margin-bottom:4px}
+.price-card .price span{font-size:16px;color:var(--text3);font-weight:500}
+.price-card .price-note{font-size:13px;color:var(--accent);margin-bottom:24px;font-weight:600}
+.price-card ul{list-style:none;margin-bottom:28px}
+.price-card ul li{padding:8px 0;font-size:14px;color:var(--text2);display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.price-card ul li:last-child{border-bottom:none}
+.price-card ul li .ck{color:var(--green);font-weight:700;font-size:16px}
+.btn-card{display:block;width:100%;text-align:center;padding:16px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;transition:.3s;font-family:'Space Grotesk',sans-serif;border:none}
+.btn-card.primary{background:linear-gradient(135deg,var(--accent),#ea580c);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
+.btn-card.primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(249,115,22,.3)}
+.btn-card.secondary{background:var(--bg);border:1px solid var(--border2);color:#fff}
+.btn-card.secondary:hover{border-color:var(--accent);background:rgba(249,115,22,.05)}
+
+/* GUARDRAILS */
+.guard-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:48px;max-width:800px;margin-left:auto;margin-right:auto}
+@media(max-width:768px){.guard-grid{grid-template-columns:1fr}}
+.guard-card{padding:24px;border-radius:14px}
+.guard-card.yes{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.2)}
+.guard-card.no{background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2)}
+.guard-card h4{font-size:16px;font-weight:700;margin-bottom:14px}
+.guard-card.yes h4{color:var(--green)}
+.guard-card.no h4{color:#ef4444}
+.guard-card li{padding:6px 0;font-size:14px;color:var(--text2);list-style:none;display:flex;align-items:center;gap:8px}
+
+/* FAQ */
+.faq-list{max-width:700px;margin:48px auto 0}
+.faq-item{border-bottom:1px solid var(--border)}
+.faq-q{padding:20px 0;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:17px;font-weight:600;color:#fff;font-family:'Space Grotesk',sans-serif;gap:16px;user-select:none;transition:.2s}
+.faq-q:hover{color:var(--accent)}
+.faq-plus{width:28px;height:28px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text3);transition:.3s;flex-shrink:0}
+.faq-item.open .faq-plus{background:var(--accent);color:#fff;transform:rotate(45deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.faq-item.open .faq-a{max-height:300px}
+.faq-a-inner{padding-bottom:20px;font-size:15px;color:var(--text2);line-height:1.7}
+
+/* FINAL CTA */
+.final-cta{background:linear-gradient(180deg,var(--bg) 0%,rgba(249,115,22,.05) 50%,var(--bg) 100%);position:relative}
+.final-cta h2{font-size:clamp(32px,5vw,56px);font-weight:800;color:#fff;letter-spacing:-2px;max-width:700px;margin:0 auto 20px;line-height:1.05}
+
+/* FOOTER */
+footer{padding:48px 0;border-top:1px solid var(--border)}
+.footer-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-inner p{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:24px}
+.footer-links a{font-size:13px;color:var(--text3);transition:.2s}
+.footer-links a:hover{color:#fff}
+
+/* COUNTDOWN */
+.countdown{display:inline-flex;gap:4px;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--accent);font-weight:600;background:var(--bg);padding:4px 12px;border-radius:6px;border:1px solid rgba(249,115,22,.2)}
+</style>
+</head>
+<body>
+
+<div class="glow-bg">
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+</div>
+
+<div class="content">
+
+<!-- NAV -->
+<nav>
+<div class="container">
+<div class="logo">CLAWD<span class="dot">.</span>ai</div>
+<div class="nav-r">
+<a href="#how">How It Works</a>
+<a href="#pricing">Pricing</a>
+<a href="#faq">FAQ</a>
+<a href="#cta" class="nav-cta">Get Started →</a>
+</div>
+</div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+<div class="container">
+<div class="hero-badge fade-up"><div class="pulse"></div>Live now — limited spots</div>
+<h1 class="fade-up delay-1">An AI engineer that <span class="gradient">builds for you</span> — through chat.</h1>
+<p class="hero-sub fade-up delay-2">No calls. No courses. No 47-step tutorials. Just tell us what you need — our AI engineer builds your automations, agents, and workflows while you watch. Done in hours, not weeks.</p>
+<div class="hero-ctas fade-up delay-3">
+<a href="#pricing" class="btn-fire">See Plans & Pricing 🔥</a>
+<a href="#how" class="btn-ghost">How It Works</a>
+</div>
+<div class="hero-proof fade-up delay-4">
+<div><span class="check">✓</span> No calls required</div>
+<div><span class="check">✓</span> Results in 24-48h</div>
+<div><span class="check">✓</span> Money-back guarantee</div>
+</div>
+
+<!-- Terminal -->
+<div class="terminal fade-up delay-4">
+<div class="terminal-bar">
+<div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+<div class="terminal-title">clawd.ai — session</div>
+</div>
+<div class="terminal-body" id="terminal">
+<div class="line" style="animation-delay:0s"><span class="prompt">you →</span> <span class="cmd">I need an AI assistant for my real estate agency that answers leads on WhatsApp</span></div>
+<div class="line" style="animation-delay:.8s"><span class="prompt">clawd →</span> <span class="output">Got it. I'll set up: 1) WhatsApp webhook 2) AI agent with your property data 3) Auto-response system. Give me 30 min.</span></div>
+<div class="line" style="animation-delay:1.6s"><span class="prompt">clawd →</span> <span class="info">⚡ Setting up WhatsApp Business API connection...</span></div>
+<div class="line" style="animation-delay:2.4s"><span class="prompt">clawd →</span> <span class="info">🤖 Training agent on your 47 property listings...</span></div>
+<div class="line" style="animation-delay:3.2s"><span class="prompt">clawd →</span> <span class="success">✅ Done! Your WhatsApp AI agent is live. Test it: +1 (555) 123-4567</span></div>
+<div class="line" style="animation-delay:4s"><span class="prompt">you →</span> <span class="cmd">That was 22 minutes. You're insane.</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- SOCIAL PROOF MARQUEE -->
+<div class="marquee-section">
+<div class="marquee-track">
+<div class="marquee-item"><div class="mi-avatar">DC</div><div><span class="mi-name">Diego C.</span><span class="mi-text"> — "Built my entire agent system in one session"</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">CL</div><div><span class="mi-name">Cesar L.</span><span class="mi-text"> — "Worth 10x the price. Saved me weeks."</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">JR</div><div><span class="mi-name">Jake R.</span><span class="mi-text"> — "I had AI agents running before lunch"</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">SM</div><div><span class="mi-name">Sarah M.</span><span class="mi-text"> — "Like having a CTO on speed dial"</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">AL</div><div><span class="mi-name">Alex L.</span><span class="mi-text"> — "Game changer for my agency"</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">DC</div><div><span class="mi-name">Diego C.</span><span class="mi-text"> — "Built my entire agent system in one session"</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">CL</div><div><span class="mi-name">Cesar L.</span><span class="mi-text"> — "Worth 10x the price. Saved me weeks."</span></div></div>
+<div class="marquee-item"><div class="mi-avatar">JR</div><div><span class="mi-name">Jake R.</span><span class="mi-text"> — "I had AI agents running before lunch"</span></div></div>
+</div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how">
+<div class="container text-center">
+<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--accent);margin-bottom:16px" class="fade-up">HOW IT WORKS</div>
+<h2 style="font-size:clamp(28px,4vw,46px);font-weight:800;color:#fff;letter-spacing:-1.5px;margin-bottom:8px" class="fade-up delay-1">Three steps. Zero friction.</h2>
+<p style="font-size:17px;color:var(--text2);max-width:500px;margin:0 auto" class="fade-up delay-2">You talk. We build. It's that simple.</p>
+<div class="steps">
+<div class="step fade-up">
+<div class="step-num">1</div>
+<h3>Tell us what you need</h3>
+<p>Pick a plan. You get access to a private chat. Describe what you want built — AI agents, automations, chatbots, workflows, integrations. Anything.</p>
+</div>
+<div class="step fade-up delay-1">
+<div class="step-num">2</div>
+<h3>We build it live</h3>
+<p>Our AI engineer starts immediately. You watch the progress in real-time. Ask questions, give feedback, pivot direction — it's your session.</p>
+</div>
+<div class="step fade-up delay-2">
+<div class="step-num">3</div>
+<h3>Get your system running</h3>
+<p>We deliver everything configured and tested. Your agents are live, your workflows are running, your automations are firing. You own it all.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- WHAT WE BUILD -->
+<section>
+<div class="container text-center">
+<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--accent);margin-bottom:16px" class="fade-up">WHAT WE BUILD</div>
+<h2 style="font-size:clamp(28px,4vw,46px);font-weight:800;color:#fff;letter-spacing:-1.5px;margin-bottom:8px" class="fade-up delay-1">If AI can do it, we can build it for you.</h2>
+<p style="font-size:17px;color:var(--text2);max-width:560px;margin:0 auto" class="fade-up delay-2">Here's what our clients usually ask for.</p>
+<div class="features-grid">
+<div class="feat-card fade-up"><div class="feat-icon">🤖</div><div><h4>AI Chat Agents</h4><p>Customer support bots, lead qualifiers, appointment setters — on WhatsApp, Telegram, Discord, or your website.</p></div></div>
+<div class="feat-card fade-up delay-1"><div class="feat-icon">⚡</div><div><h4>Workflow Automations</h4><p>Connect your tools. Auto-send emails, update CRMs, post to social media, sync data between apps.</p></div></div>
+<div class="feat-card fade-up delay-2"><div class="feat-icon">🧠</div><div><h4>AI Assistants</h4><p>Personal AI that knows your business — answers questions, writes content, analyzes data, makes recommendations.</p></div></div>
+<div class="feat-card fade-up delay-3"><div class="feat-icon">📊</div><div><h4>Dashboards & Reports</h4><p>Auto-generated reports, live dashboards, KPI tracking — connected to your real data sources.</p></div></div>
+<div class="feat-card fade-up"><div class="feat-icon">🌐</div><div><h4>Website & SEO Agents</h4><p>AI that monitors your site, fixes SEO issues, optimizes performance, and pushes updates automatically.</p></div></div>
+<div class="feat-card fade-up delay-1"><div class="feat-icon">📱</div><div><h4>Custom Apps & Tools</h4><p>Need a calculator, a booking system, an internal tool? We build lightweight apps tailored to your business.</p></div></div>
+</div>
+</div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="border-top:1px solid var(--border)">
+<div class="container text-center">
+<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--accent);margin-bottom:16px" class="fade-up">PRICING</div>
+<h2 style="font-size:clamp(28px,4vw,46px);font-weight:800;color:#fff;letter-spacing:-1.5px;margin-bottom:8px" class="fade-up delay-1">Pay once. Get results.</h2>
+<p style="font-size:17px;color:var(--text2);max-width:500px;margin:0 auto" class="fade-up delay-2">No subscriptions. No hidden fees. Just pick your plan.</p>
+
+<div class="pricing-grid">
+<!-- Plan 1 -->
+<div class="price-card fade-up">
+<div class="plan-icon">💬</div>
+<div class="plan-name">Quick Consult</div>
+<div class="plan-desc">Get expert guidance fast</div>
+<div class="price">$97</div>
+<div class="price-note">One-time payment</div>
+<ul>
+<li><span class="ck">✓</span> 24-hour private chat access</li>
+<li><span class="ck">✓</span> AI architecture planning</li>
+<li><span class="ck">✓</span> Tool recommendations</li>
+<li><span class="ck">✓</span> Step-by-step action plan</li>
+<li><span class="ck">✓</span> Session transcript delivered</li>
+</ul>
+<a href="#cta" class="btn-card secondary">Get Started →</a>
+</div>
+
+<!-- Plan 2 -->
+<div class="price-card featured fade-up delay-1">
+<div class="plan-icon">🔧</div>
+<div class="plan-name">Build Session</div>
+<div class="plan-desc">We build it with you</div>
+<div class="price">$297</div>
+<div class="price-note">One-time payment</div>
+<ul>
+<li><span class="ck">✓</span> 48-hour private chat access</li>
+<li><span class="ck">✓</span> AI engineer builds live</li>
+<li><span class="ck">✓</span> Up to 2 agents or automations</li>
+<li><span class="ck">✓</span> Full setup + configuration</li>
+<li><span class="ck">✓</span> Testing & troubleshooting</li>
+<li><span class="ck">✓</span> Everything documented</li>
+</ul>
+<a href="#cta" class="btn-card primary">Get Started 🔥</a>
+</div>
+
+<!-- Plan 3 -->
+<div class="price-card fade-up delay-2">
+<div class="plan-icon">🚀</div>
+<div class="plan-name">Done For You</div>
+<div class="plan-desc">Full system, delivered ready</div>
+<div class="price">$997</div>
+<div class="price-note">One-time payment</div>
+<ul>
+<li><span class="ck">✓</span> Complete system built in 48h</li>
+<li><span class="ck">✓</span> Unlimited agents & automations</li>
+<li><span class="ck">✓</span> Custom integrations</li>
+<li><span class="ck">✓</span> 7 days of post-delivery support</li>
+<li><span class="ck">✓</span> Full documentation & training</li>
+<li><span class="ck">✓</span> Priority queue</li>
+</ul>
+<a href="#cta" class="btn-card secondary">Get Started →</a>
+</div>
+</div>
+</div>
+</section>
+
+<!-- GUARDRAILS -->
+<section>
+<div class="container text-center">
+<h2 style="font-size:clamp(24px,3.5vw,38px);font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:8px" class="fade-up">Transparent. Honest. No BS.</h2>
+<p style="font-size:17px;color:var(--text2);max-width:500px;margin:0 auto" class="fade-up delay-1">Here's exactly what you get — and what you don't.</p>
+<div class="guard-grid">
+<div class="guard-card yes fade-up">
+<h4>✅ What's included</h4>
+<ul>
+<li>🟢 Help building YOUR agents & automations</li>
+<li>🟢 Setup on YOUR accounts & tools</li>
+<li>🟢 Architecture advice & best practices</li>
+<li>🟢 Full documentation of everything built</li>
+<li>🟢 Session recordings & transcripts</li>
+<li>🟢 Post-session support window</li>
+</ul>
+</div>
+<div class="guard-card no fade-up delay-1">
+<h4>🚫 What's not included</h4>
+<ul>
+<li>❌ Access to our proprietary systems</li>
+<li>❌ Source code of our internal tools</li>
+<li>❌ Ongoing unlimited support (buy a plan)</li>
+<li>❌ Building anything illegal or harmful</li>
+<li>❌ Guarantees on third-party API uptime</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="border-top:1px solid var(--border)">
+<div class="container text-center">
+<h2 style="font-size:clamp(28px,4vw,46px);font-weight:800;color:#fff;letter-spacing:-1.5px" class="fade-up">Questions? Answers.</h2>
+<div class="faq-list">
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does the chat session work?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">After payment, you get instant access to a private chat channel. Describe what you need, and our AI engineer starts building immediately. You can watch progress, ask questions, and give feedback in real-time. It's like pair-programming with a senior engineer — but through chat.</div></div></div>
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is this a real AI or a person?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">Our AI engineer is powered by the latest AI models (Claude, GPT) with specialized tooling for building automations and agents. A human founder oversees every session to ensure quality. You get the speed of AI with the judgment of an experienced builder.</div></div></div>
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What if I'm not technical at all?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">Perfect — that's exactly who this is for. Just describe what you want in plain English. "I need a bot that answers customer questions about my products." We handle all the technical work. You just approve and test.</div></div></div>
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the money-back guarantee?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">If we can't deliver what was agreed upon in the session, you get a full refund. No questions asked. We've never had to refund anyone yet — but the guarantee is there so you can buy with confidence.</div></div></div>
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Can you integrate with my existing tools?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">Yes. We work with Slack, Discord, WhatsApp, Telegram, Google Workspace, Notion, Airtable, Zapier, Make, CRMs, email platforms, and hundreds more. If it has an API, we can connect it.</div></div></div>
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Do I own everything that's built?<div class="faq-plus">+</div></div><div class="faq-a"><div class="faq-a-inner">100%. Everything is built on your accounts, with your API keys, on your infrastructure. You own all the code, configurations, and agents. We don't lock you into anything.</div></div></div>
+</div>
+</div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta text-center" id="cta">
+<div class="container">
+<h2 class="fade-up">Stop watching tutorials.<br><span style="color:var(--accent)">Start shipping.</span></h2>
+<p style="font-size:18px;color:var(--text2);max-width:500px;margin:0 auto 40px" class="fade-up delay-1">Your AI-powered business is one chat session away. Pick a plan and let's build.</p>
+<div class="fade-up delay-2" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+<a href="#pricing" class="btn-fire">Get Started — From $97 🔥</a>
+</div>
+<p style="font-size:13px;color:var(--text3);margin-top:20px" class="fade-up delay-3">💳 Secure payment via Stripe • 🔒 Money-back guarantee • ⚡ Instant access</p>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+<div class="container">
+<div class="footer-inner">
+<p>© 2026 CLAWD.ai — Built with 🍌 by 2FLY Digital</p>
+<div class="footer-links">
+<a href="mailto:2flydigitalmarketing@gmail.com">Contact</a>
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+</div>
+</div>
+</div>
+</footer>
+
+</div><!-- .content -->
+
+<script>
+const obs=new IntersectionObserver(e=>{e.forEach(el=>{if(el.isIntersecting){el.target.classList.add('visible');obs.unobserve(el.target)}})},{threshold:.1});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>
