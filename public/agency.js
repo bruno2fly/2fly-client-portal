@@ -6391,7 +6391,7 @@ function _imglibRenderGrid() {
       html += '<div class="imglib-card">';
       html += imgTag;
       html += '<div class="imglib-card__body">';
-      html += '<div class="imglib-card__name">' + (asset.title || 'Untitled') + '</div>';
+      html += '<div class="imglib-card__name" contenteditable="true" spellcheck="false" data-imglib-rename-id="' + asset.id + '" title="Click to rename">' + (asset.title || 'Untitled') + '</div>';
       html += '<span class="imglib-card__badge imglib-card__badge--' + badgeClass + '">' + statusLabel + '</span>';
       html += '<div class="imglib-card__actions">';
       html += '<button class="btn btn-danger" data-imglib-action="delete" data-imglib-id="' + asset.id + '">Delete</button>';
@@ -6407,6 +6407,26 @@ function _imglibRenderGrid() {
 }
 
 function imglibBindEvents(root) {
+  // Editable title — save on blur or Enter
+  root.querySelectorAll('[data-imglib-rename-id]').forEach(function(el) {
+    el.addEventListener('blur', function() {
+      var id = el.getAttribute('data-imglib-rename-id');
+      var newTitle = el.textContent.trim() || 'Untitled';
+      el.textContent = newTitle;
+      fetch(getApiBaseUrl() + '/api/ai-library/images/' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTitle }) })
+        .then(function(r) { if (r.ok) showToast('Renamed'); })
+        .catch(function() {});
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+    el.style.cursor = 'text';
+    el.style.borderBottom = '1px dashed transparent';
+    el.addEventListener('mouseenter', function() { el.style.borderBottom = '1px dashed #94a3b8'; });
+    el.addEventListener('mouseleave', function() { if (document.activeElement !== el) el.style.borderBottom = '1px dashed transparent'; });
+    el.addEventListener('focus', function() { el.style.borderBottom = '1px dashed #3b82f6'; });
+  });
+
   // Cleanup broken images button
   var cleanupBtn = document.getElementById('imglibCleanupBtn');
   if (cleanupBtn) {
