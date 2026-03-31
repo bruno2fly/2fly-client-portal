@@ -8103,9 +8103,9 @@ function setupImageUpload() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
-    // Limit to 3 images max to prevent quota issues
-    if (uploadedImages.length + files.length > 3) {
-      showToast('Maximum 3 images allowed. Please remove some images first.', 'error');
+    // Limit to 8 images max
+    if (uploadedImages.length + files.length > 8) {
+      showToast('Maximum 8 images allowed. Please remove some images first.', 'error');
       fileInput.value = '';
       return;
     }
