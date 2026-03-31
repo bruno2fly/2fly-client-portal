@@ -3411,14 +3411,13 @@ function renderCalendar(){
   
   container.innerHTML = "";
   
-  // Get all approvals with postDate (pending or approved)
-  const itemsWithDate = (s.approvals || []).filter(a => 
-    a.postDate && 
-    (a.status === 'pending' || a.status === 'approved' || a.status === 'scheduled' || !a.status)
+  // Get only posts that are actually scheduled
+  const itemsWithDate = (s.approvals || []).filter(a =>
+    a.postDate && a.status === 'scheduled'
   );
-  
+
   if (itemsWithDate.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No posts scheduled. Posts with a Post Date will appear here.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No scheduled posts yet. Posts will appear here once they are scheduled.</div>';
     return;
   }
   
@@ -3518,14 +3517,9 @@ function renderCalendar(){
       titleDiv.textContent = item.title || "Untitled";
       titleRow.appendChild(titleDiv);
       
-      // Type tag (Post/Reel/Story)
-      const typeTag = el("span", { class: "tag type-tag", style: "background:#dbeafe;color:#1e40af;font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;" });
-      typeTag.textContent = item.type || "Post";
-      titleRow.appendChild(typeTag);
-      
-      // Status chip - always "Scheduled"
+      // Status chip - "Scheduled"
       const statusChip = el("span", {
-        style: `font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;background:#e0f2fe;color:#0369a1;`
+        style: `font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;background:#d1fae5;color:#065f46;`
       });
       statusChip.textContent = 'Scheduled';
       titleRow.appendChild(statusChip);

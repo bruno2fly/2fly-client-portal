@@ -6415,7 +6415,7 @@ function _imglibRenderGrid() {
       html += '<div class="imglib-card">';
       html += imgTag;
       html += '<div class="imglib-card__body">';
-      html += '<div class="imglib-card__name">' + (asset.title || 'Untitled') + '</div>';
+      html += '<div class="imglib-card__name" contenteditable="true" spellcheck="false" data-imglib-rename-id="' + asset.id + '" title="Click to rename">' + (asset.title || 'Untitled') + '</div>';
       html += '<span class="imglib-card__badge imglib-card__badge--' + badgeClass + '">' + statusLabel + '</span>';
       html += '<div class="imglib-card__actions">';
       html += '<button class="btn btn-danger" data-imglib-action="delete" data-imglib-id="' + asset.id + '">Delete</button>';
@@ -6431,6 +6431,26 @@ function _imglibRenderGrid() {
 }
 
 function imglibBindEvents(root) {
+  // Editable title — save on blur or Enter
+  root.querySelectorAll('[data-imglib-rename-id]').forEach(function(el) {
+    el.addEventListener('blur', function() {
+      var id = el.getAttribute('data-imglib-rename-id');
+      var newTitle = el.textContent.trim() || 'Untitled';
+      el.textContent = newTitle;
+      fetch(getApiBaseUrl() + '/api/ai-library/images/' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTitle }) })
+        .then(function(r) { if (r.ok) showToast('Renamed'); })
+        .catch(function() {});
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+    el.style.cursor = 'text';
+    el.style.borderBottom = '1px dashed transparent';
+    el.addEventListener('mouseenter', function() { el.style.borderBottom = '1px dashed #94a3b8'; });
+    el.addEventListener('mouseleave', function() { if (document.activeElement !== el) el.style.borderBottom = '1px dashed transparent'; });
+    el.addEventListener('focus', function() { el.style.borderBottom = '1px dashed #3b82f6'; });
+  });
+
   // Cleanup broken images button
   var cleanupBtn = document.getElementById('imglibCleanupBtn');
   if (cleanupBtn) {
@@ -11369,17 +11389,57 @@ function bindCopilotEvents() {
   var input = document.getElementById('copilot-input');
   var sendBtn = document.getElementById('copilot-send');
 
-  if (bubble) bubble.addEventListener('click', function() {
-    toggleCopilot(true);
-    // Show pending auto-suggestion
-    if (window._copilotPendingSuggestion) {
-      showAutoSuggestion(window._copilotPendingSuggestion);
-      window._copilotPendingSuggestion = null;
-      bubble.classList.remove('copilot-bubble--pulse');
-      var badge = bubble.querySelector('.copilot-bubble__badge');
-      if (badge) badge.remove();
+  // --- Draggable + double-click to minimize ---
+  if (bubble) {
+    var isDragging = false, dragStartX = 0, dragStartY = 0, bubbleStartX = 0, bubbleStartY = 0, didDrag = false;
+
+    function onPointerDown(e) {
+      isDragging = true; didDrag = false;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      var rect = bubble.getBoundingClientRect();
+      bubbleStartX = rect.left; bubbleStartY = rect.top;
+      bubble.classList.add('dragging');
+      e.preventDefault();
     }
-  });
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      var dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) didDrag = true;
+      var newX = bubbleStartX + dx, newY = bubbleStartY + dy;
+      // Keep within viewport
+      var bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+      newX = Math.max(0, Math.min(window.innerWidth - bw, newX));
+      newY = Math.max(0, Math.min(window.innerHeight - bh, newY));
+      bubble.style.left = newX + 'px'; bubble.style.top = newY + 'px';
+      bubble.style.right = 'auto'; bubble.style.bottom = 'auto';
+    }
+    function onPointerUp() {
+      isDragging = false;
+      bubble.classList.remove('dragging');
+    }
+    bubble.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+
+    // Double-click to minimize/restore
+    bubble.addEventListener('dblclick', function(e) {
+      e.stopPropagation();
+      bubble.classList.toggle('copilot-minimized');
+    });
+
+    // Single click opens panel (only if not dragged)
+    bubble.addEventListener('click', function() {
+      if (didDrag) return;
+      toggleCopilot(true);
+      if (window._copilotPendingSuggestion) {
+        showAutoSuggestion(window._copilotPendingSuggestion);
+        window._copilotPendingSuggestion = null;
+        bubble.classList.remove('copilot-bubble--pulse');
+        var badge = bubble.querySelector('.copilot-bubble__badge');
+        if (badge) badge.remove();
+      }
+    });
+  }
   if (closeBtn) closeBtn.addEventListener('click', function() { toggleCopilot(false); });
   if (input) input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCopilotMessage(); }
