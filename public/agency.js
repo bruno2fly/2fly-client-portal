@@ -2016,6 +2016,7 @@ function showScheduledPostDetail(post, container) {
   h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
   h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
   h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
+  h += '<button type="button" class="cal-modal-delete" style="flex:1;min-width:140px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Delete Post</button>';
   h += '</div>';
 
   modal.innerHTML = h;
@@ -2110,6 +2111,29 @@ function showScheduledPostDetail(post, container) {
         confirmBtn.textContent = 'Confirm Schedule';
       }
     });
+  });
+
+  // Delete Post button
+  modal.querySelector('.cal-modal-delete').addEventListener('click', async function() {
+    if (!confirm('Are you sure you want to delete this scheduled post? This action cannot be undone.')) return;
+    this.disabled = true;
+    this.textContent = 'Deleting...';
+    try {
+      var delR = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/cancel', {
+        method: 'DELETE', credentials: 'include'
+      });
+      if (!delR.ok) {
+        var delJ = await delR.json();
+        throw new Error(delJ.error || 'Failed to delete post');
+      }
+      showToast('Scheduled post deleted successfully', 'success');
+      modalBg.remove();
+      renderScheduledPostsTab();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete post', 'error');
+      this.disabled = false;
+      this.textContent = 'Delete Post';
+    }
   });
 
   modalBg.appendChild(modal);
