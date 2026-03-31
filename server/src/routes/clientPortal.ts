@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask } from '../db.js';
+import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask, getScheduledPostsByAgency } from '../db.js';
 import type { PortalStateData } from '../types.js';
 import { sendPushToRole, sendPushToUser, NOTIFY } from '../lib/pushService.js';
 
@@ -140,6 +140,25 @@ router.post('/request-changes', (req, res) => {
     res.json({ success: true, taskUpdated: true, taskId: linkedTask.id });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to process change request' });
+  }
+});
+
+/**
+ * GET /api/client/scheduled-posts
+ * Returns scheduled posts for the authenticated client.
+ */
+router.get('/scheduled-posts', (req, res) => {
+  const ctx = authenticateClient(req, res);
+  if (!ctx) return;
+  try {
+    let posts = getScheduledPostsByAgency(ctx.agencyId);
+    // Filter to only this client's posts
+    posts = posts.filter(p => p.clientId === ctx.clientId);
+    // Sort by scheduledAt ascending
+    posts.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    res.json({ success: true, posts });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to load scheduled posts' });
   }
 });
 

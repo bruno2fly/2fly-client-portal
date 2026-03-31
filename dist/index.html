@@ -3404,165 +3404,117 @@ function markNeedDone(id) {
 }
 
 /* ================== Calendar ================== */
-function renderCalendar(){
+async function renderCalendar(){
   const s = load();
   const container = $("#calendarView");
   if (!container) return;
-  
-  container.innerHTML = "";
-  
-  // Get only posts that are actually scheduled
-  const itemsWithDate = (s.approvals || []).filter(a =>
-    a.postDate && a.status === 'scheduled'
-  );
 
-  if (itemsWithDate.length === 0) {
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">Loading scheduled posts...</div>';
+
+  // Fetch actual scheduled posts from API
+  var session = null;
+  try { session = JSON.parse(localStorage.getItem(LS_SESSION_KEY)); } catch(e) {}
+  var clientId = session && session.clientId ? session.clientId : '';
+
+  var token = session && session.token ? session.token : '';
+  var scheduledPosts = [];
+  try {
+    var r = await fetch(API_BASE + '/api/client/scheduled-posts', {
+      credentials: 'include',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (r.ok) {
+      var data = await r.json();
+      scheduledPosts = (data.posts || []).filter(function(p) {
+        return p.status === 'scheduled' || p.status === 'publishing';
+      });
+    }
+  } catch(e) { /* fallback to empty */ }
+
+  container.innerHTML = "";
+
+  if (scheduledPosts.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;font-size:14px;">No scheduled posts yet. Posts will appear here once they are scheduled.</div>';
     return;
   }
-  
-  // Group by month
+
+  // Group by month using scheduledAt date
   const groupedByMonth = {};
   const monthKeys = [];
-  itemsWithDate.forEach(item => {
-    const date = new Date(item.postDate);
+  scheduledPosts.forEach(item => {
+    const date = new Date(item.scheduledAt);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
     if (!groupedByMonth[monthKey]) {
-      groupedByMonth[monthKey] = {
-        label: monthLabel,
-        items: []
-      };
+      groupedByMonth[monthKey] = { label: monthLabel, items: [] };
       monthKeys.push(monthKey);
     }
     groupedByMonth[monthKey].items.push(item);
   });
-  
-  // Sort months (ascending) by key
+
   monthKeys.sort((a, b) => a.localeCompare(b));
-  
-  // Mini 7-column calendar grid (current month)
-  var now = new Date();
-  var year = now.getFullYear(), month = now.getMonth();
-  var firstDay = new Date(year, month, 1);
-  var daysInMonth = new Date(year, month + 1, 0).getDate();
-  var dayAbbrs = ["S","M","T","W","T","F","S"];
-  var daysWithPosts = {};
-  itemsWithDate.forEach(function(item){
-    var d = new Date(item.postDate);
-    if (d.getFullYear() === year && d.getMonth() === month) {
-      var day = d.getDate();
-      daysWithPosts[day] = (daysWithPosts[day] || []).concat(item);
-    }
-  });
-  // Mini calendar grid hidden — only card view shown
-  var miniWrap = el("div", { class: "calendar-mini-wrap", style: "display:none;" });
-  var miniGrid = el("div", { class: "calendar-mini-grid" });
-  dayAbbrs.forEach(function(abbr){
-    var cell = el("div", { class: "cal-day-abbr" });
-    cell.textContent = abbr;
-    miniGrid.appendChild(cell);
-  });
-  var startDow = firstDay.getDay();
-  for (var i = 0; i < startDow; i++) {
-    var empty = el("div", { class: "cal-day-cell" });
-    miniGrid.appendChild(empty);
-  }
-  for (var d = 1; d <= daysInMonth; d++) {
-    var cell = el("div", { class: "cal-day-cell" });
-    cell.textContent = d;
-    if (daysWithPosts[d] && daysWithPosts[d].length) {
-      cell.classList.add("has-post");
-      cell.setAttribute("data-day", d);
-      (function(dayNum, posts){
-        cell.addEventListener("click", function(){
-          var firstRow = container.querySelector("[data-post-date='" + year + "-" + String(month+1).padStart(2,"0") + "-" + String(dayNum).padStart(2,"0") + "']");
-          if (firstRow) firstRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        });
-      })(d, daysWithPosts[d]);
-    }
-    if (d === now.getDate() && now.getMonth() === month && now.getFullYear() === year) cell.classList.add("today");
-    miniGrid.appendChild(cell);
-  }
-  miniWrap.appendChild(miniGrid);
-  container.appendChild(miniWrap);
-  
+
   monthKeys.forEach(monthKey => {
     const monthData = groupedByMonth[monthKey];
     const monthGroup = el("div", { class: "calendar-month-group" });
-    
-    // Get month index (0-11) for color coding
-    const firstPostDate = new Date(monthData.items[0].postDate);
+
+    const firstPostDate = new Date(monthData.items[0].scheduledAt);
     const monthIndex = firstPostDate.getMonth();
-    
-    // Month header with colored background
-    const monthHeader = el("div", { 
-      class: `calendar-month-header month-${monthIndex}`
-    });
+
+    const monthHeader = el("div", { class: `calendar-month-header month-${monthIndex}` });
     monthHeader.textContent = monthData.label.toUpperCase();
     monthGroup.appendChild(monthHeader);
-    
-    // Posts for this month - sort by date
-    const posts = monthData.items.sort((a, b) => {
-      return new Date(a.postDate) - new Date(b.postDate);
-    });
-    
+
+    const posts = monthData.items.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+
     posts.forEach(item => {
-      const date = new Date(item.postDate);
+      const date = new Date(item.scheduledAt);
       const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      
-      // Use the same row format as approval items
-      const titleRow = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px;" });
+      const formattedTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+      const titleRow = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;" });
       const titleDiv = el("div", { class: "title-text", style: "font-size:16px;font-weight:600;color:#1e40af;" });
-      titleDiv.textContent = item.title || "Untitled";
+      // Use caption preview as title
+      var caption = item.caption || '';
+      titleDiv.textContent = caption.length > 50 ? caption.substring(0, 50) + '...' : (caption || 'Scheduled Post');
       titleRow.appendChild(titleDiv);
-      
-      // Status chip - "Scheduled"
+
+      // Platform badges
+      (item.platforms || []).forEach(function(p) {
+        var badge = el("span", { style: "font-size:12px;padding:2px 8px;border-radius:10px;background:#dbeafe;color:#1e40af;font-weight:500;" });
+        badge.textContent = p === 'instagram' ? '📷 IG' : p === 'facebook' ? '📘 FB' : p;
+        titleRow.appendChild(badge);
+      });
+
+      // Scheduled chip
       const statusChip = el("span", {
-        style: `font-size:14px;line-height:18px;font-weight:500;padding:4px 10px;border-radius:12px;background:#d1fae5;color:#065f46;`
+        style: "font-size:13px;line-height:18px;font-weight:500;padding:3px 10px;border-radius:12px;background:#d1fae5;color:#065f46;"
       });
       statusChip.textContent = 'Scheduled';
       titleRow.appendChild(statusChip);
-      
-      // Date below title
+
+      // Date + time below title
       const postDate = el("div", { style: "font-size:14px;line-height:18px;font-weight:400;color:var(--text-secondary);margin-top:2px;" });
-      postDate.textContent = formattedDate;
-      
-      // Left content container
+      postDate.textContent = formattedDate + ' at ' + formattedTime;
+
       const left = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;" });
       left.appendChild(titleRow);
       left.appendChild(postDate);
-      
-      // Right side - arrow icon (optional, for consistency)
+
       const right = el("div", { style: "display:flex;align-items:center;flex-shrink:0;margin-left:16px;" });
       const arrowIcon = el("div", {
         style: "width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1e40af;flex-shrink:0;"
       });
       arrowIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-      arrowIcon.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (typeof window.openApprovalModal === 'function') {
-          window.openApprovalModal(item.id);
-        }
-      });
       right.appendChild(arrowIcon);
-      
-      // Row container (same style as approval rows)
+
       var dateKey = date.getFullYear() + "-" + String(date.getMonth()+1).padStart(2,"0") + "-" + String(date.getDate()).padStart(2,"0");
       const row = el("div", {
-        class: "approval-item-row", 
+        class: "approval-item-row",
         "data-post-date": dateKey,
         style: "display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border-radius:12px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer;transition:all 0.2s ease;margin-bottom:12px;"
       });
-      
-      // Add click handler to open modal
-      row.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (typeof window.openApprovalModal === 'function') {
-          window.openApprovalModal(item.id);
-        }
-      });
-      
+
       row.addEventListener('mouseenter', function() {
         this.style.boxShadow = '0 4px 8px rgba(0,0,0,.15)';
         this.style.transform = 'translateY(-1px)';
@@ -3571,13 +3523,12 @@ function renderCalendar(){
         this.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
         this.style.transform = 'translateY(0)';
       });
-      
+
       row.appendChild(left);
       row.appendChild(right);
-      
       monthGroup.appendChild(row);
     });
-    
+
     container.appendChild(monthGroup);
   });
 }
