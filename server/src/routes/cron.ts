@@ -123,79 +123,123 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
     saveScheduledPost(post);
 
     const metaPostIds: { instagram?: string; facebook?: string } = {};
-    let error: string | undefined;
+    const platformErrors: string[] = [];
 
     const isCarousel = Array.isArray(post.mediaUrls) && post.mediaUrls.length > 1;
     const carouselUrls = isCarousel ? post.mediaUrls!.filter((u: string) => u && u.startsWith('http')) : [];
 
-    try {
-      if (post.platforms.includes('facebook')) {
+    console.log(`[cron] Publishing post ${post.id} | platforms: ${post.platforms.join(',')} | carousel: ${isCarousel} (${carouselUrls.length} urls) | mediaUrl: ${(post.mediaUrl || '').slice(0, 80)}`);
+
+    // ── Facebook ──
+    if (post.platforms.includes('facebook')) {
+      try {
         if (isCarousel && carouselUrls.length >= 2) {
-          // Multi-photo carousel
           console.log(`[cron] Publishing CAROUSEL (${carouselUrls.length} images) to Facebook...`);
           const result = await publishMultiPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             urls: carouselUrls, caption: post.caption,
           });
           metaPostIds.facebook = result.id;
+          console.log(`[cron] Facebook carousel published: ${result.id}`);
         } else if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
           const result = await publishPhotoToFacebook(integration.metaPageId, integration.metaAccessToken, {
             url: post.mediaUrl,
             caption: post.caption,
           });
           metaPostIds.facebook = result.id;
+          console.log(`[cron] Facebook photo published: ${result.id}`);
         } else {
           const result = await publishToFacebook(integration.metaPageId, integration.metaAccessToken, {
             message: post.caption,
           });
           metaPostIds.facebook = result.id;
+          console.log(`[cron] Facebook text post published: ${result.id}`);
+        }
+      } catch (fbErr: any) {
+        const fbError = `Facebook: ${fbErr.message || 'Unknown error'}`;
+        console.error(`[cron] Facebook publish FAILED for post ${post.id}:`, fbErr.message);
+        platformErrors.push(fbError);
+      }
+    }
+
+    // ── Instagram ──
+    if (post.platforms.includes('instagram')) {
+      if (!integration.metaInstagramAccountId) {
+        const igError = 'Instagram: No Instagram Business Account linked to this Facebook page';
+        console.error(`[cron] ${igError} for post ${post.id}`);
+        platformErrors.push(igError);
+      } else {
+        try {
+          if (isCarousel && carouselUrls.length >= 2) {
+            console.log(`[cron] Publishing CAROUSEL (${carouselUrls.length} images) to Instagram...`);
+            const publishResult = await publishInstagramCarousel(
+              integration.metaInstagramAccountId, integration.metaAccessToken,
+              carouselUrls, post.caption
+            );
+            metaPostIds.instagram = publishResult.id;
+            console.log(`[cron] Instagram carousel published: ${publishResult.id}`);
+          } else if (post.mediaUrl && post.mediaUrl.startsWith('http')) {
+            const container = await createInstagramMediaContainer(
+              integration.metaInstagramAccountId,
+              integration.metaAccessToken,
+              { image_url: post.mediaUrl, caption: post.caption }
+            );
+            console.log(`[cron] Instagram container created: ${container.id}, waiting for processing...`);
+            await waitForInstagramContainer(container.id, integration.metaAccessToken, 60000);
+            const publishResult = await publishInstagramContainer(
+              integration.metaInstagramAccountId,
+              integration.metaAccessToken,
+              container.id
+            );
+            metaPostIds.instagram = publishResult.id;
+            console.log(`[cron] Instagram photo published: ${publishResult.id}`);
+          } else {
+            const igError = 'Instagram: No valid media URL (Instagram requires an image or video)';
+            console.error(`[cron] ${igError} for post ${post.id}`);
+            platformErrors.push(igError);
+          }
+        } catch (igErr: any) {
+          const igError = `Instagram: ${igErr.message || 'Unknown error'}`;
+          console.error(`[cron] Instagram publish FAILED for post ${post.id}:`, igErr.message);
+          platformErrors.push(igError);
         }
       }
+    }
 
-      if (post.platforms.includes('instagram') && integration.metaInstagramAccountId) {
-        if (isCarousel && carouselUrls.length >= 2) {
-          // Carousel post
-          console.log(`[cron] Publishing CAROUSEL (${carouselUrls.length} images) to Instagram...`);
-          const publishResult = await publishInstagramCarousel(
-            integration.metaInstagramAccountId, integration.metaAccessToken,
-            carouselUrls, post.caption
-          );
-          metaPostIds.instagram = publishResult.id;
-        } else {
-          const container = await createInstagramMediaContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            { image_url: post.mediaUrl, caption: post.caption }
-          );
-          await waitForInstagramContainer(container.id, integration.metaAccessToken, 30000);
-          const publishResult = await publishInstagramContainer(
-            integration.metaInstagramAccountId,
-            integration.metaAccessToken,
-            container.id
-          );
-          metaPostIds.instagram = publishResult.id;
-        }
-      }
+    // ── Determine final status ──
+    const hasAnySuccess = !!(metaPostIds.facebook || metaPostIds.instagram);
+    const hasAnyFailure = platformErrors.length > 0;
 
+    if (hasAnySuccess && !hasAnyFailure) {
       post.status = 'published';
       post.publishedAt = new Date().toISOString();
       post.metaPostIds = metaPostIds;
       delete post.error;
       results.push({ id: post.id, status: 'published' });
-      // Fire-and-forget push notifications
-      const clientName = getClient(post.clientId)?.name || 'Client';
-      sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
-        clientName,
-        post.platforms.join(' & ')
-      )).catch(() => {});
-      // Notify client their post went live
-      sendPushToClient(post.clientId, NOTIFY.clientPostLive(
-        post.platforms.join(' & ')
-      )).catch(() => {});
-    } catch (err: any) {
-      error = err.message || 'Publish failed';
+    } else if (hasAnySuccess && hasAnyFailure) {
+      // Partial success
+      post.status = 'published';
+      post.publishedAt = new Date().toISOString();
+      post.metaPostIds = metaPostIds;
+      post.error = 'Partial: ' + platformErrors.join(' | ');
+      results.push({ id: post.id, status: 'partial', error: post.error });
+      console.warn(`[cron] PARTIAL publish for post ${post.id}: ${post.error}`);
+    } else {
       post.status = 'failed';
-      post.error = error;
-      results.push({ id: post.id, status: 'failed', error });
+      post.error = platformErrors.join(' | ') || 'All platforms failed';
+      results.push({ id: post.id, status: 'failed', error: post.error });
+      console.error(`[cron] FULL FAILURE for post ${post.id}: ${post.error}`);
+    }
+
+    // Push notifications on any success
+    if (hasAnySuccess) {
+      const clientName = getClient(post.clientId)?.name || 'Client';
+      const publishedPlatforms = [metaPostIds.facebook ? 'Facebook' : '', metaPostIds.instagram ? 'Instagram' : ''].filter(Boolean).join(' & ');
+      sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
+        clientName, publishedPlatforms
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(
+        publishedPlatforms
+      )).catch(() => {});
     }
 
     post.updatedAt = new Date().toISOString();

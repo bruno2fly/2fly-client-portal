@@ -8137,27 +8137,9 @@ function setupImageUpload() {
           });
 
           if (currentClientId) {
-            var assetId = 'asset' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-            var uploadAsset = {
-              id: assetId,
-              title: file.name,
-              sourceType: 'UPLOAD',
-              sourceProvider: 'LOCAL_UPLOAD',
-              url: dataUrl,
-              mediaType: 'VIDEO',
-              formatUse: 'ANY',
-              pillars: [],
-              approvalStatus: 'PENDING',
-              clientNotes: '',
-              internalNotes: ''
-            };
-            saveAsset(currentClientId, uploadAsset);
-            postSelectedAssetIds.push(assetId);
-            renderApprovedVisualsSection();
-            updatePostFormFromAssets();
-            var warnEl = $('#postUploadApprovalWarning');
-            if (warnEl) warnEl.style.display = 'block';
-            showToast(`${file.name} added; you can use it in posts.`, 'success');
+            uploadedImages.push({ dataUrl: dataUrl, name: file.name, type: file.type, size: file.size });
+            displayUploadedImages();
+            showToast(`${file.name} uploaded successfully`, 'success');
           } else {
             uploadedImages.push({ dataUrl: dataUrl, name: file.name, type: file.type, size: file.size });
             displayUploadedImages();
@@ -8177,33 +8159,9 @@ function setupImageUpload() {
             compressed = moreCompressed;
           }
 
-          if (currentClientId) {
-            var assetId = 'asset' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-            var uploadAsset = {
-              id: assetId,
-              title: file.name,
-              sourceType: 'UPLOAD',
-              sourceProvider: 'LOCAL_UPLOAD',
-              url: compressed.dataUrl,
-              mediaType: 'PHOTO',
-              formatUse: 'ANY',
-              pillars: [],
-              approvalStatus: 'PENDING',
-              clientNotes: '',
-              internalNotes: ''
-            };
-            saveAsset(currentClientId, uploadAsset);
-            postSelectedAssetIds.push(assetId);
-            renderApprovedVisualsSection();
-            updatePostFormFromAssets();
-            var warnEl = $('#postUploadApprovalWarning');
-            if (warnEl) warnEl.style.display = 'block';
-            showToast(`${file.name} added; you can use it in posts.`, 'success');
-          } else {
-            uploadedImages.push(compressed);
-            displayUploadedImages();
-            showToast(`${file.name} uploaded successfully`, 'success');
-          }
+          uploadedImages.push(compressed);
+          displayUploadedImages();
+          showToast(`${file.name} uploaded successfully`, 'success');
         }
       } catch (error) {
         console.error('Error processing file:', error);

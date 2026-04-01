@@ -473,17 +473,26 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       delete post.error;
     } catch (err: any) {
       error = err.message || 'Publish failed';
-      post.status = 'failed';
-      post.error = error;
+      console.error(`[publish-now] FAILED for post ${post.id}:`, error);
+      // If we got partial success (e.g. FB worked but IG failed), mark as published with error
+      if (metaPostIds.facebook || metaPostIds.instagram) {
+        post.status = 'published';
+        post.publishedAt = new Date().toISOString();
+        post.metaPostIds = metaPostIds;
+        post.error = 'Partial: ' + error;
+      } else {
+        post.status = 'failed';
+        post.error = error;
+      }
     }
 
     post.updatedAt = new Date().toISOString();
     saveScheduledPost(post);
 
     // Auto-save images to References when published successfully
-    if (!error && post.status === 'published') {
+    if (post.status === 'published') {
       try {
-        const { saveReference, referenceExistsForUrl, type ReferenceImage } = await import('../db.js');
+        const { saveReference, referenceExistsForUrl } = await import('../db.js');
         const { generateId: genRefId } = await import('../utils/auth.js');
         const allUrls: string[] = [];
         if (post.mediaUrl && post.mediaUrl.startsWith('http')) allUrls.push(post.mediaUrl);
@@ -512,9 +521,9 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       }
     }
 
-    if (error) {
+    if (post.status === 'failed') {
       // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
-      return res.status(422).json({ error, post });
+      return res.status(422).json({ error: post.error || error, post });
     }
     // Fire-and-forget push notifications for successful publish
     const clientName = getClient(post.clientId)?.name || 'Client';
