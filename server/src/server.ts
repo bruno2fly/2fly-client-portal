@@ -372,6 +372,42 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 2Fly Server running on http://localhost:${PORT}`);
   console.log(`📁 Uploads directory: ${join(process.cwd(), 'uploads')}`);
   console.log(`💾 Data directory: ${join(process.cwd(), 'data')}`);
+
+  // ── Built-in publish timer (every 2 minutes) ──
+  // The Vercel cron in vercel.json only works on Vercel, not Railway.
+  // This timer runs inside the Express process to publish due scheduled posts.
+  const PUBLISH_INTERVAL = 2 * 60 * 1000; // 2 minutes
+  setInterval(async () => {
+    try {
+      const baseUrl = `http://localhost:${PORT}`;
+      const secret = process.env.CRON_SECRET || '';
+      const url = `${baseUrl}/api/cron/publish-posts?retry=1&secret=${encodeURIComponent(secret)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (data.processed > 0) {
+        console.log(`[auto-publish] Processed ${data.processed} posts:`, JSON.stringify(data.results));
+      }
+    } catch (err: any) {
+      console.error('[auto-publish] Timer error:', err.message);
+    }
+  }, PUBLISH_INTERVAL);
+  console.log(`⏰ Auto-publish timer started (every 2 min)`);
+
+  // ── Token refresh timer (every 6 hours) ──
+  const REFRESH_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+  setInterval(async () => {
+    try {
+      const baseUrl = `http://localhost:${PORT}`;
+      const secret = process.env.CRON_SECRET || '';
+      const url = `${baseUrl}/api/cron/refresh-tokens?secret=${encodeURIComponent(secret)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      console.log(`[auto-refresh] Token refresh completed:`, JSON.stringify(data));
+    } catch (err: any) {
+      console.error('[auto-refresh] Timer error:', err.message);
+    }
+  }, REFRESH_INTERVAL);
+  console.log(`🔑 Token refresh timer started (every 6 hours)`);
 });
 
 // Increase server timeouts for long-running requests (AI image generation)
