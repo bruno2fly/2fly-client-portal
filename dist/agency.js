@@ -1291,58 +1291,67 @@ function renderClientsSidebar() {
   });
 }
 
-/* ================== Dashboard-Level Panels (All-Client Calendar + Connections) ================== */
+/* ================== Dashboard-Level Views (All-Client Calendar + Connections) ================== */
 var dashCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 var dashCalendarFilterClient = ''; // '' = all clients
-var dashPanelVisible = false;
+var currentDashView = ''; // '' | 'calendar' | 'connections'
 
 function initDashboardPanels() {
   var calBtn = document.getElementById('sidebarCalendarBtn');
   var connBtn = document.getElementById('sidebarConnectionsBtn');
-  var panelCalBtn = document.getElementById('dashPanelCalBtn');
-  var panelConnBtn = document.getElementById('dashPanelConnBtn');
-  var closeBtn = document.getElementById('dashPanelCloseBtn');
 
-  if (calBtn) calBtn.addEventListener('click', function() { showDashPanel('calendar'); });
-  if (connBtn) connBtn.addEventListener('click', function() { showDashPanel('connections'); });
-  if (panelCalBtn) panelCalBtn.addEventListener('click', function() { switchDashPanel('calendar'); });
-  if (panelConnBtn) panelConnBtn.addEventListener('click', function() { switchDashPanel('connections'); });
-  if (closeBtn) closeBtn.addEventListener('click', function() { hideDashPanels(); });
+  if (calBtn) calBtn.addEventListener('click', function() { openDashView('calendar'); });
+  if (connBtn) connBtn.addEventListener('click', function() { openDashView('connections'); });
 }
 
-function showDashPanel(which) {
-  var wrap = document.getElementById('dashboardTopPanels');
-  if (!wrap) return;
-  wrap.style.display = 'block';
-  dashPanelVisible = true;
-  switchDashPanel(which);
-}
+function openDashView(which) {
+  currentDashView = which;
 
-function hideDashPanels() {
-  var wrap = document.getElementById('dashboardTopPanels');
-  if (wrap) wrap.style.display = 'none';
-  dashPanelVisible = false;
-}
+  // Hide all client content
+  var clientWrap = document.getElementById('clientContentWrap');
+  if (clientWrap) clientWrap.style.display = 'none';
 
-function switchDashPanel(which) {
-  var calPanel = document.getElementById('dashCalendarPanel');
-  var connPanel = document.getElementById('dashConnectionsPanel');
-  var calBtn = document.getElementById('dashPanelCalBtn');
-  var connBtn = document.getElementById('dashPanelConnBtn');
+  var calView = document.getElementById('dashCalendarView');
+  var connView = document.getElementById('dashConnectionsView');
+
+  // Update sidebar button styles
+  var calBtn = document.getElementById('sidebarCalendarBtn');
+  var connBtn = document.getElementById('sidebarConnectionsBtn');
 
   if (which === 'calendar') {
-    if (calPanel) calPanel.style.display = 'block';
-    if (connPanel) connPanel.style.display = 'none';
-    if (calBtn) { calBtn.style.background = '#1a56db'; calBtn.style.color = 'white'; calBtn.style.borderColor = '#1a56db'; }
-    if (connBtn) { connBtn.style.background = 'white'; connBtn.style.color = '#475569'; connBtn.style.borderColor = '#e2e8f0'; }
+    if (calView) calView.style.display = 'block';
+    if (connView) connView.style.display = 'none';
+    if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.35)'; calBtn.style.borderColor = '#3b82f6'; }
+    if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.12)'; connBtn.style.borderColor = 'rgba(16,185,129,0.25)'; }
     renderDashCalendar();
   } else {
-    if (calPanel) calPanel.style.display = 'none';
-    if (connPanel) connPanel.style.display = 'block';
-    if (connBtn) { connBtn.style.background = '#1a56db'; connBtn.style.color = 'white'; connBtn.style.borderColor = '#1a56db'; }
-    if (calBtn) { calBtn.style.background = 'white'; calBtn.style.color = '#475569'; calBtn.style.borderColor = '#e2e8f0'; }
+    if (calView) calView.style.display = 'none';
+    if (connView) connView.style.display = 'block';
+    if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.3)'; connBtn.style.borderColor = '#10b981'; }
+    if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.15)'; calBtn.style.borderColor = 'rgba(26,86,219,0.3)'; }
     renderDashConnections();
   }
+
+  // Deselect client tiles visually
+  document.querySelectorAll('.client-tile').forEach(function(t) { t.classList.remove('active'); });
+}
+
+function closeDashView() {
+  currentDashView = '';
+  var calView = document.getElementById('dashCalendarView');
+  var connView = document.getElementById('dashConnectionsView');
+  if (calView) calView.style.display = 'none';
+  if (connView) connView.style.display = 'none';
+
+  // Show client content again
+  var clientWrap = document.getElementById('clientContentWrap');
+  if (clientWrap) clientWrap.style.display = '';
+
+  // Reset sidebar button styles
+  var calBtn = document.getElementById('sidebarCalendarBtn');
+  var connBtn = document.getElementById('sidebarConnectionsBtn');
+  if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.15)'; calBtn.style.borderColor = 'rgba(26,86,219,0.3)'; }
+  if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.12)'; connBtn.style.borderColor = 'rgba(16,185,129,0.25)'; }
 }
 
 /* ── Dashboard Calendar (all clients) ── */
@@ -1973,6 +1982,8 @@ async function selectClient(clientId) {
   const clients = loadClientsRegistry();
   const client = clients[clientId];
   if (!client) return;
+  // Close any active dashboard view and show client content
+  if (currentDashView) closeDashView();
   currentClientId = clientId;
   for (const k of Object.keys(metaStatusCache)) delete metaStatusCache[k];
   try {
