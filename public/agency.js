@@ -1291,6 +1291,684 @@ function renderClientsSidebar() {
   });
 }
 
+/* ================== Dashboard-Level Panels (All-Client Calendar + Connections) ================== */
+var dashCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+var dashCalendarFilterClient = ''; // '' = all clients
+var dashPanelVisible = false;
+
+function initDashboardPanels() {
+  var calBtn = document.getElementById('sidebarCalendarBtn');
+  var connBtn = document.getElementById('sidebarConnectionsBtn');
+  var panelCalBtn = document.getElementById('dashPanelCalBtn');
+  var panelConnBtn = document.getElementById('dashPanelConnBtn');
+  var closeBtn = document.getElementById('dashPanelCloseBtn');
+
+  if (calBtn) calBtn.addEventListener('click', function() { showDashPanel('calendar'); });
+  if (connBtn) connBtn.addEventListener('click', function() { showDashPanel('connections'); });
+  if (panelCalBtn) panelCalBtn.addEventListener('click', function() { switchDashPanel('calendar'); });
+  if (panelConnBtn) panelConnBtn.addEventListener('click', function() { switchDashPanel('connections'); });
+  if (closeBtn) closeBtn.addEventListener('click', function() { hideDashPanels(); });
+}
+
+function showDashPanel(which) {
+  var wrap = document.getElementById('dashboardTopPanels');
+  if (!wrap) return;
+  wrap.style.display = 'block';
+  dashPanelVisible = true;
+  switchDashPanel(which);
+}
+
+function hideDashPanels() {
+  var wrap = document.getElementById('dashboardTopPanels');
+  if (wrap) wrap.style.display = 'none';
+  dashPanelVisible = false;
+}
+
+function switchDashPanel(which) {
+  var calPanel = document.getElementById('dashCalendarPanel');
+  var connPanel = document.getElementById('dashConnectionsPanel');
+  var calBtn = document.getElementById('dashPanelCalBtn');
+  var connBtn = document.getElementById('dashPanelConnBtn');
+
+  if (which === 'calendar') {
+    if (calPanel) calPanel.style.display = 'block';
+    if (connPanel) connPanel.style.display = 'none';
+    if (calBtn) { calBtn.style.background = '#1a56db'; calBtn.style.color = 'white'; calBtn.style.borderColor = '#1a56db'; }
+    if (connBtn) { connBtn.style.background = 'white'; connBtn.style.color = '#475569'; connBtn.style.borderColor = '#e2e8f0'; }
+    renderDashCalendar();
+  } else {
+    if (calPanel) calPanel.style.display = 'none';
+    if (connPanel) connPanel.style.display = 'block';
+    if (connBtn) { connBtn.style.background = '#1a56db'; connBtn.style.color = 'white'; connBtn.style.borderColor = '#1a56db'; }
+    if (calBtn) { calBtn.style.background = 'white'; calBtn.style.color = '#475569'; calBtn.style.borderColor = '#e2e8f0'; }
+    renderDashConnections();
+  }
+}
+
+/* ── Dashboard Calendar (all clients) ── */
+async function renderDashCalendar() {
+  var container = document.getElementById('dashCalendarContent');
+  if (!container) return;
+
+  var clients = loadClientsRegistry();
+  var clientList = Object.values(clients);
+
+  // Fetch ALL scheduled posts (no client filter or filtered)
+  var params = new URLSearchParams();
+  if (dashCalendarFilterClient) params.set('clientId', dashCalendarFilterClient);
+
+  var allPosts = [];
+  try {
+    var r = await fetch(getApiBaseUrl() + '/api/posts/scheduled?' + params, { credentials: 'include' });
+    var ct = r.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      var j = await r.json();
+      if (r.ok && j.posts) allPosts = j.posts;
+    }
+  } catch (e) { console.warn('Dashboard calendar fetch:', e.message); }
+
+  var calY = dashCalendarMonth.getFullYear();
+  var calM = dashCalendarMonth.getMonth();
+  var monthName = dashCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  var todayStr = new Date().toDateString();
+
+  // Build day map
+  var dayData = {};
+  function ensureDay(key) { if (!dayData[key]) dayData[key] = []; }
+
+  allPosts.forEach(function(p) {
+    if (!p.scheduledAt) return;
+    var d = new Date(p.scheduledAt);
+    var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    ensureDay(key);
+    // Find client name
+    var cName = 'Unknown';
+    if (p.clientId && clients[p.clientId]) cName = clients[p.clientId].name;
+    dayData[key].push({
+      id: p.id, caption: p.caption || '', status: p.status || 'scheduled',
+      platforms: p.platforms || [], scheduledAt: p.scheduledAt,
+      clientId: p.clientId, clientName: cName, error: p.error || ''
+    });
+  });
+
+  var calDays = getCalendarDays(calY, calM);
+  injectCalendarStyles();
+
+  // Counts
+  var scheduledCount = 0, publishedCount = 0, failedCount = 0;
+  allPosts.forEach(function(p) {
+    var d = new Date(p.scheduledAt);
+    if (d.getMonth() === calM && d.getFullYear() === calY) {
+      if (p.status === 'published') publishedCount++;
+      else if (p.status === 'failed') failedCount++;
+      else scheduledCount++;
+    }
+  });
+
+  var html = '';
+
+  // ── Header row: nav + client filter ──
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">';
+  html += '<div style="display:flex;align-items:center;gap:14px;">';
+  html += '<button type="button" class="dash-cal-nav" data-offset="-1" style="padding:10px 16px;border:1px solid #e2e8f0;background:white;border-radius:10px;cursor:pointer;font-size:20px;line-height:1;">&lsaquo;</button>';
+  html += '<h3 style="margin:0;font-size:22px;font-weight:800;color:#0f172a;min-width:200px;text-align:center;">' + monthName + '</h3>';
+  html += '<button type="button" class="dash-cal-nav" data-offset="1" style="padding:10px 16px;border:1px solid #e2e8f0;background:white;border-radius:10px;cursor:pointer;font-size:20px;line-height:1;">&rsaquo;</button>';
+  html += '</div>';
+
+  // Client filter dropdown
+  html += '<div style="display:flex;align-items:center;gap:10px;">';
+  html += '<select id="dashCalClientFilter" style="padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:600;color:#334155;background:white;cursor:pointer;min-width:160px;">';
+  html += '<option value="">All Clients</option>';
+  clientList.forEach(function(c) {
+    html += '<option value="' + c.id + '"' + (dashCalendarFilterClient === c.id ? ' selected' : '') + '>' + (c.name || c.id) + '</option>';
+  });
+  html += '</select>';
+  html += '</div></div>';
+
+  // ── Legend + stats ──
+  html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#065f46;"><div style="width:10px;height:10px;border-radius:3px;background:#10b981;"></div> Scheduled (' + scheduledCount + ')</div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#059669;"><div style="width:10px;height:10px;border-radius:3px;background:#22c55e;"></div> Published (' + publishedCount + ')</div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#dc2626;"><div style="width:10px;height:10px;border-radius:3px;background:#ef4444;"></div> Failed (' + failedCount + ')</div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#1e40af;"><div style="width:10px;height:10px;border-radius:50%;background:#1a56db;"></div> Today</div>';
+  html += '</div>';
+
+  // ── Calendar grid ──
+  html += '<div class="cal-grid">';
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function(day) {
+    html += '<div class="cal-header-cell">' + day + '</div>';
+  });
+  calDays.forEach(function(day) {
+    var isOtherMonth = day.getMonth() !== calM;
+    var isToday = day.toDateString() === todayStr;
+    var dayNum = day.getDate();
+    var dateKey = day.getFullYear() + '-' + String(day.getMonth() + 1).padStart(2, '0') + '-' + String(day.getDate()).padStart(2, '0');
+    var dd = dayData[dateKey] || [];
+    var cls = 'cal-day';
+    if (isOtherMonth) cls += ' other-month';
+    if (isToday) cls += ' today';
+    html += '<div class="' + cls + '" data-date="' + dateKey + '">';
+    html += '<div class="cal-day-number">' + dayNum + '</div>';
+    html += '<div class="cal-day-events">';
+
+    dd.forEach(function(item) {
+      var statusColor = item.status === 'published' ? '#22c55e' : item.status === 'failed' ? '#ef4444' : '#10b981';
+      var statusBg = item.status === 'published' ? '#dcfce7' : item.status === 'failed' ? '#fee2e2' : '#d1fae5';
+      var statusBorder = item.status === 'published' ? '#22c55e' : item.status === 'failed' ? '#ef4444' : '#10b981';
+      var platformIcons = (item.platforms || []).map(function(pl) { return pl === 'instagram' ? '📷' : pl === 'facebook' ? '📘' : '🔗'; }).join('');
+      var timeStr = new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      var captionShort = (item.caption || '').slice(0, 25);
+      html += '<div class="dash-cal-post" data-post-id="' + item.id + '" style="padding:3px 6px;border-radius:5px;font-size:10px;background:' + statusBg + ';border-left:3px solid ' + statusBorder + ';cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-bottom:2px;transition:opacity .15s;" title="' + (item.clientName || '') + ' — ' + timeStr + '">';
+      html += '<span style="font-weight:700;color:' + statusColor + ';">' + platformIcons + '</span> ';
+      html += '<span style="color:#475569;">' + (captionShort || timeStr) + '</span>';
+      html += '</div>';
+    });
+
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // Stats row
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;">';
+  html += '<div style="text-align:center;padding:16px;background:#ecfdf5;border-radius:12px;border:1px solid #a7f3d0;">';
+  html += '<div style="font-size:28px;font-weight:800;color:#059669;">' + scheduledCount + '</div>';
+  html += '<div style="font-size:12px;color:#065f46;font-weight:600;">Scheduled</div></div>';
+  html += '<div style="text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;">';
+  html += '<div style="font-size:28px;font-weight:800;color:#16a34a;">' + publishedCount + '</div>';
+  html += '<div style="font-size:12px;color:#166534;font-weight:600;">Published</div></div>';
+  html += '<div style="text-align:center;padding:16px;background:#fef2f2;border-radius:12px;border:1px solid #fecaca;">';
+  html += '<div style="font-size:28px;font-weight:800;color:#dc2626;">' + failedCount + '</div>';
+  html += '<div style="font-size:12px;color:#991b1b;font-weight:600;">Failed</div></div>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // Store posts for detail clicks
+  container._dashPosts = allPosts;
+
+  // Nav buttons
+  container.querySelectorAll('.dash-cal-nav').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var off = parseInt(btn.getAttribute('data-offset'), 10);
+      dashCalendarMonth = new Date(dashCalendarMonth.getFullYear(), dashCalendarMonth.getMonth() + off, 1);
+      renderDashCalendar();
+    });
+  });
+
+  // Client filter
+  var filterSel = document.getElementById('dashCalClientFilter');
+  if (filterSel) {
+    filterSel.addEventListener('change', function() {
+      dashCalendarFilterClient = filterSel.value;
+      renderDashCalendar();
+    });
+  }
+
+  // Click on individual post chips → open detail modal with actions
+  container.querySelectorAll('.dash-cal-post').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var postId = chip.getAttribute('data-post-id');
+      var post = (container._dashPosts || []).find(function(p) { return p.id === postId; });
+      if (post) showDashPostDetail(post);
+    });
+  });
+
+  // Click on day cell → show day summary modal
+  container.querySelectorAll('.cal-day').forEach(function(dayCell) {
+    dayCell.style.cursor = 'pointer';
+    dayCell.addEventListener('click', function(e) {
+      if (e.target.closest('.dash-cal-post')) return;
+      var dateKey = dayCell.getAttribute('data-date');
+      if (!dateKey) return;
+      var dd = dayData[dateKey] || [];
+      if (dd.length === 0) return;
+      showDashDayModal(dateKey, dd);
+    });
+  });
+}
+
+/* Show day detail modal for the dashboard calendar */
+function showDashDayModal(dateKey, posts) {
+  var clients = loadClientsRegistry();
+  var modalBg = document.createElement('div');
+  modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:white;border-radius:16px;padding:28px;max-width:520px;width:92%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);';
+
+  var parts = dateKey.split('-');
+  var dateLabel = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+  h += '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;">' + dateLabel + '</h3>';
+  h += '<button type="button" class="dash-day-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;">&times;</button></div>';
+
+  h += '<div style="font-size:13px;color:#64748b;margin-bottom:16px;">' + posts.length + ' post' + (posts.length > 1 ? 's' : '') + '</div>';
+
+  posts.forEach(function(item, idx) {
+    var timeStr = new Date(item.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    var platformIcons = (item.platforms || []).map(function(pl) { return pl === 'instagram' ? '📷 IG' : pl === 'facebook' ? '📘 FB' : pl; }).join(' ');
+    var stColor = item.status === 'published' ? '#059669' : item.status === 'failed' ? '#dc2626' : '#2563eb';
+    var stBg = item.status === 'published' ? '#d1fae5' : item.status === 'failed' ? '#fee2e2' : '#dbeafe';
+    var stLabel = item.status === 'published' ? '✓ Published' : item.status === 'failed' ? '✗ Failed' : item.status === 'cancelled' ? '🚫 Cancelled' : '⏰ Scheduled';
+    var captionShort = (item.caption || 'No caption').slice(0, 60).replace(/</g, '&lt;');
+
+    h += '<div class="dash-day-card" data-idx="' + idx + '" style="padding:14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:10px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'#f8fafc\'">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    h += '<span style="font-size:13px;font-weight:700;color:#0f172a;">' + (item.clientName || 'Unknown') + '</span>';
+    h += '<span style="font-size:11px;font-weight:600;color:' + stColor + ';background:' + stBg + ';padding:3px 8px;border-radius:6px;">' + stLabel + '</span>';
+    h += '</div>';
+    h += '<div style="font-size:12px;color:#475569;margin-bottom:4px;">' + captionShort + '</div>';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+    h += '<span style="font-size:11px;color:#94a3b8;">' + timeStr + ' · ' + platformIcons + '</span>';
+    if (item.status === 'scheduled') {
+      h += '<span style="font-size:10px;color:#2563eb;font-weight:600;">Click for actions →</span>';
+    }
+    h += '</div>';
+    if (item.error) {
+      h += '<div style="margin-top:6px;font-size:11px;color:#dc2626;background:#fef2f2;padding:4px 8px;border-radius:4px;">' + item.error.slice(0, 80).replace(/</g, '&lt;') + '</div>';
+    }
+    h += '</div>';
+  });
+
+  modal.innerHTML = h;
+  modal.querySelector('.dash-day-close').addEventListener('click', function() { modalBg.remove(); });
+
+  // Click on card → open post detail with actions
+  modal.querySelectorAll('.dash-day-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      var idx = parseInt(card.getAttribute('data-idx'), 10);
+      var item = posts[idx];
+      if (!item || !item.id) return;
+      modalBg.remove();
+      var fullPost = (document.getElementById('dashCalendarContent')._dashPosts || []).find(function(p) { return p.id === item.id; });
+      if (fullPost) showDashPostDetail(fullPost);
+    });
+  });
+
+  modalBg.appendChild(modal);
+  document.body.appendChild(modalBg);
+}
+
+/* Post detail modal with Cancel / Reschedule / Edit actions */
+function showDashPostDetail(post) {
+  var clients = loadClientsRegistry();
+  var clientName = (post.clientId && clients[post.clientId]) ? clients[post.clientId].name : 'Unknown';
+
+  var modalBg = document.createElement('div');
+  modalBg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modalBg.addEventListener('click', function(ev) { if (ev.target === modalBg) modalBg.remove(); });
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:white;border-radius:16px;padding:28px;max-width:500px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+  var timeStr = new Date(post.scheduledAt).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  var platformIcons = (post.platforms || []).map(function(pl) { return pl === 'instagram' ? '📷 Instagram' : pl === 'facebook' ? '📘 Facebook' : pl; }).join(', ');
+  var stColor = post.status === 'published' ? '#059669' : post.status === 'failed' ? '#dc2626' : post.status === 'cancelled' ? '#94a3b8' : '#2563eb';
+  var stBg = post.status === 'published' ? '#d1fae5' : post.status === 'failed' ? '#fee2e2' : post.status === 'cancelled' ? '#f1f5f9' : '#dbeafe';
+  var stLabel = post.status === 'published' ? '✓ Published' : post.status === 'failed' ? '✗ Failed' : post.status === 'cancelled' ? '🚫 Cancelled' : '⏰ Scheduled';
+
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+  h += '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;">Post Details</h3>';
+  h += '<button type="button" class="dash-post-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;">&times;</button></div>';
+
+  // Client & status
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+  h += '<span style="font-size:15px;font-weight:700;color:#0f172a;">' + clientName + '</span>';
+  h += '<span style="font-size:12px;font-weight:600;color:' + stColor + ';background:' + stBg + ';padding:4px 12px;border-radius:8px;">' + stLabel + '</span>';
+  h += '</div>';
+
+  // Media preview
+  if (post.mediaUrl) {
+    var urls = Array.isArray(post.mediaUrl) ? post.mediaUrl : [post.mediaUrl];
+    h += '<div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px;">';
+    urls.forEach(function(url) {
+      if (url.match(/\.(mp4|mov|webm)/i)) {
+        h += '<video src="' + url + '" style="height:120px;border-radius:10px;object-fit:cover;" controls></video>';
+      } else {
+        h += '<img src="' + url + '" style="height:120px;border-radius:10px;object-fit:cover;" />';
+      }
+    });
+    h += '</div>';
+  }
+
+  // Caption
+  h += '<div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px;border:1px solid #e2e8f0;">';
+  h += '<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:6px;">Caption</div>';
+  h += '<div style="font-size:13px;color:#334155;white-space:pre-wrap;max-height:120px;overflow-y:auto;">' + (post.caption || 'No caption').replace(/</g, '&lt;') + '</div>';
+  h += '</div>';
+
+  // Info
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">';
+  h += '<div style="background:#f8fafc;padding:10px 14px;border-radius:8px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scheduled</div><div style="font-size:13px;color:#0f172a;font-weight:600;">' + timeStr + '</div></div>';
+  h += '<div style="background:#f8fafc;padding:10px 14px;border-radius:8px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Platforms</div><div style="font-size:13px;color:#0f172a;">' + platformIcons + '</div></div>';
+  h += '</div>';
+
+  // Error
+  if (post.error) {
+    h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:16px;">';
+    h += '<div style="font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase;margin-bottom:4px;">Error</div>';
+    h += '<div style="font-size:12px;color:#991b1b;">' + (post.error || '').replace(/</g, '&lt;') + '</div>';
+    h += '</div>';
+  }
+
+  // Action buttons (only for scheduled/failed posts)
+  if (post.status === 'scheduled' || post.status === 'failed') {
+    h += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+    if (post.status === 'scheduled') {
+      h += '<button type="button" class="dash-post-cancel" style="flex:1;min-width:120px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Cancel Post</button>';
+      h += '<button type="button" class="dash-post-reschedule" style="flex:1;min-width:120px;padding:10px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Reschedule</button>';
+    }
+    if (post.status === 'failed') {
+      h += '<button type="button" class="dash-post-retry" style="flex:1;min-width:120px;padding:10px 16px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Retry Now</button>';
+      h += '<button type="button" class="dash-post-cancel" style="flex:1;min-width:120px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Cancel Post</button>';
+    }
+    h += '</div>';
+  }
+
+  modal.innerHTML = h;
+  modal.querySelector('.dash-post-close').addEventListener('click', function() { modalBg.remove(); });
+
+  // Cancel
+  var cancelBtn = modal.querySelector('.dash-post-cancel');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async function() {
+      if (!confirm('Cancel this scheduled post? This cannot be undone.')) return;
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = 'Cancelling...';
+      try {
+        var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/cancel', { method: 'DELETE', credentials: 'include' });
+        if (!r.ok) { var d = await r.json(); throw new Error(d.error || 'Failed'); }
+        showToast('Post cancelled', 'success');
+        modalBg.remove();
+        renderDashCalendar();
+      } catch (e) {
+        showToast(e.message || 'Failed to cancel', 'error');
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = 'Cancel Post';
+      }
+    });
+  }
+
+  // Reschedule
+  var rescheduleBtn = modal.querySelector('.dash-post-reschedule');
+  if (rescheduleBtn) {
+    rescheduleBtn.addEventListener('click', function() {
+      // Replace button area with datetime picker
+      var actionsArea = rescheduleBtn.parentElement;
+      var currentDT = new Date(post.scheduledAt);
+      var isoLocal = new Date(currentDT.getTime() - currentDT.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      actionsArea.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">';
+      actionsArea.innerHTML += '<label style="font-size:12px;font-weight:600;color:#475569;">New date & time:</label>';
+      actionsArea.innerHTML += '<input type="datetime-local" class="dash-post-newdt" value="' + isoLocal + '" style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;" />';
+      actionsArea.innerHTML += '<div style="display:flex;gap:8px;"><button type="button" class="dash-post-confirmreschedule" style="flex:1;padding:10px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Confirm</button><button type="button" class="dash-post-cancelreschedule" style="flex:1;padding:10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-weight:600;cursor:pointer;">Back</button></div>';
+      actionsArea.innerHTML += '</div>';
+
+      // Actually set innerHTML properly
+      var wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+      var label = document.createElement('label');
+      label.style.cssText = 'font-size:12px;font-weight:600;color:#475569;';
+      label.textContent = 'New date & time:';
+      var dtInput = document.createElement('input');
+      dtInput.type = 'datetime-local';
+      dtInput.value = isoLocal;
+      dtInput.style.cssText = 'padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;';
+      var btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:8px;';
+      var confirmBtn = document.createElement('button');
+      confirmBtn.type = 'button';
+      confirmBtn.textContent = 'Confirm';
+      confirmBtn.style.cssText = 'flex:1;padding:10px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;';
+      var backBtn = document.createElement('button');
+      backBtn.type = 'button';
+      backBtn.textContent = 'Back';
+      backBtn.style.cssText = 'flex:1;padding:10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-weight:600;cursor:pointer;';
+
+      btnRow.appendChild(confirmBtn);
+      btnRow.appendChild(backBtn);
+      wrapper.appendChild(label);
+      wrapper.appendChild(dtInput);
+      wrapper.appendChild(btnRow);
+      actionsArea.innerHTML = '';
+      actionsArea.appendChild(wrapper);
+
+      backBtn.addEventListener('click', function() { modalBg.remove(); showDashPostDetail(post); });
+      confirmBtn.addEventListener('click', async function() {
+        var newDT = dtInput.value;
+        if (!newDT) { showToast('Pick a date and time', 'error'); return; }
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Saving...';
+        try {
+          var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/reschedule', {
+            method: 'PUT', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scheduledAt: new Date(newDT).toISOString() })
+          });
+          if (!r.ok) { var d = await r.json(); throw new Error(d.error || 'Failed'); }
+          showToast('Post rescheduled!', 'success');
+          modalBg.remove();
+          renderDashCalendar();
+        } catch (e) {
+          showToast(e.message || 'Failed to reschedule', 'error');
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Confirm';
+        }
+      });
+    });
+  }
+
+  // Retry
+  var retryBtn = modal.querySelector('.dash-post-retry');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', async function() {
+      retryBtn.disabled = true;
+      retryBtn.textContent = 'Retrying...';
+      try {
+        var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/reschedule', {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduledAt: new Date().toISOString() })
+        });
+        if (!r.ok) { var d = await r.json(); throw new Error(d.error || 'Failed'); }
+        showToast('Post queued for retry!', 'success');
+        modalBg.remove();
+        renderDashCalendar();
+      } catch (e) {
+        showToast(e.message || 'Retry failed', 'error');
+        retryBtn.disabled = false;
+        retryBtn.textContent = 'Retry Now';
+      }
+    });
+  }
+
+  modalBg.appendChild(modal);
+  document.body.appendChild(modalBg);
+}
+
+/* ── Dashboard Social Connections Panel (all clients) ── */
+async function renderDashConnections() {
+  var container = document.getElementById('dashConnectionsContent');
+  if (!container) return;
+
+  var clients = loadClientsRegistry();
+  var clientList = Object.values(clients);
+
+  if (clientList.length === 0) {
+    container.innerHTML = '<p style="text-align:center;color:#64748b;padding:20px;">No clients yet. Add a client first.</p>';
+    return;
+  }
+
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Checking connections for all clients...</div>';
+
+  // Fetch connection status for all clients in parallel
+  var results = await Promise.all(clientList.map(async function(client) {
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/meta/connections/client/' + encodeURIComponent(client.id), { credentials: 'include' });
+      var j = await r.json();
+      return { client: client, data: j, error: null };
+    } catch (e) {
+      return { client: client, data: null, error: e.message };
+    }
+  }));
+
+  var html = '';
+
+  // Summary header
+  var connectedCount = results.filter(function(r) { return r.data && r.data.status === 'connected'; }).length;
+  var expiredCount = results.filter(function(r) { return r.data && r.data.status === 'expired'; }).length;
+  var disconnectedCount = results.filter(function(r) { return !r.data || r.data.status === 'not_connected'; }).length;
+
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+  html += '<h3 style="margin:0;font-size:20px;font-weight:800;color:#0f172a;">Social Media Connections</h3>';
+  html += '<div style="display:flex;gap:12px;">';
+  html += '<span style="font-size:12px;font-weight:600;color:#059669;background:#d1fae5;padding:4px 10px;border-radius:6px;">' + connectedCount + ' Connected</span>';
+  if (expiredCount > 0) html += '<span style="font-size:12px;font-weight:600;color:#dc2626;background:#fee2e2;padding:4px 10px;border-radius:6px;">' + expiredCount + ' Expired</span>';
+  if (disconnectedCount > 0) html += '<span style="font-size:12px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:4px 10px;border-radius:6px;">' + disconnectedCount + ' Not Connected</span>';
+  html += '</div></div>';
+
+  // Client cards
+  results.forEach(function(res) {
+    var c = res.client;
+    var d = res.data;
+    var status = d ? d.status : 'error';
+    var statusColor = status === 'connected' ? '#059669' : status === 'expired' ? '#dc2626' : '#94a3b8';
+    var statusBg = status === 'connected' ? '#d1fae5' : status === 'expired' ? '#fee2e2' : '#f1f5f9';
+    var statusLabel = status === 'connected' ? 'CONNECTED' : status === 'expired' ? 'EXPIRED' : 'NOT CONNECTED';
+
+    html += '<div class="dash-conn-card" style="padding:16px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:12px;">';
+
+    // Header row
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    html += '<div style="display:flex;align-items:center;gap:10px;">';
+    if (d && d.pagePicture) {
+      html += '<img src="' + d.pagePicture + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;" />';
+    } else {
+      var initials = (c.name || 'C').split(' ').map(function(w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+      html += '<div style="width:36px;height:36px;border-radius:8px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#64748b;">' + initials + '</div>';
+    }
+    html += '<div>';
+    html += '<div style="font-size:14px;font-weight:700;color:#0f172a;">' + (c.name || c.id) + '</div>';
+    if (d && d.pageName) html += '<div style="font-size:12px;color:#64748b;">' + d.pageName + '</div>';
+    html += '</div></div>';
+    html += '<span style="font-size:10px;font-weight:700;color:' + statusColor + ';background:' + statusBg + ';padding:3px 10px;border-radius:6px;">' + statusLabel + '</span>';
+    html += '</div>';
+
+    // Details
+    if (status === 'connected') {
+      html += '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">';
+      if (d.instagramUsername) {
+        html += '<span style="font-size:12px;color:#059669;background:#ecfdf5;padding:4px 10px;border-radius:6px;">📷 @' + d.instagramUsername + '</span>';
+      } else {
+        html += '<span style="font-size:12px;color:#94a3b8;background:#f8fafc;padding:4px 10px;border-radius:6px;">📷 No IG linked</span>';
+      }
+      html += '<span style="font-size:12px;color:#2563eb;background:#eff6ff;padding:4px 10px;border-radius:6px;">📘 ' + (d.pageName || 'FB Page') + '</span>';
+      if (d.daysUntilExpiry != null && d.daysUntilExpiry <= 14) {
+        html += '<span style="font-size:11px;color:#b45309;background:#fef3c7;padding:3px 8px;border-radius:6px;">⚠️ Expires in ' + d.daysUntilExpiry + 'd</span>';
+      }
+      // Action buttons
+      html += '<div style="margin-left:auto;display:flex;gap:6px;">';
+      html += '<button type="button" class="dash-conn-test" data-client-id="' + c.id + '" style="padding:6px 12px;font-size:11px;font-weight:600;border:1px solid #e2e8f0;background:white;border-radius:6px;cursor:pointer;color:#475569;">Test</button>';
+      html += '<button type="button" class="dash-conn-reconnect" data-client-id="' + c.id + '" style="padding:6px 12px;font-size:11px;font-weight:600;border:1px solid #e2e8f0;background:white;border-radius:6px;cursor:pointer;color:#2563eb;">Reconnect</button>';
+      html += '<button type="button" class="dash-conn-disconnect" data-client-id="' + c.id + '" data-client-name="' + (c.name || '').replace(/"/g, '&quot;') + '" style="padding:6px 12px;font-size:11px;font-weight:600;border:1px solid #fecaca;background:white;border-radius:6px;cursor:pointer;color:#dc2626;">Disconnect</button>';
+      html += '</div>';
+      html += '</div>';
+    } else if (status === 'expired') {
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+      html += '<span style="font-size:12px;color:#dc2626;">Token expired — posts will fail until reconnected</span>';
+      html += '<button type="button" class="dash-conn-reconnect" data-client-id="' + c.id + '" style="padding:6px 14px;font-size:12px;font-weight:600;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;">Reconnect Now</button>';
+      html += '</div>';
+      if (d && d.errorMessage) {
+        html += '<div style="margin-top:6px;font-size:11px;color:#94a3b8;">' + d.errorMessage.slice(0, 100).replace(/</g, '&lt;') + '</div>';
+      }
+    } else {
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+      html += '<span style="font-size:12px;color:#94a3b8;">No Meta account connected</span>';
+      html += '<button type="button" class="dash-conn-connect" data-client-id="' + c.id + '" style="padding:6px 14px;font-size:12px;font-weight:600;background:#1a56db;color:white;border:none;border-radius:6px;cursor:pointer;">Connect Meta</button>';
+      html += '</div>';
+    }
+
+    // Test result area
+    html += '<div class="dash-conn-result" data-client-id="' + c.id + '" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;"></div>';
+
+    html += '</div>';
+  });
+
+  // Coming soon
+  html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;gap:16px;">';
+  html += '<span style="font-size:12px;color:#cbd5e1;">TikTok — Coming Soon</span>';
+  html += '<span style="font-size:12px;color:#cbd5e1;">LinkedIn — Coming Soon</span>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // Wire up buttons
+  container.querySelectorAll('.dash-conn-connect, .dash-conn-reconnect').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var clientId = btn.getAttribute('data-client-id');
+      // Soft disconnect first for reconnects
+      if (btn.classList.contains('dash-conn-reconnect')) {
+        fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(clientId) + '/disconnect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+        }).catch(function() {});
+      }
+      fetch(getApiBaseUrl() + '/api/meta/connect?clientId=' + encodeURIComponent(clientId), { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.authUrl) window.open(d.authUrl, 'meta_oauth', 'width=600,height=700'); })
+        .catch(function(e) { showToast('Failed: ' + e.message, 'error'); });
+    });
+  });
+
+  container.querySelectorAll('.dash-conn-disconnect').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var clientId = btn.getAttribute('data-client-id');
+      var clientName = btn.getAttribute('data-client-name') || clientId;
+      if (!confirm('Disconnect Meta for ' + clientName + '?')) return;
+      try {
+        var r = await fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(clientId) + '/disconnect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+        });
+        var d = await r.json();
+        if (d.success) { showToast('Disconnected ' + clientName, 'success'); renderDashConnections(); }
+      } catch (e) { showToast('Error: ' + e.message, 'error'); }
+    });
+  });
+
+  container.querySelectorAll('.dash-conn-test').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var clientId = btn.getAttribute('data-client-id');
+      var resultEl = container.querySelector('.dash-conn-result[data-client-id="' + clientId + '"]');
+      if (!resultEl) return;
+      resultEl.style.display = 'block';
+      resultEl.style.background = '#f8fafc';
+      resultEl.style.color = '#475569';
+      resultEl.textContent = 'Testing...';
+      btn.disabled = true;
+      try {
+        var r = await fetch(getApiBaseUrl() + '/api/meta/connections/' + encodeURIComponent(clientId) + '/verify', {
+          method: 'POST', credentials: 'include'
+        });
+        var d = await r.json();
+        if (d.autoFixed) {
+          resultEl.style.background = '#d1fae5'; resultEl.style.color = '#059669';
+          resultEl.innerHTML = '<strong>Auto-fixed!</strong> Tokens refreshed. Ready to post.';
+        } else if (d.status === 'connected' && d.pageValid) {
+          resultEl.style.background = '#d1fae5'; resultEl.style.color = '#059669';
+          var perms = (d.permissions || []).includes('instagram_content_publish') ? 'FB + IG' : 'FB only';
+          resultEl.innerHTML = '<strong>Working!</strong> ' + perms + ' enabled.';
+        } else {
+          resultEl.style.background = '#fee2e2'; resultEl.style.color = '#dc2626';
+          resultEl.innerHTML = '<strong>Issue found.</strong> ' + (d.errorMessage || 'Click Reconnect to fix.').replace(/</g, '&lt;');
+        }
+      } catch (e) {
+        resultEl.style.background = '#fee2e2'; resultEl.style.color = '#dc2626';
+        resultEl.textContent = 'Test failed: ' + e.message;
+      }
+      btn.disabled = false;
+    });
+  });
+}
+
 async function selectClient(clientId) {
   const clients = loadClientsRegistry();
   const client = clients[clientId];
@@ -10967,6 +11645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupRequestMissingAssetsBtn(); } catch (e) { console.error('Error setting up request missing assets btn:', e); }
     try { setupContentLibraryLearnMore(); } catch (e) { console.error('Error setting up content library learn more:', e); }
     try { setupNotificationBell(); } catch (e) { console.error('Error setting up notification bell:', e); }
+    try { initDashboardPanels(); } catch (e) { console.error('Error initializing dashboard panels:', e); }
 
     // Poll portal state so client-side actions create agency notifications live (no refresh)
     function pollClientActions() {
