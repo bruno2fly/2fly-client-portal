@@ -179,6 +179,16 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
     if (!clientId || !designerId) {
       return res.status(400).json({ error: 'clientId and designerId are required' });
     }
+    // Prevent duplicate tasks for the same approvalId (unless it's a changes_requested resend)
+    if (approvalId && initialStatus !== 'changes_requested') {
+      const existingTasks = getProductionTasksByAgency(agencyId);
+      const duplicate = existingTasks.find(
+        (t: ProductionTask) => t.approvalId === approvalId && t.clientId === clientId && !['approved', 'ready_to_post'].includes(t.status)
+      );
+      if (duplicate) {
+        return res.status(409).json({ error: 'This approval has already been sent to a designer', existingTaskId: duplicate.id });
+      }
+    }
     const client = getClient(clientId);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });

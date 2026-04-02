@@ -5389,16 +5389,23 @@ function renderApprovalsTab() {
             artApprovedWrap.addEventListener('click', (e) => e.stopPropagation());
             itemEl.appendChild(artApprovedWrap);
           } else if (item.source !== 'production') {
+            // Check if already sent to designer
+            var existingTask = productionTasksCache.find(function(t) { return t.approvalId === item.id && t.clientId === currentClientId && ['assigned','in_progress','review','changes_requested'].indexOf(t.status) !== -1; });
             const sendToDesignerWrap = el('div', {
               class: 'schedule-section',
               style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
             });
             sendToDesignerWrap.addEventListener('click', (e) => e.stopPropagation());
-            const sendToDesignerBtn = document.createElement('button');
-            sendToDesignerBtn.textContent = 'Send to Designer';
-            sendToDesignerBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
-            sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
-            sendToDesignerWrap.appendChild(sendToDesignerBtn);
+            if (existingTask) {
+              var sentLabel = el('span', { style: 'font-size: 13px; color: #059669; font-weight: 600;' }, '✓ Sent to designer');
+              sendToDesignerWrap.appendChild(sentLabel);
+            } else {
+              const sendToDesignerBtn = document.createElement('button');
+              sendToDesignerBtn.textContent = 'Send to Designer';
+              sendToDesignerBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+              sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+              sendToDesignerWrap.appendChild(sendToDesignerBtn);
+            }
             itemEl.appendChild(sendToDesignerWrap);
           }
         }
@@ -5406,36 +5413,48 @@ function renderApprovalsTab() {
         // Send to Designer button for Content Pending, Copy Pending, Changes Requested, Copy Changes
         if (sectionKey === 'pending' || sectionKey === 'copyPending' || sectionKey === 'changes' || sectionKey === 'copyChanges') {
           const isChangesSection = (sectionKey === 'changes' || sectionKey === 'copyChanges');
-          const stdWrap = el('div', {
-            class: 'schedule-section',
-            style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
-          });
-          stdWrap.addEventListener('click', (e) => e.stopPropagation());
-          const stdBtn = document.createElement('button');
-          stdBtn.textContent = 'Send to Designer';
-          stdBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
-          stdBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (isChangesSection) {
-              // Show confirmation popup first
-              var confirmed = confirm('This item was already sent to the assigned designer.\n\nAre you sure you want to send again?');
-              if (!confirmed) return;
-              // Pass change notes so designer sees them, and mark as changes_requested
-              var changeNote = '';
-              if (item.change_notes && item.change_notes.length) {
-                changeNote = item.change_notes[item.change_notes.length - 1].note || '';
+          var existingTaskForPending = productionTasksCache.find(function(t) { return t.approvalId === item.id && t.clientId === currentClientId && ['assigned','in_progress','review','changes_requested'].indexOf(t.status) !== -1; });
+          // For non-changes sections, skip button if task already exists
+          if (!isChangesSection && existingTaskForPending) {
+            const sentWrap = el('div', {
+              class: 'schedule-section',
+              style: 'margin-top: 12px; padding: 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0;'
+            });
+            sentWrap.addEventListener('click', (e) => e.stopPropagation());
+            sentWrap.appendChild(el('span', { style: 'font-size: 13px; color: #059669; font-weight: 600;' }, '✓ Sent to designer'));
+            itemEl.appendChild(sentWrap);
+          } else {
+            const stdWrap = el('div', {
+              class: 'schedule-section',
+              style: 'margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff;'
+            });
+            stdWrap.addEventListener('click', (e) => e.stopPropagation());
+            const stdBtn = document.createElement('button');
+            stdBtn.textContent = 'Send to Designer';
+            stdBtn.style.cssText = 'padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+            stdBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (isChangesSection) {
+                // Show confirmation popup first
+                var confirmed = confirm('This item was already sent to the assigned designer.\n\nAre you sure you want to send again?');
+                if (!confirmed) return;
+                // Pass change notes so designer sees them, and mark as changes_requested
+                var changeNote = '';
+                if (item.change_notes && item.change_notes.length) {
+                  changeNote = item.change_notes[item.change_notes.length - 1].note || '';
+                }
+                item._sendAsChangesRequested = true;
+                item._changeRequestNote = changeNote;
               }
-              item._sendAsChangesRequested = true;
-              item._changeRequestNote = changeNote;
+              if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item);
+            });
+            stdWrap.appendChild(stdBtn);
+            if (isChangesSection) {
+              const sentNote = el('span', { style: 'margin-left: 10px; font-size: 12px; color: #64748b; font-style: italic;' }, 'Already sent to designer assigned');
+              stdWrap.appendChild(sentNote);
             }
-            if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item);
-          });
-          stdWrap.appendChild(stdBtn);
-          if (isChangesSection) {
-            const sentNote = el('span', { style: 'margin-left: 10px; font-size: 12px; color: #64748b; font-style: italic;' }, 'Already sent to designer assigned');
-            stdWrap.appendChild(sentNote);
+            itemEl.appendChild(stdWrap);
           }
-          itemEl.appendChild(stdWrap);
         }
 
         if (sectionKey === 'approved') {
@@ -5455,11 +5474,17 @@ function renderApprovalsTab() {
           });
           scheduleSection.addEventListener('click', (e) => e.stopPropagation());
           if (item.source !== 'production') {
-            const sendToDesignerBtn = document.createElement('button');
-            sendToDesignerBtn.textContent = 'Send to Designer';
-            sendToDesignerBtn.style.cssText = 'margin-bottom: 12px; padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
-            sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
-            scheduleSection.appendChild(sendToDesignerBtn);
+            var existingTaskApproved = productionTasksCache.find(function(t) { return t.approvalId === item.id && t.clientId === currentClientId && ['assigned','in_progress','review','changes_requested'].indexOf(t.status) !== -1; });
+            if (existingTaskApproved) {
+              var sentBadge = el('div', { style: 'margin-bottom: 12px; font-size: 13px; color: #059669; font-weight: 600;' }, '✓ Sent to designer');
+              scheduleSection.appendChild(sentBadge);
+            } else {
+              const sendToDesignerBtn = document.createElement('button');
+              sendToDesignerBtn.textContent = 'Send to Designer';
+              sendToDesignerBtn.style.cssText = 'margin-bottom: 12px; padding: 6px 14px; background: #1a56db; color: white; border: 2px solid #1a56db; border-radius: 6px; cursor: pointer; font-size: 13px;';
+              sendToDesignerBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openSendToDesignerModal === 'function') openSendToDesignerModal(item); });
+              scheduleSection.appendChild(sendToDesignerBtn);
+            }
           }
           const heading = el('h4', { style: 'margin: 0 0 8px 0; font-size: 14px; color: #1a56db;' }, 'Schedule to Social Media');
           scheduleSection.appendChild(heading);
@@ -11498,6 +11523,8 @@ function openSendToDesignerModal(item) {
 function submitSendToDesigner(modal) {
   var item = window.__sendToDesignerItem;
   if (!item || !currentClientId) return;
+  var submitBtn = document.getElementById('sendToDesignerSubmit');
+  if (submitBtn && submitBtn.disabled) return; // prevent double-click
   var designerId = document.getElementById('sendToDesignerDesigner').value;
   var priority = document.getElementById('sendToDesignerPriority').value;
   var deadline = document.getElementById('sendToDesignerDeadline').value;
@@ -11518,16 +11545,31 @@ function submitSendToDesigner(modal) {
     delete item._sendAsChangesRequested;
     delete item._changeRequestNote;
   }
+  // Disable button to prevent double-submit
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
   fetch(getApiBaseUrl() + '/api/production/tasks', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      return r.json().then(function(j) { j._httpStatus = r.status; return j; });
+    })
     .then(function(j) {
+      if (j._httpStatus === 409) {
+        // Duplicate — already sent
+        showToast('Already sent to designer — no duplicate created', 'info');
+        modal.style.display = 'none';
+        return;
+      }
       if (!j.task) throw new Error(j.error || 'Failed');
       modal.style.display = 'none';
       showToast('Task sent to ' + designerName);
       renderApprovalsTab();
       if (currentViewMode === 'production') loadProductionTasks().then(renderProductionView);
     })
-    .catch(function(e) { showToast(e.message || 'Failed', 'error'); });
+    .catch(function(e) {
+      showToast(e.message || 'Failed', 'error');
+    })
+    .finally(function() {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Designer'; }
+    });
 }
 
 /* ================== Initialize ================== */
