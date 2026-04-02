@@ -383,8 +383,8 @@ const server = app.listen(PORT, () => {
       const secret = process.env.CRON_SECRET || '';
       const url = `${baseUrl}/api/cron/publish-posts?retry=1&secret=${encodeURIComponent(secret)}`;
       const r = await fetch(url);
-      const data = await r.json();
-      if (data.processed > 0) {
+      const data = (await r.json()) as { processed?: number; results?: unknown };
+      if ((data.processed ?? 0) > 0) {
         console.log(`[auto-publish] Processed ${data.processed} posts:`, JSON.stringify(data.results));
       }
     } catch (err: any) {

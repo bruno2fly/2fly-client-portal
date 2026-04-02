@@ -230,9 +230,12 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       console.error(`[cron] FULL FAILURE for post ${post.id}: ${post.error}`);
     }
 
-    // Push notifications on any success
-    if (hasAnySuccess) {
-      const clientName = getClient(post.clientId)?.name || 'Client';
+    // ── Push notifications based on result ──
+    const clientName = getClient(post.clientId)?.name || 'Client';
+    const allPlatforms = (post.platforms || []).join(' & ');
+
+    if (hasAnySuccess && !hasAnyFailure) {
+      // Full success
       const publishedPlatforms = [metaPostIds.facebook ? 'Facebook' : '', metaPostIds.instagram ? 'Instagram' : ''].filter(Boolean).join(' & ');
       sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
         clientName, publishedPlatforms
@@ -240,6 +243,20 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       sendPushToClient(post.clientId, NOTIFY.clientPostLive(
         publishedPlatforms
       )).catch(() => {});
+    } else if (hasAnySuccess && hasAnyFailure) {
+      // Partial success
+      const succeeded = [metaPostIds.facebook ? 'Facebook' : '', metaPostIds.instagram ? 'Instagram' : ''].filter(Boolean).join(' & ');
+      const failed = [!metaPostIds.facebook && post.platforms.includes('facebook') ? 'Facebook' : '', !metaPostIds.instagram && post.platforms.includes('instagram') ? 'Instagram' : ''].filter(Boolean).join(' & ');
+      sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPartial(
+        clientName, succeeded, failed
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(succeeded)).catch(() => {});
+    } else {
+      // Full failure
+      sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postFailed(
+        clientName, allPlatforms, platformErrors[0] || 'Unknown error'
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostFailed(allPlatforms)).catch(() => {});
     }
 
     post.updatedAt = new Date().toISOString();

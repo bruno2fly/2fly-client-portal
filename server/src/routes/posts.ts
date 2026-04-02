@@ -173,10 +173,15 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
     };
 
     saveScheduledPost(post);
+    const clientName = client.name || clientId;
+    const schedDateStr = new Date(post.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    // Notify agency staff
+    sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postScheduled(
+      clientName, post.caption ? post.caption.substring(0, 40) : 'Post', schedDateStr
+    )).catch(() => {});
     // Notify client their post is scheduled
     sendPushToClient(post.clientId, NOTIFY.clientPostScheduled(
-      post.caption ? post.caption.substring(0, 40) : 'Your post',
-      new Date(post.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      post.caption ? post.caption.substring(0, 40) : 'Your post', schedDateStr
     )).catch(() => {});
     res.status(201).json({ success: true, post });
   } catch (e: any) {
@@ -233,6 +238,12 @@ router.put('/:id/reschedule', authenticate, requireCanViewDashboard, (req: Authe
     post.scheduledAt = scheduledAt;
     post.updatedAt = new Date().toISOString();
     saveScheduledPost(post);
+    const clientName = getClient(post.clientId)?.name || 'Client';
+    const newDateStr = new Date(scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postRescheduled(
+      clientName, post.caption ? post.caption.substring(0, 40) : 'Post', newDateStr
+    )).catch(() => {});
+    sendPushToClient(post.clientId, NOTIFY.clientPostRescheduled(newDateStr)).catch(() => {});
     res.json({ success: true, post });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to reschedule' });
@@ -250,7 +261,13 @@ router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: Authen
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
+    const clientName = getClient(post.clientId)?.name || 'Client';
+    const postTitle = post.caption ? post.caption.substring(0, 40) : 'Post';
     deleteScheduledPost(post.id);
+    sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postCancelled(
+      clientName, postTitle
+    )).catch(() => {});
+    sendPushToClient(post.clientId, NOTIFY.clientPostCancelled(postTitle)).catch(() => {});
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to remove' });
@@ -521,20 +538,35 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       }
     }
 
+    const clientName = getClient(post.clientId)?.name || 'Client';
+    const allPlatforms = (post.platforms || []).join(' & ');
+
     if (post.status === 'failed') {
-      // Return 422 (not 500) so frontend knows it's a Meta API error, not a server crash
+      // Notify about failure
+      sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postFailed(
+        clientName, allPlatforms, post.error || 'Unknown error'
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostFailed(allPlatforms)).catch(() => {});
       return res.status(422).json({ error: post.error || error, post });
     }
-    // Fire-and-forget push notifications for successful publish
-    const clientName = getClient(post.clientId)?.name || 'Client';
-    sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
-      clientName,
-      post.platforms.join(' & ')
-    )).catch(() => {});
-    // Notify the CLIENT that their post went live
-    sendPushToClient(post.clientId, NOTIFY.clientPostLive(
-      post.platforms.join(' & ')
-    )).catch(() => {});
+
+    // Check if partial (published with error)
+    if (post.error && post.error.startsWith('Partial:')) {
+      const succeeded = [metaPostIds.facebook ? 'Facebook' : '', metaPostIds.instagram ? 'Instagram' : ''].filter(Boolean).join(' & ');
+      const failed = [!metaPostIds.facebook && post.platforms.includes('facebook') ? 'Facebook' : '', !metaPostIds.instagram && post.platforms.includes('instagram') ? 'Instagram' : ''].filter(Boolean).join(' & ');
+      sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPartial(
+        clientName, succeeded, failed
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(succeeded)).catch(() => {});
+    } else {
+      // Full success
+      sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
+        clientName, allPlatforms
+      )).catch(() => {});
+      sendPushToClient(post.clientId, NOTIFY.clientPostLive(
+        allPlatforms
+      )).catch(() => {});
+    }
     res.json({ success: true, post });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to publish' });

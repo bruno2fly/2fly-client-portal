@@ -303,4 +303,74 @@ export const NOTIFY = {
     data: { url: '/' },
     actions: [{ action: 'review', title: 'Review now' }],
   }),
+
+  // ── POST LIFECYCLE NOTIFICATIONS (agency staff) ──
+
+  // Post was scheduled by staff
+  postScheduled: (clientName: string, postTitle: string, scheduledDate: string) => ({
+    title: 'Post scheduled! 📅',
+    body: clientName + '\'s "' + postTitle.substring(0, 30) + '" set for ' + scheduledDate + '.',
+    tag: 'post-scheduled-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+  }),
+
+  // Post publish FAILED
+  postFailed: (clientName: string, platform: string, errorMsg: string) => ({
+    title: 'Publish failed! ❌',
+    body: clientName + '\'s post to ' + platform + ' failed: ' + errorMsg.substring(0, 60),
+    tag: 'post-failed-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+    actions: [{ action: 'view', title: 'Check error' }],
+  }),
+
+  // Post partially published (one platform succeeded, another failed)
+  postPartial: (clientName: string, succeeded: string, failed: string) => ({
+    title: 'Partial publish ⚠️',
+    body: clientName + '\'s post went live on ' + succeeded + ' but failed on ' + failed + '.',
+    tag: 'post-partial-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+    actions: [{ action: 'view', title: 'See details' }],
+  }),
+
+  // Post rescheduled
+  postRescheduled: (clientName: string, postTitle: string, newDate: string) => ({
+    title: 'Post rescheduled 🔄',
+    body: clientName + '\'s "' + postTitle.substring(0, 30) + '" moved to ' + newDate + '.',
+    tag: 'post-rescheduled-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+  }),
+
+  // Post deleted/cancelled
+  postCancelled: (clientName: string, postTitle: string) => ({
+    title: 'Post cancelled 🗑️',
+    body: clientName + '\'s "' + postTitle.substring(0, 35) + '" was removed from the schedule.',
+    tag: 'post-cancelled-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+  }),
+
+  // ── CLIENT-FACING POST LIFECYCLE ──
+
+  // Client: post failed to publish
+  clientPostFailed: (platform: string) => ({
+    title: 'Heads up — publish issue 🔧',
+    body: 'Your post to ' + platform + ' had a hiccup. Our team is on it and will get it sorted!',
+    tag: 'client-failed-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Client: post rescheduled
+  clientPostRescheduled: (newDate: string) => ({
+    title: 'Post rescheduled 📅',
+    body: 'Your post has been moved to ' + newDate + '. We\'ll make sure it goes out on time!',
+    tag: 'client-rescheduled-' + Date.now(),
+    data: { url: '/' },
+  }),
+
+  // Client: post cancelled
+  clientPostCancelled: (postTitle: string) => ({
+    title: 'Post update 📋',
+    body: '"' + postTitle.substring(0, 40) + '" has been removed from the schedule. Reach out if you have questions!',
+    tag: 'client-cancelled-' + Date.now(),
+    data: { url: '/' },
+  }),
 };

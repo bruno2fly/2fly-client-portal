@@ -8622,13 +8622,13 @@ async function loadProductionTasks() {
 function productionStatusBadgeLabel(task, designerName) {
   var name = designerName || 'Designer';
   switch (task.status) {
-    case 'assigned': return 'In Production — Assigned to ' + name;
-    case 'in_progress': return 'In Production — In Progress';
-    case 'review': return 'In Production — Review';
-    case 'changes_requested': return 'In Production — Changes Requested';
+    case 'assigned': return '🎨 Design in progress — ' + name;
+    case 'in_progress': return '🎨 Design in progress — ' + name;
+    case 'review': return '👀 Under review';
+    case 'changes_requested': return '✏️ Being revised';
     case 'approved':
-    case 'ready_to_post': return 'Art Approved — Ready to Post';
-    default: return 'In Production';
+    case 'ready_to_post': return '✅ Ready to send to client';
+    default: return '🎨 Design in progress';
   }
 }
 function productionStatusBadgeColor(status) {
