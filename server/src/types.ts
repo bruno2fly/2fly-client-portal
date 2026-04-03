@@ -193,6 +193,12 @@ export interface MetaIntegration {
   tokenExpiresAt: number;
   connectedAt: number;
   updatedAt: number;
+  /** Connection health status — set by smart error detection in cron */
+  connectionStatus?: 'ok' | 'permission_error' | 'token_expired' | 'blocked';
+  /** Human-readable reason when connectionStatus is not 'ok' */
+  connectionError?: string;
+  /** Timestamp when the connection was flagged as broken */
+  connectionFlaggedAt?: number;
 }
 
 /** Scheduled post for Meta publishing */

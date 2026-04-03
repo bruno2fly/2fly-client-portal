@@ -29,6 +29,118 @@ import { sendPushToRole, sendPushToClient, NOTIFY } from '../lib/pushService.js'
 const router = Router();
 const CRON_SECRET = process.env.CRON_SECRET;
 
+/* ── Smart Meta Error Detection ──
+ * Parses Facebook/Instagram Graph API errors and classifies them.
+ * Returns { fatal, type, message } where fatal=true means "stop retrying, flag connection".
+ */
+interface MetaErrorInfo {
+  fatal: boolean;
+  type: 'permission' | 'token_expired' | 'rate_limit' | 'media' | 'unknown';
+  message: string;
+  code?: number;
+  subcode?: number;
+}
+
+function parseMetaError(err: any): MetaErrorInfo {
+  const msg = (err.message || err.toString() || '').toLowerCase();
+  // Try to extract FB error code from message like "(#200)" or "code: 200"
+  const codeMatch = msg.match(/\(#(\d+)\)/) || msg.match(/code[:\s]+(\d+)/);
+  const code = codeMatch ? parseInt(codeMatch[1], 10) : 0;
+  // Try to extract subcode
+  const subcodeMatch = msg.match(/subcode[:\s]+(\d+)/);
+  const subcode = subcodeMatch ? parseInt(subcodeMatch[1], 10) : 0;
+
+  // ── Facebook error codes ──
+  // #200 = Permissions error (app doesn't have required permissions)
+  // #10  = Permissions error (alternate)
+  // #190 = Invalid/expired access token
+  // #4   = API rate limit
+  // #368 = Temporarily blocked for policy violations
+  // #506 = Duplicate post
+
+  // Permission errors — FATAL, connection is broken
+  if (code === 200 || code === 10) {
+    return { fatal: true, type: 'permission', message: 'Meta App missing required permissions (#' + code + '). Submit for App Review or reconnect.', code, subcode };
+  }
+  if (msg.includes('(#200)') || msg.includes('permissions error') || msg.includes('does not have permission') || msg.includes('subject does not exist')) {
+    return { fatal: true, type: 'permission', message: 'Permission denied by Meta. App permissions need review.', code: 200, subcode };
+  }
+
+  // Token expired — FATAL, needs reconnect
+  if (code === 190) {
+    return { fatal: true, type: 'token_expired', message: 'Access token expired or revoked (#190). Reconnect required.', code, subcode };
+  }
+  if (msg.includes('oauthexception') || msg.includes('invalid oauth') || msg.includes('session has expired') || msg.includes('token has expired') || msg.includes('error validating access token')) {
+    return { fatal: true, type: 'token_expired', message: 'Access token expired or invalidated. Reconnect required.', code: 190, subcode };
+  }
+
+  // Blocked — FATAL, page or app restricted
+  if (code === 368 || msg.includes('temporarily blocked') || msg.includes('policy violation')) {
+    return { fatal: true, type: 'permission', message: 'Account temporarily blocked by Meta for policy violations (#368).', code: 368, subcode };
+  }
+
+  // Rate limit — NOT fatal, just slow down
+  if (code === 4 || code === 32 || msg.includes('rate limit') || msg.includes('too many calls')) {
+    return { fatal: false, type: 'rate_limit', message: 'Rate limited by Meta. Will retry later.', code, subcode };
+  }
+
+  // Media errors — NOT fatal, issue with specific post content
+  if (msg.includes('media') || msg.includes('image') || msg.includes('url is not') || msg.includes('could not download')) {
+    return { fatal: false, type: 'media', message: 'Media error: ' + (err.message || '').substring(0, 100), code, subcode };
+  }
+
+  // Default — unknown, NOT fatal (let it retry)
+  return { fatal: false, type: 'unknown', message: err.message || 'Unknown error', code, subcode };
+}
+
+/**
+ * Flag a client's Meta connection as broken and send urgent notification.
+ * All future publish attempts for this client will be skipped until reconnected.
+ */
+function flagConnectionBroken(
+  integration: any,
+  errorType: 'permission_error' | 'token_expired' | 'blocked',
+  errorMessage: string,
+  agencyId: string,
+  clientId: string
+) {
+  // Only flag once — don't spam notifications
+  if (integration.connectionStatus === errorType) return;
+
+  integration.connectionStatus = errorType;
+  integration.connectionError = errorMessage;
+  integration.connectionFlaggedAt = Date.now();
+  integration.updatedAt = Date.now();
+  saveMetaIntegration(integration);
+
+  const clientName = getClient(clientId)?.name || 'Client';
+  console.error(`[cron] ⛔ FLAGGED connection for ${clientName} (${clientId}): ${errorType} — ${errorMessage}`);
+
+  // Send urgent notification to agency owners/admins
+  sendPushToRole(agencyId, ['OWNER', 'ADMIN'], NOTIFY.connectionBroken(
+    clientName, errorType, errorMessage
+  )).catch(() => {});
+}
+
+/**
+ * Check if a client's connection is flagged as broken.
+ * Returns true if publishing should be SKIPPED.
+ */
+function isConnectionFlagged(integration: any): boolean {
+  return integration.connectionStatus && integration.connectionStatus !== 'ok';
+}
+
+/**
+ * Clear a connection's error flags (called when reconnect happens).
+ */
+function clearConnectionFlags(integration: any) {
+  integration.connectionStatus = 'ok';
+  integration.connectionError = undefined;
+  integration.connectionFlaggedAt = undefined;
+  integration.updatedAt = Date.now();
+  saveMetaIntegration(integration);
+}
+
 function verifyCronAuth(req: Request, res: Response): boolean {
   const auth = req.headers.authorization;
   const secret = req.query.secret as string;
@@ -80,6 +192,17 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       post.updatedAt = new Date().toISOString();
       saveScheduledPost(post);
       results.push({ id: post.id, status: 'failed', error: post.error });
+      continue;
+    }
+
+    // ── Skip if connection is flagged as broken ──
+    if (isConnectionFlagged(integration)) {
+      post.status = 'failed';
+      post.error = `Connection blocked: ${integration.connectionError || integration.connectionStatus}. Reconnect Meta to resume.`;
+      post.updatedAt = new Date().toISOString();
+      saveScheduledPost(post);
+      results.push({ id: post.id, status: 'failed', error: post.error });
+      console.warn(`[cron] SKIPPED post ${post.id} — connection flagged: ${integration.connectionStatus}`);
       continue;
     }
 
@@ -155,9 +278,16 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
           console.log(`[cron] Facebook text post published: ${result.id}`);
         }
       } catch (fbErr: any) {
-        const fbError = `Facebook: ${fbErr.message || 'Unknown error'}`;
-        console.error(`[cron] Facebook publish FAILED for post ${post.id}:`, fbErr.message);
+        const parsed = parseMetaError(fbErr);
+        const fbError = `Facebook: ${parsed.message}`;
+        console.error(`[cron] Facebook publish FAILED for post ${post.id}: [code=${parsed.code}] [fatal=${parsed.fatal}] ${parsed.message}`);
         platformErrors.push(fbError);
+
+        // Flag connection if error is fatal (permissions or token)
+        if (parsed.fatal) {
+          const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
+          flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+        }
       }
     }
 
@@ -198,9 +328,16 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
             platformErrors.push(igError);
           }
         } catch (igErr: any) {
-          const igError = `Instagram: ${igErr.message || 'Unknown error'}`;
-          console.error(`[cron] Instagram publish FAILED for post ${post.id}:`, igErr.message);
+          const parsed = parseMetaError(igErr);
+          const igError = `Instagram: ${parsed.message}`;
+          console.error(`[cron] Instagram publish FAILED for post ${post.id}: [code=${parsed.code}] [fatal=${parsed.fatal}] ${parsed.message}`);
           platformErrors.push(igError);
+
+          // Flag connection if error is fatal (permissions or token)
+          if (parsed.fatal) {
+            const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
+            flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+          }
         }
       }
     }
@@ -363,6 +500,12 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
       continue;
     }
 
+    // Skip if connection is flagged — no point retrying
+    if (isConnectionFlagged(integration)) {
+      results.push({ id: post.id, status: 'skipped', error: `Connection flagged: ${integration.connectionStatus}` });
+      continue;
+    }
+
     // Refresh page token before retry
     const userToken = (integration as any).metaUserAccessToken;
     if (userToken) {
@@ -442,10 +585,17 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
         post.platforms.join(' & ')
       )).catch(() => {});
     } catch (err: any) {
-      error = err.message || 'Retry publish failed';
+      const parsed = parseMetaError(err);
+      error = parsed.message || 'Retry publish failed';
       post.status = 'failed';
       post.error = error;
       results.push({ id: post.id, status: 'failed', error });
+
+      // Flag if fatal error detected on retry
+      if (parsed.fatal) {
+        const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
+        flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+      }
     }
 
     post.updatedAt = now.toISOString();

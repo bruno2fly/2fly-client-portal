@@ -348,6 +348,30 @@ export const NOTIFY = {
     data: { url: '/agency#tab=scheduled' },
   }),
 
+  // ── CONNECTION HEALTH ALERTS ──
+
+  // Connection broken — urgent alert to agency owners
+  connectionBroken: (clientName: string, errorType: string, errorMessage: string) => ({
+    title: '⛔ Meta connection broken — ' + clientName,
+    body: (errorType === 'token_expired'
+      ? 'Token expired or revoked. '
+      : errorType === 'permission_error'
+      ? 'App permissions denied. '
+      : 'Connection blocked. ')
+      + 'All posts for ' + clientName + ' are paused. Reconnect in Social Connections to resume. Details: ' + errorMessage.substring(0, 80),
+    tag: 'connection-broken-' + Date.now(),
+    data: { url: '/agency#connections' },
+    actions: [{ action: 'reconnect', title: 'Reconnect now' }],
+  }),
+
+  // Connection restored after reconnect
+  connectionRestored: (clientName: string) => ({
+    title: '✅ Meta connection restored — ' + clientName,
+    body: clientName + '\'s Meta connection is working again. Scheduled posts will resume publishing.',
+    tag: 'connection-restored-' + Date.now(),
+    data: { url: '/agency#tab=scheduled' },
+  }),
+
   // ── CLIENT-FACING POST LIFECYCLE ──
 
   // Client: post failed to publish

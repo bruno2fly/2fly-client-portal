@@ -250,6 +250,10 @@ router.get('/callback', async (req: Request, res: Response) => {
         connectedAt: now,
         connectedBy: userId,
         updatedAt: now,
+        // Clear any previous error flags from smart detection
+        connectionStatus: 'ok' as const,
+        connectionError: undefined,
+        connectionFlaggedAt: undefined,
       };
       saveMetaIntegration(integration);
       console.log(`[Meta OAuth] Auto-connected page "${page.name}" for client ${clientId}`);
@@ -323,6 +327,10 @@ router.post('/select-page', authenticate, requireCanViewDashboard, async (req: A
       connectedAt: now,
       connectedBy: session.userId,
       updatedAt: now,
+      // Clear any previous error flags
+      connectionStatus: 'ok' as const,
+      connectionError: undefined,
+      connectionFlaggedAt: undefined,
     };
 
     // Remove old connection for this client first
@@ -368,7 +376,10 @@ router.get('/connections/client/:clientId', authenticate, requireCanViewDashboar
     }
 
     const tokenExpired = integration.tokenExpiresAt < Date.now();
-    const status = tokenExpired ? 'expired' : ((integration as any).status || 'connected');
+    // Surface connection flags from smart error detection
+    const connStatus = (integration as any).connectionStatus;
+    const isFlagged = connStatus && connStatus !== 'ok';
+    const status = isFlagged ? 'error' : tokenExpired ? 'expired' : ((integration as any).status || 'connected');
 
     res.json({
       connected: status === 'connected',
@@ -383,8 +394,12 @@ router.get('/connections/client/:clientId', authenticate, requireCanViewDashboar
       tokenExpiresAt: new Date(integration.tokenExpiresAt).toISOString(),
       lastVerifiedAt: (integration as any).lastVerifiedAt ? new Date((integration as any).lastVerifiedAt).toISOString() : null,
       connectedAt: integration.connectedAt ? new Date(integration.connectedAt).toISOString() : null,
-      errorMessage: (integration as any).errorMessage,
+      errorMessage: isFlagged ? (integration as any).connectionError : (integration as any).errorMessage,
       daysUntilExpiry: Math.max(0, Math.floor((integration.tokenExpiresAt - Date.now()) / (1000 * 60 * 60 * 24))),
+      // Smart error detection fields
+      connectionStatus: connStatus || 'ok',
+      connectionError: (integration as any).connectionError || null,
+      connectionFlaggedAt: (integration as any).connectionFlaggedAt ? new Date((integration as any).connectionFlaggedAt).toISOString() : null,
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -525,7 +540,16 @@ router.post('/connections/:clientId/verify', authenticate, requireCanViewDashboa
     (integration as any).status = pageValid ? 'connected' : status;
     (integration as any).lastVerifiedAt = Date.now();
     (integration as any).errorMessage = pageValid ? undefined : errorMessage;
-    if (pageValid) (integration as any).scopesGranted = permissions;
+    if (pageValid) {
+      (integration as any).scopesGranted = permissions;
+      // Clear smart error flags if connection is now working
+      if ((integration as any).connectionStatus && (integration as any).connectionStatus !== 'ok') {
+        console.log(`[Meta verify] Clearing error flags for ${req.params.clientId} — connection restored`);
+        (integration as any).connectionStatus = 'ok';
+        (integration as any).connectionError = undefined;
+        (integration as any).connectionFlaggedAt = undefined;
+      }
+    }
     integration.updatedAt = Date.now();
     saveMetaIntegration(integration);
 
