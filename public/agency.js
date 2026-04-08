@@ -9875,8 +9875,38 @@ function renderProductionWorkspace(task, clientsData, designerMap) {
     html += '<span style="display:inline-block;margin-top:12px;padding:6px 14px;border-radius:9999px;font-size:13px;font-weight:600;background:#dcfce7;color:#16a34a;">✓ Approved</span>';
   } else if (task.status === 'assigned' && isAssignedDesigner) {
     html += '<h2 class="section-title">Design Upload</h2>';
-    html += '<p style="color:#64748b;margin-bottom:12px;">Start working on this task first.</p>';
-    html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-start" data-id="' + task.id + '">Start Working</button>';
+    if (hasArt) {
+      // Task was reset from approved — show existing art with full upload controls (same as in_progress)
+      var artCount0 = task.finalArt.length;
+      var maxImages0 = 5;
+      var canAddMore0 = artCount0 < maxImages0;
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
+      html += '<span style="font-size:13px;color:#64748b;font-weight:500;">Media: <strong style="color:' + (artCount0 >= maxImages0 ? '#dc2626' : '#1e40af') + ';">' + artCount0 + '/' + maxImages0 + '</strong></span>';
+      if (artCount0 > 1) html += '<span style="font-size:12px;color:#7c3aed;font-weight:600;background:#f5f3ff;padding:3px 10px;border-radius:12px;">Carousel (' + artCount0 + ' slides)</span>';
+      html += '</div>';
+      if (canAddMore0) {
+        html += '<div class="upload-drop-zone" id="workspaceDropZone' + task.id + '" style="padding:16px;min-height:auto;"><input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm" multiple style="display:none;"><div class="upload-drop-content"><p style="margin:0;font-size:13px;">+ Add more files <span style="color:#94a3b8;">(' + (maxImages0 - artCount0) + ' remaining)</span></p></div></div>';
+      }
+      html += '<div class="upload-image-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:12px;">';
+      task.finalArt.forEach(function(url, i) {
+        var safe = (url || '').replace(/"/g, '&quot;');
+        html += '<div style="position:relative;border-radius:10px;overflow:hidden;border:2px solid #e2e8f0;aspect-ratio:4/5;background:#f1f5f9;">';
+        html += mediaTag(url, 'Image ' + (i + 1), 'width:100%;height:100%;object-fit:contain;');
+        html += '<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;">' + (i + 1) + '</span>';
+        html += '<button type="button" class="workspace-remove-image" data-task-id="' + task.id + '" data-index="' + i + '" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+      if (!canAddMore0) {
+        html += '<input type="file" id="workspaceFileInput' + task.id + '" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm" multiple style="display:none;">';
+      }
+      html += '<div style="display:flex;gap:8px;margin-top:12px;">';
+      html += '<button type="button" class="workspace-btn workspace-btn-replace" data-id="' + task.id + '" style="flex:1;">Replace All</button>';
+      html += '</div>';
+    } else {
+      html += '<p style="color:#64748b;margin-bottom:12px;">Start working on this task first.</p>';
+    }
+    html += '<button type="button" class="workspace-btn workspace-btn-primary workspace-btn-start" data-id="' + task.id + '" style="width:100%;margin-top:8px;">Start Working</button>';
   } else if ((task.status === 'in_progress' || task.status === 'changes_requested') && isAssignedDesigner) {
     html += '<h2 class="section-title">Design Upload / Preview</h2>';
     if (task.reviewNotes && task.reviewNotes.trim()) {

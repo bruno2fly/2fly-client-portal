@@ -199,7 +199,9 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
         existingTask.priority = (priority && ['low', 'medium', 'high', 'urgent'].includes(priority)) ? priority : existingTask.priority;
         existingTask.deadline = deadline || existingTask.deadline;
         existingTask.briefNotes = briefNotes ? String(briefNotes).slice(0, 2000) : existingTask.briefNotes;
+        existingTask.finalArt = []; // Clear old art so designer starts fresh
         existingTask.designerNotes = '';
+        existingTask.reviewNotes = '';
         existingTask.updatedAt = now2;
         if (initialStatus === 'changes_requested' && bodyReviewNotes) {
           existingTask.reviewNotes = String(bodyReviewNotes).slice(0, 2000);
@@ -356,8 +358,10 @@ router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, (req
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    if (task.designerId !== user.id) {
-      return res.status(403).json({ error: 'Only the assigned designer can upload art' });
+    // Allow assigned designer OR agency managers (OWNER/STAFF) to upload/delete art
+    const isManagerRole = ['OWNER', 'STAFF'].includes(user.role);
+    if (task.designerId !== user.id && !isManagerRole) {
+      return res.status(403).json({ error: 'Only the assigned designer or a manager can upload art' });
     }
     const { urls, designerNotes } = req.body || {};
     const newUrls = Array.isArray(urls) ? urls.filter((u: any) => typeof u === 'string' && u.startsWith('http')) : [];
