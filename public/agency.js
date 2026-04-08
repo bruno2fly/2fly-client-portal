@@ -264,6 +264,23 @@ async function fetchPortalStateFromAPI(clientId) {
   if (!r.ok) throw new Error(j.error || 'Failed to fetch portal state');
   const data = j.data;
   if (data) {
+    // Poll may return server state before PUT /api/agency/portal-state finishes (race with mark done).
+    // If local cache already has a request marked done, don't let stale "open" from the server wipe it.
+    if (prev && Array.isArray(prev.requests) && prev.requests.length) {
+      if (!Array.isArray(data.requests)) data.requests = [];
+      const prevReqById = {};
+      prev.requests.forEach(function(r) { prevReqById[r.id] = r; });
+      data.requests = data.requests.map(function(sr) {
+        var pr = prevReqById[sr.id];
+        if (!pr) return sr;
+        var prevDone = pr.status === 'done' || pr.done === true;
+        var srvDone = sr.status === 'done' || sr.done === true;
+        if (prevDone && !srvDone) {
+          return Object.assign({}, sr, { status: 'done', doneAt: pr.doneAt || sr.doneAt });
+        }
+        return sr;
+      });
+    }
     const prevApprovals = Array.isArray(prev && prev.approvals) ? prev.approvals : [];
     const dataApprovals = Array.isArray(data.approvals) ? data.approvals : [];
     // Detect client-side actions: status changes from pending → approved/changes, or item deleted
@@ -979,16 +996,19 @@ function _emptyState(name, whatsapp) {
 }
 
 function save(x) {
-  if (!currentClientId) return;
+  if (!currentClientId) return Promise.resolve(true);
   if (!portalStateFetched.has(currentClientId)) {
     console.warn('save() blocked — portal state for', currentClientId, 'was never fetched from API');
-    return;
+    return Promise.resolve(false);
   }
   portalStateCache[currentClientId] = x;
-  savePortalStateToAPI(currentClientId, x).catch(err => {
-    console.error('Save portal state failed:', err);
-    showToast('Failed to save. ' + (err.message || ''), 'error');
-  });
+  return savePortalStateToAPI(currentClientId, x)
+    .then(function() { return true; })
+    .catch(function(err) {
+      console.error('Save portal state failed:', err);
+      showToast('Failed to save. ' + (err.message || ''), 'error');
+      return false;
+    });
 }
 
 function loadReports() {
@@ -3841,7 +3861,128 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '<div id="ailGenResults"></div>';
   h += '</div>';
 
+  // ===== SCENE COMPOSER SECTION =====
+  h += '<div class="ail-card ail-section" style="margin-top:24px; border-top:2px solid #e2e8f0; padding-top:24px;">';
+  h += '<h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#0f172a;">✨ Scene Composer</h3>';
+  h += '<p style="color:#64748b; font-size:13px; margin:0 0 16px;">Combine 2 real photos into one cinematic composition using Gemini. Select photos below, copy the prompt, then paste into gemini.google.com</p>';
+
+  h += '<div class="ail-form-row">';
+  h += '<div class="ail-form-group"><label class="ail-label">🏠 Ambient / Background</label><div id="scAmbientPicker" class="scene-photo-picker"><div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div></div></div>';
+  h += '<div class="ail-form-group"><label class="ail-label">🍽️ Subject / Hero</label><div id="scSubjectPicker" class="scene-photo-picker"><div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div></div></div>';
+  h += '</div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">🎨 Style Preset</label>';
+  h += '<select class="ail-select" id="scStylePreset">';
+  h += '<option value="moody_warm">Moody Warm — Golden candlelight, deep shadows, luxurious</option>';
+  h += '<option value="bright_fresh">Bright & Fresh — Natural light, clean, modern</option>';
+  h += '<option value="dark_luxe">Dark Luxe — Low-key lighting, premium, editorial</option>';
+  h += '<option value="golden_hour">Golden Hour — Warm orange/amber tones, cinematic</option>';
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">📝 Generated Prompt (for Gemini)</label>';
+  h += '<textarea class="ail-textarea" id="scGeneratedPrompt" rows="5" readonly placeholder="Click Generate Prompt to build your prompt..."></textarea></div>';
+
+  h += '<div style="display:flex; gap:12px; flex-wrap:wrap;">';
+  h += '<button class="ail-btn ail-btn-primary" id="scGeneratePromptBtn">🔄 Generate Prompt</button>';
+  h += '<button class="ail-btn" id="scCopyPromptBtn" style="background:#7c3aed; color:white;">📋 Copy Prompt</button>';
+  h += '<a href="https://gemini.google.com" target="_blank" class="ail-btn" style="background:#4285f4; color:white; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">🚀 Open Gemini</a>';
+  h += '</div>';
+  h += '</div>';
+
   tc.innerHTML = h;
+
+  // ===== SCENE COMPOSER LOGIC =====
+  var SC_STYLE_PRESETS = {
+    moody_warm: 'Compose these two photos into one cinematic Instagram post.\nUse the ambient/background photo to establish the real venue atmosphere.\nPlace the subject naturally within that real environment.\nStyle: warm golden candlelight, amber wall sconces, deep shadows, rich warm tones, soft bokeh.\nKeep everything realistic — real venue, real subject. Professional Instagram-ready result.',
+    bright_fresh: 'Compose these two photos into one bright, fresh Instagram post.\nUse the ambient photo as the real background setting.\nPlace the subject naturally in that environment.\nStyle: natural daylight, clean white/neutral tones, airy and modern feel.\nKeep everything realistic. Instagram-ready.',
+    dark_luxe: 'Compose these two photos into one editorial, premium Instagram post.\nUse the ambient photo as the real background.\nStyle: low-key dark lighting, premium and editorial feel, high contrast, luxury mood.\nSubject should be dramatically lit and sharp. Background moody and sophisticated.\nInstagram-ready, realistic.',
+    golden_hour: 'Compose these two photos into one cinematic Instagram post.\nUse the ambient photo as the real background setting.\nStyle: golden hour lighting, warm orange/amber tones, long soft shadows, cinematic depth.\nReal venue, real subject. Professional quality.'
+  };
+
+  window.scAmbientUrl = null;
+  window.scSubjectUrl = null;
+
+  function scLoadClientPhotos(cid) {
+    var ambientPicker = tc.querySelector('#scAmbientPicker');
+    var subjectPicker = tc.querySelector('#scSubjectPicker');
+    if (!cid) {
+      ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div>';
+      subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div>';
+      window.scAmbientUrl = null;
+      window.scSubjectUrl = null;
+      return;
+    }
+    ambientPicker.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#94a3b8;">Loading photos...</div>';
+    subjectPicker.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#94a3b8;">Loading photos...</div>';
+
+    fetch(getApiBaseUrl() + '/api/agency/portal-state?clientId=' + encodeURIComponent(cid), { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var media = [];
+        if (d.media && Array.isArray(d.media)) media = d.media;
+        else if (d.posts && Array.isArray(d.posts)) {
+          d.posts.forEach(function(p) {
+            if (p.imageUrl) media.push({ url: p.imageUrl, name: p.caption || '' });
+            if (p.media && Array.isArray(p.media)) p.media.forEach(function(m) { media.push({ url: m.url || m, name: '' }); });
+          });
+        }
+        if (media.length === 0) {
+          ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos found for this client</div>';
+          subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos found for this client</div>';
+          return;
+        }
+        function buildThumbs(container, pickType) {
+          var th = '';
+          media.forEach(function(m, idx) {
+            var url = typeof m === 'string' ? m : (m.url || m.imageUrl || '');
+            if (!url) return;
+            th += '<img class="scene-thumb" src="' + url + '" data-url="' + url + '" data-pick="' + pickType + '" loading="lazy" onerror="this.style.display=\'none\'" />';
+          });
+          container.innerHTML = th || '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos available</div>';
+          container.querySelectorAll('.scene-thumb').forEach(function(img) {
+            img.addEventListener('click', function() {
+              container.querySelectorAll('.scene-thumb').forEach(function(t) { t.classList.remove('selected'); });
+              img.classList.add('selected');
+              if (pickType === 'ambient') window.scAmbientUrl = img.getAttribute('data-url');
+              else window.scSubjectUrl = img.getAttribute('data-url');
+            });
+          });
+        }
+        buildThumbs(ambientPicker, 'ambient');
+        buildThumbs(subjectPicker, 'subject');
+      })
+      .catch(function() {
+        ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;color:#dc2626;">Failed to load photos</div>';
+        subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;color:#dc2626;">Failed to load photos</div>';
+      });
+  }
+
+  // Load photos when client changes
+  clientSelect.addEventListener('change', function() { scLoadClientPhotos(clientSelect.value); });
+  if (clientSelect.value) scLoadClientPhotos(clientSelect.value);
+
+  // Generate Prompt button
+  tc.querySelector('#scGeneratePromptBtn').addEventListener('click', function() {
+    if (!window.scAmbientUrl) { showToast('Select an ambient/background photo first', 'error'); return; }
+    if (!window.scSubjectUrl) { showToast('Select a subject/hero photo first', 'error'); return; }
+    var style = tc.querySelector('#scStylePreset').value;
+    var prompt = 'Ambient photo: ' + window.scAmbientUrl + '\nSubject photo: ' + window.scSubjectUrl + '\n\n' + SC_STYLE_PRESETS[style];
+    tc.querySelector('#scGeneratedPrompt').value = prompt;
+    showToast('Prompt generated!', 'success');
+  });
+
+  // Copy Prompt button
+  tc.querySelector('#scCopyPromptBtn').addEventListener('click', function() {
+    var text = tc.querySelector('#scGeneratedPrompt').value;
+    if (!text) { showToast('Generate a prompt first', 'error'); return; }
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = tc.querySelector('#scCopyPromptBtn');
+      var orig = btn.innerHTML;
+      btn.innerHTML = '✅ Copied!';
+      setTimeout(function() { btn.innerHTML = orig; }, 2000);
+      showToast('Prompt copied to clipboard!', 'success');
+    }).catch(function() { showToast('Failed to copy', 'error'); });
+  });
 
   // Show brand kit info when client changes
   var clientSelect = tc.querySelector('#ailGenClient');
@@ -6748,12 +6889,13 @@ function renderRequestsTab() {
   });
 }
 
-function markRequestDone(id) {
+async function markRequestDone(id) {
   const state = load();
   const req = (state.requests || []).find(r => r.id === id);
   if (!req) return;
   
   req.status = 'done';
+  req.done = true;
   req.doneAt = Date.now();
   if (!req.createdAt) req.createdAt = Date.now();
 
@@ -6763,7 +6905,8 @@ function markRequestDone(id) {
     text: `Marked request as done: ${req.type}`
   });
 
-  save(state);
+  var saved = await save(state);
+  if (!saved) return;
   // Notify client their request was completed
   if (currentClientId) {
     fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
@@ -6862,8 +7005,8 @@ function openRequestDetail(req) {
 
   var markDoneBtn = document.getElementById('reqDetailMarkDone');
   if (markDoneBtn) {
-    markDoneBtn.addEventListener('click', function() {
-      markRequestDone(req.id);
+      markDoneBtn.addEventListener('click', async function() {
+      await markRequestDone(req.id);
       overlay.remove();
     });
   }
@@ -9049,13 +9192,27 @@ function displayUploadedImages() {
     const imageWrapper = el('div', {
       class: 'uploaded-image-preview'
     });
-    
-    const img = el('img', {
-      src: image.dataUrl,
-      alt: image.name,
-      style: 'width: 100%; height: 100%; object-fit: cover;'
-    });
-    
+
+    const isVideo = image.type && image.type.startsWith('video/');
+    let mediaEl;
+    if (isVideo) {
+      mediaEl = document.createElement('video');
+      mediaEl.src = image.dataUrl;
+      mediaEl.muted = true;
+      mediaEl.playsInline = true;
+      mediaEl.autoplay = false;
+      mediaEl.preload = 'metadata';
+      mediaEl.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: 6px;';
+      // Show first frame as thumbnail
+      mediaEl.addEventListener('loadeddata', () => { try { mediaEl.currentTime = 0.1; } catch(e){} });
+    } else {
+      mediaEl = el('img', {
+        src: image.dataUrl,
+        alt: image.name,
+        style: 'width: 100%; height: 100%; object-fit: cover;'
+      });
+    }
+
     const removeBtn = el('button', {
       class: 'remove-image',
       type: 'button',
@@ -9067,8 +9224,8 @@ function displayUploadedImages() {
       uploadedImages = uploadedImages.filter((_, i) => i !== index);
       displayUploadedImages();
     });
-    
-    imageWrapper.appendChild(img);
+
+    imageWrapper.appendChild(mediaEl);
     imageWrapper.appendChild(removeBtn);
     imagesList.appendChild(imageWrapper);
   });
