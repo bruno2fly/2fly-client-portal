@@ -11743,7 +11743,7 @@ function submitSendToDesigner(modal) {
       }
       if (!j.task) throw new Error(j.error || 'Failed');
       modal.style.display = 'none';
-      showToast('Task sent to ' + designerName);
+      showToast(j.reused ? 'Task reassigned to ' + designerName + ' (existing task reset)' : 'Task sent to ' + designerName);
       renderApprovalsTab();
       if (currentViewMode === 'production') loadProductionTasks().then(renderProductionView);
     })

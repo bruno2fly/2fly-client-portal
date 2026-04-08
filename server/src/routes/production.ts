@@ -181,14 +181,31 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
     if (!clientId || !designerId) {
       return res.status(400).json({ error: 'clientId and designerId are required' });
     }
-    // Prevent duplicate tasks for the same approvalId (unless it's a changes_requested resend)
-    if (approvalId && initialStatus !== 'changes_requested') {
+    // Prevent duplicate tasks — reuse existing task for the same approvalId
+    if (approvalId) {
       const existingTasks = getProductionTasksByAgency(agencyId);
-      const duplicate = existingTasks.find(
-        (t: ProductionTask) => t.approvalId === approvalId && t.clientId === clientId && !['approved', 'ready_to_post'].includes(t.status)
+      const existingTask = existingTasks.find(
+        (t: ProductionTask) => t.approvalId === approvalId && t.clientId === clientId
       );
-      if (duplicate) {
-        return res.status(409).json({ error: 'This approval has already been sent to a designer', existingTaskId: duplicate.id });
+      if (existingTask) {
+        // If task is in-progress (not approved/completed), block duplicate
+        if (!['approved', 'ready_to_post'].includes(existingTask.status) && initialStatus !== 'changes_requested') {
+          return res.status(409).json({ error: 'This approval has already been sent to a designer', existingTaskId: existingTask.id });
+        }
+        // Task was approved/ready_to_post — reset it instead of creating a new one
+        const now2 = new Date().toISOString();
+        existingTask.status = (initialStatus === 'changes_requested' ? 'changes_requested' : 'assigned') as ProductionTaskStatus;
+        existingTask.designerId = designerId;
+        existingTask.priority = (priority && ['low', 'medium', 'high', 'urgent'].includes(priority)) ? priority : existingTask.priority;
+        existingTask.deadline = deadline || existingTask.deadline;
+        existingTask.briefNotes = briefNotes ? String(briefNotes).slice(0, 2000) : existingTask.briefNotes;
+        existingTask.designerNotes = '';
+        existingTask.updatedAt = now2;
+        if (initialStatus === 'changes_requested' && bodyReviewNotes) {
+          existingTask.reviewNotes = String(bodyReviewNotes).slice(0, 2000);
+        }
+        saveProductionTask(existingTask);
+        return res.json({ task: existingTask, reused: true });
       }
     }
     const client = getClient(clientId);
