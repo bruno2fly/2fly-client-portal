@@ -9095,6 +9095,32 @@ function bindImageUrlPreviewToInput(input, wrap, img) {
   function refresh() {
     var url = (input.value || '').trim();
     if (!url) { wrap.style.display = 'none'; return; }
+    // Check if URL is a video file
+    var isVideo = /\.(mp4|mov|webm|avi|m4v)(\?|$)/i.test(url) || url.startsWith('data:video/');
+    if (isVideo) {
+      // Replace img with video element for preview
+      var existingVideo = wrap.querySelector('video');
+      if (!existingVideo) {
+        existingVideo = document.createElement('video');
+        existingVideo.muted = true;
+        existingVideo.playsInline = true;
+        existingVideo.preload = 'metadata';
+        existingVideo.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
+        existingVideo.addEventListener('loadeddata', function() { try { existingVideo.currentTime = 0.1; } catch(e){} });
+        wrap.appendChild(existingVideo);
+      }
+      img.style.display = 'none';
+      existingVideo.style.display = 'block';
+      existingVideo.src = url;
+      existingVideo.onloadeddata = function() { wrap.style.display = 'block'; };
+      existingVideo.onerror = function() { wrap.style.display = 'none'; };
+      wrap.style.display = 'block';
+      return;
+    }
+    // Image handling (original logic)
+    var existingVideo2 = wrap.querySelector('video');
+    if (existingVideo2) existingVideo2.style.display = 'none';
+    img.style.display = 'block';
     var fallbacks = getDriveFallbackUrls(url);
     var idx = 0;
     img.onload = function () { wrap.style.display = 'block'; };
