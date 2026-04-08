@@ -1143,7 +1143,7 @@ function getApprovalPipelineCounts(approvals) {
   const copyPending = list.filter(a => a.status === 'copy_pending').length;
   const copyApproved = list.filter(a => a.status === 'copy_approved').length;
   const copyChanges = list.filter(a => a.status === 'copy_changes').length;
-  const awaiting = list.filter(a => ['copy_pending', 'copy_approved', 'pending'].includes(a.status)).length;
+  const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status)).length;
   const changes = list.filter(a => a.status === 'changes').length;
   const scheduled = list.filter(a => {
     if (a.status !== 'approved' || !a.postDate) return false;

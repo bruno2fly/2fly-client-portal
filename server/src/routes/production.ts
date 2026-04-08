@@ -73,9 +73,11 @@ function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
   originalItem.imageUrl = (task.finalArt && task.finalArt[0]) || originalItem.imageUrl || '';
   originalItem.productionStatus = 'art_approved';
   originalItem.productionTaskId = task.id;
+  // Move approval to Content Pending so client can see and approve the final art
+  originalItem.status = 'pending';
   originalItem.updatedAt = new Date().toISOString();
   savePortalState(task.agencyId, task.clientId, state);
-  console.log('[production] Updated original item with final art:', originalItem.id);
+  console.log('[production] Updated original item with final art and set to pending:', originalItem.id);
 }
 
 /** When designer resubmits after changes, push the approval back to content_pending for the client. */
