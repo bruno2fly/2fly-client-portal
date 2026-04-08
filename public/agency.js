@@ -92,6 +92,9 @@ let portalStateCache = {};
 // preventing empty/default state from overwriting real server data.
 const portalStateFetched = new Set();
 
+// Track clients with an in-flight save to prevent poll from overwriting unsaved data
+const portalSaveInFlight = new Set();
+
 const metaStatusCache = {};
 
 async function getMetaStatusForClient(clientId) {
@@ -252,7 +255,11 @@ async function fetchClientsFromAPI() {
   return map;
 }
 
-async function fetchPortalStateFromAPI(clientId) {
+async function fetchPortalStateFromAPI(clientId, forceEvenIfSaving) {
+  // Skip fetch if a save is in flight for this client to prevent overwriting unsaved data
+  if (!forceEvenIfSaving && portalSaveInFlight.has(clientId)) {
+    return portalStateCache[clientId] || null;
+  }
   const prev = portalStateCache[clientId] || null;
   const url = `${getApiBaseUrl()}/api/agency/portal-state?clientId=${encodeURIComponent(clientId)}&_=${Date.now()}`;
   const r = await fetch(url, {
@@ -999,12 +1006,16 @@ function save(x) {
   if (!currentClientId) return Promise.resolve(true);
   if (!portalStateFetched.has(currentClientId)) {
     console.warn('save() blocked — portal state for', currentClientId, 'was never fetched from API');
+    showToast('Save blocked — data not loaded yet. Please wait and try again.', 'error');
     return Promise.resolve(false);
   }
-  portalStateCache[currentClientId] = x;
-  return savePortalStateToAPI(currentClientId, x)
-    .then(function() { return true; })
+  var savingClientId = currentClientId;
+  portalStateCache[savingClientId] = x;
+  portalSaveInFlight.add(savingClientId);
+  return savePortalStateToAPI(savingClientId, x)
+    .then(function() { portalSaveInFlight.delete(savingClientId); return true; })
     .catch(function(err) {
+      portalSaveInFlight.delete(savingClientId);
       console.error('Save portal state failed:', err);
       showToast('Failed to save. ' + (err.message || ''), 'error');
       return false;
