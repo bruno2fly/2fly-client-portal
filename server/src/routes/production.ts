@@ -486,4 +486,52 @@ router.delete('/tasks/:id', authenticate, requireAgencyOnly, (req: Authenticated
   }
 });
 
+/** POST /api/production/migrate-approved-art — One-time fix: sync all approved task art back to approvals page. */
+router.post('/migrate-approved-art', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const tasks = getProductionTasksByAgency(agencyId);
+    const approvedTasks = tasks.filter((t: ProductionTask) =>
+      (t.status === 'approved' || t.status === 'ready_to_post') &&
+      t.finalArt && t.finalArt.length > 0
+    );
+
+    const results: { taskId: string; approvalId: string; clientId: string; status: string }[] = [];
+
+    for (const task of approvedTasks) {
+      const state = getPortalState(task.agencyId, task.clientId);
+      if (!state || !Array.isArray(state.approvals)) continue;
+
+      const item = state.approvals.find(
+        (a: any) => a.id === task.approvalId || a.id === task.contentId
+      ) as any;
+      if (!item) {
+        results.push({ taskId: task.id, approvalId: task.approvalId, clientId: task.clientId, status: 'approval_not_found' });
+        continue;
+      }
+
+      // Update art URLs
+      item.finalArtUrls = task.finalArt || [];
+      item.imageUrls = task.finalArt || [];
+      item.imageUrl = (task.finalArt && task.finalArt[0]) || item.imageUrl || '';
+      item.productionStatus = 'art_approved';
+      item.productionTaskId = task.id;
+      // Set to pending so it shows in Content Pending for client
+      item.status = 'pending';
+      item.updatedAt = new Date().toISOString();
+
+      savePortalState(task.agencyId, task.clientId, state);
+      results.push({ taskId: task.id, approvalId: item.id, clientId: task.clientId, status: 'migrated' });
+    }
+
+    res.json({
+      success: true,
+      message: `Migrated ${results.filter(r => r.status === 'migrated').length} of ${approvedTasks.length} approved tasks`,
+      results,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Migration failed' });
+  }
+});
+
 export default router;
