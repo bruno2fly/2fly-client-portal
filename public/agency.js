@@ -11937,6 +11937,14 @@ function submitSendToDesigner(modal) {
         modal.style.display = 'none';
         return;
       }
+      if (j._httpStatus === 403) {
+        var msg = 'Insufficient permissions';
+        if (j.yourRole) msg += ' (your role: ' + j.yourRole + ', needs: ' + (j.requiredRoles || []).join('/') + ')';
+        msg += '. Try logging out and back in.';
+        showToast(msg, 'error');
+        modal.style.display = 'none';
+        return;
+      }
       if (!j.task) throw new Error(j.error || 'Failed');
       modal.style.display = 'none';
       showToast(j.reused ? 'Task reassigned to ' + designerName + ' (existing task reset)' : 'Task sent to ' + designerName);

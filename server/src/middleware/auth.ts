@@ -176,7 +176,8 @@ export function requireRole(roles: UserRole[]) {
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      console.warn(`[auth] Insufficient permissions: user ${req.user.id} has role ${req.user.role}, needs one of: ${roles.join(', ')}`);
+      return res.status(403).json({ error: 'Insufficient permissions', yourRole: req.user.role, requiredRoles: roles });
     }
 
     next();

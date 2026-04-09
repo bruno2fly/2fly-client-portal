@@ -210,6 +210,28 @@ router.post('/client-login', async (req, res) => {
 });
 
 /**
+ * GET /api/auth/me
+ * Return current session info (for debugging auth issues)
+ */
+router.get('/me', (req, res) => {
+  try {
+    const token = req.cookies?.[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.json({ authenticated: false, reason: 'no token' });
+    }
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const user = decoded.userId ? getUserByEmail(decoded.agencyId, decoded.email) || getUser(decoded.userId) : null;
+    return res.json({
+      authenticated: true,
+      token: { userId: decoded.userId, agencyId: decoded.agencyId, role: decoded.role, email: decoded.email, clientId: decoded.clientId || null, purpose: decoded.purpose || null },
+      dbUser: user ? { id: user.id, role: user.role, status: user.status, name: user.name } : null
+    });
+  } catch (e: any) {
+    return res.json({ authenticated: false, reason: e.message });
+  }
+});
+
+/**
  * POST /api/auth/logout
  * Logout (clear session cookie)
  */
