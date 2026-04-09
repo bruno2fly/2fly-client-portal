@@ -9056,6 +9056,117 @@ function getApprovalImageUrls() {
 }
 
 /** Render the list of image URL rows from an array of URL strings; keeps first input id="approvalImageUrl". */
+function _getSlideLabel(index) { return index === 0 ? 'Cover' : 'Slide ' + (index + 1); }
+
+function _updateSlideLabels() {
+  var rows = document.querySelectorAll('.approval-image-url-row');
+  rows.forEach(function(row, i) {
+    row.setAttribute('data-index', String(i));
+    var label = row.querySelector('.slide-position-label');
+    if (label) label.textContent = _getSlideLabel(i);
+    var input = row.querySelector('.approval-image-url-input');
+    if (input) { input.id = (i === 0) ? 'approvalImageUrl' : ''; }
+    // Show/hide arrows based on position
+    var upBtn = row.querySelector('.slide-move-up');
+    var downBtn = row.querySelector('.slide-move-down');
+    if (upBtn) upBtn.style.visibility = i === 0 ? 'hidden' : 'visible';
+    if (downBtn) downBtn.style.visibility = i === rows.length - 1 ? 'hidden' : 'visible';
+    // Show remove on all except if only 1 row
+    var removeBtn = row.querySelector('.slide-remove-btn');
+    if (removeBtn) removeBtn.style.display = rows.length <= 1 ? 'none' : '';
+  });
+}
+
+function _createImageUrlRow(url, index, totalCount) {
+  var row = document.createElement('div');
+  row.className = 'approval-image-url-row';
+  row.setAttribute('data-index', String(index));
+  row.style.cssText = 'margin-bottom: 14px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; background: #fafbfc;';
+
+  // Header: label + arrows + remove
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+  var label = document.createElement('span');
+  label.className = 'slide-position-label';
+  label.style.cssText = 'font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;flex:1;';
+  label.textContent = _getSlideLabel(index);
+  header.appendChild(label);
+
+  // Up arrow
+  var upBtn = document.createElement('button');
+  upBtn.type = 'button';
+  upBtn.className = 'slide-move-up';
+  upBtn.title = 'Move up';
+  upBtn.style.cssText = 'background:none;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;padding:3px 6px;color:#64748b;font-size:14px;line-height:1;display:flex;align-items:center;transition:all 0.15s;';
+  upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m18 15-6-6-6 6"/></svg>';
+  upBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
+  upBtn.addEventListener('mouseenter', function() { upBtn.style.borderColor = '#3b82f6'; upBtn.style.color = '#3b82f6'; });
+  upBtn.addEventListener('mouseleave', function() { upBtn.style.borderColor = '#cbd5e1'; upBtn.style.color = '#64748b'; });
+  upBtn.addEventListener('click', function() {
+    var container = row.parentNode;
+    var prev = row.previousElementSibling;
+    if (prev && container) { container.insertBefore(row, prev); _updateSlideLabels(); }
+  });
+  header.appendChild(upBtn);
+
+  // Down arrow
+  var downBtn = document.createElement('button');
+  downBtn.type = 'button';
+  downBtn.className = 'slide-move-down';
+  downBtn.title = 'Move down';
+  downBtn.style.cssText = 'background:none;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;padding:3px 6px;color:#64748b;font-size:14px;line-height:1;display:flex;align-items:center;transition:all 0.15s;';
+  downBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+  downBtn.style.visibility = index === totalCount - 1 ? 'hidden' : 'visible';
+  downBtn.addEventListener('mouseenter', function() { downBtn.style.borderColor = '#3b82f6'; downBtn.style.color = '#3b82f6'; });
+  downBtn.addEventListener('mouseleave', function() { downBtn.style.borderColor = '#cbd5e1'; downBtn.style.color = '#64748b'; });
+  downBtn.addEventListener('click', function() {
+    var container = row.parentNode;
+    var next = row.nextElementSibling;
+    if (next && container) { container.insertBefore(next, row); _updateSlideLabels(); }
+  });
+  header.appendChild(downBtn);
+
+  // Remove button
+  var removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'slide-remove-btn';
+  removeBtn.title = 'Remove';
+  removeBtn.style.cssText = 'background:none;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;padding:3px 6px;color:#94a3b8;font-size:14px;line-height:1;display:flex;align-items:center;transition:all 0.15s;';
+  removeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  if (totalCount <= 1) removeBtn.style.display = 'none';
+  removeBtn.addEventListener('mouseenter', function() { removeBtn.style.borderColor = '#ef4444'; removeBtn.style.color = '#ef4444'; });
+  removeBtn.addEventListener('mouseleave', function() { removeBtn.style.borderColor = '#cbd5e1'; removeBtn.style.color = '#94a3b8'; });
+  removeBtn.addEventListener('click', function () {
+    row.remove();
+    _updateSlideLabels();
+    setupImageUrlPreviewForAll();
+  });
+  header.appendChild(removeBtn);
+  row.appendChild(header);
+
+  // Input
+  var input = document.createElement('input');
+  input.type = 'url';
+  input.className = 'form-input approval-image-url-input';
+  input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
+  input.value = url || '';
+  if (index === 0) input.id = 'approvalImageUrl';
+  row.appendChild(input);
+
+  // Preview
+  var previewWrap = document.createElement('div');
+  previewWrap.className = 'approval-image-url-preview-wrap';
+  previewWrap.style.cssText = 'display: none; margin-top: 8px;';
+  var previewImg = document.createElement('img');
+  previewImg.className = 'approval-image-url-preview-img';
+  previewImg.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
+  previewImg.alt = 'Preview';
+  previewWrap.appendChild(previewImg);
+  row.appendChild(previewWrap);
+
+  return { row: row, input: input, previewWrap: previewWrap, previewImg: previewImg };
+}
+
 function renderApprovalImageUrlRows(urls) {
   var container = $('#approvalImageUrlsContainer');
   if (!container) return;
@@ -9063,40 +9174,9 @@ function renderApprovalImageUrlRows(urls) {
   if (urls.length === 0) urls = [''];
   container.innerHTML = '';
   urls.forEach(function (url, index) {
-    var row = document.createElement('div');
-    row.className = 'approval-image-url-row';
-    row.setAttribute('data-index', String(index));
-    row.style.marginBottom = '12px';
-    var input = document.createElement('input');
-    input.type = 'url';
-    input.className = 'form-input approval-image-url-input';
-    input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
-    input.value = url || '';
-    if (index === 0) input.id = 'approvalImageUrl';
-    var previewWrap = document.createElement('div');
-    previewWrap.className = 'approval-image-url-preview-wrap';
-    previewWrap.style.cssText = 'display: none; margin-top: 8px;';
-    var previewImg = document.createElement('img');
-    previewImg.className = 'approval-image-url-preview-img';
-    previewImg.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
-    previewImg.alt = 'Preview';
-    previewWrap.appendChild(previewImg);
-    row.appendChild(input);
-    row.appendChild(previewWrap);
-    if (index > 0) {
-      var removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn btn--sm btn-secondary';
-      removeBtn.style.marginTop = '4px';
-      removeBtn.textContent = 'Remove';
-      removeBtn.addEventListener('click', function () {
-        row.remove();
-        setupImageUrlPreviewForAll();
-      });
-      row.appendChild(removeBtn);
-    }
-    container.appendChild(row);
-    bindImageUrlPreviewToInput(input, previewWrap, previewImg);
+    var parts = _createImageUrlRow(url, index, urls.length);
+    container.appendChild(parts.row);
+    bindImageUrlPreviewToInput(parts.input, parts.previewWrap, parts.previewImg);
   });
   setupImageUrlPreviewForAll();
 }
@@ -9176,36 +9256,12 @@ function setupImageUrlPreview() {
       if (inputs.length >= MAX_IMAGE_URLS) return;
       var container = $('#approvalImageUrlsContainer');
       if (!container) return;
-      var row = document.createElement('div');
-      row.className = 'approval-image-url-row';
-      row.setAttribute('data-index', String(inputs.length));
-      row.style.marginBottom = '12px';
-      var input = document.createElement('input');
-      input.type = 'url';
-      input.className = 'form-input approval-image-url-input';
-      input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
-      var previewWrap = document.createElement('div');
-      previewWrap.className = 'approval-image-url-preview-wrap';
-      previewWrap.style.cssText = 'display: none; margin-top: 8px;';
-      var previewImg = document.createElement('img');
-      previewImg.className = 'approval-image-url-preview-img';
-      previewImg.style.cssText = 'max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
-      previewImg.alt = 'Preview';
-      previewWrap.appendChild(previewImg);
-      var removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn btn--sm btn-secondary';
-      removeBtn.style.marginTop = '4px';
-      removeBtn.textContent = 'Remove';
-      removeBtn.addEventListener('click', function () {
-        row.remove();
-        setupImageUrlPreviewForAll();
-      });
-      row.appendChild(input);
-      row.appendChild(previewWrap);
-      row.appendChild(removeBtn);
-      container.appendChild(row);
-      bindImageUrlPreviewToInput(input, previewWrap, previewImg);
+      var newIndex = inputs.length;
+      var parts = _createImageUrlRow('', newIndex, newIndex + 1);
+      container.appendChild(parts.row);
+      bindImageUrlPreviewToInput(parts.input, parts.previewWrap, parts.previewImg);
+      _updateSlideLabels();
+      parts.input.focus();
     };
   }
 }
