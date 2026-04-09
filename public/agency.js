@@ -1080,7 +1080,7 @@ function calculateScheduledPosts(approvals) {
   const fifteenDaysFromNow = new Date(now);
   fifteenDaysFromNow.setDate(now.getDate() + 15);
   return approvals.filter(a => {
-    if (!a.postDate) return false;
+    if (!a.postDate || a.status === 'archived') return false;
     const postDate = new Date(a.postDate);
     return postDate >= now && postDate <= fifteenDaysFromNow;
   }).length;
@@ -9620,8 +9620,9 @@ function switchToProductionView() {
         renderProductionView();
       });
     }
-    ['ai-library', 'references'].forEach(function(section) {
-      var btn = document.getElementById('productionNav' + (section === 'ai-library' ? 'AILibrary' : 'References'));
+    ['ai-library', 'references', 'archived'].forEach(function(section) {
+      var navId = section === 'ai-library' ? 'AILibrary' : section === 'archived' ? 'Archived' : 'References';
+      var btn = document.getElementById('productionNav' + navId);
       if (btn) btn.addEventListener('click', function() {
         currentProductionSection = section;
         document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
@@ -10557,6 +10558,93 @@ function hashClientIdToStripe(clientId) {
   return Math.abs(h) % PV_CLIENT_STRIPE_MOD;
 }
 
+function renderArchivedPostsSection(container) {
+  var clientsData = loadClientsRegistry();
+  var clientIds = clientsData ? Object.keys(clientsData) : [];
+  var archivedItems = [];
+  clientIds.forEach(function(cid) {
+    var state = portalStateCache[cid];
+    if (!state || !Array.isArray(state.approvals)) return;
+    state.approvals.forEach(function(a) {
+      if (a.status === 'archived') {
+        archivedItems.push({ approval: a, clientId: cid, clientName: (clientsData[cid] && clientsData[cid].name) || cid });
+      }
+    });
+  });
+
+  var html = '<div style="padding: 0 24px 24px;">';
+  html += '<h2 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 4px;">Archived Posts</h2>';
+  html += '<p style="font-size:13px;color:#94a3b8;margin:0 0 20px;">Posts that have been completed and archived from the approvals page.</p>';
+
+  if (archivedItems.length === 0) {
+    html += '<div style="text-align:center;padding:48px 24px;color:#94a3b8;font-size:14px;">';
+    html += '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:12px;"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>';
+    html += '<br>No archived posts yet.<br><span style="font-size:12px;">Set a post\'s status to "Archived" to move it here.</span></div>';
+  } else {
+    // Group by client
+    var byClient = {};
+    var clientOrder = [];
+    archivedItems.forEach(function(item) {
+      if (!byClient[item.clientId]) { byClient[item.clientId] = { name: item.clientName, items: [] }; clientOrder.push(item.clientId); }
+      byClient[item.clientId].items.push(item.approval);
+    });
+    clientOrder.sort(function(a, b) { return byClient[a].name.localeCompare(byClient[b].name); });
+
+    clientOrder.forEach(function(cid) {
+      var group = byClient[cid];
+      html += '<div style="margin-bottom:20px;">';
+      html += '<div style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;">' + (group.name || '').replace(/</g, '&lt;') + ' <span style="font-weight:400;color:#94a3b8;">(' + group.items.length + ')</span></div>';
+      group.items.forEach(function(a) {
+        var title = (a.title || a.caption || 'Untitled').replace(/</g, '&lt;').slice(0, 80);
+        var type = (a.type || 'Post').replace(/</g, '&lt;');
+        var date = a.postDate ? new Date(a.postDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+        var hasArt = (a.finalArtUrls && a.finalArtUrls.length > 0) || (a.imageUrls && a.imageUrls.length > 0) || a.imageUrl;
+        var thumbUrl = (a.finalArtUrls && a.finalArtUrls[0]) || (a.imageUrls && a.imageUrls[0]) || a.imageUrl || '';
+        var safeThumb = (thumbUrl || '').replace(/"/g, '&quot;');
+
+        html += '<div class="archived-post-row" data-approval-id="' + (a.id || '').replace(/"/g, '&quot;') + '" data-client-id="' + (cid || '').replace(/"/g, '&quot;') + '" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;margin-bottom:4px;cursor:default;transition:background 0.15s;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'transparent\'">';
+        if (hasArt && safeThumb) {
+          html += '<div style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f1f5f9;border:1px solid #e2e8f0;">';
+          html += '<img src="' + safeThumb + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'">';
+          html += '</div>';
+        } else {
+          html += '<div style="width:44px;height:44px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>';
+        }
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-size:14px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + title + '</div>';
+        html += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + type + ' · ' + date + '</div>';
+        html += '</div>';
+        html += '<span style="padding:4px 10px;border-radius:9999px;font-size:11px;font-weight:600;background:#f1f5f9;color:#64748b;flex-shrink:0;">Archived</span>';
+        html += '<button type="button" class="archived-unarchive-btn" data-approval-id="' + (a.id || '').replace(/"/g, '&quot;') + '" data-client-id="' + (cid || '').replace(/"/g, '&quot;') + '" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;background:none;border:1px solid #cbd5e1;color:#64748b;cursor:pointer;flex-shrink:0;transition:all 0.15s;" onmouseenter="this.style.borderColor=\'#3b82f6\';this.style.color=\'#3b82f6\'" onmouseleave="this.style.borderColor=\'#cbd5e1\';this.style.color=\'#64748b\'">Unarchive</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Bind unarchive buttons
+  container.querySelectorAll('.archived-unarchive-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var approvalId = btn.getAttribute('data-approval-id');
+      var clientId = btn.getAttribute('data-client-id');
+      if (!approvalId || !clientId) return;
+      var state = portalStateCache[clientId];
+      if (!state || !Array.isArray(state.approvals)) return;
+      var item = state.approvals.find(function(a) { return a.id === approvalId; });
+      if (!item) return;
+      item.status = 'approved';
+      item.updatedAt = new Date().toISOString();
+      portalSaveInFlight.add(clientId);
+      savePortalStateToAPI(clientId, state)
+        .then(function() { portalSaveInFlight.delete(clientId); showToast('Post unarchived — moved back to Approved'); renderArchivedPostsSection(container); })
+        .catch(function(err) { portalSaveInFlight.delete(clientId); showToast('Failed: ' + (err.message || ''), 'error'); });
+    });
+  });
+}
+
 function renderProductionView() {
   const container = document.getElementById('productionViewInner');
   if (!container) return;
@@ -10569,6 +10657,10 @@ function renderProductionView() {
   }
   if (currentProductionSection === 'references') {
     renderReferencesPage(container);
+    return;
+  }
+  if (currentProductionSection === 'archived') {
+    renderArchivedPostsSection(container);
     return;
   }
   var clientsData = loadClientsRegistry();
