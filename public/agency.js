@@ -6515,9 +6515,16 @@ function setupApprovalHandlers() {
     
     const existingIndex = state.approvals.findIndex(a => a.id === approvalData.id);
     if (existingIndex >= 0) {
-      // Update existing - preserve change_notes if they exist
+      // Update existing - preserve fields that come from production sync
       const existing = state.approvals[existingIndex];
       approvalData.change_notes = existing.change_notes;
+      // If post had finalArtUrls (from production), update them with the new image order
+      if (existing.finalArtUrls && existing.finalArtUrls.length > 0) {
+        approvalData.finalArtUrls = imageUrlsCollected.length > 0 ? imageUrlsCollected : existing.finalArtUrls;
+      }
+      // Preserve production-related fields
+      if (existing.productionStatus) approvalData.productionStatus = existing.productionStatus;
+      if (existing.productionTaskId) approvalData.productionTaskId = existing.productionTaskId;
       state.approvals[existingIndex] = approvalData;
     } else {
       // Create new
