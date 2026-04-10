@@ -3287,7 +3287,6 @@ function showScheduledPostDetail(post, container) {
   h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
   h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
   h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
-  h += '<button type="button" class="cal-modal-delete" style="flex:1;min-width:140px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Delete Post</button>';
   h += '</div>';
 
   modal.innerHTML = h;
@@ -7361,13 +7360,15 @@ function closePreviewModal() {
   if (approvalDelete) {
     approvalDelete.addEventListener('click', () => {
     const id = $('#approvalId').value;
-    if (!id || !confirm('Are you sure you want to delete this approval?')) return;
-    
+    if (!id || !confirm('Are you sure you want to archive this approval? It will be hidden but not permanently deleted.')) return;
+
     const state = load();
     const item = state.approvals.find(a => a.id === id);
     if (item) {
-      state.approvals = state.approvals.filter(a => a.id !== id);
-      
+      // Soft-delete: archive instead of removing permanently
+      const idx = state.approvals.findIndex(a => a.id === id);
+      if (idx >= 0) state.approvals[idx] = Object.assign({}, item, { status: 'archived' });
+
       // Update KPIs
       const pendingCount = state.approvals.filter(a => !a.status || a.status === 'pending').length;
       const scheduledCount = calculateScheduledPosts(state.approvals);
