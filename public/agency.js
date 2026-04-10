@@ -1954,18 +1954,37 @@ function showDashPostDetail(post) {
   h += '<span style="font-size:12px;font-weight:600;color:' + stColor + ';background:' + stBg + ';padding:4px 12px;border-radius:8px;">' + stLabel + '</span>';
   h += '</div>';
 
-  // Media preview
-  if (post.mediaUrl) {
-    var urls = Array.isArray(post.mediaUrl) ? post.mediaUrl : [post.mediaUrl];
-    h += '<div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px;">';
-    urls.forEach(function(url) {
+  // Media preview — use all URLs from either mediaUrls (carousel) or mediaUrl (single).
+  var previewUrls = [];
+  if (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0) {
+    previewUrls = post.mediaUrls.filter(function(u) { return u && typeof u === 'string'; });
+  } else if (post.mediaUrl && typeof post.mediaUrl === 'string') {
+    previewUrls = [post.mediaUrl];
+  } else if (Array.isArray(post.mediaUrl)) {
+    previewUrls = post.mediaUrl.filter(function(u) { return u && typeof u === 'string'; });
+  }
+  var escAttr = function(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+  if (previewUrls.length > 0) {
+    h += '<div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:8px;padding-bottom:4px;">';
+    previewUrls.forEach(function(url) {
       if (url.match(/\.(mp4|mov|webm)/i)) {
-        h += '<video src="' + url + '" style="height:120px;border-radius:10px;object-fit:cover;" controls></video>';
+        h += '<video src="' + escAttr(url) + '" style="height:120px;border-radius:10px;object-fit:cover;" controls></video>';
       } else {
-        h += '<img src="' + url + '" style="height:120px;border-radius:10px;object-fit:cover;" />';
+        h += '<img src="' + escAttr(url) + '" alt="media" style="height:120px;border-radius:10px;object-fit:cover;background:#f1f5f9;" onerror="this.style.border=\'2px solid #fca5a5\';this.style.padding=\'8px\';this.alt=\'(image failed to load)\';" />';
       }
     });
     h += '</div>';
+    // Show the raw URL(s) in a tiny, selectable block so the user can
+    // inspect/copy when a failure happens (broken image icon is the usual
+    // first sign of an unreachable URL — seeing the URL makes debugging fast).
+    h += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:16px;">';
+    h += '<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Media URL' + (previewUrls.length > 1 ? 's' : '') + '</div>';
+    previewUrls.forEach(function(u) {
+      h += '<div style="font-size:11px;color:#475569;font-family:ui-monospace,monospace;word-break:break-all;user-select:all;">' + escAttr(u) + '</div>';
+    });
+    h += '</div>';
+  } else {
+    h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:16px;font-size:12px;color:#991b1b;">⚠️ No media attached to this post.</div>';
   }
 
   // Caption
@@ -2094,20 +2113,26 @@ function showDashPostDetail(post) {
     });
   }
 
-  // Retry
+  // Retry — call publish-now directly so the post is actually re-attempted.
+  // The old implementation called /reschedule which the backend rejects for
+  // failed posts, so Retry Now was silently broken. publish-now now accepts
+  // both 'scheduled' and 'failed' status and only fires on this explicit click.
   var retryBtn = modal.querySelector('.dash-post-retry');
   if (retryBtn) {
     retryBtn.addEventListener('click', async function() {
+      if (!confirm('Retry publishing this post to ' + (post.platforms || []).join(' & ') + ' now?')) return;
       retryBtn.disabled = true;
       retryBtn.textContent = 'Retrying...';
       try {
-        var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/reschedule', {
-          method: 'PUT', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scheduledAt: new Date().toISOString() })
+        var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/publish-now', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
         });
-        if (!r.ok) { var d = await r.json(); throw new Error(d.error || 'Failed'); }
-        showToast('Post queued for retry!', 'success');
+        var d = await r.json().catch(function() { return {}; });
+        if (!r.ok) {
+          throw new Error((d && d.error) || ('Publish failed (HTTP ' + r.status + ')'));
+        }
+        showToast('Post published!', 'success');
         modalBg.remove();
         renderDashCalendar();
       } catch (e) {

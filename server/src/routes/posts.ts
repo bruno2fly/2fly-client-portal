@@ -89,6 +89,96 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm|avi|wmv|flv|mkv|m4v)(\?|$)/.test(lower) || lower.includes('video');
 }
 
+/**
+ * Pre-flight validation before handing a URL to Meta Graph API.
+ * Meta returns the very generic "Invalid parameter" (#100) when it can't
+ * fetch the media URL — which is almost impossible to debug from the error
+ * alone. This helper fetches the URL ourselves first and throws a clear,
+ * actionable message if anything is wrong so the user knows exactly what
+ * to fix instead of seeing "Invalid parameter".
+ */
+async function validateMediaUrlReachable(rawUrl: string, label: string = 'media'): Promise<void> {
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    throw new Error(`Missing ${label} URL. Attach an image or video before publishing.`);
+  }
+  const url = rawUrl.trim();
+  if (!url) {
+    throw new Error(`Empty ${label} URL. Attach an image or video before publishing.`);
+  }
+  if (url.startsWith('data:')) {
+    throw new Error(`${label} URL is still a base64 data URI — it must be uploaded to public storage before publishing.`);
+  }
+  if (!/^https:\/\//i.test(url)) {
+    // Meta requires HTTPS for image_url / video_url / url.
+    throw new Error(`${label} URL must be HTTPS (Meta rejects http:// and relative URLs). Got: ${url.slice(0, 80)}`);
+  }
+
+  // Reject obviously private / unreachable hosts.
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host.startsWith('127.') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      host.endsWith('.local')
+    ) {
+      throw new Error(`${label} URL points to a private host (${host}) that Meta cannot reach. Re-upload the media.`);
+    }
+  } catch (urlErr: any) {
+    if (urlErr && urlErr.message && urlErr.message.startsWith(`${label}`)) throw urlErr;
+    throw new Error(`${label} URL is not a valid URL: ${url.slice(0, 80)}`);
+  }
+
+  // Try HEAD first; some hosts don't support HEAD, fall back to a tiny ranged GET.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let status = 0;
+  let contentType = '';
+  try {
+    const headRes = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    status = headRes.status;
+    contentType = (headRes.headers.get('content-type') || '').toLowerCase();
+    if (status === 405 || status === 403 || !contentType) {
+      // Some CDNs reject HEAD — fall through to a ranged GET
+      const getRes = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: { Range: 'bytes=0-1023' },
+        signal: controller.signal,
+      });
+      status = getRes.status;
+      contentType = (getRes.headers.get('content-type') || '').toLowerCase();
+    }
+  } catch (fetchErr: any) {
+    clearTimeout(timer);
+    const msg = fetchErr && fetchErr.name === 'AbortError'
+      ? 'timed out after 8s'
+      : (fetchErr && fetchErr.message) || 'network error';
+    throw new Error(`${label} URL cannot be fetched (${msg}). Re-upload the media or check the link. URL: ${url.slice(0, 100)}`);
+  }
+  clearTimeout(timer);
+
+  if (status < 200 || status >= 400) {
+    throw new Error(`${label} URL returned HTTP ${status}. Meta cannot download it. Re-upload the media. URL: ${url.slice(0, 100)}`);
+  }
+
+  // Empty/missing content-type is a warning but not fatal — some hosts omit it.
+  if (contentType) {
+    const looksLikeImage = contentType.startsWith('image/');
+    const looksLikeVideo = contentType.startsWith('video/');
+    const looksLikeOctet = contentType.startsWith('application/octet-stream');
+    if (!looksLikeImage && !looksLikeVideo && !looksLikeOctet) {
+      throw new Error(`${label} URL returned content-type "${contentType}" — expected image/* or video/*. The link is probably pointing to an HTML page, not the raw file.`);
+    }
+  }
+}
+
 function generateId(): string {
   return `post_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -285,8 +375,12 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    if (post.status !== 'scheduled') {
-      return res.status(400).json({ error: 'Post is not in scheduled status' });
+    // Allow both 'scheduled' posts and 'failed' posts (retry path).
+    // Reject already-publishing, already-published, or cancelled posts so we
+    // never double-post. This endpoint is only ever invoked by an explicit
+    // user click — it never fires automatically.
+    if (post.status !== 'scheduled' && post.status !== 'failed') {
+      return res.status(400).json({ error: `Cannot publish post in status "${post.status}"` });
     }
 
     const integration = getMetaIntegrationByClient(agencyId, post.clientId);
@@ -367,6 +461,18 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
 
       const hasMedia = publicMediaUrl && publicMediaUrl.startsWith('http');
       const isVideo = hasMedia && isVideoUrl(publicMediaUrl);
+
+      // ── Pre-flight validate the media URL(s) before handing them to Meta.
+      // Meta returns "Invalid parameter" (#100) whenever it can't fetch the
+      // URL — we want to surface a clear, actionable message instead so the
+      // user knows exactly what to re-upload.
+      if (isCarousel && publicMediaUrls.length > 0) {
+        for (let i = 0; i < publicMediaUrls.length; i++) {
+          await validateMediaUrlReachable(publicMediaUrls[i], `Carousel image #${i + 1}`);
+        }
+      } else if (hasMedia) {
+        await validateMediaUrlReachable(publicMediaUrl as string, isVideo ? 'Video' : 'Image');
+      }
 
       // Publish to each placement for each platform
       for (const placement of placements) {
