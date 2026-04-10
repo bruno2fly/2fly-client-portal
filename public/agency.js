@@ -2775,6 +2775,38 @@ async function checkMetaConflictsOnLoad() {
   }
 }
 
+// One-time self-heal on dashboard load: ensure production final art is synced back to
+// approvals. This fixes historical data where production sent posts to the approvals
+// page BEFORE the production->approval sync was in place, leaving imageUrls empty.
+async function syncProductionArtOnLoad() {
+  try {
+    var KEY = 'production_art_migrated_v1';
+    try { if (sessionStorage.getItem(KEY)) return; } catch (_) {}
+    var r = await fetch(getApiBaseUrl() + '/api/production/migrate-approved-art', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!r.ok) return;
+    var j = await r.json().catch(function() { return {}; });
+    try { sessionStorage.setItem(KEY, '1'); } catch (_) {}
+    var migrated = (j && j.results || []).filter(function(x) { return x.status === 'migrated'; }).length;
+    if (migrated > 0) {
+      console.log('[production] Auto-migrated', migrated, 'approved task(s) back to approvals');
+      // Refresh in-memory state so the dashboard reflects the migrated art
+      try {
+        if (typeof currentClientId !== 'undefined' && currentClientId && typeof syncStateFromServer === 'function') {
+          await syncStateFromServer(currentClientId);
+        }
+      } catch (_) {}
+      try { if (typeof renderAll === 'function') renderAll(); } catch (_) {}
+      try { if (typeof renderApprovalsTab === 'function') renderApprovalsTab(); } catch (_) {}
+    }
+  } catch (e) {
+    console.warn('syncProductionArtOnLoad failed:', e && e.message);
+  }
+}
+
 function showMetaConflictAlert(conflict) {
   if (!conflict) return;
   // Remove existing overlay if any
@@ -12592,6 +12624,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // One-time check for cross-client Meta connection conflicts on dashboard load
     try { checkMetaConflictsOnLoad(); } catch (e) { console.error('Error checking Meta conflicts:', e); }
+
+    // One-time self-heal: sync production final art back to approvals for historical data
+    try { syncProductionArtOnLoad(); } catch (e) { console.error('Error syncing production art:', e); }
 
     // Poll portal state so client-side actions create agency notifications live (no refresh)
     function pollClientActions() {
