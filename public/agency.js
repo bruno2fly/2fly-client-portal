@@ -1073,17 +1073,10 @@ const el = (tag, attrs = {}, ...kids) => {
 
 const fmtDate = ts => new Date(ts).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-// Calculate scheduled posts (approvals with postDate within next 15 days)
+// Calculate scheduled posts (only items with explicit 'scheduled' status)
 function calculateScheduledPosts(approvals) {
   if (!approvals || !Array.isArray(approvals)) return 0;
-  const now = new Date();
-  const fifteenDaysFromNow = new Date(now);
-  fifteenDaysFromNow.setDate(now.getDate() + 15);
-  return approvals.filter(a => {
-    if (!a.postDate || a.status === 'archived') return false;
-    const postDate = new Date(a.postDate);
-    return postDate >= now && postDate <= fifteenDaysFromNow;
-  }).length;
+  return approvals.filter(a => a.status === 'scheduled').length;
 }
 
 /** Relative time for overview request rows */
@@ -1148,21 +1141,13 @@ function updateTabCountBadges() {
 // Pipeline stage counts for Approvals page
 function getApprovalPipelineCounts(approvals) {
   const list = approvals || [];
-  const now = new Date();
-  const fifteenDaysFromNow = new Date(now);
-  fifteenDaysFromNow.setDate(now.getDate() + 15);
   const copyPending = list.filter(a => a.status === 'copy_pending').length;
   const copyApproved = list.filter(a => a.status === 'copy_approved').length;
   const copyChanges = list.filter(a => a.status === 'copy_changes').length;
   const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status)).length;
   const changes = list.filter(a => a.status === 'changes').length;
-  const scheduled = list.filter(a => {
-    if (a.status !== 'approved' || !a.postDate) return false;
-    const postDate = new Date(a.postDate);
-    return postDate >= now && postDate <= fifteenDaysFromNow;
-  }).length;
-  const approvedTotal = list.filter(a => a.status === 'approved').length;
-  const approved = approvedTotal - scheduled;
+  const approved = list.filter(a => a.status === 'approved').length;
+  const scheduled = list.filter(a => a.status === 'scheduled').length;
   return { copyPending, copyApproved, copyChanges, awaiting, changes, approved, scheduled };
 }
 
@@ -5375,22 +5360,14 @@ function renderApprovalsTab() {
   
   const approvalsList = state.approvals || [];
   const pipelineCounts = getApprovalPipelineCounts(approvalsList);
-  const now = new Date();
-  const fifteenDaysFromNow = new Date(now);
-  fifteenDaysFromNow.setDate(now.getDate() + 15);
 
   const copyPending = approvalsList.filter(a => a.status === 'copy_pending');
   const copyApproved = approvalsList.filter(a => a.status === 'copy_approved');
   const copyChanges = approvalsList.filter(a => a.status === 'copy_changes');
   const pending = approvalsList.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status));
   const changes = approvalsList.filter(a => a.status === 'changes');
-  const approved = approvalsList.filter(a => a.status === 'approved' && (!a.postDate || new Date(a.postDate) < now || new Date(a.postDate) > fifteenDaysFromNow));
-  const scheduled = approvalsList.filter(a => {
-    if (a.status === 'scheduled') return true;
-    if (a.status !== 'approved' || !a.postDate) return false;
-    const postDate = new Date(a.postDate);
-    return postDate >= now && postDate <= fifteenDaysFromNow;
-  });
+  const approved = approvalsList.filter(a => a.status === 'approved');
+  const scheduled = approvalsList.filter(a => a.status === 'scheduled');
 
   const setPipelineCount = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n; };
   setPipelineCount('pipelineCountCopyPending', pipelineCounts.copyPending);
