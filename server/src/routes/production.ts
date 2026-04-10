@@ -49,11 +49,24 @@ function canTransition(from: ProductionTaskStatus, to: ProductionTaskStatus, isD
   return true;
 }
 
-/** Update the original content/approval item with final art URLs when manager approves in production. */
-function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
+/**
+ * Sync final art URLs from a production task onto its original approval item.
+ * Called whenever art is uploaded/approved so the approval card and edit form
+ * always reflect the latest art.
+ *
+ * Behavior:
+ *   - If `markArtApproved` is true, the item is flagged `productionStatus='art_approved'`
+ *     (meaning the agency signed off on the art in production view). The approval's
+ *     own `status` field is NOT modified — the agency decides when to manually move
+ *     the post from "Copy Approved" to "Content Pending" via the status dropdown to
+ *     send it to the client for final visual approval.
+ *   - If `markArtApproved` is false, only the art URLs are synced (used when the
+ *     designer uploads/replaces art mid-flight).
+ */
+function syncProductionArtToApproval(task: ProductionTask, markArtApproved: boolean): void {
   const hasArt = task.finalArt && task.finalArt.length > 0;
   if (!hasArt) {
-    console.warn('[production] Approve skipped: task has no finalArt');
+    console.warn('[production] syncProductionArtToApproval skipped: task has no finalArt');
     return;
   }
   const state = getPortalState(task.agencyId, task.clientId);
@@ -71,13 +84,18 @@ function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
   originalItem.finalArtUrls = task.finalArt || [];
   originalItem.imageUrls = task.finalArt || [];
   originalItem.imageUrl = (task.finalArt && task.finalArt[0]) || originalItem.imageUrl || '';
-  originalItem.productionStatus = 'art_approved';
   originalItem.productionTaskId = task.id;
-  // Move approval to Content Pending so client can see and approve the final art
-  originalItem.status = 'pending';
+  if (markArtApproved) {
+    originalItem.productionStatus = 'art_approved';
+  }
   originalItem.updatedAt = new Date().toISOString();
   savePortalState(task.agencyId, task.clientId, state);
-  console.log('[production] Updated original item with final art and set to pending:', originalItem.id);
+  console.log('[production] Synced final art to approval:', originalItem.id, 'markArtApproved=', markArtApproved);
+}
+
+/** Legacy wrapper — always marks the approval as art-approved. */
+function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
+  syncProductionArtToApproval(task, true);
 }
 
 /** When designer resubmits after changes, push the approval back to content_pending for the client. */
@@ -287,24 +305,18 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
     if (status === 'review') task.submittedAt = now;
     if (status === 'approved') task.approvedAt = now;
     saveProductionTask(task);
-    // When designer submits for review, sync images to approval item preview
+    // When designer submits for review, sync images to approval item preview (no art-approved flag yet)
     if (status === 'review' && task.finalArt && task.finalArt.length > 0) {
-      try {
-        const state = getPortalState(task.agencyId, task.clientId);
-        if (state && Array.isArray(state.approvals)) {
-          const item = state.approvals.find(
-            (a: any) => a.id === task.approvalId || a.id === task.contentId
-          ) as any;
-          if (item) {
-            item.finalArtUrls = task.finalArt;
-            item.imageUrls = task.finalArt;
-            item.imageUrl = task.finalArt[0] || item.imageUrl || '';
-            item.updatedAt = new Date().toISOString();
-            savePortalState(task.agencyId, task.clientId, state);
-          }
-        }
-      } catch (e: any) {
+      try { syncProductionArtToApproval(task, false); } catch (e: any) {
         console.error('[production] Failed to sync images on review submit:', e?.message);
+      }
+    }
+    // When manager moves task to approved via this endpoint (e.g. kanban drag),
+    // mark the approval as art-approved and sync the final art. Agency will
+    // manually move the approval from Copy Approved → Content Pending when ready.
+    if (status === 'approved' && !isDesigner) {
+      try { updateOriginalApprovalWithFinalArt(task); } catch (e: any) {
+        console.error('[production] Failed to mark art-approved on PUT status:', e?.message);
       }
     }
     // When designer resubmits after changes, push approval back to content pending for client
@@ -369,6 +381,14 @@ router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, (req
     if (designerNotes != null) task.designerNotes = String(designerNotes).slice(0, 2000);
     task.updatedAt = new Date().toISOString();
     saveProductionTask(task);
+    // Always keep the approval item's image URLs in sync with the task's latest art.
+    // If the task was already art-approved, preserve that flag; otherwise just update URLs.
+    try {
+      const alreadyApproved = task.status === 'approved' || task.status === 'ready_to_post';
+      syncProductionArtToApproval(task, alreadyApproved);
+    } catch (e: any) {
+      console.error('[production] Failed to sync art to approval on upload-art:', e?.message);
+    }
     const result: any = { success: true, task };
     res.json(result);
   } catch (e: any) {
@@ -531,14 +551,14 @@ router.post('/migrate-approved-art', authenticate, requireAgencyOnly, (req: Auth
         continue;
       }
 
-      // Update art URLs
+      // Update art URLs and flag as art_approved. Do NOT change the approval's
+      // own status — the agency decides when to move it from Copy Approved →
+      // Content Pending to send to the client for final visual approval.
       item.finalArtUrls = task.finalArt || [];
       item.imageUrls = task.finalArt || [];
       item.imageUrl = (task.finalArt && task.finalArt[0]) || item.imageUrl || '';
       item.productionStatus = 'art_approved';
       item.productionTaskId = task.id;
-      // Set to pending so it shows in Content Pending for client
-      item.status = 'pending';
       item.updatedAt = new Date().toISOString();
 
       savePortalState(task.agencyId, task.clientId, state);

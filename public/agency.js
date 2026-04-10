@@ -7011,8 +7011,23 @@ function setupApprovalHandlers() {
         approvalData.finalArtUrls = imageUrlsCollected.length > 0 ? imageUrlsCollected : existing.finalArtUrls;
       }
       // Preserve production-related fields
-      if (existing.productionStatus) approvalData.productionStatus = existing.productionStatus;
       if (existing.productionTaskId) approvalData.productionTaskId = existing.productionTaskId;
+      // productionStatus 'art_approved' is a flag that means "just came back from production,
+      // still awaiting agency to manually move to Content Pending". Once the agency explicitly
+      // changes the status (e.g. copy_approved → pending to send the full post to the client),
+      // clear the flag so the item leaves the "returning from production" bucket and flows into
+      // the section matching its new status.
+      if (existing.productionStatus === 'art_approved') {
+        if (existing.status === approvalData.status) {
+          // No status change — preserve the flag
+          approvalData.productionStatus = existing.productionStatus;
+        } else {
+          // Status was changed by the user — flag fulfilled, mark as sent-to-client for history
+          approvalData.productionStatus = 'sent_to_client';
+        }
+      } else if (existing.productionStatus) {
+        approvalData.productionStatus = existing.productionStatus;
+      }
       state.approvals[existingIndex] = approvalData;
     } else {
       // Create new
