@@ -1307,17 +1307,28 @@ function renderClientsSidebar() {
   });
 }
 
-/* ================== Dashboard-Level Views (All-Client Calendar + Connections) ================== */
+/* ================== Dashboard-Level Views (All-Client Overview + Calendar + Connections) ================== */
 var dashCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 var dashCalendarFilterClient = ''; // '' = all clients
-var currentDashView = ''; // '' | 'calendar' | 'connections'
+var currentDashView = ''; // '' | 'overview' | 'calendar' | 'connections'
 
 function initDashboardPanels() {
+  var overviewBtn = document.getElementById('sidebarOverviewBtn');
   var calBtn = document.getElementById('sidebarCalendarBtn');
   var connBtn = document.getElementById('sidebarConnectionsBtn');
 
+  if (overviewBtn) overviewBtn.addEventListener('click', function() { openDashView('overview'); });
   if (calBtn) calBtn.addEventListener('click', function() { openDashView('calendar'); });
   if (connBtn) connBtn.addEventListener('click', function() { openDashView('connections'); });
+}
+
+function _resetDashViewBtnStyles() {
+  var overviewBtn = document.getElementById('sidebarOverviewBtn');
+  var calBtn = document.getElementById('sidebarCalendarBtn');
+  var connBtn = document.getElementById('sidebarConnectionsBtn');
+  if (overviewBtn) { overviewBtn.style.background = 'rgba(168,85,247,0.15)'; overviewBtn.style.borderColor = 'rgba(168,85,247,0.3)'; }
+  if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.15)'; calBtn.style.borderColor = 'rgba(26,86,219,0.3)'; }
+  if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.12)'; connBtn.style.borderColor = 'rgba(16,185,129,0.25)'; }
 }
 
 function openDashView(which) {
@@ -1327,24 +1338,31 @@ function openDashView(which) {
   var clientWrap = document.getElementById('clientContentWrap');
   if (clientWrap) clientWrap.style.display = 'none';
 
+  var overviewView = document.getElementById('dashOverviewView');
   var calView = document.getElementById('dashCalendarView');
   var connView = document.getElementById('dashConnectionsView');
 
-  // Update sidebar button styles
-  var calBtn = document.getElementById('sidebarCalendarBtn');
-  var connBtn = document.getElementById('sidebarConnectionsBtn');
+  if (overviewView) overviewView.style.display = 'none';
+  if (calView) calView.style.display = 'none';
+  if (connView) connView.style.display = 'none';
 
-  if (which === 'calendar') {
+  // Reset then highlight the active button
+  _resetDashViewBtnStyles();
+
+  if (which === 'overview') {
+    if (overviewView) overviewView.style.display = 'block';
+    var overviewBtn = document.getElementById('sidebarOverviewBtn');
+    if (overviewBtn) { overviewBtn.style.background = 'rgba(168,85,247,0.35)'; overviewBtn.style.borderColor = '#a855f7'; }
+    renderDashOverview();
+  } else if (which === 'calendar') {
     if (calView) calView.style.display = 'block';
-    if (connView) connView.style.display = 'none';
+    var calBtn = document.getElementById('sidebarCalendarBtn');
     if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.35)'; calBtn.style.borderColor = '#3b82f6'; }
-    if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.12)'; connBtn.style.borderColor = 'rgba(16,185,129,0.25)'; }
     renderDashCalendar();
   } else {
-    if (calView) calView.style.display = 'none';
     if (connView) connView.style.display = 'block';
+    var connBtn = document.getElementById('sidebarConnectionsBtn');
     if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.3)'; connBtn.style.borderColor = '#10b981'; }
-    if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.15)'; calBtn.style.borderColor = 'rgba(26,86,219,0.3)'; }
     renderDashConnections();
   }
 
@@ -1354,8 +1372,10 @@ function openDashView(which) {
 
 function closeDashView() {
   currentDashView = '';
+  var overviewView = document.getElementById('dashOverviewView');
   var calView = document.getElementById('dashCalendarView');
   var connView = document.getElementById('dashConnectionsView');
+  if (overviewView) overviewView.style.display = 'none';
   if (calView) calView.style.display = 'none';
   if (connView) connView.style.display = 'none';
 
@@ -1363,11 +1383,290 @@ function closeDashView() {
   var clientWrap = document.getElementById('clientContentWrap');
   if (clientWrap) clientWrap.style.display = '';
 
-  // Reset sidebar button styles
-  var calBtn = document.getElementById('sidebarCalendarBtn');
-  var connBtn = document.getElementById('sidebarConnectionsBtn');
-  if (calBtn) { calBtn.style.background = 'rgba(26,86,219,0.15)'; calBtn.style.borderColor = 'rgba(26,86,219,0.3)'; }
-  if (connBtn) { connBtn.style.background = 'rgba(16,185,129,0.12)'; connBtn.style.borderColor = 'rgba(16,185,129,0.25)'; }
+  _resetDashViewBtnStyles();
+}
+
+/* ── Dashboard Overview (all clients summary) ── */
+async function renderDashOverview() {
+  var container = document.getElementById('dashOverviewContent');
+  if (!container) return;
+
+  var clients = loadClientsRegistry();
+  var clientIds = Object.keys(clients || {});
+
+  container.innerHTML = '<div style="text-align:center;padding:48px;color:#64748b;">Loading overview…</div>';
+
+  // Ensure portal state is loaded for every client
+  await Promise.all(clientIds.map(function(cid) {
+    return fetchPortalStateFromAPI(cid).catch(function(e) { console.warn('overview fetch', cid, e && e.message); return null; });
+  }));
+
+  // Fetch ALL scheduled posts (published/queued in the scheduler)
+  var scheduledPostsByClient = {};
+  var totalScheduled = 0;
+  try {
+    var r = await fetch(getApiBaseUrl() + '/api/posts/scheduled', { credentials: 'include' });
+    var ct = r.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      var j = await r.json();
+      if (r.ok && Array.isArray(j.posts)) {
+        j.posts.forEach(function(p) {
+          if (!p || !p.scheduledAt) return;
+          if (p.status && ['cancelled', 'canceled', 'failed'].indexOf(p.status) !== -1) return;
+          var cid = p.clientId || '';
+          if (!scheduledPostsByClient[cid]) scheduledPostsByClient[cid] = [];
+          scheduledPostsByClient[cid].push(p);
+          totalScheduled++;
+        });
+      }
+    }
+  } catch (e) { console.warn('Overview scheduled fetch:', e && e.message); }
+
+  // Aggregate per-client counts
+  var perClient = clientIds.map(function(cid) {
+    var client = clients[cid] || {};
+    var state = portalStateCache[cid] || {};
+    var approvals = state.approvals || [];
+    var requests = state.requests || [];
+    var needs = state.needs || [];
+
+    var openRequests = requests.filter(isClientRequestOpen).length;
+    var openNeeds = needs.filter(function(n) { return !n.status || n.status === 'open'; }).length;
+
+    var pendingApprovals = approvals.filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'copy_pending'; }).length;
+    var changesApprovals = approvals.filter(function(a) { return a.status === 'changes' || a.status === 'copy_changes'; }).length;
+    var approvedApprovals = approvals.filter(function(a) { return a.status === 'approved' || a.status === 'copy_approved'; }).length;
+
+    var scheduledForClient = (scheduledPostsByClient[cid] || []).length;
+
+    return {
+      id: cid,
+      name: client.name || client.id || cid,
+      logo: client.logoUrl || client.logo || '',
+      color: client.color || '',
+      openRequests: openRequests,
+      openNeeds: openNeeds,
+      pendingApprovals: pendingApprovals,
+      changesApprovals: changesApprovals,
+      approvedApprovals: approvedApprovals,
+      scheduled: scheduledForClient
+    };
+  });
+
+  // Totals across clients
+  var totals = perClient.reduce(function(acc, c) {
+    acc.openRequests += c.openRequests;
+    acc.openNeeds += c.openNeeds;
+    acc.pendingApprovals += c.pendingApprovals;
+    acc.changesApprovals += c.changesApprovals;
+    acc.approvedApprovals += c.approvedApprovals;
+    acc.scheduled += c.scheduled;
+    return acc;
+  }, { openRequests: 0, openNeeds: 0, pendingApprovals: 0, changesApprovals: 0, approvedApprovals: 0, scheduled: 0 });
+
+  // Sort clients so ones with most open work appear first
+  perClient.sort(function(a, b) {
+    var aScore = a.openRequests + a.pendingApprovals + a.changesApprovals;
+    var bScore = b.openRequests + b.pendingApprovals + b.changesApprovals;
+    if (bScore !== aScore) return bScore - aScore;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Build upcoming scheduled posts list (next 14 days, across clients)
+  var now = new Date();
+  var fourteenDays = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  var upcoming = [];
+  Object.keys(scheduledPostsByClient).forEach(function(cid) {
+    scheduledPostsByClient[cid].forEach(function(p) {
+      var d = new Date(p.scheduledAt);
+      if (d >= now && d <= fourteenDays) {
+        upcoming.push({ post: p, clientId: cid, date: d });
+      }
+    });
+  });
+  upcoming.sort(function(a, b) { return a.date - b.date; });
+  upcoming = upcoming.slice(0, 8);
+
+  // Build recent open requests across clients (up to 6)
+  var recentRequests = [];
+  clientIds.forEach(function(cid) {
+    var state = portalStateCache[cid] || {};
+    (state.requests || []).filter(isClientRequestOpen).forEach(function(req) {
+      recentRequests.push({ req: req, clientId: cid, ts: req.createdAt || req.date || 0 });
+    });
+  });
+  recentRequests.sort(function(a, b) { return (new Date(b.ts).getTime() || 0) - (new Date(a.ts).getTime() || 0); });
+  recentRequests = recentRequests.slice(0, 6);
+
+  // ─── Render ───
+  var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  var html = '';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">';
+  html += '  <div>';
+  html += '    <h2 style="margin:0 0 4px 0;font-size:24px;font-weight:700;color:#0f172a;">Overview</h2>';
+  html += '    <p style="margin:0;font-size:13px;color:#64748b;">Summary across all ' + clientIds.length + ' client' + (clientIds.length === 1 ? '' : 's') + '</p>';
+  html += '  </div>';
+  html += '  <button type="button" id="overviewRefreshBtn" style="padding:8px 14px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;">Refresh</button>';
+  html += '</div>';
+
+  // Top KPI cards
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">';
+  var kpis = [
+    { label: 'Open Requests', value: totals.openRequests, bg: '#fef3c7', border: '#fcd34d', color: '#92400e', icon: '📥' },
+    { label: 'Pending Approvals', value: totals.pendingApprovals, bg: '#dbeafe', border: '#93c5fd', color: '#1e40af', icon: '⏳' },
+    { label: 'Changes Requested', value: totals.changesApprovals, bg: '#fee2e2', border: '#fca5a5', color: '#991b1b', icon: '✏️' },
+    { label: 'Approved', value: totals.approvedApprovals, bg: '#dcfce7', border: '#86efac', color: '#166534', icon: '✅' },
+    { label: 'Scheduled', value: totals.scheduled, bg: '#ede9fe', border: '#c4b5fd', color: '#5b21b6', icon: '📅' },
+    { label: 'Open Content Needs', value: totals.openNeeds, bg: '#ffedd5', border: '#fdba74', color: '#9a3412', icon: '📦' }
+  ];
+  kpis.forEach(function(k) {
+    html += '<div style="padding:16px;background:' + k.bg + ';border:1px solid ' + k.border + ';border-radius:12px;">';
+    html += '  <div style="font-size:11px;font-weight:600;color:' + k.color + ';text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">' + k.icon + ' ' + k.label + '</div>';
+    html += '  <div style="font-size:28px;font-weight:800;color:' + k.color + ';line-height:1;">' + k.value + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Per-client table
+  html += '<div style="margin-bottom:28px;">';
+  html += '  <h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;color:#0f172a;">By Client</h3>';
+  if (perClient.length === 0) {
+    html += '<div style="padding:24px;text-align:center;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;">No clients yet.</div>';
+  } else {
+    html += '<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    html += '<thead style="background:#f8fafc;">';
+    html += '<tr>';
+    html += '<th style="text-align:left;padding:12px 16px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Client</th>';
+    html += '<th style="text-align:center;padding:12px 8px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Requests</th>';
+    html += '<th style="text-align:center;padding:12px 8px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Pending</th>';
+    html += '<th style="text-align:center;padding:12px 8px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Changes</th>';
+    html += '<th style="text-align:center;padding:12px 8px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Approved</th>';
+    html += '<th style="text-align:center;padding:12px 8px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Scheduled</th>';
+    html += '<th style="text-align:center;padding:12px 16px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Action</th>';
+    html += '</tr></thead><tbody>';
+    perClient.forEach(function(c, i) {
+      var rowBg = i % 2 === 0 ? 'white' : '#fafbfc';
+      var cellBadge = function(n, color) {
+        if (!n) return '<span style="color:#94a3b8;">—</span>';
+        return '<span style="display:inline-block;min-width:28px;padding:3px 10px;background:' + color + ';color:white;border-radius:999px;font-weight:700;font-size:12px;">' + n + '</span>';
+      };
+      html += '<tr style="background:' + rowBg + ';border-bottom:1px solid #f1f5f9;">';
+      html += '<td style="padding:12px 16px;font-weight:600;color:#0f172a;">';
+      if (c.logo) {
+        html += '<div style="display:flex;align-items:center;gap:10px;"><img src="' + esc(c.logo) + '" alt="" style="width:28px;height:28px;border-radius:6px;object-fit:cover;"/>' + esc(c.name) + '</div>';
+      } else {
+        var initial = (c.name || '?').charAt(0).toUpperCase();
+        html += '<div style="display:flex;align-items:center;gap:10px;"><div style="width:28px;height:28px;border-radius:6px;background:#e0e7ff;color:#1e40af;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">' + initial + '</div>' + esc(c.name) + '</div>';
+      }
+      html += '</td>';
+      html += '<td style="text-align:center;padding:12px 8px;">' + cellBadge(c.openRequests, '#f59e0b') + '</td>';
+      html += '<td style="text-align:center;padding:12px 8px;">' + cellBadge(c.pendingApprovals, '#3b82f6') + '</td>';
+      html += '<td style="text-align:center;padding:12px 8px;">' + cellBadge(c.changesApprovals, '#ef4444') + '</td>';
+      html += '<td style="text-align:center;padding:12px 8px;">' + cellBadge(c.approvedApprovals, '#10b981') + '</td>';
+      html += '<td style="text-align:center;padding:12px 8px;">' + cellBadge(c.scheduled, '#8b5cf6') + '</td>';
+      html += '<td style="text-align:center;padding:12px 16px;">';
+      html += '<button type="button" class="overview-open-client" data-client-id="' + esc(c.id) + '" style="padding:6px 12px;background:#1a56db;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Open</button>';
+      html += '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
+  // Two-column layout: Upcoming scheduled + Recent requests
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">';
+
+  // Upcoming scheduled
+  html += '<div>';
+  html += '<h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;color:#0f172a;">Upcoming Scheduled (next 14 days)</h3>';
+  if (upcoming.length === 0) {
+    html += '<div style="padding:24px;text-align:center;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;">No posts scheduled in the next 14 days.</div>';
+  } else {
+    html += '<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">';
+    upcoming.forEach(function(u, i) {
+      var c = clients[u.clientId] || {};
+      var cname = c.name || u.clientId || 'Unknown';
+      var dateStr = u.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      var timeStr = u.date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      var title = u.post.title || u.post.caption || u.post.copyText || 'Untitled post';
+      if (title.length > 60) title = title.slice(0, 57) + '…';
+      var platforms = Array.isArray(u.post.platforms) ? u.post.platforms.join(', ') : (u.post.platform || '');
+      html += '<div style="padding:12px 16px;border-bottom:' + (i === upcoming.length - 1 ? 'none' : '1px solid #f1f5f9') + ';">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-weight:600;color:#0f172a;font-size:13px;">' + esc(cname) + '</div>';
+      html += '<div style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>';
+      html += '</div>';
+      html += '<div style="text-align:right;flex-shrink:0;">';
+      html += '<div style="font-size:12px;font-weight:600;color:#5b21b6;">' + esc(dateStr) + '</div>';
+      html += '<div style="font-size:11px;color:#94a3b8;">' + esc(timeStr) + (platforms ? ' · ' + esc(platforms) : '') + '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Recent open requests
+  html += '<div>';
+  html += '<h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;color:#0f172a;">Recent Open Requests</h3>';
+  if (recentRequests.length === 0) {
+    html += '<div style="padding:24px;text-align:center;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;">No open requests.</div>';
+  } else {
+    html += '<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">';
+    recentRequests.forEach(function(r, i) {
+      var c = clients[r.clientId] || {};
+      var cname = c.name || r.clientId || 'Unknown';
+      var text = r.req.title || r.req.text || r.req.description || 'Request';
+      if (text.length > 80) text = text.slice(0, 77) + '…';
+      var ago = r.ts ? overviewRelativeTime(r.ts) : '';
+      html += '<div class="overview-request-row" data-client-id="' + esc(r.clientId) + '" style="padding:12px 16px;border-bottom:' + (i === recentRequests.length - 1 ? 'none' : '1px solid #f1f5f9') + ';cursor:pointer;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-weight:600;color:#0f172a;font-size:13px;">' + esc(cname) + '</div>';
+      html += '<div style="font-size:12px;color:#64748b;">' + esc(text) + '</div>';
+      html += '</div>';
+      if (ago) html += '<div style="font-size:11px;color:#94a3b8;flex-shrink:0;">' + esc(ago) + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '</div>'; // end two-column grid
+
+  container.innerHTML = html;
+
+  // Wire up events
+  var refreshBtn = document.getElementById('overviewRefreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', function() { renderDashOverview(); });
+
+  container.querySelectorAll('.overview-open-client').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var cid = btn.getAttribute('data-client-id');
+      if (!cid) return;
+      closeDashView();
+      selectClient(cid).then(function() {
+        if (typeof switchTab === 'function') switchTab('approvals');
+      });
+    });
+  });
+
+  container.querySelectorAll('.overview-request-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+      var cid = row.getAttribute('data-client-id');
+      if (!cid) return;
+      closeDashView();
+      selectClient(cid).then(function() {
+        if (typeof switchTab === 'function') switchTab('requests');
+      });
+    });
+  });
 }
 
 /* ── Dashboard Calendar (all clients) ── */
