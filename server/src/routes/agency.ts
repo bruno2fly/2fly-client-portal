@@ -226,8 +226,15 @@ router.put('/portal-state', (req: AuthenticatedRequest, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
     const state = data as PortalStateData;
-    if (!state.client || !state.kpis || !Array.isArray(state.assets)) {
-      return res.status(400).json({ error: 'Invalid portal state shape' });
+    // Auto-fill missing required fields (handles legacy data without client/kpis)
+    if (!state.client) {
+      state.client = { id: cid, name: client.name, whatsapp: (client as any).primaryContactWhatsApp || '' };
+    }
+    if (!state.kpis) {
+      state.kpis = { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 };
+    }
+    if (!Array.isArray(state.assets)) {
+      state.assets = [];
     }
     savePortalState(agencyId, cid, state);
     res.json({ success: true });
