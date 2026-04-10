@@ -1287,9 +1287,8 @@ function renderClientsSidebar() {
     if (state) {
       const pendingCount = (state.approvals || []).filter(a => !a.status || a.status === 'pending').length;
       const openRequests = (state.requests || []).filter(r => r.status === 'open').length;
-      const scheduledCount = calculateScheduledPosts(state.approvals || []);
-      if (scheduledCount > 0) {
-        badges.appendChild(el('div', { class: 'badge' }, `${scheduledCount} scheduled`));
+      if (state.kpis && state.kpis.scheduled) {
+        badges.appendChild(el('div', { class: 'badge' }, `${state.kpis.scheduled} scheduled`));
       }
       badges.appendChild(el('div', { class: 'badge' }, `${pendingCount} pending`));
       badges.appendChild(el('div', { class: 'badge' }, `${openRequests} requests`));
@@ -2016,7 +2015,6 @@ function showDashPostDetail(post) {
       h += '<button type="button" class="dash-post-reschedule" style="flex:1;min-width:120px;padding:10px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Reschedule</button>';
     }
     if (post.status === 'failed') {
-      h += '<button type="button" class="dash-post-diagnose" style="flex:1;min-width:120px;padding:10px 16px;background:#0ea5e9;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Diagnose</button>';
       h += '<button type="button" class="dash-post-retry" style="flex:1;min-width:120px;padding:10px 16px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Retry Now</button>';
       h += '<button type="button" class="dash-post-cancel" style="flex:1;min-width:120px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">Cancel Post</button>';
     }
@@ -2112,43 +2110,6 @@ function showDashPostDetail(post) {
           confirmBtn.textContent = 'Confirm';
         }
       });
-    });
-  }
-
-  // Diagnose — read-only endpoint that reports exactly why each media URL
-  // on this post is (or isn't) publishable. Never hits Meta.
-  var diagnoseBtn = modal.querySelector('.dash-post-diagnose');
-  if (diagnoseBtn) {
-    diagnoseBtn.addEventListener('click', async function() {
-      diagnoseBtn.disabled = true;
-      diagnoseBtn.textContent = 'Checking…';
-      try {
-        var r = await fetch(getApiBaseUrl() + '/api/posts/' + post.id + '/diagnose', { credentials: 'include' });
-        var j = await r.json().catch(function() { return {}; });
-        if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
-        var lines = [];
-        lines.push('Post status: ' + (j.post && j.post.status));
-        if (j.post && j.post.error) lines.push('Stored error: ' + j.post.error);
-        lines.push('Media items: ' + (j.mediaCount || 0));
-        (j.media || []).forEach(function(m) {
-          lines.push('');
-          lines.push('— Item #' + (m.index + 1));
-          lines.push('  Raw URL:        ' + m.rawUrl);
-          if (m.wasNormalized) lines.push('  Normalized to:  ' + m.normalizedUrl);
-          lines.push('  Host supported: ' + (m.hostSupported ? 'yes' : 'NO — ' + m.hostError));
-          if (m.hostSupported) {
-            lines.push('  Reachable:      ' + (m.reachable ? 'yes' : 'NO — ' + m.reachabilityError));
-          }
-        });
-        // Use a plain alert so the user can read the full report without any
-        // clever modal layering that might hide it behind the current modal.
-        alert(lines.join('\n'));
-      } catch (e) {
-        alert('Diagnose failed: ' + (e.message || e));
-      } finally {
-        diagnoseBtn.disabled = false;
-        diagnoseBtn.textContent = 'Diagnose';
-      }
     });
   }
 
@@ -3326,6 +3287,7 @@ function showScheduledPostDetail(post, container) {
   h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;">';
   h += '<button type="button" class="cal-modal-repost" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Repost Now</button>';
   h += '<button type="button" class="cal-modal-reschedule" style="flex:1;min-width:140px;padding:10px 16px;background:#1a56db;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Schedule Again</button>';
+  h += '<button type="button" class="cal-modal-delete" style="flex:1;min-width:140px;padding:10px 16px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">Delete Post</button>';
   h += '</div>';
 
   modal.innerHTML = h;
@@ -6670,48 +6632,10 @@ async function getAllMediaUrlsForApprovalPanel() {
   const state = load();
   const item = (state.approvals || []).find(a => a.id === selectedApprovalId);
   if (!item || !currentClientId) return [];
-  const uploadBase64 = function(base64) {
-    return fetch(`${getApiBaseUrl()}/api/upload/media`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ media: base64 })
-    }).then(function(r) { return r.json(); }).then(function(j) { return j && j.url ? j.url : null; });
-  };
-
-  // PRIORITY 1: Freshly uploaded files in the current session (file input).
-  // If the user just dropped an image onto the form, that's their explicit
-  // intent — it must beat any stale URL left in the text input from before.
-  if (typeof uploadedImages !== 'undefined' && uploadedImages && uploadedImages.length > 0) {
-    var uploaded = [];
-    for (var ui = 0; ui < uploadedImages.length; ui++) {
-      var base64 = uploadedImages[ui].dataUrl || uploadedImages[ui].data;
-      if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
-        var url = await uploadBase64(base64);
-        if (url) uploaded.push(url);
-      } else if (typeof base64 === 'string' && base64.startsWith('http')) {
-        uploaded.push(base64);
-      }
-    }
-    if (uploaded.length > 0) return uploaded;
-  }
-
-  // PRIORITY 2: Saved uploads already on the approval item.
-  if (item.uploadedImages && item.uploadedImages.length > 0) {
-    var savedUploaded = [];
-    for (var si = 0; si < item.uploadedImages.length; si++) {
-      var sb64 = item.uploadedImages[si].dataUrl || item.uploadedImages[si].data;
-      if (sb64 && (String(sb64).startsWith('data:image/') || String(sb64).startsWith('data:video/'))) {
-        var su = await uploadBase64(sb64);
-        if (su) savedUploaded.push(su);
-      } else if (typeof sb64 === 'string' && sb64.startsWith('http')) {
-        savedUploaded.push(sb64);
-      }
-    }
-    if (savedUploaded.length > 0) return savedUploaded;
-  }
-
-  // PRIORITY 3: Selected assets from the library.
+  const urls = getApprovalImageUrls();
+  // If all are http URLs, return all of them
+  var httpUrls = urls.filter(u => u && u.startsWith('http'));
+  if (httpUrls.length > 0 && httpUrls.length === urls.length) return httpUrls;
   if (postSelectedAssetIds.length > 0) {
     const assets = loadAssets(currentClientId);
     var assetUrls = [];
@@ -6724,26 +6648,35 @@ async function getAllMediaUrlsForApprovalPanel() {
     }
     if (assetUrls.length > 0) return assetUrls;
   }
-
-  // PRIORITY 4 (fallback): Whatever's in the URL text inputs. Only used
-  // when nothing was uploaded and no asset was picked — this is the path
-  // that previously caused stale Canva/Drive share URLs to win over fresh
-  // uploads.
-  const urls = getApprovalImageUrls();
-  var httpUrls = urls.filter(u => u && u.startsWith('http'));
-  if (httpUrls.length > 0 && httpUrls.length === urls.length) return httpUrls;
-  // Convert any remaining base64 entries in the form inputs.
-  if (urls.length > 0) {
-    var converted = [];
-    for (var k = 0; k < urls.length; k++) {
-      if (urls[k].startsWith('data:image/') || urls[k].startsWith('data:video/')) {
-        var cu = await uploadBase64(urls[k]);
-        if (cu) converted.push(cu);
-      } else if (urls[k].startsWith('http')) {
-        converted.push(urls[k]);
+  const uploadBase64 = function(base64) {
+    return fetch(`${getApiBaseUrl()}/api/upload/media`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ media: base64 })
+    }).then(function(r) { return r.json(); }).then(function(j) { return j && j.url ? j.url : null; });
+  };
+  if (uploadedImages && uploadedImages.length > 0) {
+    var uploaded = [];
+    for (var ui = 0; ui < uploadedImages.length; ui++) {
+      var base64 = uploadedImages[ui].dataUrl || uploadedImages[ui].data;
+      if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
+        var url = await uploadBase64(base64);
+        if (url) uploaded.push(url);
       }
     }
-    if (converted.length > 0) return converted;
+    if (uploaded.length > 0) return uploaded;
+  }
+  if (item.uploadedImages && item.uploadedImages.length > 0) {
+    var savedUploaded = [];
+    for (var si = 0; si < item.uploadedImages.length; si++) {
+      var sb64 = item.uploadedImages[si].dataUrl || item.uploadedImages[si].data;
+      if (sb64 && (String(sb64).startsWith('data:image/') || String(sb64).startsWith('data:video/'))) {
+        var su = await uploadBase64(sb64);
+        if (su) savedUploaded.push(su);
+      }
+    }
+    if (savedUploaded.length > 0) return savedUploaded;
   }
   return httpUrls.length > 0 ? httpUrls : (urls.length > 0 ? [urls[0]] : []);
 }
@@ -6753,16 +6686,7 @@ async function getMediaUrlForApprovalId(approvalId) {
   return allUrls.length > 0 ? allUrls[0] : null;
 }
 
-/** Get ALL media URLs for an approval (for carousel support).
- *  Priority order (fixed — previously the old fast-path returned stale
- *  text-input URLs before even checking uploaded files, which caused
- *  freshly uploaded images to be ignored in favor of broken share links):
- *    1. Fresh uploads in the current session (global uploadedImages)
- *       — only when the form is currently editing THIS approval
- *    2. Saved uploads on the approval item (item.uploadedImages)
- *    3. Selected library assets
- *    4. HTTP URLs from item.imageUrls / item.imageUrl (legacy fallback)
- */
+/** Get ALL media URLs for an approval (for carousel support) */
 async function getAllMediaUrlsForApprovalId(approvalId) {
   const state = load();
   const item = (state.approvals || []).find(a => a.id === approvalId);
@@ -6778,26 +6702,25 @@ async function getAllMediaUrlsForApprovalId(approvalId) {
       return (j && j.url) ? j.url : null;
     } catch (e) { return null; }
   };
-
-  // PRIORITY 1: Freshly uploaded files from the file input, but only when
-  // the approval form is currently open on THIS approval — the global
-  // `uploadedImages` is tied to the active edit panel, not a random card.
-  if (typeof uploadedImages !== 'undefined' && uploadedImages && uploadedImages.length > 0
-      && typeof selectedApprovalId !== 'undefined' && selectedApprovalId === approvalId) {
+  const urls = item ? (Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+    ? item.imageUrls.filter(u => u && String(u).trim())
+    : (item.imageUrl ? [item.imageUrl] : [])) : [];
+  // If all URLs are already HTTP, return them all
+  var httpUrls = urls.filter(u => u && u.startsWith('http'));
+  if (httpUrls.length > 0 && httpUrls.length === urls.length) return httpUrls;
+  // Check global uploadedImages from file input (multiple files)
+  if (typeof uploadedImages !== 'undefined' && uploadedImages.length > 0) {
     var uploaded = [];
     for (var i = 0; i < uploadedImages.length; i++) {
       var base64 = uploadedImages[i].dataUrl || uploadedImages[i].data;
       if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
         var url = await uploadBase64(base64);
         if (url) uploaded.push(url);
-      } else if (typeof base64 === 'string' && base64.startsWith('http')) {
-        uploaded.push(base64);
       }
     }
     if (uploaded.length > 0) return uploaded;
   }
-
-  // PRIORITY 2: Saved uploads on the approval item.
+  // Check saved approval images (multiple)
   if (item && item.uploadedImages && item.uploadedImages.length > 0) {
     var savedUploaded = [];
     for (var j = 0; j < item.uploadedImages.length; j++) {
@@ -6805,32 +6728,11 @@ async function getAllMediaUrlsForApprovalId(approvalId) {
       if (b64 && (String(b64).startsWith('data:image/') || String(b64).startsWith('data:video/'))) {
         var u = await uploadBase64(b64);
         if (u) savedUploaded.push(u);
-      } else if (typeof b64 === 'string' && b64.startsWith('http')) {
-        savedUploaded.push(b64);
       }
     }
     if (savedUploaded.length > 0) return savedUploaded;
   }
-
-  // PRIORITY 3: Selected library assets (if item tracks them).
-  if (item && Array.isArray(item.assetIds) && item.assetIds.length > 0) {
-    const assets = loadAssets(currentClientId);
-    var assetUrls = [];
-    for (var ai = 0; ai < item.assetIds.length; ai++) {
-      var asset = assets.find(function(a) { return a.id === item.assetIds[ai]; });
-      if (asset) {
-        var aUrl = asset.thumbnailUrl || getPreviewUrl(asset) || asset.url || null;
-        if (aUrl) assetUrls.push(aUrl);
-      }
-    }
-    if (assetUrls.length > 0) return assetUrls;
-  }
-
-  // PRIORITY 4 (fallback): Text-input URLs stored on the approval.
-  const urls = item ? (Array.isArray(item.imageUrls) && item.imageUrls.length > 0
-    ? item.imageUrls.filter(u => u && String(u).trim())
-    : (item.imageUrl ? [item.imageUrl] : [])) : [];
-  // Convert any base64 entries; pass http entries through.
+  // If urls have base64, upload them all
   if (urls.length > 0) {
     var converted = [];
     for (var k = 0; k < urls.length; k++) {
@@ -6843,7 +6745,6 @@ async function getAllMediaUrlsForApprovalId(approvalId) {
     }
     if (converted.length > 0) return converted;
   }
-  var httpUrls = urls.filter(u => u && u.startsWith('http'));
   return httpUrls.length > 0 ? httpUrls : (urls.length > 0 ? [urls[0]] : []);
 }
 
@@ -7460,15 +7361,13 @@ function closePreviewModal() {
   if (approvalDelete) {
     approvalDelete.addEventListener('click', () => {
     const id = $('#approvalId').value;
-    if (!id || !confirm('Are you sure you want to archive this approval? It will be hidden but not permanently deleted.')) return;
-
+    if (!id || !confirm('Are you sure you want to delete this approval?')) return;
+    
     const state = load();
     const item = state.approvals.find(a => a.id === id);
     if (item) {
-      // Soft-delete: archive instead of removing permanently
-      const idx = state.approvals.findIndex(a => a.id === id);
-      if (idx >= 0) state.approvals[idx] = Object.assign({}, item, { status: 'archived' });
-
+      state.approvals = state.approvals.filter(a => a.id !== id);
+      
       // Update KPIs
       const pendingCount = state.approvals.filter(a => !a.status || a.status === 'pending').length;
       const scheduledCount = calculateScheduledPosts(state.approvals);
@@ -7476,12 +7375,12 @@ function closePreviewModal() {
         state.kpis.waitingApproval = pendingCount;
         state.kpis.scheduled = scheduledCount;
       }
-
+      
       // Log activity
       if (!state.activity) state.activity = [];
       state.activity.push({
         when: Date.now(),
-        text: `Archived approval: ${item.title}`
+        text: `Deleted approval: ${item.title}`
       });
       
       save(state);
