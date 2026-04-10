@@ -2125,7 +2125,7 @@ async function renderDashConnections() {
 
   container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Checking connections for all clients...</div>';
 
-  // Fetch connection status for all clients in parallel
+  // Fetch per-client connection detail in parallel (for expiry/error info)
   var results = await Promise.all(clientList.map(async function(client) {
     try {
       var r = await fetch(getApiBaseUrl() + '/api/meta/connections/client/' + encodeURIComponent(client.id), { credentials: 'include' });
@@ -2135,6 +2135,23 @@ async function renderDashConnections() {
       return { client: client, data: null, error: e.message };
     }
   }));
+
+  // Fetch conflicts (cross-client duplicate IG/Page links) — lightweight agency-wide check
+  var conflicts = [];
+  try {
+    var cr = await fetch(getApiBaseUrl() + '/api/meta/connections/conflicts', { credentials: 'include' });
+    var cj = await cr.json();
+    if (cr.ok && Array.isArray(cj.conflicts)) conflicts = cj.conflicts;
+  } catch (e) { console.warn('Conflicts fetch:', e && e.message); }
+
+  // Build a lookup of clientId → array of conflicts it's involved in
+  var conflictsByClient = {};
+  conflicts.forEach(function(conf) {
+    (conf.clients || []).forEach(function(c) {
+      if (!conflictsByClient[c.clientId]) conflictsByClient[c.clientId] = [];
+      conflictsByClient[c.clientId].push(conf);
+    });
+  });
 
   var html = '';
 
@@ -2148,8 +2165,34 @@ async function renderDashConnections() {
   html += '<div style="display:flex;gap:12px;">';
   html += '<span style="font-size:12px;font-weight:600;color:#059669;background:#d1fae5;padding:4px 10px;border-radius:6px;">' + connectedCount + ' Connected</span>';
   if (expiredCount > 0) html += '<span style="font-size:12px;font-weight:600;color:#dc2626;background:#fee2e2;padding:4px 10px;border-radius:6px;">' + expiredCount + ' Expired</span>';
+  if (conflicts.length > 0) html += '<span style="font-size:12px;font-weight:600;color:#991b1b;background:#fee2e2;padding:4px 10px;border-radius:6px;">⚠️ ' + conflicts.length + ' Conflict' + (conflicts.length === 1 ? '' : 's') + '</span>';
   if (disconnectedCount > 0) html += '<span style="font-size:12px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:4px 10px;border-radius:6px;">' + disconnectedCount + ' Not Connected</span>';
   html += '</div></div>';
+
+  // Agency-wide conflict banner — render before the cards so it cannot be missed
+  if (conflicts.length > 0) {
+    var escA = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    html += '<div style="margin-bottom:20px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px;">';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">';
+    html += '<span style="font-size:22px;">⚠️</span>';
+    html += '<div>';
+    html += '<div style="font-size:15px;font-weight:800;color:#991b1b;">Cross-Client Connection Conflicts Detected</div>';
+    html += '<div style="font-size:12px;color:#7f1d1d;">The same social account is linked to more than one client. Fix these by disconnecting the wrong client and reconnecting to the correct one.</div>';
+    html += '</div></div>';
+    conflicts.forEach(function(conf) {
+      var kindLabel = conf.reason === 'instagram' ? 'Instagram' : 'Facebook Page';
+      html += '<div style="padding:12px;background:white;border:1px solid #fecaca;border-radius:8px;margin-top:8px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">' + kindLabel + '</div>';
+      html += '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:8px;">' + escA(conf.identifier) + '</div>';
+      html += '<div style="font-size:12px;color:#475569;margin-bottom:6px;">Linked to <strong>' + conf.clients.length + '</strong> clients:</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      conf.clients.forEach(function(cc) {
+        html += '<span class="dash-conn-conflict-chip" data-client-id="' + escA(cc.clientId) + '" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;">' + escA(cc.clientName) + '</span>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
 
   // Client cards
   results.forEach(function(res) {
@@ -2175,7 +2218,12 @@ async function renderDashConnections() {
     html += '<div style="font-size:14px;font-weight:700;color:#0f172a;">' + (c.name || c.id) + '</div>';
     if (d && d.pageName) html += '<div style="font-size:12px;color:#64748b;">' + d.pageName + '</div>';
     html += '</div></div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;">';
+    if (conflictsByClient[c.id] && conflictsByClient[c.id].length > 0) {
+      html += '<button type="button" class="dash-conn-conflict-badge" data-client-id="' + c.id + '" title="This connection is also linked to another client" style="font-size:10px;font-weight:800;color:#991b1b;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;cursor:pointer;">⚠️ IN CONFLICT</button>';
+    }
     html += '<span style="font-size:10px;font-weight:700;color:' + statusColor + ';background:' + statusBg + ';padding:3px 10px;border-radius:6px;">' + statusLabel + '</span>';
+    html += '</div>';
     html += '</div>';
 
     // Details
@@ -2256,6 +2304,30 @@ async function renderDashConnections() {
         if (d.success) { showToast('Disconnected ' + clientName, 'success'); renderDashConnections(); }
       } catch (e) { showToast('Error: ' + e.message, 'error'); }
     });
+  });
+
+  // Wire up conflict badge and chip clicks — show the same modal as the blocked-connect flow
+  var showConflictFromLookup = function(clientId) {
+    var list = conflictsByClient[clientId] || [];
+    if (list.length === 0) return;
+    var conf = list[0];
+    // Find the "other" client (not the one clicked) as the conflicting side
+    var other = (conf.clients || []).find(function(cc) { return cc.clientId !== clientId; }) || conf.clients[0];
+    var me = (conf.clients || []).find(function(cc) { return cc.clientId === clientId; }) || conf.clients[0];
+    showMetaConflictAlert({
+      reason: conf.reason,
+      identifier: conf.identifier,
+      conflictingClientId: other.clientId,
+      conflictingClientName: other.clientName,
+      attemptedClientId: me.clientId,
+      attemptedClientName: me.clientName
+    });
+  };
+  container.querySelectorAll('.dash-conn-conflict-badge').forEach(function(btn) {
+    btn.addEventListener('click', function() { showConflictFromLookup(btn.getAttribute('data-client-id')); });
+  });
+  container.querySelectorAll('.dash-conn-conflict-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() { showConflictFromLookup(chip.getAttribute('data-client-id')); });
   });
 
   container.querySelectorAll('.dash-conn-test').forEach(function(btn) {
@@ -2630,13 +2702,132 @@ window.addEventListener('message', function(event) {
     // Single page auto-connected
     renderScheduledPostsConnectionSection();
     renderScheduledPostsTab();
+    // Also refresh the dashboard Social Connections view if it's open
+    if (currentDashView === 'connections' && typeof renderDashConnections === 'function') renderDashConnections();
   }
 
   if (event.data.type === 'META_PAGES') {
     // Multiple pages — show page picker modal
     showMetaPagePicker(event.data.sessionKey, event.data.pages, event.data.clientId);
   }
+
+  if (event.data.type === 'META_CONFLICT') {
+    // Backend refused to save a connection because the IG/Page is already linked to another client
+    showMetaConflictAlert(event.data.conflict);
+  }
 });
+
+/**
+ * Show a blocking modal alert when a connection would conflict with another client.
+ * Called from both the OAuth popup message handler and the page-picker 409 response.
+ */
+// Check once on dashboard load if any Meta connections are cross-linked to multiple clients.
+// Shows a one-time toast + opens the conflict modal for the first conflict.
+async function checkMetaConflictsOnLoad() {
+  try {
+    var r = await fetch(getApiBaseUrl() + '/api/meta/connections/conflicts', { credentials: 'include' });
+    if (!r.ok) return;
+    var j = await r.json();
+    var conflicts = (j && j.conflicts) || [];
+    if (conflicts.length === 0) return;
+
+    // Dedupe: only show once per conflict set per browser session
+    var key = 'meta_conflict_alerted_' + conflicts.map(function(c) {
+      return c.reason + ':' + (c.clients || []).map(function(cc) { return cc.clientId; }).sort().join('|');
+    }).sort().join(';;');
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch (_) {}
+
+    if (typeof showToast === 'function') {
+      showToast('⚠️ ' + conflicts.length + ' Meta connection conflict' + (conflicts.length === 1 ? '' : 's') + ' detected. Opening details…', 'error');
+    }
+
+    // Show modal for the first conflict
+    var conf = conflicts[0];
+    var first = (conf.clients && conf.clients[0]) || { clientId: '', clientName: '' };
+    var second = (conf.clients && conf.clients[1]) || { clientId: '', clientName: '' };
+    setTimeout(function() {
+      showMetaConflictAlert({
+        reason: conf.reason,
+        identifier: conf.identifier,
+        conflictingClientId: first.clientId,
+        conflictingClientName: first.clientName,
+        attemptedClientId: second.clientId,
+        attemptedClientName: second.clientName
+      });
+    }, 1500);
+  } catch (e) {
+    console.warn('checkMetaConflictsOnLoad failed:', e && e.message);
+  }
+}
+
+function showMetaConflictAlert(conflict) {
+  if (!conflict) return;
+  // Remove existing overlay if any
+  var existing = document.getElementById('metaConflictOverlay');
+  if (existing) existing.remove();
+
+  var kind = conflict.reason === 'instagram' ? 'Instagram account' : 'Facebook page';
+  var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  var overlay = document.createElement('div');
+  overlay.id = 'metaConflictOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:11000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:white;border-radius:16px;padding:28px;max-width:520px;width:100%;box-shadow:0 25px 50px rgba(0,0,0,0.3);border-top:6px solid #dc2626;';
+
+  var html = '';
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">';
+  html += '<div style="width:44px;height:44px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:24px;">⚠️</div>';
+  html += '<div>';
+  html += '<h2 style="margin:0;font-size:18px;font-weight:800;color:#991b1b;">Wrong Client Connection Blocked</h2>';
+  html += '<p style="margin:2px 0 0;font-size:13px;color:#64748b;">This ' + kind + ' is already linked to another client.</p>';
+  html += '</div></div>';
+
+  html += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin-bottom:16px;">';
+  html += '<div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">' + kind + '</div>';
+  html += '<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;">' + esc(conflict.identifier) + '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+  html += '<div>';
+  html += '<div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">Already connected to</div>';
+  html += '<div style="font-size:13px;font-weight:700;color:#1a56db;">' + esc(conflict.conflictingClientName) + '</div>';
+  html += '</div>';
+  html += '<div>';
+  html += '<div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">You tried to link it to</div>';
+  html += '<div style="font-size:13px;font-weight:700;color:#0f172a;">' + esc(conflict.attemptedClientName) + '</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  html += '<p style="margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5;">No changes were saved. Double-check that you picked the correct Facebook page in the Meta popup. If this was intentional, first disconnect the ' + kind + ' from <strong>' + esc(conflict.conflictingClientName) + '</strong> and then try again.</p>';
+
+  html += '<div style="display:flex;gap:10px;justify-content:flex-end;">';
+  html += '<button type="button" id="metaConflictGoTo" style="padding:10px 16px;font-size:13px;font-weight:600;background:white;border:1px solid #cbd5e1;border-radius:8px;color:#475569;cursor:pointer;">Open ' + esc(conflict.conflictingClientName) + '</button>';
+  html += '<button type="button" id="metaConflictClose" style="padding:10px 22px;font-size:13px;font-weight:600;background:#dc2626;color:white;border:none;border-radius:8px;cursor:pointer;">Got it</button>';
+  html += '</div>';
+
+  modal.innerHTML = html;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById('metaConflictClose').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  var goBtn = document.getElementById('metaConflictGoTo');
+  if (goBtn) {
+    goBtn.addEventListener('click', function() {
+      overlay.remove();
+      if (conflict.conflictingClientId && typeof selectClient === 'function') {
+        if (currentDashView) closeDashView();
+        selectClient(conflict.conflictingClientId).then(function() {
+          if (typeof switchTab === 'function') switchTab('scheduled');
+        });
+      }
+    });
+  }
+}
 
 function showMetaPagePicker(sessionKey, pages, clientId) {
   // Remove existing modal if any
@@ -2712,11 +2903,18 @@ function showMetaPagePicker(sessionKey, pages, clientId) {
         body: JSON.stringify({ sessionKey: sessionKey, pageId: pageId })
       });
       var d = await r.json();
+      if (r.status === 409 && d.conflict) {
+        // Cross-client conflict — show the big alert modal
+        overlay.remove();
+        showMetaConflictAlert(d.conflict);
+        return;
+      }
       if (d.success) {
         overlay.remove();
         showToast('Connected ' + (d.connection.pageName || 'Facebook Page') + (d.connection.instagramUsername ? ' + @' + d.connection.instagramUsername : ''), 'success');
         renderScheduledPostsConnectionSection();
         renderScheduledPostsTab();
+        if (currentDashView === 'connections' && typeof renderDashConnections === 'function') renderDashConnections();
       } else {
         throw new Error(d.error || 'Failed to connect');
       }
@@ -12362,6 +12560,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupContentLibraryLearnMore(); } catch (e) { console.error('Error setting up content library learn more:', e); }
     try { setupNotificationBell(); } catch (e) { console.error('Error setting up notification bell:', e); }
     try { initDashboardPanels(); } catch (e) { console.error('Error initializing dashboard panels:', e); }
+
+    // One-time check for cross-client Meta connection conflicts on dashboard load
+    try { checkMetaConflictsOnLoad(); } catch (e) { console.error('Error checking Meta conflicts:', e); }
 
     // Poll portal state so client-side actions create agency notifications live (no refresh)
     function pollClientActions() {

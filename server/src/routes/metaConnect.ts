@@ -17,6 +17,7 @@ import {
   getMetaIntegrationByClient,
   saveMetaIntegration,
   deleteMetaIntegrationByClient,
+  getClientsByAgency,
 } from '../db.js';
 import {
   exchangeForLongLivedToken,
@@ -101,6 +102,127 @@ async function getInstagramPicture(igId: string, accessToken: string): Promise<s
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Cross-client conflict detection.
+ *
+ * Detects cases like "Ardan Spa client connected to The Shape's Instagram" —
+ * the same IG account or FB page linked to more than one client within the agency.
+ *
+ * Pass in (agencyId, targetClientId, igId, pageId) BEFORE saving a new connection
+ * to see if that IG/Page is already owned by a different client.
+ */
+function detectConflictForNewConnection(
+  agencyId: string,
+  targetClientId: string,
+  igId: string | undefined,
+  pageId: string | undefined
+): { conflictingClientId: string; conflictingClientName: string; reason: 'instagram' | 'page' } | null {
+  const all = Object.values(getMetaIntegrations()).filter(
+    (i: any) => i.agencyId === agencyId && i.clientId !== targetClientId && (i.status || 'connected') !== 'disconnected'
+  );
+  const clientList = getClientsByAgency(agencyId);
+  const clientNameById: Record<string, string> = {};
+  clientList.forEach((c: any) => { clientNameById[c.id] = c.name || c.id; });
+
+  if (igId) {
+    const dup = all.find((i: any) => i.metaInstagramAccountId && i.metaInstagramAccountId === igId);
+    if (dup) {
+      return {
+        conflictingClientId: dup.clientId,
+        conflictingClientName: clientNameById[dup.clientId] || dup.clientId,
+        reason: 'instagram',
+      };
+    }
+  }
+  if (pageId) {
+    const dup = all.find((i: any) => i.metaPageId && i.metaPageId === pageId);
+    if (dup) {
+      return {
+        conflictingClientId: dup.clientId,
+        conflictingClientName: clientNameById[dup.clientId] || dup.clientId,
+        reason: 'page',
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Scan ALL existing connections in an agency and return any cross-client
+ * conflicts (same IG account or FB page on two or more clients).
+ * Used to surface historical conflicts that slipped in before detection was added.
+ */
+function findAllAgencyConflicts(agencyId: string): Array<{
+  reason: 'instagram' | 'page';
+  identifier: string;
+  clients: Array<{ clientId: string; clientName: string; instagramUsername?: string; pageName?: string }>;
+}> {
+  const all = Object.values(getMetaIntegrations()).filter(
+    (i: any) => i.agencyId === agencyId && (i.status || 'connected') !== 'disconnected'
+  );
+  const clientList = getClientsByAgency(agencyId);
+  const clientNameById: Record<string, string> = {};
+  clientList.forEach((c: any) => { clientNameById[c.id] = c.name || c.id; });
+
+  const igBuckets: Record<string, any[]> = {};
+  const pageBuckets: Record<string, any[]> = {};
+  all.forEach((i: any) => {
+    if (i.metaInstagramAccountId) {
+      if (!igBuckets[i.metaInstagramAccountId]) igBuckets[i.metaInstagramAccountId] = [];
+      igBuckets[i.metaInstagramAccountId].push(i);
+    }
+    if (i.metaPageId) {
+      if (!pageBuckets[i.metaPageId]) pageBuckets[i.metaPageId] = [];
+      pageBuckets[i.metaPageId].push(i);
+    }
+  });
+
+  const conflicts: Array<{
+    reason: 'instagram' | 'page';
+    identifier: string;
+    clients: Array<{ clientId: string; clientName: string; instagramUsername?: string; pageName?: string }>;
+  }> = [];
+
+  Object.keys(igBuckets).forEach((igId) => {
+    const items = igBuckets[igId];
+    if (items.length > 1) {
+      conflicts.push({
+        reason: 'instagram',
+        identifier: items[0].metaInstagramUsername ? '@' + items[0].metaInstagramUsername : igId,
+        clients: items.map((i: any) => ({
+          clientId: i.clientId,
+          clientName: clientNameById[i.clientId] || i.clientId,
+          instagramUsername: i.metaInstagramUsername,
+          pageName: i.metaPageName,
+        })),
+      });
+    }
+  });
+
+  Object.keys(pageBuckets).forEach((pageId) => {
+    const items = pageBuckets[pageId];
+    if (items.length > 1) {
+      // Skip if we already flagged the same set via Instagram
+      const already = conflicts.some(
+        (c) => c.reason === 'instagram' && c.clients.map((cc) => cc.clientId).sort().join(',') === items.map((i: any) => i.clientId).sort().join(',')
+      );
+      if (already) return;
+      conflicts.push({
+        reason: 'page',
+        identifier: items[0].metaPageName || pageId,
+        clients: items.map((i: any) => ({
+          clientId: i.clientId,
+          clientName: clientNameById[i.clientId] || i.clientId,
+          instagramUsername: i.metaInstagramUsername,
+          pageName: i.metaPageName,
+        })),
+      });
+    }
+  });
+
+  return conflicts;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -229,6 +351,26 @@ router.get('/callback', async (req: Request, res: Response) => {
     // If only one page, auto-select it (skip picker)
     if (pagesWithDetails.length === 1) {
       const page = pagesWithDetails[0];
+
+      // Cross-client conflict check — is this IG/Page already linked to another client?
+      const conflict = detectConflictForNewConnection(agencyId, clientId, page.instagram?.id, page.id);
+      if (conflict) {
+        const clients = getClientsByAgency(agencyId);
+        const targetName = clients.find((c: any) => c.id === clientId)?.name || clientId;
+        const identifier = conflict.reason === 'instagram'
+          ? (page.instagram?.username ? '@' + page.instagram.username : 'Instagram account')
+          : (page.name || 'Facebook page');
+        console.warn(`[Meta OAuth] BLOCKED conflict — ${identifier} already owned by ${conflict.conflictingClientName} (attempted on ${targetName})`);
+        return res.send(renderConflictPage({
+          attemptedClientId: clientId,
+          attemptedClientName: targetName,
+          conflictingClientId: conflict.conflictingClientId,
+          conflictingClientName: conflict.conflictingClientName,
+          identifier,
+          reason: conflict.reason,
+        }));
+      }
+
       const now = Date.now();
       const integration = {
         id: `meta_${agencyId}_${clientId}_${now}`,
@@ -305,6 +447,28 @@ router.post('/select-page', authenticate, requireCanViewDashboard, async (req: A
     const page = session.pages.find(p => p.id === pageId);
     if (!page) {
       return res.status(400).json({ error: 'Page not found in session' });
+    }
+
+    // Cross-client conflict check — is this IG/Page already linked to another client?
+    const conflict = detectConflictForNewConnection(agencyId, session.clientId, page.instagram?.id, page.id);
+    if (conflict) {
+      const clients = getClientsByAgency(agencyId);
+      const targetName = clients.find((c: any) => c.id === session.clientId)?.name || session.clientId;
+      const identifier = conflict.reason === 'instagram'
+        ? (page.instagram?.username ? '@' + page.instagram.username : 'Instagram account')
+        : (page.name || 'Facebook page');
+      console.warn(`[Meta OAuth] BLOCKED conflict — ${identifier} already owned by ${conflict.conflictingClientName} (attempted on ${targetName})`);
+      return res.status(409).json({
+        error: 'conflict',
+        conflict: {
+          attemptedClientId: session.clientId,
+          attemptedClientName: targetName,
+          conflictingClientId: conflict.conflictingClientId,
+          conflictingClientName: conflict.conflictingClientName,
+          identifier,
+          reason: conflict.reason,
+        },
+      });
     }
 
     const now = Date.now();
@@ -408,7 +572,9 @@ router.get('/connections/client/:clientId', authenticate, requireCanViewDashboar
 
 /**
  * GET /connections/all
- * Get all connections for the agency (dashboard overview)
+ * Get all connections for the agency (dashboard overview).
+ * Also includes `conflicts` — any IG/Page account that ended up linked
+ * to more than one client within the agency, so the UI can surface a warning.
  */
 router.get('/connections/all', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
   try {
@@ -424,6 +590,7 @@ router.get('/connections/all', authenticate, requireCanViewDashboard, (req: Auth
           pageId: i.metaPageId,
           pageName: i.metaPageName,
           pagePicture: (i as any).metaPagePicture,
+          instagramId: i.metaInstagramAccountId,
           instagramUsername: i.metaInstagramUsername,
           instagramPicture: (i as any).metaInstagramPicture,
           daysUntilExpiry: Math.max(0, Math.floor((i.tokenExpiresAt - Date.now()) / (1000 * 60 * 60 * 24))),
@@ -431,7 +598,23 @@ router.get('/connections/all', authenticate, requireCanViewDashboard, (req: Auth
           errorMessage: (i as any).errorMessage,
         };
       });
-    res.json({ success: true, connections });
+    const conflicts = findAllAgencyConflicts(agencyId);
+    res.json({ success: true, connections, conflicts });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * GET /connections/conflicts
+ * Returns only the conflicts (same IG/Page linked to 2+ clients).
+ * Lightweight endpoint for fast polling from the overview/dashboard.
+ */
+router.get('/connections/conflicts', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const conflicts = findAllAgencyConflicts(agencyId);
+    res.json({ success: true, conflicts });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -867,6 +1050,43 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
 // ═══════════════════════════════════════════════════════
 // HTML Renderers
 // ═══════════════════════════════════════════════════════
+
+/**
+ * Rendered in the OAuth popup when we detect a cross-client conflict and
+ * refuse to save the connection. Posts a META_CONFLICT message to the opener
+ * so the main app can show a modal alert.
+ */
+function renderConflictPage(info: {
+  attemptedClientId: string;
+  attemptedClientName: string;
+  conflictingClientId: string;
+  conflictingClientName: string;
+  identifier: string;
+  reason: 'instagram' | 'page';
+}): string {
+  const esc = (s: string) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  const payload = JSON.stringify(info).replace(/</g, '\\u003c');
+  const kind = info.reason === 'instagram' ? 'Instagram account' : 'Facebook page';
+  return `<!DOCTYPE html><html><head><title>Connection Blocked</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:60px auto;padding:28px;text-align:center;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;}
+h1{color:#991b1b;margin:0 0 12px;font-size:22px;}
+.box{background:white;border:1px solid #fecaca;border-radius:10px;padding:16px;margin:16px 0;text-align:left;font-size:14px;color:#0f172a;}
+.label{font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+.btn{display:inline-block;margin-top:12px;padding:11px 22px;background:#dc2626;color:white;text-decoration:none;border-radius:8px;font-weight:600;cursor:pointer;border:none;font-size:14px;}</style></head><body>
+<h1>⚠️ Connection Blocked — Wrong Client</h1>
+<p style="color:#7f1d1d;margin:0 0 8px;">The ${kind} you tried to connect is already linked to a different client.</p>
+<div class="box">
+  <div class="label">${kind}</div>
+  <div style="margin-bottom:10px;font-weight:600;">${esc(info.identifier)}</div>
+  <div class="label">Already connected to</div>
+  <div style="margin-bottom:10px;font-weight:600;color:#1a56db;">${esc(info.conflictingClientName)}</div>
+  <div class="label">You were trying to connect it to</div>
+  <div style="font-weight:600;">${esc(info.attemptedClientName)}</div>
+</div>
+<p style="color:#7f1d1d;font-size:13px;margin:0 0 8px;">No changes were saved. Double-check that you picked the correct Facebook page in the popup, or disconnect it from the other client first if this was intentional.</p>
+<button class="btn" onclick="if(window.opener){window.opener.postMessage({type:'META_CONFLICT',conflict:${payload}},'*');window.close();}else{window.close();}">Close</button>
+</body></html>`;
+}
 
 function renderResultPage(success: boolean, error?: string, pageName?: string, igUsername?: string, clientId?: string): string {
   const redirectUrl = clientId
