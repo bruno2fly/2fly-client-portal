@@ -1139,12 +1139,20 @@ function updateTabCountBadges() {
 }
 
 // Pipeline stage counts for Approvals page
+// NOTE: items that came back from production with final art (productionStatus === 'art_approved')
+// have their server-side status reset to 'pending' so the CLIENT sees them in Content Pending to
+// approve the final visual. In the AGENCY view, however, we want them to stay visible in the
+// "Copy Approved" section (with the "Final art attached" banner) instead of silently moving to
+// Content Pending. The helper below identifies those returning-from-production items.
+function _isReturningFromProduction(a) {
+  return a && a.productionStatus === 'art_approved' && (!a.status || a.status === 'pending');
+}
 function getApprovalPipelineCounts(approvals) {
   const list = approvals || [];
   const copyPending = list.filter(a => a.status === 'copy_pending').length;
-  const copyApproved = list.filter(a => a.status === 'copy_approved').length;
+  const copyApproved = list.filter(a => a.status === 'copy_approved' || _isReturningFromProduction(a)).length;
   const copyChanges = list.filter(a => a.status === 'copy_changes').length;
-  const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status)).length;
+  const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status) && !_isReturningFromProduction(a)).length;
   const changes = list.filter(a => a.status === 'changes').length;
   const approved = list.filter(a => a.status === 'approved').length;
   const scheduled = list.filter(a => a.status === 'scheduled').length;
@@ -1433,9 +1441,13 @@ async function renderDashOverview() {
     var openRequests = requests.filter(isClientRequestOpen).length;
     var openNeeds = needs.filter(function(n) { return !n.status || n.status === 'open'; }).length;
 
-    var pendingApprovals = approvals.filter(function(a) { return !a.status || a.status === 'pending' || a.status === 'copy_pending'; }).length;
+    var pendingApprovals = approvals.filter(function(a) {
+      return ((!a.status || a.status === 'pending') && !_isReturningFromProduction(a)) || a.status === 'copy_pending';
+    }).length;
     var changesApprovals = approvals.filter(function(a) { return a.status === 'changes' || a.status === 'copy_changes'; }).length;
-    var approvedApprovals = approvals.filter(function(a) { return a.status === 'approved' || a.status === 'copy_approved'; }).length;
+    var approvedApprovals = approvals.filter(function(a) {
+      return a.status === 'approved' || a.status === 'copy_approved' || _isReturningFromProduction(a);
+    }).length;
 
     var scheduledForClient = (scheduledPostsByClient[cid] || []).length;
 
@@ -5859,9 +5871,11 @@ function renderApprovalsTab() {
   const pipelineCounts = getApprovalPipelineCounts(approvalsList);
 
   const copyPending = approvalsList.filter(a => a.status === 'copy_pending');
-  const copyApproved = approvalsList.filter(a => a.status === 'copy_approved');
+  // Include items returning from production (final art attached) so they stay visible in the
+  // agency's Copy Approved section instead of silently moving to Content Pending.
+  const copyApproved = approvalsList.filter(a => a.status === 'copy_approved' || _isReturningFromProduction(a));
   const copyChanges = approvalsList.filter(a => a.status === 'copy_changes');
-  const pending = approvalsList.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status));
+  const pending = approvalsList.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status) && !_isReturningFromProduction(a));
   const changes = approvalsList.filter(a => a.status === 'changes');
   const approved = approvalsList.filter(a => a.status === 'approved');
   const scheduled = approvalsList.filter(a => a.status === 'scheduled');
