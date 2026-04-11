@@ -90,6 +90,87 @@ function isVideoUrl(url: string): boolean {
 }
 
 /**
+ * Normalize media URLs that come from known share-link hosts so that Meta
+ * actually receives a direct file download. This catches the #1 source of
+ * "Invalid parameter" errors: users pasting Dropbox / Google Drive share
+ * URLs, which return an HTML viewer page when fetched.
+ *
+ * - Dropbox: forces `dl=1` so the URL serves the raw file.
+ * - Google Drive: rewrites view/open URLs to `uc?export=download&id=`.
+ *   NOTE: Google Drive is still unreliable for large files (Meta will hit
+ *   the virus-scan confirmation page). `rejectUnsupportedMediaHost` below
+ *   refuses Drive outright for that reason — this rewrite only exists so
+ *   that legacy saved values get a chance before being rejected.
+ */
+function normalizeMediaUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
+  const url = rawUrl.trim();
+  if (!url || url.startsWith('data:')) return url;
+
+  // Dropbox: any share URL → force raw file download
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(url)) {
+    try {
+      const u = new URL(url);
+      u.searchParams.delete('dl');
+      u.searchParams.set('dl', '1');
+      return u.toString();
+    } catch { /* fall through */ }
+  }
+
+  // Google Drive: /file/d/{id}/view → uc?export=download&id={id}
+  const driveFileMatch = url.match(/^https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/i);
+  if (driveFileMatch) {
+    return `https://drive.google.com/uc?export=download&id=${driveFileMatch[1]}`;
+  }
+  const driveOpenMatch = url.match(/^https?:\/\/drive\.google\.com\/open\?id=([^&]+)/i);
+  if (driveOpenMatch) {
+    return `https://drive.google.com/uc?export=download&id=${driveOpenMatch[1]}`;
+  }
+
+  return url;
+}
+
+/**
+ * Refuse media URLs from hosts that are known to return an HTML viewer page
+ * (or require auth, or otherwise can't be fetched by Meta). This surfaces
+ * a clear, actionable error at schedule time / publish time so users know
+ * exactly what to fix instead of seeing Meta's generic "Invalid parameter".
+ */
+function assertSupportedMediaHost(rawUrl: string, label: string = 'Media'): void {
+  if (!rawUrl || typeof rawUrl !== 'string') return;
+  const url = rawUrl.trim();
+  if (!url || url.startsWith('data:')) return;
+
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return; }
+
+  // Google Drive — unreliable (virus-scan warning page for larger files,
+  // HTML viewer for /file/d/.../view links, permission-gated files return
+  // a login page). Reject outright and tell the user what to do instead.
+  if (host === 'drive.google.com' || host === 'docs.google.com') {
+    throw new Error(`${label} URL is a Google Drive link, which Meta cannot download. Download the file from Drive and upload it directly to the post.`);
+  }
+
+  // Canva share links are not direct image files.
+  if (host === 'canva.com' || host.endsWith('.canva.com')) {
+    throw new Error(`${label} URL is a Canva share link. In Canva click Share → Download to get a PNG/JPG, then upload that file here.`);
+  }
+
+  // Notion share pages are HTML, not images.
+  if (host === 'notion.so' || host.endsWith('.notion.so') || host.endsWith('.notion.site')) {
+    throw new Error(`${label} URL is a Notion page, not a raw image file. Download the image from Notion and upload it directly.`);
+  }
+
+  // Figma, Miro, Adobe Cloud share links — same problem.
+  if (host === 'figma.com' || host.endsWith('.figma.com')) {
+    throw new Error(`${label} URL is a Figma link. Export the frame as PNG/JPG and upload the file directly.`);
+  }
+  if (host === 'adobe.com' || host.endsWith('.adobe.com') || host === 'adobecreativecloud.com') {
+    throw new Error(`${label} URL is an Adobe share link. Export the asset and upload the file directly.`);
+  }
+}
+
+/**
  * Pre-flight validation before handing a URL to Meta Graph API.
  * Meta returns the very generic "Invalid parameter" (#100) when it can't
  * fetch the media URL — which is almost impossible to debug from the error
@@ -223,11 +304,18 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
         console.error('[schedule] Failed to upload base64 media:', uploadErr.message);
       }
     }
+    // Normalize known share URLs (Dropbox → dl=1, Drive view → direct) and
+    // refuse any host we know Meta cannot download from.
+    if (finalMediaUrl) {
+      finalMediaUrl = normalizeMediaUrl(finalMediaUrl);
+      assertSupportedMediaHost(finalMediaUrl, 'Media');
+    }
 
     // Handle multiple media URLs for carousel posts
     let finalMediaUrls: string[] = [];
     if (Array.isArray(mediaUrls) && mediaUrls.length > 0) {
-      for (const mUrl of mediaUrls) {
+      for (let idx = 0; idx < mediaUrls.length; idx++) {
+        const mUrl = mediaUrls[idx];
         let url = (typeof mUrl === 'string' && mUrl.trim()) ? mUrl.trim() : '';
         if (!url) continue;
         if (url.startsWith('data:image/') || url.startsWith('data:video/')) {
@@ -237,12 +325,28 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
             console.error('[schedule] Failed to upload media from mediaUrls:', uploadErr.message);
           }
         }
+        url = normalizeMediaUrl(url);
+        assertSupportedMediaHost(url, `Carousel image #${idx + 1}`);
         finalMediaUrls.push(url);
       }
       // If mediaUrl wasn't set but we have mediaUrls, use the first one as primary
       if (!finalMediaUrl && finalMediaUrls.length > 0) {
         finalMediaUrl = finalMediaUrls[0];
       }
+    }
+
+    // Pre-flight validate reachability so we fail at schedule time with a
+    // clear message instead of hours later when cron/publish-now hits it.
+    try {
+      if (finalMediaUrls.length > 1) {
+        for (let i = 0; i < finalMediaUrls.length; i++) {
+          await validateMediaUrlReachable(finalMediaUrls[i], `Carousel image #${i + 1}`);
+        }
+      } else if (finalMediaUrl) {
+        await validateMediaUrlReachable(finalMediaUrl, isVideoUrl(finalMediaUrl) ? 'Video' : 'Image');
+      }
+    } catch (validationErr: any) {
+      return res.status(400).json({ error: validationErr.message || 'Media URL validation failed' });
     }
 
     const post = {
@@ -365,6 +469,76 @@ router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: Authen
 });
 
 /**
+ * GET /api/posts/:id/diagnose
+ * Inspect a scheduled/failed post and report exactly why its media URL
+ * is (or isn't) publishable. Read-only — does NOT touch Meta at all.
+ */
+router.get('/:id/diagnose', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const post = getScheduledPostById(req.params.id);
+    if (!post || post.agencyId !== agencyId) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const urls: string[] = [];
+    if (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0) {
+      post.mediaUrls.forEach((u: string) => { if (u && typeof u === 'string') urls.push(u); });
+    } else if (post.mediaUrl && typeof post.mediaUrl === 'string') {
+      urls.push(post.mediaUrl);
+    }
+
+    const report: any[] = [];
+    for (let i = 0; i < urls.length; i++) {
+      const rawUrl = urls[i];
+      const label = urls.length > 1 ? `Image #${i + 1}` : (isVideoUrl(rawUrl) ? 'Video' : 'Image');
+      const normalized = normalizeMediaUrl(rawUrl);
+      const entry: any = {
+        index: i,
+        rawUrl,
+        normalizedUrl: normalized,
+        wasNormalized: normalized !== rawUrl,
+      };
+      try {
+        assertSupportedMediaHost(normalized, label);
+        entry.hostSupported = true;
+      } catch (hostErr: any) {
+        entry.hostSupported = false;
+        entry.hostError = hostErr.message;
+        report.push(entry);
+        continue;
+      }
+      try {
+        await validateMediaUrlReachable(normalized, label);
+        entry.reachable = true;
+      } catch (reachErr: any) {
+        entry.reachable = false;
+        entry.reachabilityError = reachErr.message;
+      }
+      report.push(entry);
+    }
+
+    res.json({
+      success: true,
+      post: {
+        id: post.id,
+        clientId: post.clientId,
+        status: post.status,
+        error: post.error,
+        caption: post.caption ? post.caption.slice(0, 120) : '',
+        platforms: post.platforms,
+        placements: post.placements,
+        scheduledAt: post.scheduledAt,
+      },
+      mediaCount: urls.length,
+      media: report,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Diagnose failed' });
+  }
+});
+
+/**
  * POST /api/posts/:id/publish-now
  * Publish immediately
  */
@@ -457,6 +631,22 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
         publicMediaUrls = publicMediaUrls.filter(u => u && u.startsWith('http'));
         post.mediaUrls = publicMediaUrls;
         console.log(`[publish-now] Carousel has ${publicMediaUrls.length} public URLs`);
+      }
+
+      // Normalize share URLs (Dropbox etc.) so legacy saved posts heal on
+      // retry, and refuse hosts Meta cannot download from.
+      if (publicMediaUrl) {
+        publicMediaUrl = normalizeMediaUrl(publicMediaUrl);
+        assertSupportedMediaHost(publicMediaUrl, 'Media');
+        post.mediaUrl = publicMediaUrl;
+      }
+      if (isCarousel && publicMediaUrls.length > 0) {
+        publicMediaUrls = publicMediaUrls.map((u, i) => {
+          const n = normalizeMediaUrl(u);
+          assertSupportedMediaHost(n, `Carousel image #${i + 1}`);
+          return n;
+        });
+        post.mediaUrls = publicMediaUrls;
       }
 
       const hasMedia = publicMediaUrl && publicMediaUrl.startsWith('http');
