@@ -6475,13 +6475,106 @@ function loadApprovalForEdit(id) {
   updateSchedulePostSectionVisibility();
   updateScheduleCaptionCount();
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // CONTEXT — "Returning from production" lane (DO NOT DELETE / regress)
+  // ─────────────────────────────────────────────────────────────────────────
+  // When a production task comes back approved, the migration code sets
+  //   item.productionStatus = 'art_approved'
+  // and leaves item.status as-is (usually 'pending'). The helper
+  //   _isReturningFromProduction(a)  (see line ~1147)
+  // then keeps the post PINNED in the "Copy Approved" agency section so the
+  // agency can review the final art before pushing it to the client.
+  //
+  // Because the raw status is already 'pending', the normal Status dropdown
+  // is a no-op for this transition — selecting "Content Pending" does not
+  // change status (it's already 'pending'), so the existing code in the
+  // submit handler at ~line 7076 takes the "preserve flag" branch and the
+  // post never leaves the Copy Approved lane. That was the original bug.
+  //
+  // Fix: an EXPLICIT "Send to client as Content Pending" button rendered
+  // inside this green banner. Clicking it clears the returning-from-
+  // production flag (productionStatus → 'sent_to_client') and re-saves. The
+  // status dropdown is untouched, so agencies can still edit status freely
+  // for non-production posts without triggering this transition.
+  // ─────────────────────────────────────────────────────────────────────────
   var formNote = document.getElementById('approvalFormProductionNote');
   if (formNote) {
     if (item.productionStatus === 'art_approved') {
-      formNote.textContent = 'Final art from production is attached. Change status to Content Pending to send to client.';
+      // Render message + explicit action button. Using innerHTML here
+      // replaces any prior content so we don't duplicate buttons on re-open.
+      formNote.innerHTML =
+        '<div style="margin-bottom: 10px;">Final art from production is attached. Click the button below to send this post to the client for final visual approval.</div>' +
+        '<button type="button" id="approvalSendToClientBtn" class="btn btn-primary" style="padding: 8px 14px; font-size: 13px;">Send to client as Content Pending</button>';
       formNote.style.display = 'block';
+      var sendBtn = document.getElementById('approvalSendToClientBtn');
+      if (sendBtn) {
+        sendBtn.addEventListener('click', function onSendToClient() {
+          // Re-read latest state at click time to avoid closure staleness.
+          var st = load();
+          if (!st || !Array.isArray(st.approvals)) {
+            showToast('Could not load approvals.', 'error');
+            return;
+          }
+          var idx = st.approvals.findIndex(function(a) { return a && a.id === item.id; });
+          if (idx < 0) {
+            showToast('Post not found — please reload.', 'error');
+            return;
+          }
+          // Mutate in place so we never drop ANY existing field (title,
+          // caption, images, finalArtUrls, tags, assetIds, uploadedImages,
+          // etc. are all preserved). This is the whole point of not using
+          // the Save button flow for this transition.
+          var target = st.approvals[idx];
+          target.status = 'pending';                   // ensure it lands in Content Pending
+          target.productionStatus = 'sent_to_client';  // leave the "returning from production" lane
+          target.updatedAt = new Date().toISOString();
+          if (!st.activity) st.activity = [];
+          st.activity.push({
+            when: Date.now(),
+            text: 'Sent to client as Content Pending: ' + (target.title || 'Post')
+          });
+          sendBtn.disabled = true;
+          sendBtn.textContent = 'Sending…';
+          Promise.resolve(save(st)).then(function(ok) {
+            if (!ok) {
+              sendBtn.disabled = false;
+              sendBtn.textContent = 'Send to client as Content Pending';
+              return;
+            }
+            // Fire the client-facing notification exactly the same way the
+            // normal Save handler would for a 'pending' transition.
+            try {
+              fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  clientId: currentClientId,
+                  type: 'content_ready',
+                  postTitle: target.title || target.caption || 'New content'
+                })
+              }).catch(function() {});
+            } catch (_) {}
+            showToast('Sent to client — now in Content Pending.');
+            // Re-render so the card leaves the Copy Approved section and
+            // appears in Content Pending. Also clear the form so the stale
+            // edit panel doesn't keep pointing at a now-moved item.
+            try { if (typeof renderApprovalsTab === 'function') renderApprovalsTab(); } catch (_) {}
+            try { if (typeof renderOverviewTab === 'function') renderOverviewTab(); } catch (_) {}
+            var titleEl = document.getElementById('editPanelTitle');
+            if (titleEl) titleEl.textContent = 'Create Approval';
+            var idEl = document.getElementById('approvalId');
+            if (idEl) idEl.value = '';
+            var delBtn = document.getElementById('approvalDelete');
+            if (delBtn) delBtn.style.display = 'none';
+            selectedApprovalId = null;
+            formNote.style.display = 'none';
+          });
+        });
+      }
     } else {
       formNote.style.display = 'none';
+      formNote.innerHTML = '';
     }
   }
 }
