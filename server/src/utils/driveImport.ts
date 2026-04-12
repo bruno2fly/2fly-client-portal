@@ -1,6 +1,12 @@
 /**
  * Google Drive import utilities
  * Downloads files from Drive and saves to our storage
+ *
+ * ⚠️  MIGRATION NOTE: This still calls saveFile() which writes to the
+ * LOCAL uploads/ directory. The /uploads/* express.static route has been
+ * removed (Railway bandwidth cost). Imported files will get /uploads/...
+ * URLs that return 410 Gone. This needs to be migrated to Vercel Blob
+ * (same pattern as routes/upload.ts) so Drive imports get CDN URLs.
  */
 
 import { createDriveClient } from './googleAuth.js';

@@ -83,8 +83,15 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+// Direct file serving disabled — all media is served via Vercel Blob CDN.
+// The old express.static('/uploads') line was costing ~$320/month in Railway
+// bandwidth because every image/video request hit the Railway dyno. Files
+// are now uploaded to Vercel Blob (see routes/upload.ts) which serves them
+// from a global CDN at zero egress cost. Any legacy /uploads/* URLs still
+// referenced in the database need to be re-uploaded to Blob.
+app.get('/uploads/*', (_req, res) => {
+  res.status(410).json({ error: 'Direct file serving disabled. Files are served via Vercel Blob CDN.' });
+});
 
 // Root route
 app.get('/', (req, res) => {

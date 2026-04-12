@@ -1,8 +1,23 @@
 /**
  * Storage utilities for file uploads
- * 
- * MVP: Store files locally in uploads/ directory
- * Production: Migrate to S3/Cloudflare R2
+ *
+ * ⚠️  MIGRATION NOTE (Apr 2026)
+ * ──────────────────────────────────────────────────────────────────────
+ * The express.static('/uploads') route in server.ts has been REMOVED to
+ * stop Railway bandwidth charges (~$320/month).  All NEW uploads now go
+ * through Vercel Blob (see routes/upload.ts) and return public CDN URLs.
+ *
+ * The saveFile() function below still writes to the LOCAL uploads/ dir
+ * and returns relative /uploads/... paths. It is ONLY called by
+ * driveImport.ts.  Any files saved this way are:
+ *   1. Ephemeral on Railway (filesystem resets on redeploy)
+ *   2. No longer served (the /uploads/* route returns 410 Gone)
+ *
+ * TODO: Migrate driveImport.ts to upload directly to Vercel Blob so
+ * that imported Drive files get permanent CDN URLs. Until then, Drive-
+ * imported assets with /uploads/... URLs will show broken images after
+ * the next Railway redeploy.
+ * ──────────────────────────────────────────────────────────────────────
  */
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
