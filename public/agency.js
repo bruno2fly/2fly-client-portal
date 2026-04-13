@@ -4490,13 +4490,80 @@ function renderAILGenerator(tc, clients, clientIds) {
   // ─── State (scoped to this render) ───
   var slotImages = { ambient: null, subject: null, reference: null };
   var currentMode = 'quick';
+  var activeBrandKit = null;       // full kit object currently loaded
+  var forbiddenElements = [];      // list of tokens to exclude from prompt output
+
+  // Map kit default slugs → the actual <option> labels rendered in the selects.
+  function _matchOption(selectEl, candidates) {
+    if (!selectEl) return;
+    var opts = selectEl.options || [];
+    for (var i = 0; i < opts.length; i++) {
+      var label = (opts[i].value || opts[i].text || '').toLowerCase();
+      for (var j = 0; j < candidates.length; j++) {
+        if (label.indexOf(candidates[j]) !== -1) { selectEl.selectedIndex = i; return; }
+      }
+    }
+  }
+  function _applyBrandKitDefaults(kit) {
+    if (!kit) return;
+    var lensSel  = tc.querySelector('#pgLens');
+    var angleSel = tc.querySelector('#pgAngle');
+    var moodSel  = tc.querySelector('#pgMood');
+    var fmtSel   = tc.querySelector('#pgFormat');
+    var shotSel  = tc.querySelector('#pgShotType');
+
+    if (kit.defaultLens)  _matchOption(lensSel,  [String(kit.defaultLens).toLowerCase()]);
+    if (kit.defaultAngle) {
+      var a = String(kit.defaultAngle).toLowerCase();
+      var angleKeys = a === 'low-frontal' ? ['low frontal','low-frontal']
+                    : a === '45-overhead' ? ['45']
+                    : a === 'top-down'    ? ['top-down','top down']
+                    : a === 'side'        ? ['side']
+                    : [a.replace(/-/g,' ')];
+      _matchOption(angleSel, angleKeys);
+    }
+    if (kit.defaultMood) {
+      var m = String(kit.defaultMood).toLowerCase();
+      var moodKeys = m === 'moody-warm'   ? ['moody warm']
+                    : m === 'dark-luxe'   ? ['dark luxe']
+                    : m === 'bright-fresh'? ['bright fresh']
+                    : m === 'game-day'    ? ['game day','sports bar']
+                    : m === 'editorial'   ? ['editorial']
+                    : [m.replace(/-/g,' ')];
+      _matchOption(moodSel, moodKeys);
+    }
+    if (kit.outputFormat) {
+      var f = String(kit.outputFormat);
+      var fmtKeys = f === '1080x1080' ? ['feed']
+                    : f === '1080x1350' ? ['portrait']
+                    : f === '1080x1920' ? ['story']
+                    : [f.toLowerCase()];
+      _matchOption(fmtSel, fmtKeys);
+    }
+    if (kit.photographerTemplate) {
+      var tmpl = String(kit.photographerTemplate).toLowerCase();
+      if (tmpl.indexOf('bar') !== -1 || tmpl.indexOf('nightlife') !== -1) {
+        _matchOption(shotSel, ['bar']);
+      }
+    }
+  }
 
   // ─── Brand kit status badge ───
   function updateBrandKitStatus() {
     var cid = tc.querySelector('#pgClient').value;
     var box = tc.querySelector('#pgBrandKitStatus');
+    activeBrandKit = null;
+    forbiddenElements = [];
     if (!cid) { box.innerHTML = ''; return; }
-    box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">\u2713 Brand Kit Loaded</span>';
+    var kit = (typeof getBrandKit === 'function') ? getBrandKit(cid) : (window.brandKits && window.brandKits[cid]);
+    if (kit) {
+      activeBrandKit = kit;
+      forbiddenElements = Array.isArray(kit.forbiddenElements) ? kit.forbiddenElements.slice() : [];
+      box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">\u2713 Brand Kit Loaded</span>';
+      _applyBrandKitDefaults(kit);
+    } else {
+      box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:12px;font-weight:600;">No brand kit for this client yet</span>';
+    }
   }
   tc.querySelector('#pgClient').addEventListener('change', updateBrandKitStatus);
   updateBrandKitStatus();
@@ -4581,45 +4648,58 @@ function renderAILGenerator(tc, clients, clientIds) {
   // ─── Generate button (placeholder — builds mock prompt until backend exists) ───
   function buildMockPrompt() {
     var cid = tc.querySelector('#pgClient').value;
-    var clientName = cid && clients[cid] ? (clients[cid].name || cid) : '[Client]';
-    var lens = currentMode === 'advanced' ? (tc.querySelector('#pgLens') || {}).value || '85mm f/1.8' : '85mm f/1.8';
+    var kit = activeBrandKit;
+    var clientName = (kit && kit.clientName) || (cid && clients[cid] ? (clients[cid].name || cid) : '[Client]');
+    // In quick mode, if a brand kit is loaded we use its defaults; otherwise generic fallbacks.
+    var kitLensDefault = kit && kit.defaultLens ? kit.defaultLens : '85mm f/1.8';
+    var lens = currentMode === 'advanced' ? (tc.querySelector('#pgLens') || {}).value || kitLensDefault : kitLensDefault;
     var angle = currentMode === 'advanced' ? (tc.querySelector('#pgAngle') || {}).value || 'Low Frontal (10\u00B0)' : 'Low Frontal (10\u00B0)';
     var shotType = currentMode === 'advanced' ? (tc.querySelector('#pgShotType') || {}).value || 'Bar Shot' : 'Bar Shot';
     var mood = currentMode === 'advanced' ? (tc.querySelector('#pgMood') || {}).value || 'Moody Warm' : 'Moody Warm';
-    var format = currentMode === 'advanced' ? (tc.querySelector('#pgFormat') || {}).value || 'portrait' : 'portrait';
+    var format = currentMode === 'advanced' ? (tc.querySelector('#pgFormat') || {}).value || 'portrait' : (kit && kit.outputFormat === '1080x1080' ? 'feed' : kit && kit.outputFormat === '1080x1920' ? 'story' : 'portrait');
     var formatLabel = format === 'feed' ? '1080x1080' : format === 'story' ? '1080x1920' : '1080x1350';
     var hasAmbient = !!slotImages.ambient;
     var hasSubject = !!slotImages.subject;
 
-    return [
+    var lines = [
       '# Prompt Generator \u2014 ' + clientName,
       '# Mode: ' + currentMode.toUpperCase() + ' \u2014 Shot: ' + shotType,
-      '',
-      'CAMERA & LENS SETUP:',
-      '  \u2022 Shot with a ' + lens + ' prime lens',
-      '  \u2022 Aperture: f/2.0 \u2014 subject tack-sharp, background beautifully blurred',
-      '  \u2022 ' + angle + ' \u2014 camera 30-40cm from the subject',
-      '',
-      'COMPOSITION:',
-      '  \u2022 Subject is the hero, positioned center-left of frame',
-      '  \u2022 Rule of thirds: subject occupies left 2/3, right 1/3 reveals blurred background',
-      '  \u2022 Bar/table surface in foreground, slightly out of focus',
-      '',
-      'LIGHTING:',
-      '  \u2022 Warm key light from the right',
-      '  \u2022 Rim lighting creating a golden halo effect',
-      '',
-      'MOOD: ' + mood + '. Cinematic, seductive, premium.',
-      '',
-      'INPUTS:',
-      '  \u2022 Ambient: ' + (hasAmbient ? '[uploaded]' : '[not provided]'),
-      '  \u2022 Subject: ' + (hasSubject ? '[uploaded]' : '[not provided]'),
-      '  \u2022 Reference: ' + (slotImages.reference ? '[uploaded]' : '[not provided]'),
-      '',
-      'OUTPUT: ' + formatLabel + '. Photorealistic. Commercial photography quality. No text, no watermarks.',
-      '',
-      '[Backend not connected yet \u2014 this is a placeholder built from your inputs]'
-    ].join('\n');
+      ''
+    ];
+    if (kit) {
+      lines.push('VENUE: ' + kit.venue);
+      lines.push('AMBIENT CONTEXT: ' + kit.ambientDescription);
+      lines.push('');
+    }
+    lines.push('CAMERA & LENS SETUP:');
+    lines.push('  \u2022 Shot with a ' + lens + ' prime lens');
+    lines.push('  \u2022 Aperture: f/2.0 \u2014 subject tack-sharp, background beautifully blurred');
+    lines.push('  \u2022 ' + angle + ' \u2014 camera 30-40cm from the subject');
+    lines.push('');
+    lines.push('COMPOSITION:');
+    lines.push('  \u2022 Subject is the hero, positioned center-left of frame');
+    lines.push('  \u2022 Rule of thirds: subject occupies left 2/3, right 1/3 reveals blurred background');
+    lines.push('  \u2022 Bar/table surface in foreground, slightly out of focus');
+    lines.push('');
+    lines.push('LIGHTING:');
+    lines.push('  \u2022 Warm key light from the right');
+    lines.push('  \u2022 Rim lighting creating a golden halo effect');
+    lines.push('');
+    lines.push('MOOD: ' + mood + '. Cinematic, seductive, premium.');
+    lines.push('');
+    lines.push('INPUTS:');
+    lines.push('  \u2022 Ambient: ' + (hasAmbient ? '[uploaded]' : '[not provided]'));
+    lines.push('  \u2022 Subject: ' + (hasSubject ? '[uploaded]' : '[not provided]'));
+    lines.push('  \u2022 Reference: ' + (slotImages.reference ? '[uploaded]' : '[not provided]'));
+    lines.push('');
+    if (forbiddenElements && forbiddenElements.length) {
+      lines.push('FORBIDDEN / DO NOT INCLUDE: ' + forbiddenElements.join(', '));
+      lines.push('');
+    }
+    lines.push('OUTPUT: ' + formatLabel + '. Photorealistic. Commercial photography quality. No text, no watermarks.');
+    lines.push('');
+    lines.push('[Backend not connected yet \u2014 this is a placeholder built from your inputs]');
+    return lines.join('\n');
   }
 
   function runGenerate() {
