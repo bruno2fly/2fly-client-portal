@@ -13847,66 +13847,201 @@ function renderStoriesTab() {
     });
   });
 
-  // ─── Upload button in Media Library ─────────────────────────
+  // ─── Upload button in Media Library → opens popup with Upload File / Image URL ───
   var uploadBtn = document.getElementById('storiesUploadBtn');
   var uploadInput = document.getElementById('storiesUploadInput');
   if (uploadBtn && uploadInput) {
-    uploadBtn.addEventListener('click', function() { uploadInput.click(); });
-    uploadInput.addEventListener('change', function() {
-      var files = uploadInput.files;
-      if (!files || files.length === 0) return;
+    uploadBtn.addEventListener('click', function() {
       var clientId = currentClientId;
       if (!clientId) { showToast('Select a client first', 'error'); return; }
-      uploadBtn.disabled = true;
-      uploadBtn.innerHTML = '&#8987; Uploading…';
-      var toProcess = [];
-      for (var i = 0; i < files.length; i++) toProcess.push(files[i]);
-      var done = 0;
-      var total = toProcess.length;
-      var uploaded = 0;
 
-      toProcess.forEach(function(file) {
-        var isVideo = file.type.startsWith('video/');
-        var reader = new FileReader();
-        reader.onload = function() {
-          var endpoint = isVideo ? '/api/upload/media' : '/api/upload/image';
-          var body = isVideo ? { media: reader.result, filename: file.name } : { image: reader.result };
-          fetch(getApiBaseUrl() + endpoint, {
-            method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-          }).then(function(r) { return r.json(); }).then(function(j) {
-            if (j && j.url) {
-              uploaded++;
-              // Save as asset in the library
-              saveAsset(clientId, {
-                title: file.name,
-                url: j.url,
-                thumbnailUrl: j.url,
-                mediaType: isVideo ? 'VIDEO' : 'PHOTO',
-                sourceType: 'UPLOAD',
-                sourceProvider: 'URL',
-                approvalStatus: 'PENDING'
-              });
-            }
-          }).catch(function(err) {
-            console.warn('Stories upload error:', err);
-          }).finally(function() {
-            done++;
-            if (done === total) {
-              uploadBtn.disabled = false;
-              uploadBtn.innerHTML = '&#43; Upload';
-              uploadInput.value = '';
-              if (uploaded > 0) {
-                showToast(uploaded + ' file' + (uploaded > 1 ? 's' : '') + ' uploaded');
-                renderStoriesTab();
-              } else {
-                showToast('Upload failed', 'error');
-              }
-            }
+      // Create modal overlay
+      var overlay = document.createElement('div');
+      overlay.className = 'story-modal-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+      var modal = document.createElement('div');
+      modal.style.cssText = 'background:#fff;border-radius:16px;padding:28px 32px;width:440px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.18);';
+
+      modal.innerHTML =
+        '<div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:20px;">Add to Media Library</div>' +
+
+        // Tab buttons
+        '<div id="mlUploadTabs" style="display:flex;gap:8px;margin-bottom:18px;">' +
+          '<button type="button" data-ml-tab="file" style="flex:1;padding:10px;border-radius:8px;border:2px solid #2563eb;background:#eff6ff;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer;">&#128228; Upload File</button>' +
+          '<button type="button" data-ml-tab="url" style="flex:1;padding:10px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">&#128279; Image URL</button>' +
+        '</div>' +
+
+        // File upload panel
+        '<div id="mlPanelFile">' +
+          '<div id="mlDropZone" style="border:2px dashed #cbd5e1;border-radius:12px;padding:36px 20px;text-align:center;cursor:pointer;transition:all 0.15s;background:#fafbfc;">' +
+            '<div style="font-size:28px;margin-bottom:8px;">&#128193;</div>' +
+            '<div style="font-size:13px;color:#475569;font-weight:500;">Click to browse or drag &amp; drop</div>' +
+            '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">Images &amp; videos supported</div>' +
+          '</div>' +
+          '<div id="mlFileList" style="margin-top:10px;"></div>' +
+        '</div>' +
+
+        // URL panel (hidden by default)
+        '<div id="mlPanelUrl" style="display:none;">' +
+          '<input id="mlUrlInput" type="url" placeholder="https://example.com/image.jpg" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">' +
+          '<input id="mlUrlTitle" type="text" placeholder="Title (optional)" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-top:8px;box-sizing:border-box;">' +
+          '<div style="margin-top:8px;display:flex;gap:8px;">' +
+            '<select id="mlUrlMediaType" style="flex:1;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;">' +
+              '<option value="PHOTO">Photo</option><option value="VIDEO">Video</option><option value="GRAPHIC">Graphic</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+
+        // Action buttons
+        '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">' +
+          '<button type="button" id="mlCancelBtn" style="padding:8px 20px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>' +
+          '<button type="button" id="mlSaveBtn" style="padding:8px 20px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Add</button>' +
+        '</div>';
+
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      // State
+      var activeTab = 'file';
+      var selectedFiles = [];
+
+      // Tab switching
+      modal.querySelectorAll('[data-ml-tab]').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          activeTab = tab.dataset.mlTab;
+          modal.querySelectorAll('[data-ml-tab]').forEach(function(t) {
+            var isActive = t.dataset.mlTab === activeTab;
+            t.style.borderColor = isActive ? '#2563eb' : '#e2e8f0';
+            t.style.background = isActive ? '#eff6ff' : '#fff';
+            t.style.color = isActive ? '#2563eb' : '#64748b';
           });
-        };
-        reader.readAsDataURL(file);
+          document.getElementById('mlPanelFile').style.display = activeTab === 'file' ? '' : 'none';
+          document.getElementById('mlPanelUrl').style.display = activeTab === 'url' ? '' : 'none';
+        });
+      });
+
+      // Drop zone click → trigger file input
+      var dropZone = document.getElementById('mlDropZone');
+      dropZone.addEventListener('click', function() { uploadInput.click(); });
+      dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor = '#2563eb'; dropZone.style.background = '#eff6ff'; });
+      dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = '#cbd5e1'; dropZone.style.background = '#fafbfc'; });
+      dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropZone.style.borderColor = '#cbd5e1'; dropZone.style.background = '#fafbfc';
+        if (e.dataTransfer && e.dataTransfer.files) {
+          for (var i = 0; i < e.dataTransfer.files.length; i++) selectedFiles.push(e.dataTransfer.files[i]);
+          _renderFileList();
+        }
+      });
+
+      uploadInput.addEventListener('change', function onInputChange() {
+        if (uploadInput.files) {
+          for (var i = 0; i < uploadInput.files.length; i++) selectedFiles.push(uploadInput.files[i]);
+          uploadInput.value = '';
+          _renderFileList();
+        }
+      });
+
+      function _renderFileList() {
+        var listEl = document.getElementById('mlFileList');
+        if (!listEl) return;
+        if (selectedFiles.length === 0) { listEl.innerHTML = ''; return; }
+        var h = '';
+        selectedFiles.forEach(function(f, idx) {
+          h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;font-size:12px;">';
+          h += '<span style="flex:1;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _escHtml(f.name) + '</span>';
+          h += '<span style="color:#94a3b8;">' + (f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB') + '</span>';
+          h += '<button type="button" data-rm-idx="' + idx + '" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px 4px;">&times;</button>';
+          h += '</div>';
+        });
+        listEl.innerHTML = h;
+        listEl.querySelectorAll('[data-rm-idx]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            selectedFiles.splice(parseInt(btn.dataset.rmIdx), 1);
+            _renderFileList();
+          });
+        });
+      }
+
+      // Close / Cancel
+      function closeModal() { overlay.remove(); }
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+      document.getElementById('mlCancelBtn').addEventListener('click', closeModal);
+
+      // Save / Add
+      document.getElementById('mlSaveBtn').addEventListener('click', function() {
+        var saveBtn = document.getElementById('mlSaveBtn');
+
+        if (activeTab === 'url') {
+          // ─── URL mode ───
+          var urlVal = (document.getElementById('mlUrlInput').value || '').trim();
+          if (!urlVal) { showToast('Enter an image URL', 'error'); return; }
+          var titleVal = (document.getElementById('mlUrlTitle').value || '').trim() || urlVal.split('/').pop().split('?')[0] || 'Untitled';
+          var mediaType = document.getElementById('mlUrlMediaType').value || 'PHOTO';
+          saveAsset(clientId, {
+            title: titleVal,
+            url: urlVal,
+            thumbnailUrl: urlVal,
+            mediaType: mediaType,
+            sourceType: 'LINK',
+            sourceProvider: parseProviderFromUrl(urlVal) || 'URL',
+            approvalStatus: 'PENDING'
+          });
+          showToast('Asset added from URL');
+          closeModal();
+          renderStoriesTab();
+          return;
+        }
+
+        // ─── File upload mode ───
+        if (selectedFiles.length === 0) { showToast('Select files to upload', 'error'); return; }
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Uploading…';
+        var done = 0;
+        var total = selectedFiles.length;
+        var uploaded = 0;
+
+        selectedFiles.forEach(function(file) {
+          var isVideo = file.type.startsWith('video/');
+          var reader = new FileReader();
+          reader.onload = function() {
+            var endpoint = isVideo ? '/api/upload/media' : '/api/upload/image';
+            var body = isVideo ? { media: reader.result, filename: file.name } : { image: reader.result };
+            fetch(getApiBaseUrl() + endpoint, {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            }).then(function(r) { return r.json(); }).then(function(j) {
+              if (j && j.url) {
+                uploaded++;
+                saveAsset(clientId, {
+                  title: file.name,
+                  url: j.url,
+                  thumbnailUrl: j.url,
+                  mediaType: isVideo ? 'VIDEO' : 'PHOTO',
+                  sourceType: 'UPLOAD',
+                  sourceProvider: 'URL',
+                  approvalStatus: 'PENDING'
+                });
+              }
+            }).catch(function(err) {
+              console.warn('Stories upload error:', err);
+            }).finally(function() {
+              done++;
+              if (done === total) {
+                closeModal();
+                if (uploaded > 0) {
+                  showToast(uploaded + ' file' + (uploaded > 1 ? 's' : '') + ' uploaded');
+                  renderStoriesTab();
+                } else {
+                  showToast('Upload failed', 'error');
+                }
+              }
+            });
+          };
+          reader.readAsDataURL(file);
+        });
       });
     });
   }
