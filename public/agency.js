@@ -4702,23 +4702,96 @@ function renderAILGenerator(tc, clients, clientIds) {
     return lines.join('\n');
   }
 
-  function runGenerate() {
+  // Map the kit-slug angle/mood (what the backend expects) from whatever is
+  // currently selected in Advanced Mode. The selects render human labels, so
+  // we translate "Low Frontal (10°)" → "low-frontal" etc.
+  function _angleToSlug(label) {
+    var s = String(label || '').toLowerCase();
+    if (s.indexOf('low frontal') !== -1 || s.indexOf('low-frontal') !== -1) return 'low-frontal';
+    if (s.indexOf('45') !== -1) return '45-overhead';
+    if (s.indexOf('top') !== -1) return 'top-down';
+    if (s.indexOf('side') !== -1) return 'side';
+    return 'low-frontal';
+  }
+  function _moodToSlug(label) {
+    var s = String(label || '').toLowerCase();
+    if (s.indexOf('game') !== -1 || s.indexOf('sports') !== -1) return 'game-day';
+    if (s.indexOf('dark') !== -1) return 'dark-luxe';
+    if (s.indexOf('bright') !== -1) return 'bright-fresh';
+    if (s.indexOf('editorial') !== -1) return 'editorial';
+    return 'moody-warm';
+  }
+  function _formatToKey(value) {
+    var v = String(value || '').toLowerCase();
+    if (v === 'feed' || v === 'portrait' || v === 'story') return v;
+    if (v === '1080x1080') return 'feed';
+    if (v === '1080x1350') return 'portrait';
+    if (v === '1080x1920') return 'story';
+    return 'portrait';
+  }
+
+  async function runGenerate() {
     var cid = tc.querySelector('#pgClient').value;
     if (!cid) { showToast('Select a client first', 'error'); return; }
     if (!slotImages.ambient || !slotImages.subject) { showToast('Upload at least Ambient + Subject images', 'error'); return; }
+
     var btn = tc.querySelector('#pgGenerateBtn');
     var output = tc.querySelector('#pgOutput');
     btn.disabled = true;
     var orig = btn.innerHTML;
     btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Analyzing images and building your prompt...';
     output.value = '';
-    // Simulate async work to show the loading state
-    setTimeout(function() {
+
+    // Assemble request body. Image descriptions are placeholders until we add
+    // GPT-4V analysis — good enough for the endpoint to build a real prompt.
+    var body = {
+      clientId: cid,
+      mode: currentMode,
+      imageDescriptions: {
+        ambient: slotImages.ambient && slotImages.ambient.description ? slotImages.ambient.description : (activeBrandKit ? activeBrandKit.ambientDescription : 'user-uploaded ambient / venue reference'),
+        subject: slotImages.subject && slotImages.subject.description ? slotImages.subject.description : 'user-uploaded hero subject (product / dish / drink)',
+        reference: slotImages.reference ? 'user-uploaded style reference' : undefined
+      }
+    };
+    if (currentMode === 'advanced') {
+      body.advancedOptions = {
+        shotType: (tc.querySelector('#pgShotType') || {}).value || 'Bar Shot',
+        angle:    _angleToSlug((tc.querySelector('#pgAngle')    || {}).value),
+        lens:     (tc.querySelector('#pgLens')     || {}).value || '85mm f/1.8',
+        mood:     _moodToSlug((tc.querySelector('#pgMood')     || {}).value),
+        format:   _formatToKey((tc.querySelector('#pgFormat')   || {}).value)
+      };
+    }
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate-prompt', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        // Fallback to local mock so the user still sees something useful.
+        var errBody = await r.json().catch(function(){ return {}; });
+        if (r.status === 404) {
+          showToast(errBody.error || 'No brand kit for this client yet — showing preview from inputs', 'info');
+        } else {
+          showToast(errBody.error || ('Server error (' + r.status + ')'), 'error');
+        }
+        output.value = buildMockPrompt();
+      } else {
+        var data = await r.json();
+        output.value = data.prompt || buildMockPrompt();
+        showToast('Prompt generated', 'success');
+      }
+    } catch (e) {
+      console.error('[prompt-generator] fetch failed:', e);
+      showToast('Network error — showing local preview', 'info');
       output.value = buildMockPrompt();
+    } finally {
       btn.disabled = false;
       btn.innerHTML = orig;
-      showToast('Prompt generated', 'success');
-    }, 600);
+    }
   }
 
   tc.querySelector('#pgGenerateBtn').addEventListener('click', runGenerate);

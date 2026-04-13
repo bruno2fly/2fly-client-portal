@@ -19,6 +19,7 @@ import {
   type BrandKit, type AIImage, type ReferenceImage
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
+import { getBrandKit, type BrandKitEntry } from '../lib/brandKits.js';
 
 const router = Router();
 
@@ -297,6 +298,173 @@ router.delete('/brand-kit', authenticate, async (req: AuthenticatedRequest, res)
     res.status(500).json({ error: 'Failed to delete brand kit', message: err.message });
   }
 });
+
+// ── Prompt Generator (assembles a photographer-template prompt) ──
+
+// Maps the brand-kit slug values onto human-readable labels used inside the prompt.
+const ANGLE_LABELS: Record<string, string> = {
+  'low-frontal': 'Low frontal angle (10°) — camera positioned slightly below eye level, looking up at the subject',
+  '45-overhead': '45° overhead angle — camera tilted down onto the subject',
+  'top-down': 'Top-down / flat lay — camera directly above the subject',
+  'side': 'Side profile — camera positioned level with and to the side of the subject',
+};
+const MOOD_LIGHTING: Record<string, string> = {
+  'moody-warm': 'Moody amber fill with deep shadows, cinematic warmth, highlights kept controlled',
+  'dark-luxe': 'Low-key dark luxe lighting, single hard key, glossy highlights, rich blacks',
+  'bright-fresh': 'Bright, airy daylight feel with soft diffused fill and minimal shadow',
+  'game-day': 'Energetic warm bar ambience with blue-white TV glow in the background, backlit bottle shelves glowing amber',
+  'editorial': 'Clean editorial softbox lighting, balanced highlights and shadows, magazine-quality',
+};
+const MOOD_DESCRIPTIONS: Record<string, string> = {
+  'moody-warm': 'Cinematic, seductive, premium. Warm and inviting.',
+  'dark-luxe': 'High-end, luxurious, mysterious. Expensive nightlife energy.',
+  'bright-fresh': 'Clean, approachable, modern. Daytime-friendly.',
+  'game-day': 'Energetic, social, fun. Classic American sports bar vibe.',
+  'editorial': 'Polished, refined, editorial quality.',
+};
+const FORMAT_PIXEL_LABEL: Record<string, string> = {
+  feed: '1080x1080',
+  portrait: '1080x1350',
+  story: '1080x1920',
+};
+
+interface AdvancedOptions {
+  shotType?: string;
+  angle?: string;
+  lens?: string;
+  mood?: string;
+  format?: string;
+}
+interface ImageDescriptions {
+  ambient: string;
+  subject: string;
+  reference?: string;
+}
+
+function resolveMood(moodSlug: string): { lighting: string; description: string; label: string } {
+  const key = String(moodSlug).toLowerCase();
+  const lighting = MOOD_LIGHTING[key] || 'Warm key light from the right with soft rim lighting';
+  const description = MOOD_DESCRIPTIONS[key] || 'Cinematic, premium, commercial-quality.';
+  const label = key.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return { lighting, description, label };
+}
+function resolveAngle(angleSlug: string): string {
+  return ANGLE_LABELS[String(angleSlug).toLowerCase()] || angleSlug;
+}
+function resolveFormatLabel(format: string, kit: BrandKitEntry | null): string {
+  if (!format && kit) return kit.outputFormat;
+  // Accept either the keyword or the pixel string
+  if (/^\d+x\d+$/.test(format)) return format;
+  return FORMAT_PIXEL_LABEL[format] || (kit?.outputFormat || '1080x1350');
+}
+
+function buildPromptFromKit(
+  kit: BrandKitEntry,
+  opts: {
+    shotType: string;
+    lens: string;
+    angleSlug: string;
+    moodSlug: string;
+    format: string;
+    imageDescriptions: ImageDescriptions;
+  }
+): string {
+  const { shotType, lens, angleSlug, moodSlug, format, imageDescriptions } = opts;
+  const mood = resolveMood(moodSlug);
+  const angleText = resolveAngle(angleSlug);
+  const formatLabel = resolveFormatLabel(format, kit);
+  const refCount = imageDescriptions.reference ? 3 : 2;
+
+  const refList: string[] = [];
+  refList.push(`(1) ${imageDescriptions.subject}`);
+  refList.push(`(2) the ${kit.venue} — ${imageDescriptions.ambient || kit.ambientDescription}`);
+  if (imageDescriptions.reference) refList.push(`(3) ${imageDescriptions.reference}`);
+
+  const lines: string[] = [];
+  lines.push(`I am providing ${refCount} reference images: ${refList.join(', and ')}.`);
+  lines.push('');
+  lines.push(`TASK: Create a high-end ${shotType} photography shot combining both references.`);
+  lines.push('');
+  lines.push('CAMERA & LENS SETUP:');
+  lines.push(`- Shot with a ${lens} prime lens`);
+  lines.push(`- Aperture: f/2.0 — subject tack-sharp, background beautifully blurred`);
+  lines.push(`- ${angleText}`);
+  lines.push(`- Camera placed 30-40cm from the subject`);
+  lines.push('');
+  lines.push('COMPOSITION:');
+  lines.push('- Subject is the hero, positioned center-left of frame');
+  lines.push('- Rule of thirds composition');
+  lines.push(`- ${kit.ambientDescription} visible in background, out of focus`);
+  lines.push('');
+  lines.push('LIGHTING:');
+  lines.push('- Warm key light from the right');
+  lines.push(`- ${mood.lighting}`);
+  if (kit.forbiddenElements && kit.forbiddenElements.length > 0) {
+    lines.push(`- IMPORTANT: Do NOT include ${kit.forbiddenElements.join(', ')} in the image`);
+  }
+  lines.push('');
+  lines.push(`MOOD: ${mood.label}. ${mood.description}`);
+  lines.push('');
+  lines.push(`OUTPUT: ${formatLabel} pixels. Photorealistic. Commercial photography quality. No text, no watermarks.`);
+  return lines.join('\n');
+}
+
+// POST /api/ai-library/generate-prompt
+router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { clientId, mode, advancedOptions, imageDescriptions } = req.body as {
+      clientId?: string;
+      mode?: 'quick' | 'advanced';
+      advancedOptions?: AdvancedOptions;
+      imageDescriptions?: ImageDescriptions;
+    };
+
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+    if (!imageDescriptions || !imageDescriptions.ambient || !imageDescriptions.subject) {
+      return res.status(400).json({ error: 'imageDescriptions.ambient and imageDescriptions.subject are required' });
+    }
+    const runMode: 'quick' | 'advanced' = mode === 'advanced' ? 'advanced' : 'quick';
+
+    const kit = getBrandKit(clientId);
+    if (!kit) return res.status(404).json({ error: `No brand kit found for client "${clientId}"` });
+
+    // Pick inputs based on mode.
+    const shotType = (runMode === 'advanced' && advancedOptions?.shotType) || inferShotTypeFromTemplate(kit.photographerTemplate);
+    const lens = (runMode === 'advanced' && advancedOptions?.lens) || kit.defaultLens;
+    const angleSlug = (runMode === 'advanced' && advancedOptions?.angle) || kit.defaultAngle;
+    const moodSlug = (runMode === 'advanced' && advancedOptions?.mood) || kit.defaultMood;
+    const format = (runMode === 'advanced' && advancedOptions?.format) || kit.outputFormat;
+
+    const prompt = buildPromptFromKit(kit, {
+      shotType,
+      lens,
+      angleSlug,
+      moodSlug,
+      format,
+      imageDescriptions,
+    });
+
+    return res.json({
+      prompt,
+      metadata: {
+        client: kit.clientName,
+        template: kit.photographerTemplate,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[ai-library/generate-prompt] error:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to generate prompt' });
+  }
+});
+
+function inferShotTypeFromTemplate(template: string): string {
+  const t = String(template || '').toLowerCase();
+  if (t.includes('bar') || t.includes('nightlife')) return 'Bar Shot';
+  if (t.includes('food') || t.includes('dish')) return 'Table Shot';
+  if (t.includes('overhead')) return 'Overhead';
+  return 'Bar Shot';
+}
 
 // ── AI Image Generation (DALL-E 3) ──
 
