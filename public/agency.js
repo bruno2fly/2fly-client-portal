@@ -425,6 +425,10 @@ function getPreviewUrl(asset) {
   }
   const u = (asset.url || '').trim().toLowerCase();
   if (/\.(jpg|jpeg|png|webp|gif)(\?|$)/.test(u)) return asset.url;
+  // Vercel Blob CDN URLs are always direct-serveable images
+  if (u.includes('.public.blob.vercel-storage.com')) return asset.url;
+  // Any http(s) URL for PHOTO/GRAPHIC — try it as a preview (onerror will catch failures)
+  if (u.startsWith('http')) return asset.url;
   return null;
 }
 
@@ -493,13 +497,21 @@ function loadAssets(clientId) {
     } catch (_) { list = []; }
   }
   // Migrate from old portal state if new list empty and old state had assets
+  // BUT skip if we already migrated before (marker key prevents re-importing deleted assets)
+  const migratedKey = key + '__migrated';
+  const alreadyMigrated = localStorage.getItem(migratedKey);
   const state = portalStateCache[clientId];
   const oldAssets = state && Array.isArray(state.assets) ? state.assets : [];
   const oldForClient = oldAssets.filter(a => a.clientId === clientId || !a.clientId);
-  if (list.length === 0 && oldForClient.length > 0) {
+  if (list.length === 0 && oldForClient.length > 0 && !alreadyMigrated) {
     list = oldForClient.map(migrateAsset);
     try { localStorage.setItem(key, JSON.stringify(list)); } catch (_) {}
+    try { localStorage.setItem(migratedKey, '1'); } catch (_) {}
     if (state && state.assets) state.assets = state.assets.filter(a => a.clientId !== clientId);
+  }
+  // Mark as migrated so future empty lists don't re-import from portal state
+  if (!alreadyMigrated && list.length > 0) {
+    try { localStorage.setItem(migratedKey, '1'); } catch (_) {}
   }
   list = list.map(a => (a.approvalStatus !== undefined ? a : migrateAsset(a)));
   // Backfill thumbnailUrl for old assets
@@ -13744,6 +13756,8 @@ function renderStoriesTab() {
     html += '<div id="storiesMediaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">';
     allAssets.forEach(function(a) {
       var thumb = a.thumbnailUrl || getPreviewUrl(a) || '';
+      // Fallback: if no thumb resolved but URL is an http link, try it directly (Vercel Blob, etc.)
+      if (!thumb && a.url && /^https?:\/\//i.test(a.url)) thumb = a.url;
       var isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(a.url || '') || (a.mediaType || '').toUpperCase() === 'VIDEO';
       var statusColor = a.approvalStatus === 'APPROVED' ? '#22c55e' : a.approvalStatus === 'PENDING' ? '#f59e0b' : a.approvalStatus === 'REJECTED' ? '#ef4444' : '#94a3b8';
       var statusLabel = a.approvalStatus ? a.approvalStatus.charAt(0) + a.approvalStatus.slice(1).toLowerCase() : 'Unknown';
