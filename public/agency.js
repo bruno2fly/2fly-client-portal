@@ -1151,20 +1151,16 @@ function updateTabCountBadges() {
 }
 
 // Pipeline stage counts for Approvals page
-// NOTE: items that came back from production with final art (productionStatus === 'art_approved')
-// have their server-side status reset to 'pending' so the CLIENT sees them in Content Pending to
-// approve the final visual. In the AGENCY view, however, we want them to stay visible in the
-// "Copy Approved" section (with the "Final art attached" banner) instead of silently moving to
-// Content Pending. The helper below identifies those returning-from-production items.
+// Posts are sorted purely by their status field. No special pinning logic.
 function _isReturningFromProduction(a) {
-  return a && a.productionStatus === 'art_approved' && (!a.status || a.status === 'pending');
+  return false; // Disabled — posts now always follow their actual status
 }
 function getApprovalPipelineCounts(approvals) {
   const list = approvals || [];
   const copyPending = list.filter(a => a.status === 'copy_pending').length;
-  const copyApproved = list.filter(a => a.status === 'copy_approved' || _isReturningFromProduction(a)).length;
+  const copyApproved = list.filter(a => a.status === 'copy_approved').length;
   const copyChanges = list.filter(a => a.status === 'copy_changes').length;
-  const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status) && !_isReturningFromProduction(a)).length;
+  const awaiting = list.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status)).length;
   const changes = list.filter(a => a.status === 'changes').length;
   const approved = list.filter(a => a.status === 'approved').length;
   const scheduled = list.filter(a => a.status === 'scheduled').length;
@@ -1454,11 +1450,11 @@ async function renderDashOverview() {
     var openNeeds = needs.filter(function(n) { return !n.status || n.status === 'open'; }).length;
 
     var pendingApprovals = approvals.filter(function(a) {
-      return ((!a.status || a.status === 'pending') && !_isReturningFromProduction(a)) || a.status === 'copy_pending';
+      return ((!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status)) || a.status === 'copy_pending';
     }).length;
     var changesApprovals = approvals.filter(function(a) { return a.status === 'changes' || a.status === 'copy_changes'; }).length;
     var approvedApprovals = approvals.filter(function(a) {
-      return a.status === 'approved' || a.status === 'copy_approved' || _isReturningFromProduction(a);
+      return a.status === 'approved' || a.status === 'copy_approved';
     }).length;
 
     var scheduledForClient = (scheduledPostsByClient[cid] || []).length;
@@ -5942,11 +5938,9 @@ function renderApprovalsTab() {
   const pipelineCounts = getApprovalPipelineCounts(approvalsList);
 
   const copyPending = approvalsList.filter(a => a.status === 'copy_pending');
-  // Include items returning from production (final art attached) so they stay visible in the
-  // agency's Copy Approved section instead of silently moving to Content Pending.
-  const copyApproved = approvalsList.filter(a => a.status === 'copy_approved' || _isReturningFromProduction(a));
+  const copyApproved = approvalsList.filter(a => a.status === 'copy_approved');
   const copyChanges = approvalsList.filter(a => a.status === 'copy_changes');
-  const pending = approvalsList.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status) && !_isReturningFromProduction(a));
+  const pending = approvalsList.filter(a => (!a.status || a.status === 'pending') && !['copy_pending', 'copy_approved', 'copy_changes'].includes(a.status));
   const changes = approvalsList.filter(a => a.status === 'changes');
   const approved = approvalsList.filter(a => a.status === 'approved');
   const scheduled = approvalsList.filter(a => a.status === 'scheduled');
@@ -6515,78 +6509,10 @@ function loadApprovalForEdit(id) {
   var formNote = document.getElementById('approvalFormProductionNote');
   if (formNote) {
     if (item.productionStatus === 'art_approved') {
-      // Render message + explicit action button. Using innerHTML here
-      // replaces any prior content so we don't duplicate buttons on re-open.
-      formNote.innerHTML =
-        '<div style="margin-bottom: 10px;">Final art from production is attached. Click the button below to send this post to the client for final visual approval.</div>' +
-        '<button type="button" id="approvalSendToClientBtn" class="btn btn-primary" style="padding: 8px 14px; font-size: 13px;">Send to client as Content Pending</button>';
+      // Simple info banner — no special action needed since posts now
+      // follow their actual status (no pinning to Copy Approved).
+      formNote.innerHTML = '<div>&#9989; Final art from production is attached. Change the status dropdown and Save to move this post.</div>';
       formNote.style.display = 'block';
-      var sendBtn = document.getElementById('approvalSendToClientBtn');
-      if (sendBtn) {
-        sendBtn.addEventListener('click', function onSendToClient() {
-          // Re-read latest state at click time to avoid closure staleness.
-          var st = load();
-          if (!st || !Array.isArray(st.approvals)) {
-            showToast('Could not load approvals.', 'error');
-            return;
-          }
-          var idx = st.approvals.findIndex(function(a) { return a && a.id === item.id; });
-          if (idx < 0) {
-            showToast('Post not found — please reload.', 'error');
-            return;
-          }
-          // Mutate in place so we never drop ANY existing field (title,
-          // caption, images, finalArtUrls, tags, assetIds, uploadedImages,
-          // etc. are all preserved). This is the whole point of not using
-          // the Save button flow for this transition.
-          var target = st.approvals[idx];
-          target.status = 'pending';                   // ensure it lands in Content Pending
-          target.productionStatus = 'sent_to_client';  // leave the "returning from production" lane
-          target.updatedAt = new Date().toISOString();
-          if (!st.activity) st.activity = [];
-          st.activity.push({
-            when: Date.now(),
-            text: 'Sent to client as Content Pending: ' + (target.title || 'Post')
-          });
-          sendBtn.disabled = true;
-          sendBtn.textContent = 'Sending…';
-          Promise.resolve(save(st)).then(function(ok) {
-            if (!ok) {
-              sendBtn.disabled = false;
-              sendBtn.textContent = 'Send to client as Content Pending';
-              return;
-            }
-            // Fire the client-facing notification exactly the same way the
-            // normal Save handler would for a 'pending' transition.
-            try {
-              fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({
-                  clientId: currentClientId,
-                  type: 'content_ready',
-                  postTitle: target.title || target.caption || 'New content'
-                })
-              }).catch(function() {});
-            } catch (_) {}
-            showToast('Sent to client — now in Content Pending.');
-            // Re-render so the card leaves the Copy Approved section and
-            // appears in Content Pending. Also clear the form so the stale
-            // edit panel doesn't keep pointing at a now-moved item.
-            try { if (typeof renderApprovalsTab === 'function') renderApprovalsTab(); } catch (_) {}
-            try { if (typeof renderOverviewTab === 'function') renderOverviewTab(); } catch (_) {}
-            var titleEl = document.getElementById('editPanelTitle');
-            if (titleEl) titleEl.textContent = 'Create Approval';
-            var idEl = document.getElementById('approvalId');
-            if (idEl) idEl.value = '';
-            var delBtn = document.getElementById('approvalDelete');
-            if (delBtn) delBtn.style.display = 'none';
-            selectedApprovalId = null;
-            formNote.style.display = 'none';
-          });
-        });
-      }
     } else {
       formNote.style.display = 'none';
       formNote.innerHTML = '';
