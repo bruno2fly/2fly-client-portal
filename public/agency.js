@@ -2677,6 +2677,9 @@ function switchTab(tabName) {
     case 'ailibrary':
       renderAILibraryTab();
       break;
+    case 'stories':
+      renderStoriesTab();
+      break;
     case 'scheduled':
       renderScheduledPostsTab();
       break;
@@ -13494,5 +13497,469 @@ if (_origRenderProdView) {
   var _origRPVRef = renderProductionView;
   // We patch via a post-render hook instead of overriding to avoid breaking the function
   setInterval(function() { if (copilotOpen) updateCopilotContext(); }, 2000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// STORIES STRATEGY TAB
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Story type definitions — shared across calendar, form, and strategy engine.
+ * Each type has a label, CSS modifier class suffix, and emoji for badges.
+ */
+var STORY_TYPES = [
+  { value: 'promo', label: 'Promo', css: 'promo', emoji: '🏷️' },
+  { value: 'bts', label: 'BTS', css: 'bts', emoji: '🎬' },
+  { value: 'event', label: 'Event', css: 'event', emoji: '🎉' },
+  { value: 'poll', label: 'Poll', css: 'poll', emoji: '📊' },
+  { value: 'product', label: 'Product', css: 'product', emoji: '📦' },
+  { value: 'testimonial', label: 'Testimonial', css: 'testimonial', emoji: '💬' },
+  { value: 'other', label: 'Other', css: 'other', emoji: '📌' }
+];
+
+var STORY_STATUSES = ['draft','approved','scheduled','posted'];
+
+/**
+ * Industry-based story strategy rules.
+ * Keys map to the values in #clientCategory select (lowercase, normalized).
+ * Each rule: { type, min?, max?, label }
+ */
+var STORY_STRATEGY_RULES = {
+  'restaurant': [
+    { type: 'promo', max: 2, label: 'Max 2 promos/week' },
+    { type: 'bts', min: 1, label: 'Min 1 BTS/week' },
+    { type: 'poll', min: 1, label: 'Min 1 poll/week' },
+    { type: 'event', min: 1, label: 'Min 1 event preview/week' }
+  ],
+  'med spa': [
+    { type: 'promo', max: 2, label: 'Max 2 promos/week' },
+    { type: 'bts', min: 2, label: 'Min 2 transformation/BTS/week' },
+    { type: 'testimonial', min: 1, label: 'Min 1 testimonial/week' }
+  ],
+  'comedy': [
+    { type: 'event', min: 3, label: 'Min 3 event previews/week' },
+    { type: 'bts', min: 1, label: 'Min 1 BTS/week' },
+    { type: 'other', min: 1, label: 'Min 1 countdown/week' }
+  ],
+  'entertainment': [
+    { type: 'event', min: 3, label: 'Min 3 event previews/week' },
+    { type: 'bts', min: 1, label: 'Min 1 BTS/week' },
+    { type: 'other', min: 1, label: 'Min 1 countdown/week' }
+  ],
+  'service business': [
+    { type: 'product', min: 1, max: 2, label: '1-2 project showcases/week' },
+    { type: 'promo', min: 1, max: 1, label: '1 promo/week' },
+    { type: 'testimonial', min: 1, label: 'Min 1 testimonial/week' }
+  ],
+  'contractor': [
+    { type: 'product', min: 1, max: 2, label: '1-2 project showcases/week' },
+    { type: 'promo', min: 1, max: 1, label: '1 promo/week' },
+    { type: 'testimonial', min: 1, label: 'Min 1 testimonial/week' }
+  ],
+  'e-commerce': [
+    { type: 'product', min: 2, label: 'Min 2 product showcases/week' },
+    { type: 'promo', max: 3, label: 'Max 3 promos/week' },
+    { type: 'testimonial', min: 1, label: 'Min 1 testimonial/week' },
+    { type: 'bts', min: 1, label: 'Min 1 BTS/week' }
+  ],
+  'personal brand': [
+    { type: 'bts', min: 2, label: 'Min 2 BTS/week' },
+    { type: 'poll', min: 1, label: 'Min 1 poll/week' },
+    { type: 'promo', max: 2, label: 'Max 2 promos/week' }
+  ]
+};
+
+/** Normalize a client category string to match rule keys. */
+function _normalizeCategory(cat) {
+  if (!cat) return '';
+  var c = cat.toLowerCase().trim();
+  if (c === 'spa' || c === 'wellness' || c === 'spa/wellness' || c === 'medspa') return 'med spa';
+  if (c === 'comedy/entertainment') return 'comedy';
+  if (c === 'contractor/services' || c === 'services') return 'service business';
+  return c;
+}
+
+/** Get the current client's category. */
+function _getClientCategory() {
+  var client = getCurrentClient();
+  return client ? _normalizeCategory(client.category) : '';
+}
+
+/** Get the Monday 00:00 of the week containing `date`. */
+function _getWeekMonday(date) {
+  var d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  var day = d.getDay();
+  var diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
+}
+
+/** Format date as YYYY-MM-DD for comparison. */
+function _ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** Get stories for the week starting at monday. */
+function _getWeekStories(stories, monday) {
+  var start = _ymd(monday);
+  var end = new Date(monday);
+  end.setDate(end.getDate() + 6);
+  var endStr = _ymd(end);
+  return (stories || []).filter(function(s) {
+    var d = (s.scheduleDate || '').slice(0, 10);
+    return d >= start && d <= endStr;
+  });
+}
+
+/** Count story types in a list. */
+function _countTypes(stories) {
+  var counts = {};
+  stories.forEach(function(s) {
+    var t = s.type || 'other';
+    counts[t] = (counts[t] || 0) + 1;
+  });
+  return counts;
+}
+
+var storiesWeekOffset = 0;
+
+function renderStoriesTab() {
+  var root = document.getElementById('storiesRoot');
+  if (!root) return;
+
+  if (!currentClientId) {
+    root.innerHTML = '<div class="empty-state"><p class="empty-state__text">Select a client to see their stories strategy.</p></div>';
+    return;
+  }
+
+  var state = load();
+  var stories = state.stories || [];
+  var now = new Date();
+  var monday = _getWeekMonday(now);
+  monday.setDate(monday.getDate() + storiesWeekOffset * 7);
+  var weekStories = _getWeekStories(stories, monday);
+  var typeCounts = _countTypes(weekStories);
+  var category = _getClientCategory();
+  var rules = STORY_STRATEGY_RULES[category] || [];
+
+  // Stats strip
+  var prevMonday = new Date(monday);
+  prevMonday.setDate(prevMonday.getDate() - 7);
+  var prevWeekStories = _getWeekStories(stories, prevMonday);
+  var prevCount = prevWeekStories.length;
+  var delta = weekStories.length - prevCount;
+  var deltaStr = delta > 0 ? '+' + delta : String(delta);
+  var typeBreakdown = STORY_TYPES.map(function(t) {
+    var c = typeCounts[t.value] || 0;
+    if (c === 0) return null;
+    var pct = weekStories.length > 0 ? Math.round(c / weekStories.length * 100) : 0;
+    return t.label + ' ' + pct + '%';
+  }).filter(Boolean).join(' / ') || 'None';
+
+  var html = '';
+  html += '<div class="stories-stats">';
+  html += '<div class="stories-stat-card"><div class="stories-stat-card__label">Stories this week</div><div class="stories-stat-card__value">' + weekStories.length + '</div><div class="stories-stat-card__sub">' + (delta !== 0 ? deltaStr + ' vs last week' : 'Same as last week') + '</div></div>';
+  html += '<div class="stories-stat-card"><div class="stories-stat-card__label">Type breakdown</div><div class="stories-stat-card__value" style="font-size:13px;line-height:1.4;font-weight:600;">' + typeBreakdown + '</div></div>';
+  html += '<div class="stories-stat-card"><div class="stories-stat-card__label">Strategy</div><div class="stories-stat-card__value" style="font-size:13px;font-weight:600;">' + (category ? category.charAt(0).toUpperCase() + category.slice(1) : 'No category') + '</div><div class="stories-stat-card__sub">' + rules.length + ' rules active</div></div>';
+  html += '</div>';
+
+  // Week navigation
+  var weekLabel = _formatWeekLabel(monday);
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
+  html += '<button type="button" class="btn btn-secondary btn--sm" id="storiesPrevWeek" style="padding:6px 10px;">&#9664;</button>';
+  html += '<span style="font-size:14px;font-weight:700;color:#0f172a;">' + weekLabel + '</span>';
+  html += '<button type="button" class="btn btn-secondary btn--sm" id="storiesNextWeek" style="padding:6px 10px;">&#9654;</button>';
+  html += '<button type="button" class="btn btn-secondary btn--sm" id="storiesTodayWeek" style="padding:6px 10px;margin-left:4px;">Today</button>';
+  html += '<div style="flex:1;"></div>';
+  html += '<button type="button" class="btn btn-primary" id="storiesAddBtn" style="padding:8px 16px;">+ Add Story</button>';
+  html += '</div>';
+
+  // Layout: calendar left, strategy right
+  html += '<div class="stories-layout">';
+  html += '<div>';
+
+  // Calendar strip
+  html += '<div class="stories-calendar">';
+  var todayStr = _ymd(now);
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  for (var i = 0; i < 7; i++) {
+    var dayDate = new Date(monday);
+    dayDate.setDate(dayDate.getDate() + i);
+    var dayStr = _ymd(dayDate);
+    var isToday = dayStr === todayStr;
+    var dayStories = weekStories.filter(function(s) { return (s.scheduleDate || '').slice(0, 10) === dayStr; });
+    var dayClass = 'stories-day' + (isToday ? ' stories-day--today' : '') + (dayStories.length === 0 ? ' stories-day--empty' : '');
+    html += '<div class="' + dayClass + '" data-date="' + dayStr + '">';
+    html += '<div class="stories-day__header">' + dayNames[i] + ' <span>' + dayDate.getDate() + '</span></div>';
+    if (dayStories.length === 0) {
+      html += '<div class="stories-day__empty">No stories</div>';
+    } else {
+      dayStories.forEach(function(s) {
+        var typeObj = STORY_TYPES.find(function(t) { return t.value === s.type; }) || STORY_TYPES[STORY_TYPES.length - 1];
+        html += '<div class="story-card" data-story-id="' + s.id + '">';
+        if (s.imageUrl) {
+          html += '<img class="story-card__thumb" src="' + _escHtml(s.imageUrl) + '" alt="" onerror="this.style.display=\'none\'">';
+        }
+        html += '<span class="story-card__type story-card__type--' + typeObj.css + '">' + typeObj.emoji + ' ' + typeObj.label + '</span>';
+        if (s.scheduleTime) html += '<div class="story-card__time">' + s.scheduleTime + '</div>';
+        html += '<div class="story-card__status story-card__status--' + (s.status || 'draft') + '" title="' + (s.status || 'draft') + '"></div>';
+        html += '</div>';
+      });
+    }
+    html += '<button type="button" class="stories-day__add" data-add-date="' + dayStr + '" title="Add story">+</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Smart alerts
+  var alerts = _generateSmartAlerts(weekStories, typeCounts, rules, monday);
+  if (alerts.length > 0) {
+    html += '<div style="margin-top:4px;">';
+    alerts.forEach(function(a) {
+      html += '<div class="stories-alert stories-alert--' + a.level + '">' + a.icon + ' ' + _escHtml(a.text) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  // Strategy panel (right)
+  html += '<div>';
+  html += '<div class="stories-strategy">';
+  html += '<div class="stories-strategy__title">Weekly Strategy' + (category ? ' &mdash; ' + category.charAt(0).toUpperCase() + category.slice(1) : '') + '</div>';
+  if (rules.length === 0) {
+    html += '<div style="font-size:13px;color:#94a3b8;padding:12px 0;">No strategy rules for this client category. Set the client\'s category in Settings to enable smart recommendations.</div>';
+  } else {
+    rules.forEach(function(rule) {
+      var count = typeCounts[rule.type] || 0;
+      var status = 'check';
+      if (rule.min && count < rule.min) status = 'fail';
+      else if (rule.max && count > rule.max) status = 'warn';
+      var icon = status === 'check' ? '&#10003;' : status === 'warn' ? '!' : '&#10007;';
+      html += '<div class="stories-strategy__rule"><span class="stories-strategy__' + status + '">' + icon + '</span> ' + _escHtml(rule.label) + ' <span style="margin-left:auto;font-size:12px;color:#64748b;">(' + count + ' this week)</span></div>';
+    });
+  }
+  html += '</div>';
+
+  // Quick type guide
+  html += '<div style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;">';
+  html += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px;">Story Types</div>';
+  STORY_TYPES.forEach(function(t) {
+    html += '<div style="font-size:12px;padding:4px 0;display:flex;align-items:center;gap:6px;">';
+    html += '<span class="story-card__type story-card__type--' + t.css + '">' + t.emoji + ' ' + t.label + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  html += '</div>';
+  html += '</div>';
+
+  root.innerHTML = html;
+
+  // Bind events
+  var prevBtn = document.getElementById('storiesPrevWeek');
+  var nextBtn = document.getElementById('storiesNextWeek');
+  var todayBtn = document.getElementById('storiesTodayWeek');
+  var addBtn = document.getElementById('storiesAddBtn');
+  if (prevBtn) prevBtn.addEventListener('click', function() { storiesWeekOffset--; renderStoriesTab(); });
+  if (nextBtn) nextBtn.addEventListener('click', function() { storiesWeekOffset++; renderStoriesTab(); });
+  if (todayBtn) todayBtn.addEventListener('click', function() { storiesWeekOffset = 0; renderStoriesTab(); });
+  if (addBtn) addBtn.addEventListener('click', function() { _openStoryModal(null, null); });
+
+  root.querySelectorAll('.stories-day__add').forEach(function(btn) {
+    btn.addEventListener('click', function() { _openStoryModal(null, btn.dataset.addDate); });
+  });
+
+  root.querySelectorAll('.story-card').forEach(function(card) {
+    card.addEventListener('click', function() { _openStoryModal(card.dataset.storyId, null); });
+  });
+}
+
+function _formatWeekLabel(monday) {
+  var sun = new Date(monday);
+  sun.setDate(sun.getDate() + 6);
+  var mo = monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  var su = sun.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return mo + ' – ' + su;
+}
+
+function _escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _generateSmartAlerts(weekStories, typeCounts, rules, monday) {
+  var alerts = [];
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  for (var i = 1; i < 7; i++) {
+    var d1 = new Date(monday);
+    d1.setDate(d1.getDate() + i - 1);
+    var d2 = new Date(monday);
+    d2.setDate(d2.getDate() + i);
+    var s1 = weekStories.filter(function(s) { return (s.scheduleDate || '').slice(0, 10) === _ymd(d1); });
+    var s2 = weekStories.filter(function(s) { return (s.scheduleDate || '').slice(0, 10) === _ymd(d2); });
+    if (s1.length > 0 && s2.length > 0) {
+      var types1 = {};
+      s1.forEach(function(s) { types1[s.type] = true; });
+      s2.forEach(function(s) {
+        if (types1[s.type]) {
+          var typeObj = STORY_TYPES.find(function(t) { return t.value === s.type; });
+          var label = typeObj ? typeObj.label : s.type;
+          alerts.push({ level: 'warn', icon: '&#9888;&#65039;', text: label + ' appears on both ' + dayNames[i - 1] + ' and ' + dayNames[i] + ' — consider mixing it up.' });
+        }
+      });
+    }
+  }
+
+  rules.forEach(function(rule) {
+    var count = typeCounts[rule.type] || 0;
+    var typeObj = STORY_TYPES.find(function(t) { return t.value === rule.type; });
+    var label = typeObj ? typeObj.label : rule.type;
+    if (rule.min && count < rule.min) {
+      alerts.push({ level: 'warn', icon: '&#128203;', text: 'Missing: ' + label + ' — your strategy recommends at least ' + rule.min + '/week (currently ' + count + ').' });
+    }
+    if (rule.max && count > rule.max) {
+      alerts.push({ level: 'warn', icon: '&#128202;', text: 'This week you have ' + count + ' ' + label + ' stories — clients typically see best results with max ' + rule.max + '.' });
+    }
+  });
+
+  if (alerts.length === 0 && weekStories.length > 0 && rules.length > 0) {
+    alerts.push({ level: 'success', icon: '&#9989;', text: 'Great mix! This week\'s story lineup follows your strategy perfectly.' });
+  }
+
+  var seen = {};
+  return alerts.filter(function(a) {
+    if (seen[a.text]) return false;
+    seen[a.text] = true;
+    return true;
+  });
+}
+
+function _openStoryModal(storyId, defaultDate) {
+  var state = load();
+  var stories = state.stories || [];
+  var existing = storyId ? stories.find(function(s) { return s.id === storyId; }) : null;
+
+  var overlay = document.createElement('div');
+  overlay.className = 'story-modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'story-modal';
+
+  var title = existing ? 'Edit Story' : 'Add Story';
+  var schedDate = existing ? (existing.scheduleDate || '').slice(0, 10) : (defaultDate || _ymd(new Date()));
+  var schedTime = existing ? (existing.scheduleTime || '') : '10:00';
+
+  var typeOptions = STORY_TYPES.map(function(t) {
+    var sel = existing && existing.type === t.value ? ' selected' : (!existing && t.value === 'promo' ? ' selected' : '');
+    return '<option value="' + t.value + '"' + sel + '>' + t.emoji + ' ' + t.label + '</option>';
+  }).join('');
+
+  var statusOptions = STORY_STATUSES.map(function(s) {
+    var sel = existing && existing.status === s ? ' selected' : (!existing && s === 'draft' ? ' selected' : '');
+    return '<option value="' + s + '"' + sel + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
+  }).join('');
+
+  modal.innerHTML =
+    '<div class="story-modal__title">' + title + '</div>' +
+    '<form id="storyForm">' +
+    '<div class="form-group"><label class="form-label">Type</label><select class="form-select" id="storyType" required>' + typeOptions + '</select></div>' +
+    '<div class="form-group"><label class="form-label">Caption / Description</label><textarea class="form-textarea" id="storyCaption" placeholder="What is this story about?">' + _escHtml(existing ? existing.caption || '' : '') + '</textarea></div>' +
+    '<div class="form-group"><label class="form-label">Image URL (optional)</label><input type="text" class="form-input" id="storyImageUrl" placeholder="https://..." value="' + _escHtml(existing ? existing.imageUrl || '' : '') + '"></div>' +
+    '<div class="form-group"><label class="form-label">Upload Image</label><input type="file" class="form-input" id="storyImageUpload" accept="image/*"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+    '<div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="storyDate" value="' + schedDate + '" required></div>' +
+    '<div class="form-group"><label class="form-label">Time</label><input type="time" class="form-input" id="storyTime" value="' + schedTime + '"></div>' +
+    '</div>' +
+    '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="storyStatus">' + statusOptions + '</select></div>' +
+    '<div class="form-group"><label class="form-label">Notes for designer</label><textarea class="form-textarea" id="storyNotes" placeholder="Any notes for the design team...">' + _escHtml(existing ? existing.notes || '' : '') + '</textarea></div>' +
+    '<div class="form-actions" style="display:flex;gap:10px;margin-top:16px;">' +
+    '<button type="submit" class="btn btn-primary">Save Story</button>' +
+    '<button type="button" class="btn btn-secondary" id="storyCancelBtn">Cancel</button>' +
+    (existing ? '<button type="button" class="btn btn-danger" id="storyDeleteBtn" style="margin-left:auto;">Delete</button>' : '') +
+    '</div>' +
+    '</form>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) { overlay.remove(); } });
+  document.getElementById('storyCancelBtn').addEventListener('click', function() { overlay.remove(); });
+
+  if (existing) {
+    var delBtn = document.getElementById('storyDeleteBtn');
+    if (delBtn) {
+      delBtn.addEventListener('click', function() {
+        if (!confirm('Delete this story?')) return;
+        var st = load();
+        st.stories = (st.stories || []).filter(function(s) { return s.id !== storyId; });
+        save(st);
+        overlay.remove();
+        renderStoriesTab();
+      });
+    }
+  }
+
+  var uploadInput = document.getElementById('storyImageUpload');
+  if (uploadInput) {
+    uploadInput.addEventListener('change', function() {
+      var file = uploadInput.files && uploadInput.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        fetch(getApiBaseUrl() + '/api/upload/image', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: e.target.result })
+        }).then(function(r) { return r.json(); }).then(function(j) {
+          if (j && j.url) {
+            document.getElementById('storyImageUrl').value = j.url;
+            showToast('Image uploaded');
+          }
+        }).catch(function() {
+          showToast('Upload failed', 'error');
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.getElementById('storyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var st = load();
+    if (!st.stories) st.stories = [];
+
+    var storyData = {
+      id: existing ? existing.id : 'story_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      type: document.getElementById('storyType').value,
+      caption: document.getElementById('storyCaption').value.trim(),
+      imageUrl: document.getElementById('storyImageUrl').value.trim(),
+      scheduleDate: document.getElementById('storyDate').value,
+      scheduleTime: document.getElementById('storyTime').value,
+      status: document.getElementById('storyStatus').value,
+      notes: document.getElementById('storyNotes').value.trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (existing) {
+      storyData.createdAt = existing.createdAt;
+      var idx = st.stories.findIndex(function(s) { return s.id === storyId; });
+      if (idx >= 0) st.stories[idx] = storyData;
+      else st.stories.push(storyData);
+    } else {
+      storyData.createdAt = new Date().toISOString();
+      st.stories.push(storyData);
+    }
+
+    if (!st.activity) st.activity = [];
+    st.activity.push({ when: Date.now(), text: (existing ? 'Updated story: ' : 'Added story: ') + (storyData.caption || storyData.type) });
+
+    save(st);
+    overlay.remove();
+    showToast(existing ? 'Story updated' : 'Story added');
+    renderStoriesTab();
+  });
 }
 
