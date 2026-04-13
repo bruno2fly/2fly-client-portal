@@ -514,11 +514,12 @@ function loadAssets(clientId) {
     try { localStorage.setItem(migratedKey, '1'); } catch (_) {}
   }
   list = list.map(a => (a.approvalStatus !== undefined ? a : migrateAsset(a)));
-  // Backfill thumbnailUrl for old assets
+  // Backfill thumbnailUrl for old assets — try getPreviewUrl, then fall back to url itself
   let backfilled = false;
   list.forEach(a => {
-    if (!a.thumbnailUrl) {
+    if (!a.thumbnailUrl || !a.thumbnailUrl.startsWith('http')) {
       a.thumbnailUrl = getPreviewUrl(a);
+      if (!a.thumbnailUrl && a.url && a.url.startsWith('http')) a.thumbnailUrl = a.url;
       if (a.thumbnailUrl) backfilled = true;
     }
   });
@@ -13664,7 +13665,12 @@ function renderStoriesTab() {
   }
 
   // ─── Media Library grid (visible on the main tab) ─────────────
-  var allAssets = currentClientId ? loadAssets(currentClientId) : [];
+  // Filter out broken assets (no usable URL at all) so they don't clutter the grid
+  var allAssetsRaw = currentClientId ? loadAssets(currentClientId) : [];
+  var allAssets = allAssetsRaw.filter(function(a) {
+    var u = a.thumbnailUrl || a.url || '';
+    return u && u.startsWith('http');
+  });
   html += '<div style="margin-top:20px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
   html += '<span style="font-size:14px;font-weight:700;color:#0f172a;">Media Library</span>';
@@ -13684,9 +13690,11 @@ function renderStoriesTab() {
   } else {
     html += '<div id="storiesMediaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">';
     allAssets.forEach(function(a) {
-      var thumb = a.thumbnailUrl || getPreviewUrl(a) || '';
-      // Fallback: if no thumb resolved but URL is an http link, try it directly (Vercel Blob, etc.)
-      if (!thumb && a.url && /^https?:\/\//i.test(a.url)) thumb = a.url;
+      // Resolve best available thumbnail: thumbnailUrl → url → getPreviewUrl
+      var thumb = '';
+      if (a.thumbnailUrl && /^https?:\/\//i.test(a.thumbnailUrl)) thumb = a.thumbnailUrl;
+      else if (a.url && /^https?:\/\//i.test(a.url)) thumb = a.url;
+      if (!thumb) thumb = getPreviewUrl(a) || '';
       var isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(a.url || '') || (a.mediaType || '').toUpperCase() === 'VIDEO';
       var statusColor = a.approvalStatus === 'APPROVED' ? '#22c55e' : a.approvalStatus === 'PENDING' ? '#f59e0b' : a.approvalStatus === 'REJECTED' ? '#ef4444' : '#94a3b8';
       var statusLabel = a.approvalStatus ? a.approvalStatus.charAt(0) + a.approvalStatus.slice(1).toLowerCase() : 'Unknown';
