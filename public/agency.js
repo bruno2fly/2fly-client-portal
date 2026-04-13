@@ -7182,11 +7182,14 @@ function setupApprovalHandlers() {
       // clear the flag so the item leaves the "returning from production" bucket and flows into
       // the section matching its new status.
       if (existing.productionStatus === 'art_approved') {
-        if (existing.status === approvalData.status) {
-          // No status change — preserve the flag
+        if (existing.status === approvalData.status && approvalData.status !== 'pending') {
+          // No status change AND not "Content Pending" — preserve the flag
           approvalData.productionStatus = existing.productionStatus;
         } else {
-          // Status was changed by the user — flag fulfilled, mark as sent-to-client for history
+          // Status was changed by the user, OR user explicitly saved as 'pending'
+          // (Content Pending) — flag fulfilled, mark as sent-to-client for history.
+          // This covers both: dropdown change AND "Save" while dropdown is already
+          // on Content Pending for returning-from-production posts.
           approvalData.productionStatus = 'sent_to_client';
         }
       } else if (existing.productionStatus) {
@@ -9822,7 +9825,7 @@ function _createImageUrlRow(url, index, totalCount) {
 
   // Input
   var input = document.createElement('input');
-  input.type = 'url';
+  input.type = 'text';
   input.className = 'form-input approval-image-url-input';
   input.placeholder = 'https://drive.google.com/file/d/…/view or direct image link';
   input.value = url || '';
