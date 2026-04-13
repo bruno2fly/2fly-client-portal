@@ -13722,6 +13722,47 @@ function renderStoriesTab() {
     html += '</div>';
   }
 
+  // ─── Media Library grid (visible on the main tab) ─────────────
+  var allAssets = currentClientId ? loadAssets(currentClientId) : [];
+  html += '<div style="margin-top:20px;">';
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+  html += '<span style="font-size:14px;font-weight:700;color:#0f172a;">Media Library</span>';
+  html += '<span style="font-size:12px;color:#94a3b8;">' + allAssets.length + ' assets</span>';
+  html += '<div style="flex:1;"></div>';
+  html += '<button type="button" class="btn btn-secondary btn--sm stories-lib-filter active" data-filter="all" style="padding:5px 12px;font-size:11px;">All (' + allAssets.length + ')</button>';
+  var pendingAssets = allAssets.filter(function(a) { return a.approvalStatus === 'PENDING'; });
+  var approvedAssets = allAssets.filter(function(a) { return a.approvalStatus === 'APPROVED'; });
+  html += '<button type="button" class="btn btn-secondary btn--sm stories-lib-filter" data-filter="pending" style="padding:5px 12px;font-size:11px;">Pending (' + pendingAssets.length + ')</button>';
+  html += '<button type="button" class="btn btn-secondary btn--sm stories-lib-filter" data-filter="approved" style="padding:5px 12px;font-size:11px;">Approved (' + approvedAssets.length + ')</button>';
+  html += '</div>';
+
+  if (allAssets.length === 0) {
+    html += '<div style="padding:32px;text-align:center;background:#fafbfc;border:1px solid #e2e8f0;border-radius:12px;color:#94a3b8;font-size:13px;">No assets yet. Upload images in the Assets &amp; References tab to see them here.</div>';
+  } else {
+    html += '<div id="storiesMediaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">';
+    allAssets.forEach(function(a) {
+      var thumb = a.thumbnailUrl || getPreviewUrl(a) || '';
+      var isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(a.url || '') || (a.mediaType || '').toUpperCase() === 'VIDEO';
+      var statusColor = a.approvalStatus === 'APPROVED' ? '#22c55e' : a.approvalStatus === 'PENDING' ? '#f59e0b' : a.approvalStatus === 'REJECTED' ? '#ef4444' : '#94a3b8';
+      var statusLabel = a.approvalStatus ? a.approvalStatus.charAt(0) + a.approvalStatus.slice(1).toLowerCase() : 'Unknown';
+      var filterClass = (a.approvalStatus || '').toLowerCase();
+      html += '<div class="stories-media-card" data-status="' + filterClass + '" data-asset-url="' + _escHtml(thumb || a.url || '') + '" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;cursor:pointer;transition:all 0.15s;">';
+      if (thumb && !isVideo) {
+        html += '<div style="width:100%;height:110px;background:#f1f5f9;overflow:hidden;"><img src="' + _escHtml(thumb) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML=\'<div style=\\\'height:110px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;\\\'>No preview</div>\'"></div>';
+      } else if (isVideo) {
+        html += '<div style="width:100%;height:110px;background:#1e293b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;">&#9654;</div>';
+      } else {
+        html += '<div style="width:100%;height:110px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;">No preview</div>';
+      }
+      html += '<div style="padding:8px 10px;">';
+      html += '<div style="font-size:12px;color:#0f172a;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(a.title || a.url || 'Untitled') + '</div>';
+      html += '<div style="margin-top:4px;"><span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:' + statusColor + '22;color:' + statusColor + ';">' + statusLabel + '</span></div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
   html += '</div>';
 
   // Strategy panel (right)
@@ -13773,6 +13814,35 @@ function renderStoriesTab() {
 
   root.querySelectorAll('.story-card').forEach(function(card) {
     card.addEventListener('click', function() { _openStoryModal(card.dataset.storyId, null); });
+  });
+
+  // Media library filter buttons
+  root.querySelectorAll('.stories-lib-filter').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      root.querySelectorAll('.stories-lib-filter').forEach(function(b) { b.classList.remove('active'); b.style.background = ''; b.style.color = ''; });
+      btn.classList.add('active');
+      btn.style.background = '#0052CC';
+      btn.style.color = '#fff';
+      var filter = btn.dataset.filter;
+      var grid = document.getElementById('storiesMediaGrid');
+      if (!grid) return;
+      grid.querySelectorAll('.stories-media-card').forEach(function(card) {
+        if (filter === 'all') { card.style.display = ''; }
+        else { card.style.display = card.dataset.status === filter ? '' : 'none'; }
+      });
+    });
+    // Style the initially active button
+    if (btn.classList.contains('active')) {
+      btn.style.background = '#0052CC';
+      btn.style.color = '#fff';
+    }
+  });
+
+  // Media library card click → open Add Story modal with that image pre-filled
+  root.querySelectorAll('.stories-media-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      _openStoryModal(null, null, card.dataset.assetUrl || '');
+    });
   });
 }
 
@@ -13836,10 +13906,14 @@ function _generateSmartAlerts(weekStories, typeCounts, rules, monday) {
   });
 }
 
-function _openStoryModal(storyId, defaultDate) {
+function _openStoryModal(storyId, defaultDate, prefillImageUrl) {
   var state = load();
   var stories = state.stories || [];
   var existing = storyId ? stories.find(function(s) { return s.id === storyId; }) : null;
+  // If a pre-filled image URL was passed (e.g. from the media library grid), use it
+  if (!existing && prefillImageUrl) {
+    existing = null; // ensure we're in "create" mode
+  }
 
   var overlay = document.createElement('div');
   overlay.className = 'story-modal-overlay';
@@ -13894,7 +13968,7 @@ function _openStoryModal(storyId, defaultDate) {
   }
 
   // Current image preview
-  var currentThumb = existing ? existing.imageUrl || '' : '';
+  var currentThumb = existing ? existing.imageUrl || '' : (prefillImageUrl || '');
   var previewHtml = '<div id="storyImagePreview" style="' + (currentThumb ? '' : 'display:none;') + 'margin-bottom:12px;text-align:center;">' +
     '<img id="storyImagePreviewImg" src="' + _escHtml(currentThumb) + '" style="max-height:120px;border-radius:10px;border:1px solid #e2e8f0;object-fit:contain;" onerror="this.parentNode.style.display=\'none\'">' +
     '</div>';
@@ -13908,7 +13982,7 @@ function _openStoryModal(storyId, defaultDate) {
     assetPickerHtml +
     '<div class="form-group"><label class="form-label">Or upload / paste URL</label>' +
     '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;">' +
-    '<input type="text" class="form-input" id="storyImageUrl" placeholder="https://..." value="' + _escHtml(existing ? existing.imageUrl || '' : '') + '">' +
+    '<input type="text" class="form-input" id="storyImageUrl" placeholder="https://..." value="' + _escHtml(existing ? existing.imageUrl || '' : (prefillImageUrl || '')) + '">' +
     '<label style="cursor:pointer;padding:9px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#475569;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.borderColor=\'#3b82f6\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">' +
     '&#128247; Browse<input type="file" id="storyImageUpload" accept="image/*,video/*" style="display:none;">' +
     '</label>' +
