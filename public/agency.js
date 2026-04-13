@@ -13728,6 +13728,8 @@ function renderStoriesTab() {
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
   html += '<span style="font-size:14px;font-weight:700;color:#0f172a;">Media Library</span>';
   html += '<span style="font-size:12px;color:#94a3b8;">' + allAssets.length + ' assets</span>';
+  html += '<button type="button" id="storiesUploadBtn" style="margin-left:8px;padding:5px 14px;font-size:12px;font-weight:600;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">&#43; Upload</button>';
+  html += '<input type="file" id="storiesUploadInput" accept="image/*,video/*" multiple style="display:none;">';
   html += '<div style="flex:1;"></div>';
   html += '<button type="button" class="btn btn-secondary btn--sm stories-lib-filter active" data-filter="all" style="padding:5px 12px;font-size:11px;">All (' + allAssets.length + ')</button>';
   var pendingAssets = allAssets.filter(function(a) { return a.approvalStatus === 'PENDING'; });
@@ -13844,6 +13846,70 @@ function renderStoriesTab() {
       _openStoryModal(null, null, card.dataset.assetUrl || '');
     });
   });
+
+  // ─── Upload button in Media Library ─────────────────────────
+  var uploadBtn = document.getElementById('storiesUploadBtn');
+  var uploadInput = document.getElementById('storiesUploadInput');
+  if (uploadBtn && uploadInput) {
+    uploadBtn.addEventListener('click', function() { uploadInput.click(); });
+    uploadInput.addEventListener('change', function() {
+      var files = uploadInput.files;
+      if (!files || files.length === 0) return;
+      var clientId = currentClientId;
+      if (!clientId) { showToast('Select a client first', 'error'); return; }
+      uploadBtn.disabled = true;
+      uploadBtn.innerHTML = '&#8987; Uploading…';
+      var toProcess = [];
+      for (var i = 0; i < files.length; i++) toProcess.push(files[i]);
+      var done = 0;
+      var total = toProcess.length;
+      var uploaded = 0;
+
+      toProcess.forEach(function(file) {
+        var isVideo = file.type.startsWith('video/');
+        var reader = new FileReader();
+        reader.onload = function() {
+          var endpoint = isVideo ? '/api/upload/media' : '/api/upload/image';
+          var body = isVideo ? { media: reader.result, filename: file.name } : { image: reader.result };
+          fetch(getApiBaseUrl() + endpoint, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }).then(function(r) { return r.json(); }).then(function(j) {
+            if (j && j.url) {
+              uploaded++;
+              // Save as asset in the library
+              saveAsset(clientId, {
+                title: file.name,
+                url: j.url,
+                thumbnailUrl: j.url,
+                mediaType: isVideo ? 'VIDEO' : 'PHOTO',
+                sourceType: 'UPLOAD',
+                sourceProvider: 'URL',
+                approvalStatus: 'PENDING'
+              });
+            }
+          }).catch(function(err) {
+            console.warn('Stories upload error:', err);
+          }).finally(function() {
+            done++;
+            if (done === total) {
+              uploadBtn.disabled = false;
+              uploadBtn.innerHTML = '&#43; Upload';
+              uploadInput.value = '';
+              if (uploaded > 0) {
+                showToast(uploaded + ' file' + (uploaded > 1 ? 's' : '') + ' uploaded');
+                renderStoriesTab();
+              } else {
+                showToast('Upload failed', 'error');
+              }
+            }
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
 }
 
 function _formatWeekLabel(monday) {
