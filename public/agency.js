@@ -4358,11 +4358,11 @@ async function renderGlobalAILibrary(container) {
   var clients = loadClientsRegistry();
   var clientIds = clients ? Object.keys(clients) : [];
 
-  var h = '<div class="ail-header"><div><h2 class="ail-title">AI Library</h2><p class="ail-subtitle">Generate images with AI using client brand kits, manage approvals, and build your visual library.</p></div></div>';
+  var h = '<div class="ail-header"><div><h2 class="ail-title">Prompt Generator</h2><p class="ail-subtitle">Generate professional photographer-style prompts for Gemini</p></div></div>';
 
   // Tabs
   h += '<div class="ail-tabs">';
-  h += '<button class="ail-tab' + (ailCurrentTab === 'generator' ? ' active' : '') + '" data-ailtab="generator">Image Generator</button>';
+  h += '<button class="ail-tab' + (ailCurrentTab === 'generator' ? ' active' : '') + '" data-ailtab="generator">Prompt Generator</button>';
   h += '<button class="ail-tab' + (ailCurrentTab === 'library' ? ' active' : '') + '" data-ailtab="library">Library</button>';
   h += '<button class="ail-tab' + (ailCurrentTab === 'brandkit' ? ' active' : '') + '" data-ailtab="brandkit">Brand Kit</button>';
   h += '</div>';
@@ -4391,240 +4391,270 @@ async function renderGlobalAILibrary(container) {
 }
 
 function renderAILGenerator(tc, clients, clientIds) {
-  var h = '<div class="ail-card ail-section">';
-  h += '<h3 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#0f172a;">Generate AI Images</h3>';
+  // ─── Prompt Generator (UI only, no backend calls yet) ──────────────────
+  // State lives on tc so it's scoped to this render.
+  // Three upload slots: ambient, subject, reference. Mode toggle: quick/advanced.
 
-  // Client selector
-  h += '<div class="ail-form-row">';
-  h += '<div class="ail-form-group"><label class="ail-label">Client</label><select class="ail-select" id="ailGenClient">';
-  h += '<option value="">Select client...</option>';
+  var h = '';
+
+  // ── Client selector card ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;">Step 1 &mdash; Select Client</h3>';
+  h += '<div class="ail-form-group" style="max-width:420px;"><label class="ail-label">Client</label>';
+  h += '<select class="ail-select" id="pgClient"><option value="">Select client...</option>';
   clientIds.forEach(function(cid) {
     var name = clients[cid] ? (clients[cid].name || cid) : cid;
     h += '<option value="' + cid + '"' + (cid === currentClientId ? ' selected' : '') + '>' + name + '</option>';
   });
   h += '</select></div>';
-
-  // Format
-  h += '<div class="ail-form-group"><label class="ail-label">Format</label><select class="ail-select" id="ailGenFormat">';
-  h += '<option value="feed">Feed (1080x1080)</option>';
-  h += '<option value="story">Story (1080x1920)</option>';
-  h += '<option value="carousel">Carousel (1080x1350)</option>';
-  h += '<option value="ad_banner">Ad Banner (1200x628)</option>';
-  h += '</select></div>';
-
-  // Variations
-  h += '<div class="ail-form-group" style="max-width:120px;"><label class="ail-label">Variations</label><select class="ail-select" id="ailGenCount">';
-  for (var i = 1; i <= 5; i++) h += '<option value="' + i + '"' + (i === 3 ? ' selected' : '') + '>' + i + '</option>';
-  h += '</select></div>';
+  h += '<div id="pgBrandKitStatus" style="margin-top:10px;"></div>';
   h += '</div>';
 
-  // Prompt
-  h += '<div class="ail-form-group" style="margin-bottom:16px;"><label class="ail-label">Prompt / Content Brief</label>';
-  h += '<textarea class="ail-textarea" id="ailGenPrompt" placeholder="Describe the image you want to generate... e.g. \'Professional product shot of skincare serum on marble surface with soft natural lighting\'"></textarea></div>';
+  // ── Upload slots card ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0f172a;">Step 2 &mdash; Upload Images</h3>';
+  h += '<p style="color:#64748b;font-size:12px;margin:0 0 14px;">Drop photos or click each slot. Ambient &amp; Subject are required.</p>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">';
+  ['ambient','subject','reference'].forEach(function(slot) {
+    var meta = slot === 'ambient'
+      ? { emoji:'\uD83C\uDFE0', title:'Ambient / Background', sub:'Venue / environment' }
+      : slot === 'subject'
+      ? { emoji:'\uD83C\uDF79', title:'Subject / Hero', sub:'Product, drink, dish' }
+      : { emoji:'\uD83D\uDCCE', title:'Reference (optional)', sub:'Style reference' };
+    h += '<div class="pg-slot" data-slot="' + slot + '" style="border:2px dashed #cbd5e1;border-radius:12px;padding:14px;background:#fafbfc;position:relative;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:all 0.15s;">';
+    h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px;">' + meta.emoji + ' ' + meta.title + '</div>';
+    h += '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">' + meta.sub + '</div>';
+    h += '<div class="pg-slot-body" style="flex:1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;border:1px solid #e2e8f0;min-height:110px;overflow:hidden;">';
+    h += '<div class="pg-slot-placeholder" style="color:#94a3b8;font-size:12px;text-align:center;padding:12px;">Drop or click<br/>to upload</div>';
+    h += '</div>';
+    h += '<input type="file" class="pg-slot-input" data-slot="' + slot + '" accept="image/*" style="display:none;">';
+    h += '<button type="button" class="pg-slot-clear" data-slot="' + slot + '" style="display:none;position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:rgba(15,23,42,0.8);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;">&times;</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '</div>';
 
-  // Brand kit info
-  h += '<div id="ailGenBrandInfo" style="margin-bottom:16px;"></div>';
+  // ── Mode toggle card ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;">Step 3 &mdash; Generation Mode</h3>';
+  h += '<div id="pgModeTabs" style="display:inline-flex;gap:0;background:#f1f5f9;border-radius:10px;padding:4px;margin-bottom:14px;">';
+  h += '<button type="button" data-pg-mode="quick" class="active" style="padding:8px 16px;border-radius:7px;border:none;background:#fff;color:#0f172a;font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08);">\u26A1 Quick Mode</button>';
+  h += '<button type="button" data-pg-mode="advanced" style="padding:8px 16px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\u2699\uFE0F Advanced Mode</button>';
+  h += '</div>';
+
+  // Advanced panel (hidden by default)
+  h += '<div id="pgAdvancedPanel" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px;">';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Shot Type</label><select class="ail-select" id="pgShotType">';
+  ['Bar Shot','Table Shot','Overhead','Outdoor'].forEach(function(o) { h += '<option>' + o + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Camera Angle</label><select class="ail-select" id="pgAngle">';
+  ['Low Frontal (10\u00B0)','45\u00B0 Overhead','Top-Down','Side Profile'].forEach(function(o) { h += '<option>' + o + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Lens</label><select class="ail-select" id="pgLens">';
+  ['50mm f/1.4','85mm f/1.8','100mm Macro'].forEach(function(o) { h += '<option' + (o === '85mm f/1.8' ? ' selected' : '') + '>' + o + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Mood Preset</label><select class="ail-select" id="pgMood">';
+  ['Moody Warm','Dark Luxe','Bright Fresh','Game Day Sports Bar','Editorial Clean'].forEach(function(o) { h += '<option>' + o + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Format</label><select class="ail-select" id="pgFormat">';
+  [['feed','Feed 1080x1080'],['portrait','Portrait 1080x1350'],['story','Story 1080x1920']].forEach(function(o) { h += '<option value="' + o[0] + '"' + (o[0] === 'portrait' ? ' selected' : '') + '>' + o[1] + '</option>'; });
+  h += '</select></div>';
+
+  h += '</div>';
+  h += '</div>';
 
   // Generate button
-  h += '<button class="ail-btn ail-btn-primary" id="ailGenBtn" style="padding:12px 28px;font-size:14px;">';
+  h += '<button type="button" id="pgGenerateBtn" class="ail-btn ail-btn-primary" style="padding:12px 28px;font-size:14px;">';
   h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
-  h += ' Generate Images</button>';
-
-  // Results area
-  h += '<div id="ailGenResults"></div>';
+  h += ' Generate Prompt</button>';
   h += '</div>';
 
-  // ===== SCENE COMPOSER SECTION =====
-  h += '<div class="ail-card ail-section" style="margin-top:24px; border-top:2px solid #e2e8f0; padding-top:24px;">';
-  h += '<h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#0f172a;">✨ Scene Composer</h3>';
-  h += '<p style="color:#64748b; font-size:13px; margin:0 0 16px;">Combine 2 real photos into one cinematic composition using Gemini. Select photos below, copy the prompt, then paste into gemini.google.com</p>';
-
-  h += '<div class="ail-form-row">';
-  h += '<div class="ail-form-group"><label class="ail-label">🏠 Ambient / Background</label><div id="scAmbientPicker" class="scene-photo-picker"><div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div></div></div>';
-  h += '<div class="ail-form-group"><label class="ail-label">🍽️ Subject / Hero</label><div id="scSubjectPicker" class="scene-photo-picker"><div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div></div></div>';
-  h += '</div>';
-
-  h += '<div class="ail-form-group"><label class="ail-label">🎨 Style Preset</label>';
-  h += '<select class="ail-select" id="scStylePreset">';
-  h += '<option value="moody_warm">Moody Warm — Golden candlelight, deep shadows, luxurious</option>';
-  h += '<option value="bright_fresh">Bright & Fresh — Natural light, clean, modern</option>';
-  h += '<option value="dark_luxe">Dark Luxe — Low-key lighting, premium, editorial</option>';
-  h += '<option value="golden_hour">Golden Hour — Warm orange/amber tones, cinematic</option>';
-  h += '</select></div>';
-
-  h += '<div class="ail-form-group"><label class="ail-label">📝 Generated Prompt (for Gemini)</label>';
-  h += '<textarea class="ail-textarea" id="scGeneratedPrompt" rows="5" readonly placeholder="Click Generate Prompt to build your prompt..."></textarea></div>';
-
-  h += '<div style="display:flex; gap:12px; flex-wrap:wrap;">';
-  h += '<button class="ail-btn ail-btn-primary" id="scGeneratePromptBtn">🔄 Generate Prompt</button>';
-  h += '<button class="ail-btn" id="scCopyPromptBtn" style="background:#7c3aed; color:white;">📋 Copy Prompt</button>';
-  h += '<a href="https://gemini.google.com" target="_blank" class="ail-btn" style="background:#4285f4; color:white; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">🚀 Open Gemini</a>';
+  // ── Output card ──
+  h += '<div class="ail-card ail-section">';
+  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;">Step 4 &mdash; Generated Prompt</h3>';
+  h += '<textarea id="pgOutput" readonly rows="14" placeholder="Your generated prompt will appear here..." style="width:100%;font-family:\'SF Mono\',Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.6;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#0f172a;color:#e2e8f0;resize:vertical;box-sizing:border-box;"></textarea>';
+  h += '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">';
+  h += '<button type="button" id="pgCopyBtn" class="ail-btn" style="background:#7c3aed;color:#fff;padding:10px 18px;font-size:13px;">\uD83D\uDCCB Copy Prompt</button>';
+  h += '<button type="button" id="pgRegenBtn" class="ail-btn ail-btn-secondary" style="padding:10px 18px;font-size:13px;">\uD83D\uDD04 Regenerate</button>';
   h += '</div>';
   h += '</div>';
 
   tc.innerHTML = h;
 
-  // ===== SCENE COMPOSER LOGIC =====
-  var SC_STYLE_PRESETS = {
-    moody_warm: 'Compose these two photos into one cinematic Instagram post.\nUse the ambient/background photo to establish the real venue atmosphere.\nPlace the subject naturally within that real environment.\nStyle: warm golden candlelight, amber wall sconces, deep shadows, rich warm tones, soft bokeh.\nKeep everything realistic — real venue, real subject. Professional Instagram-ready result.',
-    bright_fresh: 'Compose these two photos into one bright, fresh Instagram post.\nUse the ambient photo as the real background setting.\nPlace the subject naturally in that environment.\nStyle: natural daylight, clean white/neutral tones, airy and modern feel.\nKeep everything realistic. Instagram-ready.',
-    dark_luxe: 'Compose these two photos into one editorial, premium Instagram post.\nUse the ambient photo as the real background.\nStyle: low-key dark lighting, premium and editorial feel, high contrast, luxury mood.\nSubject should be dramatically lit and sharp. Background moody and sophisticated.\nInstagram-ready, realistic.',
-    golden_hour: 'Compose these two photos into one cinematic Instagram post.\nUse the ambient photo as the real background setting.\nStyle: golden hour lighting, warm orange/amber tones, long soft shadows, cinematic depth.\nReal venue, real subject. Professional quality.'
-  };
+  // ─── State (scoped to this render) ───
+  var slotImages = { ambient: null, subject: null, reference: null };
+  var currentMode = 'quick';
 
-  window.scAmbientUrl = null;
-  window.scSubjectUrl = null;
+  // ─── Brand kit status badge ───
+  function updateBrandKitStatus() {
+    var cid = tc.querySelector('#pgClient').value;
+    var box = tc.querySelector('#pgBrandKitStatus');
+    if (!cid) { box.innerHTML = ''; return; }
+    box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">\u2713 Brand Kit Loaded</span>';
+  }
+  tc.querySelector('#pgClient').addEventListener('change', updateBrandKitStatus);
+  updateBrandKitStatus();
 
-  function scLoadClientPhotos(cid) {
-    var ambientPicker = tc.querySelector('#scAmbientPicker');
-    var subjectPicker = tc.querySelector('#scSubjectPicker');
-    if (!cid) {
-      ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div>';
-      subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">Select a client to load photos</div>';
-      window.scAmbientUrl = null;
-      window.scSubjectUrl = null;
-      return;
+  // ─── Upload slot handlers ───
+  tc.querySelectorAll('.pg-slot').forEach(function(slotEl) {
+    var slot = slotEl.getAttribute('data-slot');
+    var input = slotEl.querySelector('.pg-slot-input');
+    var body = slotEl.querySelector('.pg-slot-body');
+    var clearBtn = slotEl.querySelector('.pg-slot-clear');
+
+    function setImage(dataUrl) {
+      slotImages[slot] = dataUrl;
+      body.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
+      clearBtn.style.display = 'block';
+      slotEl.style.borderStyle = 'solid';
+      slotEl.style.borderColor = '#3b82f6';
     }
-    ambientPicker.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#94a3b8;">Loading photos...</div>';
-    subjectPicker.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#94a3b8;">Loading photos...</div>';
 
-    fetch(getApiBaseUrl() + '/api/agency/portal-state?clientId=' + encodeURIComponent(cid), { credentials: 'include' })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        var media = [];
-        if (d.media && Array.isArray(d.media)) media = d.media;
-        else if (d.posts && Array.isArray(d.posts)) {
-          d.posts.forEach(function(p) {
-            if (p.imageUrl) media.push({ url: p.imageUrl, name: p.caption || '' });
-            if (p.media && Array.isArray(p.media)) p.media.forEach(function(m) { media.push({ url: m.url || m, name: '' }); });
-          });
-        }
-        if (media.length === 0) {
-          ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos found for this client</div>';
-          subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos found for this client</div>';
-          return;
-        }
-        function buildThumbs(container, pickType) {
-          var th = '';
-          media.forEach(function(m, idx) {
-            var url = typeof m === 'string' ? m : (m.url || m.imageUrl || '');
-            if (!url) return;
-            th += '<img class="scene-thumb" src="' + url + '" data-url="' + url + '" data-pick="' + pickType + '" loading="lazy" onerror="this.style.display=\'none\'" />';
-          });
-          container.innerHTML = th || '<div class="ail-empty" style="padding:20px;font-size:12px;">No photos available</div>';
-          container.querySelectorAll('.scene-thumb').forEach(function(img) {
-            img.addEventListener('click', function() {
-              container.querySelectorAll('.scene-thumb').forEach(function(t) { t.classList.remove('selected'); });
-              img.classList.add('selected');
-              if (pickType === 'ambient') window.scAmbientUrl = img.getAttribute('data-url');
-              else window.scSubjectUrl = img.getAttribute('data-url');
-            });
-          });
-        }
-        buildThumbs(ambientPicker, 'ambient');
-        buildThumbs(subjectPicker, 'subject');
-      })
-      .catch(function() {
-        ambientPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;color:#dc2626;">Failed to load photos</div>';
-        subjectPicker.innerHTML = '<div class="ail-empty" style="padding:20px;font-size:12px;color:#dc2626;">Failed to load photos</div>';
+    function clearImage() {
+      slotImages[slot] = null;
+      body.innerHTML = '<div class="pg-slot-placeholder" style="color:#94a3b8;font-size:12px;text-align:center;padding:12px;">Drop or click<br/>to upload</div>';
+      clearBtn.style.display = 'none';
+      slotEl.style.borderStyle = 'dashed';
+      slotEl.style.borderColor = '#cbd5e1';
+      input.value = '';
+    }
+
+    slotEl.addEventListener('click', function(e) {
+      if (e.target === clearBtn) return;
+      input.click();
+    });
+
+    input.addEventListener('change', function() {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) { setImage(e.target.result); };
+      reader.readAsDataURL(file);
+    });
+
+    slotEl.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      slotEl.style.borderColor = '#3b82f6';
+      slotEl.style.background = '#eff6ff';
+    });
+    slotEl.addEventListener('dragleave', function() {
+      slotEl.style.borderColor = slotImages[slot] ? '#3b82f6' : '#cbd5e1';
+      slotEl.style.background = '#fafbfc';
+    });
+    slotEl.addEventListener('drop', function(e) {
+      e.preventDefault();
+      slotEl.style.background = '#fafbfc';
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) { setImage(ev.target.result); };
+      reader.readAsDataURL(file);
+    });
+
+    clearBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      clearImage();
+    });
+  });
+
+  // ─── Mode toggle ───
+  tc.querySelectorAll('#pgModeTabs [data-pg-mode]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      currentMode = btn.getAttribute('data-pg-mode');
+      tc.querySelectorAll('#pgModeTabs [data-pg-mode]').forEach(function(b) {
+        var active = b.getAttribute('data-pg-mode') === currentMode;
+        b.classList.toggle('active', active);
+        b.style.background = active ? '#fff' : 'transparent';
+        b.style.color = active ? '#0f172a' : '#64748b';
+        b.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
       });
-  }
-
-  // Load photos when client changes
-  clientSelect.addEventListener('change', function() { scLoadClientPhotos(clientSelect.value); });
-  if (clientSelect.value) scLoadClientPhotos(clientSelect.value);
-
-  // Generate Prompt button
-  tc.querySelector('#scGeneratePromptBtn').addEventListener('click', function() {
-    if (!window.scAmbientUrl) { showToast('Select an ambient/background photo first', 'error'); return; }
-    if (!window.scSubjectUrl) { showToast('Select a subject/hero photo first', 'error'); return; }
-    var style = tc.querySelector('#scStylePreset').value;
-    var prompt = 'Ambient photo: ' + window.scAmbientUrl + '\nSubject photo: ' + window.scSubjectUrl + '\n\n' + SC_STYLE_PRESETS[style];
-    tc.querySelector('#scGeneratedPrompt').value = prompt;
-    showToast('Prompt generated!', 'success');
+      tc.querySelector('#pgAdvancedPanel').style.display = currentMode === 'advanced' ? 'block' : 'none';
+    });
   });
 
-  // Copy Prompt button
-  tc.querySelector('#scCopyPromptBtn').addEventListener('click', function() {
-    var text = tc.querySelector('#scGeneratedPrompt').value;
-    if (!text) { showToast('Generate a prompt first', 'error'); return; }
-    navigator.clipboard.writeText(text).then(function() {
-      var btn = tc.querySelector('#scCopyPromptBtn');
-      var orig = btn.innerHTML;
-      btn.innerHTML = '✅ Copied!';
-      setTimeout(function() { btn.innerHTML = orig; }, 2000);
-      showToast('Prompt copied to clipboard!', 'success');
-    }).catch(function() { showToast('Failed to copy', 'error'); });
-  });
+  // ─── Generate button (placeholder — builds mock prompt until backend exists) ───
+  function buildMockPrompt() {
+    var cid = tc.querySelector('#pgClient').value;
+    var clientName = cid && clients[cid] ? (clients[cid].name || cid) : '[Client]';
+    var lens = currentMode === 'advanced' ? (tc.querySelector('#pgLens') || {}).value || '85mm f/1.8' : '85mm f/1.8';
+    var angle = currentMode === 'advanced' ? (tc.querySelector('#pgAngle') || {}).value || 'Low Frontal (10\u00B0)' : 'Low Frontal (10\u00B0)';
+    var shotType = currentMode === 'advanced' ? (tc.querySelector('#pgShotType') || {}).value || 'Bar Shot' : 'Bar Shot';
+    var mood = currentMode === 'advanced' ? (tc.querySelector('#pgMood') || {}).value || 'Moody Warm' : 'Moody Warm';
+    var format = currentMode === 'advanced' ? (tc.querySelector('#pgFormat') || {}).value || 'portrait' : 'portrait';
+    var formatLabel = format === 'feed' ? '1080x1080' : format === 'story' ? '1080x1920' : '1080x1350';
+    var hasAmbient = !!slotImages.ambient;
+    var hasSubject = !!slotImages.subject;
 
-  // Show brand kit info when client changes
-  var clientSelect = tc.querySelector('#ailGenClient');
-  function updateBrandInfo() {
-    var cid = clientSelect.value;
-    var info = tc.querySelector('#ailGenBrandInfo');
-    if (!cid) { info.innerHTML = ''; return; }
-    fetch(getApiBaseUrl() + '/api/ai-library/brand-kit?clientId=' + encodeURIComponent(cid), { credentials: 'include' })
-      .then(function(r) { return r.json(); }).then(function(d) {
-        if (d.brandKit) {
-          var bk = d.brandKit;
-          var tags = (bk.styleTags || []).map(function(t) { return '<span class="ail-tag">' + t + '</span>'; }).join(' ');
-          var colors = (bk.colors || []).map(function(c) { return '<span class="ail-color-swatch" style="background:' + c.hex + ';" title="' + (c.name || c.hex) + '"></span>'; }).join('');
-          info.innerHTML = '<div style="padding:10px 14px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;font-size:12px;color:#0369a1;">'
-            + '<strong>Brand Kit loaded:</strong> '
-            + (colors ? ' ' + colors : '')
-            + (tags ? ' ' + tags : '')
-            + (bk.photoStyle ? ' | Style: ' + bk.photoStyle : '')
-            + '</div>';
-        } else {
-          info.innerHTML = '<div style="padding:10px 14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:12px;color:#92400e;">No brand kit configured for this client. <a href="#" class="ailGoToBrandKit" style="color:#1a56db;font-weight:600;">Set up Brand Kit</a></div>';
-          var link = info.querySelector('.ailGoToBrandKit');
-          if (link) link.addEventListener('click', function(e) { e.preventDefault(); ailCurrentTab = 'brandkit'; renderGlobalAILibrary(tc.closest('#productionViewInner') || tc.parentNode); });
-        }
-      }).catch(function() { info.innerHTML = ''; });
+    return [
+      '# Prompt Generator \u2014 ' + clientName,
+      '# Mode: ' + currentMode.toUpperCase() + ' \u2014 Shot: ' + shotType,
+      '',
+      'CAMERA & LENS SETUP:',
+      '  \u2022 Shot with a ' + lens + ' prime lens',
+      '  \u2022 Aperture: f/2.0 \u2014 subject tack-sharp, background beautifully blurred',
+      '  \u2022 ' + angle + ' \u2014 camera 30-40cm from the subject',
+      '',
+      'COMPOSITION:',
+      '  \u2022 Subject is the hero, positioned center-left of frame',
+      '  \u2022 Rule of thirds: subject occupies left 2/3, right 1/3 reveals blurred background',
+      '  \u2022 Bar/table surface in foreground, slightly out of focus',
+      '',
+      'LIGHTING:',
+      '  \u2022 Warm key light from the right',
+      '  \u2022 Rim lighting creating a golden halo effect',
+      '',
+      'MOOD: ' + mood + '. Cinematic, seductive, premium.',
+      '',
+      'INPUTS:',
+      '  \u2022 Ambient: ' + (hasAmbient ? '[uploaded]' : '[not provided]'),
+      '  \u2022 Subject: ' + (hasSubject ? '[uploaded]' : '[not provided]'),
+      '  \u2022 Reference: ' + (slotImages.reference ? '[uploaded]' : '[not provided]'),
+      '',
+      'OUTPUT: ' + formatLabel + '. Photorealistic. Commercial photography quality. No text, no watermarks.',
+      '',
+      '[Backend not connected yet \u2014 this is a placeholder built from your inputs]'
+    ].join('\n');
   }
-  clientSelect.addEventListener('change', updateBrandInfo);
-  if (clientSelect.value) updateBrandInfo();
 
-  // Generate button
-  tc.querySelector('#ailGenBtn').addEventListener('click', async function() {
-    var cid = tc.querySelector('#ailGenClient').value;
-    var prompt = tc.querySelector('#ailGenPrompt').value.trim();
-    var format = tc.querySelector('#ailGenFormat').value;
-    var count = parseInt(tc.querySelector('#ailGenCount').value, 10);
-    var results = tc.querySelector('#ailGenResults');
-    var btn = tc.querySelector('#ailGenBtn');
-
+  function runGenerate() {
+    var cid = tc.querySelector('#pgClient').value;
     if (!cid) { showToast('Select a client first', 'error'); return; }
-    if (!prompt) { showToast('Enter a prompt', 'error'); return; }
-
+    if (!slotImages.ambient || !slotImages.subject) { showToast('Upload at least Ambient + Subject images', 'error'); return; }
+    var btn = tc.querySelector('#pgGenerateBtn');
+    var output = tc.querySelector('#pgOutput');
     btn.disabled = true;
-    btn.innerHTML = '<div class="ail-spinner" style="width:16px;height:16px;border-width:2px;"></div> Generating...';
-    results.innerHTML = '<div class="ail-generating"><div class="ail-spinner"></div><div><strong>Generating ' + count + ' image' + (count > 1 ? 's' : '') + '...</strong><br><span style="font-size:12px;color:#64748b;">This may take 30-60 seconds</span></div></div>';
+    var orig = btn.innerHTML;
+    btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Analyzing images and building your prompt...';
+    output.value = '';
+    // Simulate async work to show the loading state
+    setTimeout(function() {
+      output.value = buildMockPrompt();
+      btn.disabled = false;
+      btn.innerHTML = orig;
+      showToast('Prompt generated', 'success');
+    }, 600);
+  }
 
-    try {
-      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate', {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: cid, prompt: prompt, format: format, variationsCount: count })
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Generation failed');
+  tc.querySelector('#pgGenerateBtn').addEventListener('click', runGenerate);
+  tc.querySelector('#pgRegenBtn').addEventListener('click', runGenerate);
 
-      var imgs = d.images || [];
-      if (imgs.length === 0) throw new Error('No images generated');
-
-      var gh = '<h4 style="margin:16px 0 12px;font-size:14px;font-weight:600;color:#0f172a;">Generated ' + imgs.length + ' image' + (imgs.length > 1 ? 's' : '') + '</h4>';
-      gh += '<div class="ail-grid">';
-      imgs.forEach(function(img) { gh += ailBuildImageCard(img, clients); });
-      gh += '</div>';
-      results.innerHTML = gh;
-      ailBindImageActions(results);
-      showToast(imgs.length + ' image' + (imgs.length > 1 ? 's' : '') + ' generated!', 'success');
-    } catch (err) {
-      results.innerHTML = '<div style="padding:16px;background:#fef2f2;border-radius:8px;color:#dc2626;font-size:13px;margin-top:12px;">Failed: ' + (err.message || 'Unknown error') + '</div>';
-      showToast(err.message || 'Generation failed', 'error');
-    }
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Generate Images';
+  // ─── Copy button ───
+  tc.querySelector('#pgCopyBtn').addEventListener('click', function() {
+    var text = tc.querySelector('#pgOutput').value;
+    if (!text) { showToast('Generate a prompt first', 'error'); return; }
+    var btn = tc.querySelector('#pgCopyBtn');
+    var orig = btn.innerHTML;
+    navigator.clipboard.writeText(text).then(function() {
+      btn.innerHTML = '\u2705 Copied!';
+      setTimeout(function() { btn.innerHTML = orig; }, 1800);
+      showToast('Copied to clipboard', 'success');
+    }).catch(function() { showToast('Copy failed', 'error'); });
   });
 }
 
