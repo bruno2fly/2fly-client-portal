@@ -13861,13 +13861,58 @@ function _openStoryModal(storyId, defaultDate) {
     return '<option value="' + s + '"' + sel + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
   }).join('');
 
+  // Build asset picker grid from the client's image library
+  var assetPickerHtml = '';
+  var assets = currentClientId ? loadAssets(currentClientId) : [];
+  // Show only photos/graphics/videos that have a previewable URL
+  var pickableAssets = assets.filter(function(a) {
+    return a && (a.thumbnailUrl || getPreviewUrl(a) || (a.url && /\.(jpg|jpeg|png|webp|gif|mp4|mov)(\?|$)/i.test(a.url)));
+  });
+  if (pickableAssets.length > 0) {
+    assetPickerHtml =
+      '<div class="form-group">' +
+      '<label class="form-label">Select from Library</label>' +
+      '<div id="storyAssetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:4px;border:1px solid #e2e8f0;border-radius:10px;background:#fafbfc;">';
+    pickableAssets.forEach(function(a) {
+      var thumb = a.thumbnailUrl || getPreviewUrl(a) || a.url || '';
+      var isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(thumb) || (a.mediaType || '').toUpperCase() === 'VIDEO';
+      var selectedCss = (existing && existing.imageUrl === thumb) ? 'border-color:#3b82f6;box-shadow:0 0 0 2px #3b82f6;' : '';
+      assetPickerHtml += '<div class="story-asset-pick" data-url="' + _escHtml(thumb) + '" style="cursor:pointer;border-radius:8px;border:2px solid #e2e8f0;overflow:hidden;transition:all 0.15s;position:relative;' + selectedCss + '">';
+      if (isVideo) {
+        assetPickerHtml += '<div style="width:100%;height:72px;background:#1e293b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;">&#9654;</div>';
+      } else {
+        assetPickerHtml += '<img src="' + _escHtml(thumb) + '" alt="" style="width:100%;height:72px;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML=\'<div style=\\\'width:100%;height:72px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;\\\'>No preview</div>\'">';
+      }
+      var statusBadge = '';
+      if (a.approvalStatus === 'APPROVED') statusBadge = '<span style="position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>';
+      else if (a.approvalStatus === 'PENDING') statusBadge = '<span style="position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#f59e0b;"></span>';
+      assetPickerHtml += statusBadge;
+      assetPickerHtml += '<div style="font-size:10px;color:#475569;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escHtml(a.title || a.url || '') + '</div>';
+      assetPickerHtml += '</div>';
+    });
+    assetPickerHtml += '</div></div>';
+  }
+
+  // Current image preview
+  var currentThumb = existing ? existing.imageUrl || '' : '';
+  var previewHtml = '<div id="storyImagePreview" style="' + (currentThumb ? '' : 'display:none;') + 'margin-bottom:12px;text-align:center;">' +
+    '<img id="storyImagePreviewImg" src="' + _escHtml(currentThumb) + '" style="max-height:120px;border-radius:10px;border:1px solid #e2e8f0;object-fit:contain;" onerror="this.parentNode.style.display=\'none\'">' +
+    '</div>';
+
   modal.innerHTML =
     '<div class="story-modal__title">' + title + '</div>' +
     '<form id="storyForm">' +
     '<div class="form-group"><label class="form-label">Type</label><select class="form-select" id="storyType" required>' + typeOptions + '</select></div>' +
     '<div class="form-group"><label class="form-label">Caption / Description</label><textarea class="form-textarea" id="storyCaption" placeholder="What is this story about?">' + _escHtml(existing ? existing.caption || '' : '') + '</textarea></div>' +
-    '<div class="form-group"><label class="form-label">Image URL (optional)</label><input type="text" class="form-input" id="storyImageUrl" placeholder="https://..." value="' + _escHtml(existing ? existing.imageUrl || '' : '') + '"></div>' +
-    '<div class="form-group"><label class="form-label">Upload Image</label><input type="file" class="form-input" id="storyImageUpload" accept="image/*"></div>' +
+    previewHtml +
+    assetPickerHtml +
+    '<div class="form-group"><label class="form-label">Or upload / paste URL</label>' +
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;">' +
+    '<input type="text" class="form-input" id="storyImageUrl" placeholder="https://..." value="' + _escHtml(existing ? existing.imageUrl || '' : '') + '">' +
+    '<label style="cursor:pointer;padding:9px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#475569;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.borderColor=\'#3b82f6\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">' +
+    '&#128247; Browse<input type="file" id="storyImageUpload" accept="image/*,video/*" style="display:none;">' +
+    '</label>' +
+    '</div></div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
     '<div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="storyDate" value="' + schedDate + '" required></div>' +
     '<div class="form-group"><label class="form-label">Time</label><input type="time" class="form-input" id="storyTime" value="' + schedTime + '"></div>' +
@@ -13886,6 +13931,51 @@ function _openStoryModal(storyId, defaultDate) {
 
   overlay.addEventListener('click', function(e) { if (e.target === overlay) { overlay.remove(); } });
   document.getElementById('storyCancelBtn').addEventListener('click', function() { overlay.remove(); });
+
+  // Asset picker: click a card → select it, put URL in the input, show preview
+  var assetGrid = document.getElementById('storyAssetGrid');
+  if (assetGrid) {
+    assetGrid.querySelectorAll('.story-asset-pick').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var url = card.dataset.url;
+        if (!url) return;
+        // Highlight selected card
+        assetGrid.querySelectorAll('.story-asset-pick').forEach(function(c) {
+          c.style.borderColor = '#e2e8f0';
+          c.style.boxShadow = 'none';
+        });
+        card.style.borderColor = '#3b82f6';
+        card.style.boxShadow = '0 0 0 2px #3b82f6';
+        // Set the URL input
+        var urlInput = document.getElementById('storyImageUrl');
+        if (urlInput) urlInput.value = url;
+        // Update preview
+        var preview = document.getElementById('storyImagePreview');
+        var previewImg = document.getElementById('storyImagePreviewImg');
+        if (preview && previewImg) {
+          previewImg.src = url;
+          preview.style.display = '';
+        }
+      });
+    });
+  }
+
+  // URL input change → update preview
+  var urlInput = document.getElementById('storyImageUrl');
+  if (urlInput) {
+    urlInput.addEventListener('input', function() {
+      var preview = document.getElementById('storyImagePreview');
+      var previewImg = document.getElementById('storyImagePreviewImg');
+      if (preview && previewImg) {
+        if (urlInput.value.trim()) {
+          previewImg.src = urlInput.value.trim();
+          preview.style.display = '';
+        } else {
+          preview.style.display = 'none';
+        }
+      }
+    });
+  }
 
   if (existing) {
     var delBtn = document.getElementById('storyDeleteBtn');
