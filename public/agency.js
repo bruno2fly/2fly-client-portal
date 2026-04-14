@@ -1042,6 +1042,51 @@ function _emptyMonthlyFocus() {
   };
 }
 
+/**
+ * New "This Month" shape — card-based, richer per-item data than monthlyFocus.
+ * Promotions and events are full objects with flyer uploads. Do Not Post
+ * remains agency-only and is never surfaced in the client portal render.
+ */
+function _emptyThisMonth() {
+  return {
+    focus: '',         // Sales | Events | Brand Awareness | New Product | Holiday | Custom | ''
+    customFocus: '',   // free-text when focus === 'Custom'
+    keyMessage: '',    // textarea
+    promotions: [],    // { id, name, deal, startDate, endDate, flyerUrl }
+    events: [],        // { id, name, dateTime, description, flyerUrl }
+    doNotPost: []      // string[]  (agency-only, never rendered in client portal)
+  };
+}
+
+/**
+ * Migrate the legacy monthlyFocus object into the new thisMonth shape so
+ * existing clients don't lose their data when opening the redesigned tab.
+ * Idempotent: returns early if state.thisMonth already exists.
+ */
+function _migrateToThisMonth(state) {
+  if (!state) return;
+  if (state.thisMonth && typeof state.thisMonth === 'object') return;
+  var tm = _emptyThisMonth();
+  var mf = state.monthlyFocus;
+  if (mf && typeof mf === 'object') {
+    tm.focus = mf.primaryFocus || '';
+    tm.customFocus = mf.customFocus || '';
+    tm.keyMessage = mf.keyMessage || '';
+    tm.doNotPost = Array.isArray(mf.doNotPost) ? mf.doNotPost.slice() : [];
+    if (Array.isArray(mf.activePromotions)) {
+      mf.activePromotions.forEach(function(p, i) {
+        tm.promotions.push({ id: 'mig_p_' + Date.now() + '_' + i, name: String(p || ''), deal: '', startDate: '', endDate: '', flyerUrl: '' });
+      });
+    }
+    if (Array.isArray(mf.upcomingEvents)) {
+      mf.upcomingEvents.forEach(function(ev, i) {
+        tm.events.push({ id: 'mig_e_' + Date.now() + '_' + i, name: (ev && ev.name) || '', dateTime: (ev && ev.date) || '', description: '', flyerUrl: '' });
+      });
+    }
+  }
+  state.thisMonth = tm;
+}
+
 function _emptyState(name, whatsapp) {
   return {
     client: { id: currentClientId, name: name || 'Client', whatsapp: whatsapp || '' },
@@ -1052,6 +1097,7 @@ function _emptyState(name, whatsapp) {
     assets: [],
     activity: [],
     monthlyFocus: _emptyMonthlyFocus(),
+    thisMonth: _emptyThisMonth(),
     seen: false
   };
 }
@@ -6388,13 +6434,17 @@ async function deleteCurrentClient() {
   showToast(`Client "${name}" has been deleted`);
 }
 
-/* ================== Strategy Brief Tab ================== */
+/* ================== This Month Tab ================== */
 /**
- * Renders the Monthly Strategy Brief as a full-page tab inside the client view.
- * Fields: Primary Focus (dropdown + optional custom), Content Ratio, Key Message,
- * Active Promotions (list), Upcoming Events (list of {name,date}), Do Not Post (list).
- * All fields auto-save to state.monthlyFocus via save(state). Agency-only
- * (never rendered in client portal / index.html).
+ * Renders "This Month's Strategy" as a full-page tab (agency view).
+ * Card-based layout with 4 sections:
+ *   1. Goals           — focus dropdown + key message (client + agency)
+ *   2. Promotions      — one card per promo (name, deal, dates, flyer upload)
+ *   3. Events          — one card per event (name, date/time, description, flyer)
+ *   4. Do Not Post     — agency-only text list
+ * Data is stored in state.thisMonth; legacy state.monthlyFocus is migrated
+ * forward on first render. The container collapses by default; the client
+ * portal (index.html) renders its own version of sections 1-3.
  */
 function renderStrategyBriefTab() {
   const container = document.getElementById('strategyBriefContent');
@@ -6404,217 +6454,463 @@ function renderStrategyBriefTab() {
     return;
   }
   const state = load();
-  if (!state.monthlyFocus) state.monthlyFocus = _emptyMonthlyFocus();
-  const mf = state.monthlyFocus;
+  _migrateToThisMonth(state);
+  const tm = state.thisMonth;
+
+  // Render via the shared helper (agency variant → shows Do Not Post).
+  _renderThisMonth({
+    root: container,
+    state: state,
+    tm: tm,
+    showDoNotPost: true,
+    onSave: function() { try { save(state); } catch (e) { console.warn('[ThisMonth] save failed', e); } }
+  });
+}
+
+/**
+ * Shared renderer for the "This Month" layout. Used by both the agency tab
+ * and the client portal section. Caller supplies:
+ *   root            — container element to mount into
+ *   state           — full portal state (for mutation)
+ *   tm              — state.thisMonth reference (mutated in place)
+ *   showDoNotPost   — true for agency, false for client portal
+ *   onSave          — fn() called after every mutation; caller persists
+ *   uploadImage     — async (dataUrl) => url (optional; defaults to /api/upload/image)
+ */
+function _renderThisMonth(opts) {
+  const root          = opts.root;
+  const tm            = opts.tm;
+  const showDoNotPost = !!opts.showDoNotPost;
+  const onSave        = typeof opts.onSave === 'function' ? opts.onSave : function(){};
+  const uploadImage   = typeof opts.uploadImage === 'function' ? opts.uploadImage : _thisMonthDefaultUpload;
 
   function esc(s) { const d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+  function newId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
 
-  const focusPillLabel = mf.primaryFocus
-    ? (mf.primaryFocus === 'Custom' && mf.customFocus ? mf.customFocus : mf.primaryFocus)
-    : '';
+  // Persisted collapse state (shared key; survives client switches).
+  const clientId = (opts.state && opts.state.client && opts.state.client.id) || 'default';
+  const openKey = 'thisMonth_open_' + clientId;
+  let isOpen = false;
+  try { isOpen = localStorage.getItem(openKey) === '1'; } catch (e) {}
 
-  let h = '';
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);padding:22px 24px;max-width:1200px;">';
+  // ── Shell: header + collapsible body ──
+  root.innerHTML = '';
+  const shell = document.createElement('div');
+  shell.style.cssText = 'background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;max-width:1200px;';
+  root.appendChild(shell);
 
-  // Header
-  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">';
-  h += '<h2 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Monthly Strategy Brief</h2>';
-  if (focusPillLabel) {
-    h += '<span id="msbFocusPill" style="font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;">' + esc(focusPillLabel) + '</span>';
-  } else {
-    h += '<span id="msbFocusPill" style="display:none;font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;"></span>';
-  }
-  h += '<span style="margin-left:auto;font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;">Agency only</span>';
-  h += '</div>';
-  h += '<p style="margin:0 0 18px;font-size:13px;color:#64748b;">The plan for this month — focus, promos, events, key message, content mix, and what not to post. Shared with your team; hidden from the client.</p>';
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  header.style.cssText = 'width:100%;display:flex;align-items:center;gap:10px;padding:16px 20px;background:transparent;border:none;cursor:pointer;text-align:left;';
+  const chev = document.createElement('span');
+  chev.textContent = '\u25BC';
+  chev.style.cssText = 'display:inline-block;font-size:11px;color:#64748b;transition:transform 0.15s;transform:rotate(' + (isOpen ? '0' : '-90') + 'deg);';
+  header.appendChild(chev);
+  const title = document.createElement('span');
+  title.textContent = "This Month's Strategy";
+  title.style.cssText = 'font-size:18px;font-weight:700;color:#0f172a;';
+  header.appendChild(title);
+  const pill = document.createElement('span');
+  pill.style.cssText = 'font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;';
+  header.appendChild(pill);
+  shell.appendChild(header);
 
-  // Row 1: Primary Focus + Content Ratio
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">';
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Primary Focus</label>';
-  h += '<select id="msbPrimaryFocus" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;color:#0f172a;">';
-  ['','Sales','Events','Brand Awareness','New Product','Holiday','Custom'].forEach(function(o) {
-    const sel = (mf.primaryFocus || '') === o ? ' selected' : '';
-    h += '<option value="' + esc(o) + '"' + sel + '>' + (o ? esc(o) : 'Select focus…') + '</option>';
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:0 20px 20px;display:' + (isOpen ? 'block' : 'none') + ';';
+  shell.appendChild(body);
+
+  header.addEventListener('click', function() {
+    const open = body.style.display !== 'none';
+    const next = !open;
+    body.style.display = next ? 'block' : 'none';
+    header.setAttribute('aria-expanded', next ? 'true' : 'false');
+    chev.style.transform = 'rotate(' + (next ? '0' : '-90') + 'deg)';
+    try { localStorage.setItem(openKey, next ? '1' : '0'); } catch (e) {}
   });
-  h += '</select>';
-  h += '<input type="text" id="msbCustomFocus" placeholder="Custom focus label" value="' + esc(mf.customFocus) + '" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;display:' + (mf.primaryFocus === 'Custom' ? 'block' : 'none') + ';">';
-  h += '</div>';
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Content Ratio</label>';
-  h += '<input type="text" id="msbContentRatio" placeholder="e.g. 60% promos, 30% events, 10% brand" value="' + esc(mf.contentRatio) + '" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
-  h += '</div>';
-  h += '</div>';
 
-  // Row 2: Key Message
-  h += '<div style="margin-top:16px;">';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Key Message</label>';
-  h += '<textarea id="msbKeyMessage" rows="3" placeholder="What the client wants to communicate this month (1\u20132 sentences)" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;">' + esc(mf.keyMessage) + '</textarea>';
-  h += '</div>';
-
-  // Row 3: Active Promotions + Upcoming Events
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:16px;">';
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Active Promotions</label>';
-  h += '<div id="msbPromosList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbPromoInput" type="text" placeholder="e.g. Happy Hour 2\u20135 PM" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbPromoAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Upcoming Events</label>';
-  h += '<div id="msbEventsList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><input id="msbEventName" type="text" placeholder="Event name" style="flex:1 1 140px;min-width:120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><input id="msbEventDate" type="text" placeholder="Apr 24\u201325" style="flex:0 0 120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbEventAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-  h += '</div>';
-
-  // Row 4: Do Not Post
-  h += '<div style="margin-top:16px;">';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Do Not Post</label>';
-  h += '<div id="msbDoNotList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbDoNotInput" type="text" placeholder="e.g. Don\u2019t post about pricing yet" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbDoNotAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-
-  h += '<div style="margin-top:16px;font-size:11px;color:#94a3b8;">Changes save automatically.</div>';
-  h += '</div>'; // card
-
-  container.innerHTML = h;
-
-  // ── Bindings ──
-  const pillEl    = document.getElementById('msbFocusPill');
-  const primary   = document.getElementById('msbPrimaryFocus');
-  const custom    = document.getElementById('msbCustomFocus');
-  const ratio     = document.getElementById('msbContentRatio');
-  const keyMsg    = document.getElementById('msbKeyMessage');
-  const promoList = document.getElementById('msbPromosList');
-  const promoIn   = document.getElementById('msbPromoInput');
-  const promoAdd  = document.getElementById('msbPromoAdd');
-  const evList    = document.getElementById('msbEventsList');
-  const evName    = document.getElementById('msbEventName');
-  const evDate    = document.getElementById('msbEventDate');
-  const evAdd     = document.getElementById('msbEventAdd');
-  const dnList    = document.getElementById('msbDoNotList');
-  const dnIn      = document.getElementById('msbDoNotInput');
-  const dnAdd     = document.getElementById('msbDoNotAdd');
-
-  function updateFocusPill() {
-    if (!pillEl) return;
-    const label = mf.primaryFocus ? (mf.primaryFocus === 'Custom' && mf.customFocus ? mf.customFocus : mf.primaryFocus) : '';
-    if (label) { pillEl.textContent = label; pillEl.style.display = ''; }
-    else       { pillEl.textContent = '';    pillEl.style.display = 'none'; }
+  function updatePill() {
+    const label = tm.focus ? (tm.focus === 'Custom' && tm.customFocus ? tm.customFocus : tm.focus) : '';
+    if (label) { pill.textContent = label; pill.style.display = ''; }
+    else       { pill.textContent = '';    pill.style.display = 'none'; }
   }
-  function persist() { try { save(state); } catch (e) { console.warn('[MSB] save failed', e); } }
+  updatePill();
 
-  function pillRow(text, sub, onRemove) {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#0f172a;';
-    const main = document.createElement('span');
-    main.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    main.textContent = text;
-    row.appendChild(main);
-    if (sub) {
-      const s = document.createElement('span');
-      s.style.cssText = 'font-size:11px;color:#64748b;font-weight:600;';
-      s.textContent = sub;
-      row.appendChild(s);
+  // ── Helper: section wrapper with colored left border ──
+  function section(titleText, borderColor, subtitle) {
+    const sec = document.createElement('section');
+    sec.style.cssText = 'margin-top:16px;padding:14px 16px 16px;background:#fff;border:1px solid #e2e8f0;border-left:4px solid ' + borderColor + ';border-radius:10px;';
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:' + (subtitle ? '4' : '12') + 'px;';
+    const h = document.createElement('h3');
+    h.textContent = titleText;
+    h.style.cssText = 'margin:0;font-size:15px;font-weight:700;color:#0f172a;';
+    head.appendChild(h);
+    sec.appendChild(head);
+    if (subtitle) {
+      const p = document.createElement('p');
+      p.textContent = subtitle;
+      p.style.cssText = 'margin:0 0 12px;font-size:12px;color:#64748b;';
+      sec.appendChild(p);
     }
-    const rm = document.createElement('button');
-    rm.type = 'button'; rm.textContent = '\u2715'; rm.title = 'Remove';
-    rm.style.cssText = 'background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;';
-    rm.addEventListener('click', onRemove);
-    row.appendChild(rm);
-    return row;
+    return { el: sec, head: head };
   }
+
+  function labelEl(text) {
+    const l = document.createElement('label');
+    l.textContent = text;
+    l.style.cssText = 'font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;';
+    return l;
+  }
+
+  function blueBtn(text) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    b.style.cssText = 'padding:7px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;';
+    b.addEventListener('mouseover', function(){ b.style.background = '#1d4ed8'; });
+    b.addEventListener('mouseout',  function(){ b.style.background = '#2563eb'; });
+    return b;
+  }
+
+  // ────────── SECTION 1: GOALS (blue) ──────────
+  const goals = section('Goals', '#2563eb');
+  body.appendChild(goals.el);
+  const grid1 = document.createElement('div');
+  grid1.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;';
+  goals.el.appendChild(grid1);
+
+  // Focus dropdown
+  const focusWrap = document.createElement('div');
+  focusWrap.appendChild(labelEl("This Month's Focus"));
+  const focusSel = document.createElement('select');
+  focusSel.style.cssText = 'width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;color:#0f172a;';
+  ['','Sales','Events','Brand Awareness','New Product','Holiday','Custom'].forEach(function(o) {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = o || 'Select focus…';
+    if ((tm.focus || '') === o) opt.selected = true;
+    focusSel.appendChild(opt);
+  });
+  focusWrap.appendChild(focusSel);
+  const customIn = document.createElement('input');
+  customIn.type = 'text';
+  customIn.placeholder = 'Custom focus label';
+  customIn.value = tm.customFocus || '';
+  customIn.style.cssText = 'margin-top:6px;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;display:' + (tm.focus === 'Custom' ? 'block' : 'none') + ';';
+  focusWrap.appendChild(customIn);
+  grid1.appendChild(focusWrap);
+
+  focusSel.addEventListener('change', function() {
+    tm.focus = focusSel.value || '';
+    customIn.style.display = (tm.focus === 'Custom') ? 'block' : 'none';
+    updatePill();
+    onSave();
+  });
+  let customT = null;
+  customIn.addEventListener('input', function() {
+    tm.customFocus = customIn.value;
+    updatePill();
+    clearTimeout(customT); customT = setTimeout(onSave, 350);
+  });
+  customIn.addEventListener('blur', onSave);
+
+  // Key message
+  const kmWrap = document.createElement('div');
+  kmWrap.style.marginTop = '14px';
+  kmWrap.appendChild(labelEl('Key Message'));
+  const kmTa = document.createElement('textarea');
+  kmTa.rows = 3;
+  kmTa.placeholder = 'What do you want people to feel or do this month?';
+  kmTa.value = tm.keyMessage || '';
+  kmTa.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;';
+  kmWrap.appendChild(kmTa);
+  goals.el.appendChild(kmWrap);
+  let kmT = null;
+  kmTa.addEventListener('input', function() {
+    tm.keyMessage = kmTa.value;
+    clearTimeout(kmT); kmT = setTimeout(onSave, 400);
+  });
+  kmTa.addEventListener('blur', onSave);
+
+  // ────────── SECTION 2: PROMOTIONS (green) ──────────
+  const promos = section('Active Promotions', '#16a34a');
+  body.appendChild(promos.el);
+  const addPromoBtn = blueBtn('+ Add Promotion');
+  promos.head.appendChild(addPromoBtn);
+  addPromoBtn.style.marginLeft = 'auto';
+  const promoList = document.createElement('div');
+  promoList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+  promos.el.appendChild(promoList);
+
   function renderPromos() {
-    if (!promoList) return;
     promoList.innerHTML = '';
-    (mf.activePromotions || []).forEach(function(p, i) {
-      promoList.appendChild(pillRow(p, '', function() { mf.activePromotions.splice(i, 1); renderPromos(); persist(); }));
+    if (!Array.isArray(tm.promotions)) tm.promotions = [];
+    if (tm.promotions.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No active promotions yet.';
+      empty.style.cssText = 'padding:10px 4px;font-size:13px;color:#94a3b8;';
+      promoList.appendChild(empty);
+      return;
+    }
+    tm.promotions.forEach(function(p, idx) {
+      promoList.appendChild(buildItemCard({
+        item: p,
+        fields: [
+          { key: 'name',     label: 'Promo name',    placeholder: 'e.g. Spring Refresh',           flex: '1 1 240px' },
+          { key: 'deal',     label: 'Deal details',  placeholder: 'e.g. $40 off Exosomes through April', flex: '1 1 280px' },
+          { key: 'startDate',label: 'Start',         placeholder: 'Apr 1',                          flex: '0 0 130px' },
+          { key: 'endDate',  label: 'End',           placeholder: 'Apr 30',                         flex: '0 0 130px' }
+        ],
+        onRemove: function() { tm.promotions.splice(idx, 1); renderPromos(); onSave(); },
+        onFieldChange: onSave
+      }));
     });
   }
+  addPromoBtn.addEventListener('click', function() {
+    if (!Array.isArray(tm.promotions)) tm.promotions = [];
+    tm.promotions.push({ id: newId('promo'), name: '', deal: '', startDate: '', endDate: '', flyerUrl: '' });
+    renderPromos();
+    onSave();
+  });
+  renderPromos();
+
+  // ────────── SECTION 3: EVENTS (purple) ──────────
+  const events = section('Upcoming Events', '#9333ea');
+  body.appendChild(events.el);
+  const addEventBtn = blueBtn('+ Add Event');
+  addEventBtn.style.marginLeft = 'auto';
+  events.head.appendChild(addEventBtn);
+  const eventList = document.createElement('div');
+  eventList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+  events.el.appendChild(eventList);
+
   function renderEvents() {
-    if (!evList) return;
-    evList.innerHTML = '';
-    (mf.upcomingEvents || []).forEach(function(ev, i) {
-      const name = (ev && ev.name) || '';
-      const date = (ev && ev.date) || '';
-      evList.appendChild(pillRow(name, date, function() { mf.upcomingEvents.splice(i, 1); renderEvents(); persist(); }));
+    eventList.innerHTML = '';
+    if (!Array.isArray(tm.events)) tm.events = [];
+    if (tm.events.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No upcoming events yet.';
+      empty.style.cssText = 'padding:10px 4px;font-size:13px;color:#94a3b8;';
+      eventList.appendChild(empty);
+      return;
+    }
+    tm.events.forEach(function(ev, idx) {
+      eventList.appendChild(buildItemCard({
+        item: ev,
+        fields: [
+          { key: 'name',        label: 'Event name',       placeholder: 'e.g. Open House',            flex: '1 1 220px' },
+          { key: 'dateTime',    label: 'Date / time',      placeholder: 'Apr 24-25, 8PM',             flex: '0 0 160px' },
+          { key: 'description', label: 'Short description',placeholder: 'One-line summary',           flex: '1 1 280px' }
+        ],
+        onRemove: function() { tm.events.splice(idx, 1); renderEvents(); onSave(); },
+        onFieldChange: onSave
+      }));
     });
   }
-  function renderDoNot() {
-    if (!dnList) return;
-    dnList.innerHTML = '';
-    (mf.doNotPost || []).forEach(function(d, i) {
-      dnList.appendChild(pillRow(d, '', function() { mf.doNotPost.splice(i, 1); renderDoNot(); persist(); }));
-    });
-  }
-  renderPromos(); renderEvents(); renderDoNot();
+  addEventBtn.addEventListener('click', function() {
+    if (!Array.isArray(tm.events)) tm.events = [];
+    tm.events.push({ id: newId('event'), name: '', dateTime: '', description: '', flyerUrl: '' });
+    renderEvents();
+    onSave();
+  });
+  renderEvents();
 
-  if (primary) {
-    primary.addEventListener('change', function() {
-      mf.primaryFocus = primary.value || '';
-      if (custom) custom.style.display = (mf.primaryFocus === 'Custom') ? 'block' : 'none';
-      updateFocusPill(); persist();
-    });
-  }
-  if (custom) {
-    let t = null;
-    custom.addEventListener('input', function() {
-      mf.customFocus = custom.value; updateFocusPill();
-      clearTimeout(t); t = setTimeout(persist, 350);
-    });
-    custom.addEventListener('blur', persist);
-  }
-  if (ratio) {
-    let t = null;
-    ratio.addEventListener('input', function() {
-      mf.contentRatio = ratio.value;
-      clearTimeout(t); t = setTimeout(persist, 350);
-    });
-    ratio.addEventListener('blur', persist);
-  }
-  if (keyMsg) {
-    let t = null;
-    keyMsg.addEventListener('input', function() {
-      mf.keyMessage = keyMsg.value;
-      clearTimeout(t); t = setTimeout(persist, 400);
-    });
-    keyMsg.addEventListener('blur', persist);
+  // ────────── SECTION 4: DO NOT POST (red, agency-only) ──────────
+  if (showDoNotPost) {
+    const dnp = section('Do Not Post', '#dc2626', 'Agency only — not shown to client');
+    body.appendChild(dnp.el);
+    const dnList = document.createElement('div');
+    dnList.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+    dnp.el.appendChild(dnList);
+    const dnRow = document.createElement('div');
+    dnRow.style.cssText = 'display:flex;gap:6px;margin-top:10px;';
+    const dnIn = document.createElement('input');
+    dnIn.type = 'text';
+    dnIn.placeholder = 'e.g. Don\u2019t post about pricing yet';
+    dnIn.style.cssText = 'flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;';
+    const dnAdd = blueBtn('Add');
+    dnRow.appendChild(dnIn);
+    dnRow.appendChild(dnAdd);
+    dnp.el.appendChild(dnRow);
+
+    function renderDnp() {
+      dnList.innerHTML = '';
+      if (!Array.isArray(tm.doNotPost)) tm.doNotPost = [];
+      tm.doNotPost.forEach(function(text, idx) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#7f1d1d;';
+        const t = document.createElement('span');
+        t.style.cssText = 'flex:1;min-width:0;';
+        t.textContent = text;
+        row.appendChild(t);
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.textContent = '\u2715';
+        rm.title = 'Remove';
+        rm.style.cssText = 'background:transparent;border:none;color:#b91c1c;cursor:pointer;font-size:13px;padding:0 4px;';
+        rm.addEventListener('click', function() { tm.doNotPost.splice(idx, 1); renderDnp(); onSave(); });
+        row.appendChild(rm);
+        dnList.appendChild(row);
+      });
+    }
+    function addDnp() {
+      const v = (dnIn.value || '').trim();
+      if (!v) return;
+      if (!Array.isArray(tm.doNotPost)) tm.doNotPost = [];
+      tm.doNotPost.push(v);
+      dnIn.value = '';
+      renderDnp();
+      onSave();
+    }
+    dnAdd.addEventListener('click', addDnp);
+    dnIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addDnp(); } });
+    renderDnp();
   }
 
-  function addPromo() {
-    if (!promoIn) return;
-    const v = (promoIn.value || '').trim();
-    if (!v) return;
-    if (!Array.isArray(mf.activePromotions)) mf.activePromotions = [];
-    mf.activePromotions.push(v);
-    promoIn.value = ''; renderPromos(); persist();
-  }
-  if (promoAdd) promoAdd.addEventListener('click', addPromo);
-  if (promoIn)  promoIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addPromo(); } });
+  // ── Save hint ──
+  const hint = document.createElement('div');
+  hint.textContent = 'Changes save automatically.';
+  hint.style.cssText = 'margin-top:14px;font-size:11px;color:#94a3b8;';
+  body.appendChild(hint);
 
-  function addEvent() {
-    const n = evName ? (evName.value || '').trim() : '';
-    const d = evDate ? (evDate.value || '').trim() : '';
-    if (!n && !d) return;
-    if (!Array.isArray(mf.upcomingEvents)) mf.upcomingEvents = [];
-    mf.upcomingEvents.push({ name: n, date: d });
-    if (evName) evName.value = '';
-    if (evDate) evDate.value = '';
-    renderEvents(); persist();
-  }
-  if (evAdd) evAdd.addEventListener('click', addEvent);
-  if (evName) evName.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
-  if (evDate) evDate.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
+  // ────── Internal helper: card builder for promo/event items ──────
+  function buildItemCard(cfg) {
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.03);display:flex;gap:14px;align-items:flex-start;';
 
-  function addDoNot() {
-    if (!dnIn) return;
-    const v = (dnIn.value || '').trim();
-    if (!v) return;
-    if (!Array.isArray(mf.doNotPost)) mf.doNotPost = [];
-    mf.doNotPost.push(v);
-    dnIn.value = ''; renderDoNot(); persist();
+    // Flyer thumb / upload column
+    const flyerCol = document.createElement('div');
+    flyerCol.style.cssText = 'flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const thumb = document.createElement('div');
+    thumb.style.cssText = 'width:80px;height:80px;border-radius:10px;border:1px dashed #cbd5e1;background:#f8fafc no-repeat center/cover;display:flex;align-items:center;justify-content:center;font-size:22px;color:#94a3b8;overflow:hidden;';
+    function setThumb(url) {
+      if (url) {
+        thumb.style.backgroundImage = "url('" + url.replace(/'/g, "\\'") + "')";
+        thumb.style.borderStyle = 'solid';
+        thumb.textContent = '';
+      } else {
+        thumb.style.backgroundImage = '';
+        thumb.style.borderStyle = 'dashed';
+        thumb.textContent = '\u2795';
+      }
+    }
+    setThumb(cfg.item.flyerUrl);
+    const fileIn = document.createElement('input');
+    fileIn.type = 'file';
+    fileIn.accept = 'image/*';
+    fileIn.style.display = 'none';
+    const uploadBtn = document.createElement('button');
+    uploadBtn.type = 'button';
+    uploadBtn.textContent = cfg.item.flyerUrl ? 'Replace' : 'Upload flyer';
+    uploadBtn.style.cssText = 'padding:4px 10px;background:#f1f5f9;color:#0f172a;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;';
+    uploadBtn.addEventListener('click', function() { fileIn.click(); });
+    thumb.addEventListener('click', function() { fileIn.click(); });
+    thumb.style.cursor = 'pointer';
+    fileIn.addEventListener('change', async function() {
+      const f = fileIn.files && fileIn.files[0];
+      if (!f || !f.type.startsWith('image/')) return;
+      uploadBtn.textContent = 'Uploading…';
+      uploadBtn.disabled = true;
+      try {
+        const reader = new FileReader();
+        const dataUrl = await new Promise(function(resolve, reject) {
+          reader.onload = function() { resolve(reader.result); };
+          reader.onerror = function() { reject(reader.error); };
+          reader.readAsDataURL(f);
+        });
+        const url = await uploadImage(dataUrl);
+        if (url) {
+          cfg.item.flyerUrl = url;
+          setThumb(url);
+          uploadBtn.textContent = 'Replace';
+          cfg.onFieldChange();
+        } else {
+          uploadBtn.textContent = cfg.item.flyerUrl ? 'Replace' : 'Upload flyer';
+          if (typeof showToast === 'function') showToast('Upload failed', 'error');
+        }
+      } catch (err) {
+        console.warn('[ThisMonth] upload error', err);
+        uploadBtn.textContent = cfg.item.flyerUrl ? 'Replace' : 'Upload flyer';
+        if (typeof showToast === 'function') showToast('Upload failed', 'error');
+      } finally {
+        uploadBtn.disabled = false;
+        fileIn.value = '';
+      }
+    });
+    flyerCol.appendChild(thumb);
+    flyerCol.appendChild(uploadBtn);
+    if (cfg.item.flyerUrl) {
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.textContent = 'Remove';
+      clearBtn.style.cssText = 'padding:2px 8px;background:transparent;color:#94a3b8;border:none;font-size:11px;cursor:pointer;';
+      clearBtn.addEventListener('click', function() {
+        cfg.item.flyerUrl = '';
+        setThumb('');
+        uploadBtn.textContent = 'Upload flyer';
+        clearBtn.remove();
+        cfg.onFieldChange();
+      });
+      flyerCol.appendChild(clearBtn);
+    }
+    flyerCol.appendChild(fileIn);
+    card.appendChild(flyerCol);
+
+    // Fields column
+    const fieldsCol = document.createElement('div');
+    fieldsCol.style.cssText = 'flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:10px;';
+    cfg.fields.forEach(function(f) {
+      const w = document.createElement('div');
+      w.style.cssText = 'flex:' + f.flex + ';min-width:120px;';
+      w.appendChild(labelEl(f.label));
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = f.placeholder || '';
+      input.value = cfg.item[f.key] || '';
+      input.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;';
+      let t = null;
+      input.addEventListener('input', function() {
+        cfg.item[f.key] = input.value;
+        clearTimeout(t); t = setTimeout(cfg.onFieldChange, 350);
+      });
+      input.addEventListener('blur', cfg.onFieldChange);
+      w.appendChild(input);
+      fieldsCol.appendChild(w);
+    });
+    card.appendChild(fieldsCol);
+
+    // Delete button column
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.textContent = '\u2715';
+    delBtn.title = 'Delete';
+    delBtn.style.cssText = 'flex:0 0 auto;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0 4px;line-height:1;align-self:flex-start;';
+    delBtn.addEventListener('mouseover', function(){ delBtn.style.color = '#dc2626'; });
+    delBtn.addEventListener('mouseout',  function(){ delBtn.style.color = '#94a3b8'; });
+    delBtn.addEventListener('click', cfg.onRemove);
+    card.appendChild(delBtn);
+
+    return card;
   }
-  if (dnAdd) dnAdd.addEventListener('click', addDoNot);
-  if (dnIn)  dnIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addDoNot(); } });
+}
+
+/**
+ * Default flyer upload — POSTs a base64 data URL to /api/upload/image and
+ * returns the resulting public URL (Vercel Blob). Used by both agency.js
+ * and client portal when no custom uploader is supplied.
+ */
+async function _thisMonthDefaultUpload(dataUrl) {
+  const base = (typeof getApiBaseUrl === 'function' ? getApiBaseUrl() : '');
+  const r = await fetch(base + '/api/upload/image', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: dataUrl })
+  });
+  if (!r.ok) return '';
+  const j = await r.json().catch(function(){ return {}; });
+  return j && j.url ? j.url : '';
 }
 
 /* ================== Approvals Tab ================== */
