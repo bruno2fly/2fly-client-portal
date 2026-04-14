@@ -28,6 +28,7 @@ import designersRoutes from './routes/designers.js';
 import aiCopilotRoutes from './routes/aiCopilot.js';
 import notificationRoutes from './routes/notifications.js';
 import aiLibraryRoutes from './routes/aiLibrary.js';
+import agentApiRoutes from './routes/agentApi.js';
 import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import {
@@ -364,6 +365,7 @@ app.use('/api/designers', designersRoutes);
 app.use('/api/ai-copilot', aiCopilotRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai-library', aiLibraryRoutes);
+app.use('/api/agent', agentApiRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
