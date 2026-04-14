@@ -230,6 +230,34 @@ async function parseJsonOrThrow(r, url) {
   }
 }
 
+/**
+ * Fetch the agency's clients (id + name only) via the production-scoped
+ * endpoint. Designers cannot hit /api/agency/clients (gated by
+ * requireCanViewDashboard), so the AI Library client dropdown uses this
+ * instead. Populates clientsRegistryCache, just like fetchClientsFromAPI.
+ */
+async function fetchClientsForProduction() {
+  const url = `${getApiBaseUrl()}/api/production/clients`;
+  let r;
+  try {
+    r = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (fetchErr) {
+    console.error('[fetchClientsForProduction] Network error', { url, error: fetchErr.message });
+    throw fetchErr;
+  }
+  const j = await parseJsonOrThrow(r, url);
+  if (!r.ok) throw new Error(j.error || 'Failed to fetch clients');
+  const list = j.clients || [];
+  const map = {};
+  list.forEach(c => { map[c.id] = c; });
+  clientsRegistryCache = map;
+  return map;
+}
+
 async function fetchClientsFromAPI() {
   const url = `${getApiBaseUrl()}/api/agency/clients`;
   let r;
@@ -10689,6 +10717,53 @@ async function injectProductionBadgesOnApprovals(container) {
     });
   } catch (e) {}
 }
+// Bind the production-view sidebar nav (Demands / My Tasks / AI Library /
+// Archived / References). Idempotent — safe to call from any entry point.
+// Designers and agency staff both need this wired up.
+function bindProductionNav() {
+  if (productionNavBound) return;
+  productionNavBound = true;
+  var navDemands = document.getElementById('productionNavDemands');
+  var navMyTasks = document.getElementById('productionNavMyTasks');
+  if (navDemands) {
+    navDemands.addEventListener('click', function() {
+      currentProductionSection = 'demands';
+      demandFilterAssignee = '';
+      document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+      navDemands.classList.add('active');
+      renderProductionView();
+    });
+  }
+  if (navMyTasks) {
+    navMyTasks.addEventListener('click', function() {
+      currentProductionSection = 'demands';
+      var myName = (currentStaff && (currentStaff.name || currentStaff.fullName || currentStaff.username || '')).trim();
+      if (!myName) {
+        showToast('Set your name on your profile to use My Tasks.', 'info');
+        return;
+      }
+      demandFilterAssignee = demandFilterAssignee === myName ? '' : myName;
+      demandFilterStatus = '';
+      demandFilterDueToday = false;
+      demandFilterOverdue = false;
+      document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+      if (demandFilterAssignee) navMyTasks.classList.add('active');
+      else if (navDemands) navDemands.classList.add('active');
+      renderProductionView();
+    });
+  }
+  ['ai-library', 'references', 'archived'].forEach(function(section) {
+    var navId = section === 'ai-library' ? 'AILibrary' : section === 'archived' ? 'Archived' : 'References';
+    var btn = document.getElementById('productionNav' + navId);
+    if (btn) btn.addEventListener('click', function() {
+      currentProductionSection = section;
+      document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
+      btn.classList.add('active');
+      renderProductionView();
+    });
+  });
+}
+
 function switchToProductionView() {
   currentViewMode = 'production';
   var sidebar = document.getElementById('dashboardSidebar');
@@ -10702,48 +10777,7 @@ function switchToProductionView() {
   var btnD = document.getElementById('btnViewDashboardHeader');
   var btnP = document.getElementById('btnViewProductionHeader');
   if (btnD && btnP) { btnD.classList.remove('view-switch-btn--active'); btnP.classList.add('view-switch-btn--active'); }
-  if (!productionNavBound) {
-    productionNavBound = true;
-    var navDemands = document.getElementById('productionNavDemands');
-    var navMyTasks = document.getElementById('productionNavMyTasks');
-    if (navDemands) {
-      navDemands.addEventListener('click', function() {
-        currentProductionSection = 'demands';
-        demandFilterAssignee = '';
-        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
-        navDemands.classList.add('active');
-        renderProductionView();
-      });
-    }
-    if (navMyTasks) {
-      navMyTasks.addEventListener('click', function() {
-        currentProductionSection = 'demands';
-        var myName = (currentStaff && (currentStaff.name || currentStaff.fullName || currentStaff.username || '')).trim();
-        if (!myName) {
-          showToast('Set your name on your profile to use My Tasks.', 'info');
-          return;
-        }
-        demandFilterAssignee = demandFilterAssignee === myName ? '' : myName;
-        demandFilterStatus = '';
-        demandFilterDueToday = false;
-        demandFilterOverdue = false;
-        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
-        if (demandFilterAssignee) navMyTasks.classList.add('active');
-        else if (navDemands) navDemands.classList.add('active');
-        renderProductionView();
-      });
-    }
-    ['ai-library', 'references', 'archived'].forEach(function(section) {
-      var navId = section === 'ai-library' ? 'AILibrary' : section === 'archived' ? 'Archived' : 'References';
-      var btn = document.getElementById('productionNav' + navId);
-      if (btn) btn.addEventListener('click', function() {
-        currentProductionSection = section;
-        document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
-        btn.classList.add('active');
-        renderProductionView();
-      });
-    });
-  }
+  bindProductionNav();
   document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
   var activeBtn = document.querySelector('.production-sidebar__link[data-section="' + currentProductionSection + '"]');
   if (activeBtn) activeBtn.classList.add('active');
@@ -13035,8 +13069,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('dashboardMain').style.display = 'none';
       document.getElementById('productionViewContainer').style.display = 'flex';
       document.querySelector('.header__logo').textContent = '2FlyFlow Production';
+      // Wire the production-view sidebar (Demands / AI Library / Archived / etc.)
+      // so designers can switch sections — the AI Library tab is what they need
+      // to use the Prompt Generator + Brand Kit + Library.
+      bindProductionNav();
       try {
+        // Designers can't hit /api/agency/clients, so use the production-scoped
+        // endpoint to populate the clients registry. The AI Library client
+        // dropdown reads from clientsRegistryCache.
+        await fetchClientsForProduction().catch(function(e) {
+          console.warn('[designer-bootstrap] fetchClientsForProduction failed:', e);
+        });
         await loadProductionTasks();
+        // Best-effort: populate designersCache so initials / names render in
+        // the workspace. Designers ARE allowed to call /api/designers.
+        loadDesigners().catch(function() {});
         renderProductionView();
       } catch (e) {
         console.error('Production load failed:', e);

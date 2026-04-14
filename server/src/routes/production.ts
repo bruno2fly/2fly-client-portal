@@ -13,6 +13,7 @@ import {
   saveProductionTask,
   deleteProductionTask,
   getClient,
+  getClientsByAgency,
   getUser,
   getPortalState,
   savePortalState,
@@ -123,6 +124,27 @@ function returnApprovalToPending(task: ProductionTask): void {
     console.log('[production] Returned approval to pending:', item.id, item.status);
   }
 }
+
+/**
+ * GET /api/production/clients — List clients in the agency for the production view.
+ * Accessible to designers (read-only). Returns id + name only — no credentials,
+ * no portal-state, nothing sensitive. Used to populate the AI Library client
+ * dropdown for designers, who cannot hit /api/agency/clients.
+ */
+router.get('/clients', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const list = getClientsByAgency(agencyId);
+    const clients = list.map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+    }));
+    res.json({ success: true, clients });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to list clients' });
+  }
+});
 
 /** GET /api/production/tasks — List tasks. Agency: all; Designer: own only. */
 router.get('/tasks', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
