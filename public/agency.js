@@ -1049,11 +1049,11 @@ function _emptyMonthlyFocus() {
  */
 function _emptyThisMonth() {
   return {
-    focus: '',         // Sales | Events | Brand Awareness | New Product | Holiday | Custom | ''
-    customFocus: '',   // free-text when focus === 'Custom'
-    keyMessage: '',    // textarea
-    promotions: [],    // { id, name, deal, startDate, endDate, flyerUrl }
-    events: [],        // { id, name, dateTime, description, flyerUrl }
+    focus: '',         // legacy — no longer rendered (kept for back-compat / older data)
+    customFocus: '',   // legacy — no longer rendered
+    keyMessage: '',    // This Month Goals textarea
+    promotions: [],    // { id, name, deal, startDate, endDate, flyerUrl, link }
+    events: [],        // { id, name, dateTime, description, flyerUrl, link }
     doNotPost: []      // string[]  (agency-only, never rendered in client portal)
   };
 }
@@ -6529,12 +6529,11 @@ function _renderThisMonth(opts) {
     try { localStorage.setItem(openKey, next ? '1' : '0'); } catch (e) {}
   });
 
-  function updatePill() {
-    const label = tm.focus ? (tm.focus === 'Custom' && tm.customFocus ? tm.customFocus : tm.focus) : '';
-    if (label) { pill.textContent = label; pill.style.display = ''; }
-    else       { pill.textContent = '';    pill.style.display = 'none'; }
-  }
-  updatePill();
+  // Header pill (used by other callers in older builds) — hide unless something
+  // meaningful to surface. Keeps the DOM stable.
+  pill.textContent = '';
+  pill.style.display = 'none';
+  function updatePill() { /* no-op — focus dropdown removed */ }
 
   // ── Helper: section wrapper with colored left border ──
   function section(titleText, borderColor, subtitle) {
@@ -6576,52 +6575,12 @@ function _renderThisMonth(opts) {
   // ────────── SECTION 1: GOALS (blue) ──────────
   const goals = section('Goals', '#2563eb');
   body.appendChild(goals.el);
-  const grid1 = document.createElement('div');
-  grid1.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;';
-  goals.el.appendChild(grid1);
 
-  // Focus dropdown
-  const focusWrap = document.createElement('div');
-  focusWrap.appendChild(labelEl("This Month's Focus"));
-  const focusSel = document.createElement('select');
-  focusSel.style.cssText = 'width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;color:#0f172a;';
-  ['','Sales','Events','Brand Awareness','New Product','Holiday','Custom'].forEach(function(o) {
-    const opt = document.createElement('option');
-    opt.value = o;
-    opt.textContent = o || 'Select focus…';
-    if ((tm.focus || '') === o) opt.selected = true;
-    focusSel.appendChild(opt);
-  });
-  focusWrap.appendChild(focusSel);
-  const customIn = document.createElement('input');
-  customIn.type = 'text';
-  customIn.placeholder = 'Custom focus label';
-  customIn.value = tm.customFocus || '';
-  customIn.style.cssText = 'margin-top:6px;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;display:' + (tm.focus === 'Custom' ? 'block' : 'none') + ';';
-  focusWrap.appendChild(customIn);
-  grid1.appendChild(focusWrap);
-
-  focusSel.addEventListener('change', function() {
-    tm.focus = focusSel.value || '';
-    customIn.style.display = (tm.focus === 'Custom') ? 'block' : 'none';
-    updatePill();
-    onSave();
-  });
-  let customT = null;
-  customIn.addEventListener('input', function() {
-    tm.customFocus = customIn.value;
-    updatePill();
-    clearTimeout(customT); customT = setTimeout(onSave, 350);
-  });
-  customIn.addEventListener('blur', onSave);
-
-  // Key message
   const kmWrap = document.createElement('div');
-  kmWrap.style.marginTop = '14px';
-  kmWrap.appendChild(labelEl('Key Message'));
+  kmWrap.appendChild(labelEl('This Month Goals'));
   const kmTa = document.createElement('textarea');
   kmTa.rows = 3;
-  kmTa.placeholder = 'What do you want people to feel or do this month?';
+  kmTa.placeholder = 'What do you want to accomplish this month?';
   kmTa.value = tm.keyMessage || '';
   kmTa.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;';
   kmWrap.appendChild(kmTa);
@@ -6666,7 +6625,8 @@ function _renderThisMonth(opts) {
           { key: 'name',     label: 'Promo name',    placeholder: 'e.g. Spring Refresh',           flex: '1 1 240px' },
           { key: 'deal',     label: 'Deal details',  placeholder: 'e.g. $40 off Exosomes through April', flex: '1 1 280px' },
           { key: 'startDate',label: 'Start',         placeholder: 'Apr 1',                          flex: '0 0 130px' },
-          { key: 'endDate',  label: 'End',           placeholder: 'Apr 30',                         flex: '0 0 130px' }
+          { key: 'endDate',  label: 'End',           placeholder: 'Apr 30',                         flex: '0 0 130px' },
+          { key: 'link',     label: 'Link',          placeholder: 'https://\u2026 (booking, landing page)', flex: '1 1 100%', type: 'url' }
         ],
         onRemove: function() { expandedIds.delete(p.id); tm.promotions.splice(idx, 1); renderPromos(); onSave(); },
         onFieldChange: onSave,
@@ -6681,7 +6641,7 @@ function _renderThisMonth(opts) {
     tm.promotions.forEach(function(p) { expandedIds.delete(p.id); });
     tm.events && tm.events.forEach(function(ev) { expandedIds.delete(ev.id); });
     const id = newId('promo');
-    tm.promotions.push({ id: id, name: '', deal: '', startDate: '', endDate: '', flyerUrl: '' });
+    tm.promotions.push({ id: id, name: '', deal: '', startDate: '', endDate: '', flyerUrl: '', link: '' });
     expandedIds.add(id);
     renderPromos();
     renderEvents();
@@ -6717,7 +6677,8 @@ function _renderThisMonth(opts) {
         fields: [
           { key: 'name',        label: 'Event name',       placeholder: 'e.g. Open House',            flex: '1 1 220px' },
           { key: 'dateTime',    label: 'Date / time',      placeholder: 'Apr 24-25, 8PM',             flex: '0 0 160px' },
-          { key: 'description', label: 'Short description',placeholder: 'One-line summary',           flex: '1 1 280px' }
+          { key: 'description', label: 'Short description',placeholder: 'One-line summary',           flex: '1 1 280px' },
+          { key: 'link',        label: 'Link',             placeholder: 'https://\u2026 (RSVP, details)', flex: '1 1 100%', type: 'url' }
         ],
         onRemove: function() { expandedIds.delete(ev.id); tm.events.splice(idx, 1); renderEvents(); onSave(); },
         onFieldChange: onSave,
@@ -6731,7 +6692,7 @@ function _renderThisMonth(opts) {
     tm.events.forEach(function(ev) { expandedIds.delete(ev.id); });
     tm.promotions && tm.promotions.forEach(function(p) { expandedIds.delete(p.id); });
     const id = newId('event');
-    tm.events.push({ id: id, name: '', dateTime: '', description: '', flyerUrl: '' });
+    tm.events.push({ id: id, name: '', dateTime: '', description: '', flyerUrl: '', link: '' });
     expandedIds.add(id);
     renderEvents();
     renderPromos();
@@ -6745,14 +6706,14 @@ function _renderThisMonth(opts) {
     if (p.deal) bits.push(p.deal);
     const range = [p.startDate, p.endDate].filter(Boolean).join(' – ');
     if (range) bits.push(range);
-    return { title: title, sub: bits.join(' · '), flyerUrl: p.flyerUrl || '' };
+    return { title: title, sub: bits.join(' · '), flyerUrl: p.flyerUrl || '', link: p.link || '' };
   }
   function _eventSummary(ev) {
     const title = (ev.name || '').trim() || 'Untitled event';
     const bits = [];
     if (ev.dateTime) bits.push(ev.dateTime);
     if (ev.description) bits.push(ev.description);
-    return { title: title, sub: bits.join(' · '), flyerUrl: ev.flyerUrl || '' };
+    return { title: title, sub: bits.join(' · '), flyerUrl: ev.flyerUrl || '', link: ev.link || '' };
   }
 
   // ────────── SECTION 4: DO NOT POST (red, agency-only) ──────────
@@ -6848,6 +6809,18 @@ function _renderThisMonth(opts) {
         textCol.appendChild(s);
       }
       row.appendChild(textCol);
+
+      if (cfg.summary && cfg.summary.link) {
+        const linkA = document.createElement('a');
+        linkA.href = cfg.summary.link;
+        linkA.textContent = '\u{1F517} Link';
+        linkA.target = '_blank';
+        linkA.rel = 'noopener noreferrer';
+        linkA.setAttribute('data-stop', '1');
+        linkA.style.cssText = 'flex:0 0 auto;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;padding:2px 8px;border:1px solid #dbeafe;border-radius:6px;background:#eff6ff;';
+        linkA.addEventListener('click', function(e){ e.stopPropagation(); });
+        row.appendChild(linkA);
+      }
 
       const editHint = document.createElement('span');
       editHint.textContent = 'Edit';
@@ -6957,7 +6930,7 @@ function _renderThisMonth(opts) {
       w.style.cssText = 'flex:' + f.flex + ';min-width:120px;';
       w.appendChild(labelEl(f.label));
       const input = document.createElement('input');
-      input.type = 'text';
+      input.type = f.type || 'text';
       input.placeholder = f.placeholder || '';
       input.value = cfg.item[f.key] || '';
       input.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;';
