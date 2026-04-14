@@ -2509,6 +2509,31 @@ async function selectClient(clientId) {
   try {
     localStorage.setItem(LS_LAST_CLIENT_KEY, clientId);
   } catch (_) {}
+
+  // Stale-while-revalidate: if we've already fetched this client's state
+  // (the boot baseline + 5s poll populate the cache for every client), render
+  // instantly from cache and revalidate in the background. This is the single
+  // biggest perceived-speed win for tab/client switching because the blocking
+  // network round-trip (Cache-Control: no-cache + cache-buster = ~500-2000ms)
+  // used to freeze the UI before anything drew.
+  if (portalStateFetched.has(clientId)) {
+    renderClientsSidebar();
+    renderClientHeader();
+    renderAll();
+    fetchPortalStateFromAPI(clientId).then(function() {
+      if (currentClientId === clientId) {
+        // Quiet re-render once fresh data lands. Sidebar counts + active tab
+        // will pick up any changes the server returned.
+        try { renderClientsSidebar(); } catch (_) {}
+        try { renderAll(); } catch (_) {}
+      }
+    }).catch(function(e) {
+      console.warn('Background portal state revalidation failed:', e && e.message);
+    });
+    return;
+  }
+
+  // Cold path — no cache yet. Must await before rendering or we show empty state.
   try {
     await fetchPortalStateFromAPI(clientId);
   } catch (e) {
