@@ -9205,6 +9205,11 @@ function renderRequestsTab() {
       const btn = el('button', { class: 'btn btn-primary' }, 'Mark Done');
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Saving\u2026';
+        btn.style.opacity = '0.7';
+        btn.style.cursor = 'wait';
         markRequestDone(req.id);
       });
       actions.appendChild(btn);
@@ -9222,30 +9227,69 @@ async function markRequestDone(id) {
   const state = load();
   const req = (state.requests || []).find(r => r.id === id);
   if (!req) return;
-  
+
+  // Idempotent — ignore double-clicks / repeat invocations while one is in flight.
+  if (req.status === 'done' || req._markingDone) return;
+  req._markingDone = true;
+
+  // Snapshot original values so we can roll back if the save fails.
+  const prevStatus  = req.status;
+  const prevDone    = req.done;
+  const prevDoneAt  = req.doneAt;
+  const prevCreated = req.createdAt;
+
   req.status = 'done';
   req.done = true;
   req.doneAt = Date.now();
   if (!req.createdAt) req.createdAt = Date.now();
 
   if (!state.activity) state.activity = [];
-  state.activity.push({
-    when: Date.now(),
-    text: `Marked request as done: ${req.type}`
-  });
+  const activityEntry = { when: Date.now(), text: `Marked request as done: ${req.type}` };
+  state.activity.push(activityEntry);
 
-  var saved = await save(state);
-  if (!saved) return;
-  // Notify client their request was completed
+  // Optimistic render — the "Mark Done" button disappears immediately so the
+  // click feels instant, regardless of how long the PUT takes.
+  try { renderRequestsTab(); } catch (_) {}
+  try { updateTabCountBadges(); } catch (_) {}
+  if (currentTab === 'overview' && typeof renderOverviewTab === 'function') {
+    try { renderOverviewTab(); } catch (_) {}
+  }
+
+  let saved = false;
+  try {
+    saved = await save(state);
+  } catch (e) {
+    console.error('markRequestDone: save threw', e);
+    saved = false;
+  }
+
+  if (!saved) {
+    // Roll back the optimistic mutation so the UI matches reality.
+    req.status     = prevStatus;
+    req.done       = prevDone;
+    req.doneAt     = prevDoneAt;
+    req.createdAt  = prevCreated;
+    const idx = state.activity.indexOf(activityEntry);
+    if (idx >= 0) state.activity.splice(idx, 1);
+    delete req._markingDone;
+    try { renderRequestsTab(); } catch (_) {}
+    try { updateTabCountBadges(); } catch (_) {}
+    if (currentTab === 'overview' && typeof renderOverviewTab === 'function') {
+      try { renderOverviewTab(); } catch (_) {}
+    }
+    if (typeof showToast === 'function') showToast('Could not mark as done. Please try again.', 'error');
+    return;
+  }
+
+  delete req._markingDone;
+
+  // Notify client their request was completed (fire-and-forget; never blocks UI).
   if (currentClientId) {
     fetch(getApiBaseUrl() + '/api/notifications/notify-client', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
       body: JSON.stringify({ clientId: currentClientId, type: 'request_done', requestTitle: req.type || req.title || 'Your request' })
     }).catch(function() {});
   }
-  renderRequestsTab();
-  updateTabCountBadges();
-  if (currentTab === 'overview' && typeof renderOverviewTab === 'function') renderOverviewTab();
 }
 
 function setupRequestsHandlers() {
