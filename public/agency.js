@@ -2704,6 +2704,9 @@ function switchTab(tabName) {
     case 'overview':
       renderOverviewTab();
       break;
+    case 'strategy':
+      renderStrategyBriefTab();
+      break;
     case 'approvals':
       renderApprovalsTab();
       renderApprovedVisualsSection();
@@ -5524,85 +5527,6 @@ function renderOverviewTab() {
     return v === 0 ? '#059669' : '#dc2626';
   }
 
-  // ─── MONTHLY STRATEGY BRIEF (agency-only; top of client view) ───
-  // Collapsible section that surfaces the agency's plan for the month so
-  // copywriters / designers know the focus, active promos, upcoming events,
-  // what the client wants to say, content mix, and what NOT to post.
-  // Auto-saves to state.monthlyFocus on every change. Never shown in the
-  // client portal (index.html) — this renders only inside agency.js.
-  var _mf = state.monthlyFocus || _emptyMonthlyFocus();
-  function _msbEsc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
-  var _msbOpen = false;
-  try { _msbOpen = localStorage.getItem('msb_open_' + currentClientId) === '1'; } catch (e) {}
-  var _mfFocusPill = _mf.primaryFocus
-    ? (_mf.primaryFocus === 'Custom' && _mf.customFocus ? _mf.customFocus : _mf.primaryFocus)
-    : '';
-
-  h += '<div id="msbSection" style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
-  h += '<button type="button" id="msbToggle" aria-expanded="' + (_msbOpen ? 'true' : 'false') + '" style="width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:transparent;border:none;cursor:pointer;text-align:left;">';
-  h += '<span id="msbChev" style="display:inline-block;font-size:11px;color:#64748b;transition:transform 0.15s;transform:rotate(' + (_msbOpen ? '90' : '0') + 'deg);">\u25B6</span>';
-  h += '<span style="font-size:14px;font-weight:700;color:#0f172a;">Monthly Strategy Brief</span>';
-  if (_mfFocusPill) {
-    h += '<span id="msbFocusPill" style="font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;">' + _msbEsc(_mfFocusPill) + '</span>';
-  } else {
-    h += '<span id="msbFocusPill" style="display:none;font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;"></span>';
-  }
-  h += '<span style="margin-left:auto;font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;">Agency only</span>';
-  h += '</button>';
-  h += '<div id="msbBody" style="display:' + (_msbOpen ? 'block' : 'none') + ';padding:4px 18px 18px;border-top:1px solid #f1f5f9;">';
-
-  // Row 1: Primary Focus + Content Ratio
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px;">';
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Primary Focus</label>';
-  h += '<select id="msbPrimaryFocus" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;color:#0f172a;">';
-  ['','Sales','Events','Brand Awareness','New Product','Holiday','Custom'].forEach(function(o) {
-    var sel = (_mf.primaryFocus || '') === o ? ' selected' : '';
-    h += '<option value="' + _msbEsc(o) + '"' + sel + '>' + (o ? _msbEsc(o) : 'Select focus…') + '</option>';
-  });
-  h += '</select>';
-  h += '<input type="text" id="msbCustomFocus" placeholder="Custom focus label" value="' + _msbEsc(_mf.customFocus) + '" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;display:' + (_mf.primaryFocus === 'Custom' ? 'block' : 'none') + ';">';
-  h += '</div>';
-
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Content Ratio</label>';
-  h += '<input type="text" id="msbContentRatio" placeholder="e.g. 60% promos, 30% events, 10% brand" value="' + _msbEsc(_mf.contentRatio) + '" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
-  h += '</div>';
-  h += '</div>';
-
-  // Row 2: Key Message (full-width textarea)
-  h += '<div style="margin-top:14px;">';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Key Message</label>';
-  h += '<textarea id="msbKeyMessage" rows="2" placeholder="What the client wants to communicate this month (1\u20132 sentences)" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;">' + _msbEsc(_mf.keyMessage) + '</textarea>';
-  h += '</div>';
-
-  // Row 3: Active Promotions + Upcoming Events (side-by-side on wide)
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px;">';
-
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Active Promotions</label>';
-  h += '<div id="msbPromosList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbPromoInput" type="text" placeholder="e.g. Happy Hour 2\u20135 PM" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbPromoAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-
-  h += '<div>';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Upcoming Events</label>';
-  h += '<div id="msbEventsList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><input id="msbEventName" type="text" placeholder="Event name" style="flex:1 1 140px;min-width:120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><input id="msbEventDate" type="text" placeholder="Apr 24\u201325" style="flex:0 0 120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbEventAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-  h += '</div>';
-
-  // Row 4: Do Not Post (full-width)
-  h += '<div style="margin-top:14px;">';
-  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Do Not Post</label>';
-  h += '<div id="msbDoNotList" style="display:flex;flex-direction:column;gap:6px;"></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbDoNotInput" type="text" placeholder="e.g. Don\u2019t post about pricing yet" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbDoNotAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
-  h += '</div>';
-
-  h += '<div id="msbSaveHint" style="margin-top:12px;font-size:11px;color:#94a3b8;">Changes save automatically.</div>';
-  h += '</div>'; // msbBody
-  h += '</div>'; // msbSection
-
   // ─── KPI STRIP (clickable, severity colors) ───
   h += '<div style="display:flex;background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:12px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
   var kpiDefs = [
@@ -5811,210 +5735,6 @@ function renderOverviewTab() {
   h += '</style>';
 
   overviewContent.innerHTML = h;
-
-  // ── Monthly Strategy Brief bindings (auto-save, collapsible, agency-only) ──
-  (function bindMonthlyStrategyBrief() {
-    var section = document.getElementById('msbSection');
-    if (!section) return;
-    if (!state.monthlyFocus) state.monthlyFocus = _emptyMonthlyFocus();
-    var mf = state.monthlyFocus;
-
-    var toggleBtn = document.getElementById('msbToggle');
-    var bodyEl    = document.getElementById('msbBody');
-    var chevEl    = document.getElementById('msbChev');
-    var pillEl    = document.getElementById('msbFocusPill');
-    var primary   = document.getElementById('msbPrimaryFocus');
-    var custom    = document.getElementById('msbCustomFocus');
-    var ratio     = document.getElementById('msbContentRatio');
-    var keyMsg    = document.getElementById('msbKeyMessage');
-    var promoList = document.getElementById('msbPromosList');
-    var promoIn   = document.getElementById('msbPromoInput');
-    var promoAdd  = document.getElementById('msbPromoAdd');
-    var evList    = document.getElementById('msbEventsList');
-    var evName    = document.getElementById('msbEventName');
-    var evDate    = document.getElementById('msbEventDate');
-    var evAdd     = document.getElementById('msbEventAdd');
-    var dnList    = document.getElementById('msbDoNotList');
-    var dnIn      = document.getElementById('msbDoNotInput');
-    var dnAdd     = document.getElementById('msbDoNotAdd');
-
-    function esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
-
-    function updateFocusPill() {
-      if (!pillEl) return;
-      var label = mf.primaryFocus ? (mf.primaryFocus === 'Custom' && mf.customFocus ? mf.customFocus : mf.primaryFocus) : '';
-      if (label) {
-        pillEl.textContent = label;
-        pillEl.style.display = '';
-      } else {
-        pillEl.textContent = '';
-        pillEl.style.display = 'none';
-      }
-    }
-
-    function persist() { try { save(state); } catch (e) { console.warn('[MSB] save failed', e); } }
-
-    function pillRow(text, sub, onRemove) {
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#0f172a;';
-      var main = document.createElement('span');
-      main.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      main.textContent = text;
-      row.appendChild(main);
-      if (sub) {
-        var s = document.createElement('span');
-        s.style.cssText = 'font-size:11px;color:#64748b;font-weight:600;';
-        s.textContent = sub;
-        row.appendChild(s);
-      }
-      var rm = document.createElement('button');
-      rm.type = 'button';
-      rm.textContent = '\u2715';
-      rm.title = 'Remove';
-      rm.style.cssText = 'background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;';
-      rm.addEventListener('click', onRemove);
-      row.appendChild(rm);
-      return row;
-    }
-
-    function renderPromos() {
-      if (!promoList) return;
-      promoList.innerHTML = '';
-      (mf.activePromotions || []).forEach(function(p, i) {
-        promoList.appendChild(pillRow(p, '', function() {
-          mf.activePromotions.splice(i, 1);
-          renderPromos();
-          persist();
-        }));
-      });
-    }
-    function renderEvents() {
-      if (!evList) return;
-      evList.innerHTML = '';
-      (mf.upcomingEvents || []).forEach(function(ev, i) {
-        var name = (ev && ev.name) || '';
-        var date = (ev && ev.date) || '';
-        evList.appendChild(pillRow(name, date, function() {
-          mf.upcomingEvents.splice(i, 1);
-          renderEvents();
-          persist();
-        }));
-      });
-    }
-    function renderDoNot() {
-      if (!dnList) return;
-      dnList.innerHTML = '';
-      (mf.doNotPost || []).forEach(function(d, i) {
-        dnList.appendChild(pillRow(d, '', function() {
-          mf.doNotPost.splice(i, 1);
-          renderDoNot();
-          persist();
-        }));
-      });
-    }
-
-    renderPromos();
-    renderEvents();
-    renderDoNot();
-
-    // Collapsible toggle
-    if (toggleBtn && bodyEl) {
-      toggleBtn.addEventListener('click', function() {
-        var open = bodyEl.style.display !== 'none';
-        var next = !open;
-        bodyEl.style.display = next ? 'block' : 'none';
-        toggleBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
-        if (chevEl) chevEl.style.transform = 'rotate(' + (next ? 90 : 0) + 'deg)';
-        try { localStorage.setItem('msb_open_' + currentClientId, next ? '1' : '0'); } catch (e) {}
-      });
-    }
-
-    // Primary focus
-    if (primary) {
-      primary.addEventListener('change', function() {
-        mf.primaryFocus = primary.value || '';
-        if (custom) custom.style.display = (mf.primaryFocus === 'Custom') ? 'block' : 'none';
-        updateFocusPill();
-        persist();
-      });
-    }
-    if (custom) {
-      var customTimer = null;
-      custom.addEventListener('input', function() {
-        mf.customFocus = custom.value;
-        updateFocusPill();
-        clearTimeout(customTimer);
-        customTimer = setTimeout(persist, 350);
-      });
-      custom.addEventListener('blur', persist);
-    }
-
-    // Content ratio (debounced)
-    if (ratio) {
-      var ratioTimer = null;
-      ratio.addEventListener('input', function() {
-        mf.contentRatio = ratio.value;
-        clearTimeout(ratioTimer);
-        ratioTimer = setTimeout(persist, 350);
-      });
-      ratio.addEventListener('blur', persist);
-    }
-
-    // Key message (debounced)
-    if (keyMsg) {
-      var kmTimer = null;
-      keyMsg.addEventListener('input', function() {
-        mf.keyMessage = keyMsg.value;
-        clearTimeout(kmTimer);
-        kmTimer = setTimeout(persist, 400);
-      });
-      keyMsg.addEventListener('blur', persist);
-    }
-
-    // Active promotions
-    function addPromo() {
-      if (!promoIn) return;
-      var v = (promoIn.value || '').trim();
-      if (!v) return;
-      if (!Array.isArray(mf.activePromotions)) mf.activePromotions = [];
-      mf.activePromotions.push(v);
-      promoIn.value = '';
-      renderPromos();
-      persist();
-    }
-    if (promoAdd) promoAdd.addEventListener('click', addPromo);
-    if (promoIn)  promoIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addPromo(); } });
-
-    // Upcoming events
-    function addEvent() {
-      var n = evName ? (evName.value || '').trim() : '';
-      var d = evDate ? (evDate.value || '').trim() : '';
-      if (!n && !d) return;
-      if (!Array.isArray(mf.upcomingEvents)) mf.upcomingEvents = [];
-      mf.upcomingEvents.push({ name: n, date: d });
-      if (evName) evName.value = '';
-      if (evDate) evDate.value = '';
-      renderEvents();
-      persist();
-    }
-    if (evAdd) evAdd.addEventListener('click', addEvent);
-    if (evName) evName.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
-    if (evDate) evDate.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
-
-    // Do not post
-    function addDoNot() {
-      if (!dnIn) return;
-      var v = (dnIn.value || '').trim();
-      if (!v) return;
-      if (!Array.isArray(mf.doNotPost)) mf.doNotPost = [];
-      mf.doNotPost.push(v);
-      dnIn.value = '';
-      renderDoNot();
-      persist();
-    }
-    if (dnAdd) dnAdd.addEventListener('click', addDoNot);
-    if (dnIn)  dnIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addDoNot(); } });
-  })();
 
   // ── Bind events ──
   overviewContent.querySelectorAll('.ov-kpi').forEach(function(kpi) {
@@ -6666,6 +6386,235 @@ async function deleteCurrentClient() {
     switchTab('overview');
   }
   showToast(`Client "${name}" has been deleted`);
+}
+
+/* ================== Strategy Brief Tab ================== */
+/**
+ * Renders the Monthly Strategy Brief as a full-page tab inside the client view.
+ * Fields: Primary Focus (dropdown + optional custom), Content Ratio, Key Message,
+ * Active Promotions (list), Upcoming Events (list of {name,date}), Do Not Post (list).
+ * All fields auto-save to state.monthlyFocus via save(state). Agency-only
+ * (never rendered in client portal / index.html).
+ */
+function renderStrategyBriefTab() {
+  const container = document.getElementById('strategyBriefContent');
+  if (!container) return;
+  if (!currentClientId) {
+    container.innerHTML = '<div style="padding:24px;color:#64748b;font-size:14px;">Select a client to view their strategy brief.</div>';
+    return;
+  }
+  const state = load();
+  if (!state.monthlyFocus) state.monthlyFocus = _emptyMonthlyFocus();
+  const mf = state.monthlyFocus;
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  const focusPillLabel = mf.primaryFocus
+    ? (mf.primaryFocus === 'Custom' && mf.customFocus ? mf.customFocus : mf.primaryFocus)
+    : '';
+
+  let h = '';
+  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);padding:22px 24px;max-width:1200px;">';
+
+  // Header
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">';
+  h += '<h2 style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Monthly Strategy Brief</h2>';
+  if (focusPillLabel) {
+    h += '<span id="msbFocusPill" style="font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;">' + esc(focusPillLabel) + '</span>';
+  } else {
+    h += '<span id="msbFocusPill" style="display:none;font-size:11px;padding:3px 8px;background:#dbeafe;color:#1e40af;border-radius:6px;font-weight:600;"></span>';
+  }
+  h += '<span style="margin-left:auto;font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;">Agency only</span>';
+  h += '</div>';
+  h += '<p style="margin:0 0 18px;font-size:13px;color:#64748b;">The plan for this month — focus, promos, events, key message, content mix, and what not to post. Shared with your team; hidden from the client.</p>';
+
+  // Row 1: Primary Focus + Content Ratio
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">';
+  h += '<div>';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Primary Focus</label>';
+  h += '<select id="msbPrimaryFocus" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;color:#0f172a;">';
+  ['','Sales','Events','Brand Awareness','New Product','Holiday','Custom'].forEach(function(o) {
+    const sel = (mf.primaryFocus || '') === o ? ' selected' : '';
+    h += '<option value="' + esc(o) + '"' + sel + '>' + (o ? esc(o) : 'Select focus…') + '</option>';
+  });
+  h += '</select>';
+  h += '<input type="text" id="msbCustomFocus" placeholder="Custom focus label" value="' + esc(mf.customFocus) + '" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;display:' + (mf.primaryFocus === 'Custom' ? 'block' : 'none') + ';">';
+  h += '</div>';
+  h += '<div>';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Content Ratio</label>';
+  h += '<input type="text" id="msbContentRatio" placeholder="e.g. 60% promos, 30% events, 10% brand" value="' + esc(mf.contentRatio) + '" style="width:100%;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">';
+  h += '</div>';
+  h += '</div>';
+
+  // Row 2: Key Message
+  h += '<div style="margin-top:16px;">';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Key Message</label>';
+  h += '<textarea id="msbKeyMessage" rows="3" placeholder="What the client wants to communicate this month (1\u20132 sentences)" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;">' + esc(mf.keyMessage) + '</textarea>';
+  h += '</div>';
+
+  // Row 3: Active Promotions + Upcoming Events
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:16px;">';
+  h += '<div>';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Active Promotions</label>';
+  h += '<div id="msbPromosList" style="display:flex;flex-direction:column;gap:6px;"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbPromoInput" type="text" placeholder="e.g. Happy Hour 2\u20135 PM" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbPromoAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
+  h += '</div>';
+  h += '<div>';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Upcoming Events</label>';
+  h += '<div id="msbEventsList" style="display:flex;flex-direction:column;gap:6px;"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><input id="msbEventName" type="text" placeholder="Event name" style="flex:1 1 140px;min-width:120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><input id="msbEventDate" type="text" placeholder="Apr 24\u201325" style="flex:0 0 120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbEventAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
+  h += '</div>';
+  h += '</div>';
+
+  // Row 4: Do Not Post
+  h += '<div style="margin-top:16px;">';
+  h += '<label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;">Do Not Post</label>';
+  h += '<div id="msbDoNotList" style="display:flex;flex-direction:column;gap:6px;"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px;"><input id="msbDoNotInput" type="text" placeholder="e.g. Don\u2019t post about pricing yet" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;"><button type="button" id="msbDoNotAdd" class="btn" style="padding:8px 14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Add</button></div>';
+  h += '</div>';
+
+  h += '<div style="margin-top:16px;font-size:11px;color:#94a3b8;">Changes save automatically.</div>';
+  h += '</div>'; // card
+
+  container.innerHTML = h;
+
+  // ── Bindings ──
+  const pillEl    = document.getElementById('msbFocusPill');
+  const primary   = document.getElementById('msbPrimaryFocus');
+  const custom    = document.getElementById('msbCustomFocus');
+  const ratio     = document.getElementById('msbContentRatio');
+  const keyMsg    = document.getElementById('msbKeyMessage');
+  const promoList = document.getElementById('msbPromosList');
+  const promoIn   = document.getElementById('msbPromoInput');
+  const promoAdd  = document.getElementById('msbPromoAdd');
+  const evList    = document.getElementById('msbEventsList');
+  const evName    = document.getElementById('msbEventName');
+  const evDate    = document.getElementById('msbEventDate');
+  const evAdd     = document.getElementById('msbEventAdd');
+  const dnList    = document.getElementById('msbDoNotList');
+  const dnIn      = document.getElementById('msbDoNotInput');
+  const dnAdd     = document.getElementById('msbDoNotAdd');
+
+  function updateFocusPill() {
+    if (!pillEl) return;
+    const label = mf.primaryFocus ? (mf.primaryFocus === 'Custom' && mf.customFocus ? mf.customFocus : mf.primaryFocus) : '';
+    if (label) { pillEl.textContent = label; pillEl.style.display = ''; }
+    else       { pillEl.textContent = '';    pillEl.style.display = 'none'; }
+  }
+  function persist() { try { save(state); } catch (e) { console.warn('[MSB] save failed', e); } }
+
+  function pillRow(text, sub, onRemove) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#0f172a;';
+    const main = document.createElement('span');
+    main.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    main.textContent = text;
+    row.appendChild(main);
+    if (sub) {
+      const s = document.createElement('span');
+      s.style.cssText = 'font-size:11px;color:#64748b;font-weight:600;';
+      s.textContent = sub;
+      row.appendChild(s);
+    }
+    const rm = document.createElement('button');
+    rm.type = 'button'; rm.textContent = '\u2715'; rm.title = 'Remove';
+    rm.style.cssText = 'background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;';
+    rm.addEventListener('click', onRemove);
+    row.appendChild(rm);
+    return row;
+  }
+  function renderPromos() {
+    if (!promoList) return;
+    promoList.innerHTML = '';
+    (mf.activePromotions || []).forEach(function(p, i) {
+      promoList.appendChild(pillRow(p, '', function() { mf.activePromotions.splice(i, 1); renderPromos(); persist(); }));
+    });
+  }
+  function renderEvents() {
+    if (!evList) return;
+    evList.innerHTML = '';
+    (mf.upcomingEvents || []).forEach(function(ev, i) {
+      const name = (ev && ev.name) || '';
+      const date = (ev && ev.date) || '';
+      evList.appendChild(pillRow(name, date, function() { mf.upcomingEvents.splice(i, 1); renderEvents(); persist(); }));
+    });
+  }
+  function renderDoNot() {
+    if (!dnList) return;
+    dnList.innerHTML = '';
+    (mf.doNotPost || []).forEach(function(d, i) {
+      dnList.appendChild(pillRow(d, '', function() { mf.doNotPost.splice(i, 1); renderDoNot(); persist(); }));
+    });
+  }
+  renderPromos(); renderEvents(); renderDoNot();
+
+  if (primary) {
+    primary.addEventListener('change', function() {
+      mf.primaryFocus = primary.value || '';
+      if (custom) custom.style.display = (mf.primaryFocus === 'Custom') ? 'block' : 'none';
+      updateFocusPill(); persist();
+    });
+  }
+  if (custom) {
+    let t = null;
+    custom.addEventListener('input', function() {
+      mf.customFocus = custom.value; updateFocusPill();
+      clearTimeout(t); t = setTimeout(persist, 350);
+    });
+    custom.addEventListener('blur', persist);
+  }
+  if (ratio) {
+    let t = null;
+    ratio.addEventListener('input', function() {
+      mf.contentRatio = ratio.value;
+      clearTimeout(t); t = setTimeout(persist, 350);
+    });
+    ratio.addEventListener('blur', persist);
+  }
+  if (keyMsg) {
+    let t = null;
+    keyMsg.addEventListener('input', function() {
+      mf.keyMessage = keyMsg.value;
+      clearTimeout(t); t = setTimeout(persist, 400);
+    });
+    keyMsg.addEventListener('blur', persist);
+  }
+
+  function addPromo() {
+    if (!promoIn) return;
+    const v = (promoIn.value || '').trim();
+    if (!v) return;
+    if (!Array.isArray(mf.activePromotions)) mf.activePromotions = [];
+    mf.activePromotions.push(v);
+    promoIn.value = ''; renderPromos(); persist();
+  }
+  if (promoAdd) promoAdd.addEventListener('click', addPromo);
+  if (promoIn)  promoIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addPromo(); } });
+
+  function addEvent() {
+    const n = evName ? (evName.value || '').trim() : '';
+    const d = evDate ? (evDate.value || '').trim() : '';
+    if (!n && !d) return;
+    if (!Array.isArray(mf.upcomingEvents)) mf.upcomingEvents = [];
+    mf.upcomingEvents.push({ name: n, date: d });
+    if (evName) evName.value = '';
+    if (evDate) evDate.value = '';
+    renderEvents(); persist();
+  }
+  if (evAdd) evAdd.addEventListener('click', addEvent);
+  if (evName) evName.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
+  if (evDate) evDate.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } });
+
+  function addDoNot() {
+    if (!dnIn) return;
+    const v = (dnIn.value || '').trim();
+    if (!v) return;
+    if (!Array.isArray(mf.doNotPost)) mf.doNotPost = [];
+    mf.doNotPost.push(v);
+    dnIn.value = ''; renderDoNot(); persist();
+  }
+  if (dnAdd) dnAdd.addEventListener('click', addDoNot);
+  if (dnIn)  dnIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addDoNot(); } });
 }
 
 /* ================== Approvals Tab ================== */
