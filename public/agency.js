@@ -6643,6 +6643,10 @@ function _renderThisMonth(opts) {
   promoList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
   promos.el.appendChild(promoList);
 
+  // Track which cards are in edit/expanded state. Items collapse to a compact
+  // summary row once created; clicking a summary re-opens the editor.
+  const expandedIds = new Set();
+
   function renderPromos() {
     promoList.innerHTML = '';
     if (!Array.isArray(tm.promotions)) tm.promotions = [];
@@ -6656,21 +6660,31 @@ function _renderThisMonth(opts) {
     tm.promotions.forEach(function(p, idx) {
       promoList.appendChild(buildItemCard({
         item: p,
+        expanded: expandedIds.has(p.id),
+        summary: _promoSummary(p),
         fields: [
           { key: 'name',     label: 'Promo name',    placeholder: 'e.g. Spring Refresh',           flex: '1 1 240px' },
           { key: 'deal',     label: 'Deal details',  placeholder: 'e.g. $40 off Exosomes through April', flex: '1 1 280px' },
           { key: 'startDate',label: 'Start',         placeholder: 'Apr 1',                          flex: '0 0 130px' },
           { key: 'endDate',  label: 'End',           placeholder: 'Apr 30',                         flex: '0 0 130px' }
         ],
-        onRemove: function() { tm.promotions.splice(idx, 1); renderPromos(); onSave(); },
-        onFieldChange: onSave
+        onRemove: function() { expandedIds.delete(p.id); tm.promotions.splice(idx, 1); renderPromos(); onSave(); },
+        onFieldChange: onSave,
+        onExpand: function() { expandedIds.add(p.id); renderPromos(); },
+        onCollapse: function() { expandedIds.delete(p.id); renderPromos(); }
       }));
     });
   }
   addPromoBtn.addEventListener('click', function() {
     if (!Array.isArray(tm.promotions)) tm.promotions = [];
-    tm.promotions.push({ id: newId('promo'), name: '', deal: '', startDate: '', endDate: '', flyerUrl: '' });
+    // Collapse any other cards so the new one is obviously the focus.
+    tm.promotions.forEach(function(p) { expandedIds.delete(p.id); });
+    tm.events && tm.events.forEach(function(ev) { expandedIds.delete(ev.id); });
+    const id = newId('promo');
+    tm.promotions.push({ id: id, name: '', deal: '', startDate: '', endDate: '', flyerUrl: '' });
+    expandedIds.add(id);
     renderPromos();
+    renderEvents();
     onSave();
   });
   renderPromos();
@@ -6698,23 +6712,48 @@ function _renderThisMonth(opts) {
     tm.events.forEach(function(ev, idx) {
       eventList.appendChild(buildItemCard({
         item: ev,
+        expanded: expandedIds.has(ev.id),
+        summary: _eventSummary(ev),
         fields: [
           { key: 'name',        label: 'Event name',       placeholder: 'e.g. Open House',            flex: '1 1 220px' },
           { key: 'dateTime',    label: 'Date / time',      placeholder: 'Apr 24-25, 8PM',             flex: '0 0 160px' },
           { key: 'description', label: 'Short description',placeholder: 'One-line summary',           flex: '1 1 280px' }
         ],
-        onRemove: function() { tm.events.splice(idx, 1); renderEvents(); onSave(); },
-        onFieldChange: onSave
+        onRemove: function() { expandedIds.delete(ev.id); tm.events.splice(idx, 1); renderEvents(); onSave(); },
+        onFieldChange: onSave,
+        onExpand: function() { expandedIds.add(ev.id); renderEvents(); },
+        onCollapse: function() { expandedIds.delete(ev.id); renderEvents(); }
       }));
     });
   }
   addEventBtn.addEventListener('click', function() {
     if (!Array.isArray(tm.events)) tm.events = [];
-    tm.events.push({ id: newId('event'), name: '', dateTime: '', description: '', flyerUrl: '' });
+    tm.events.forEach(function(ev) { expandedIds.delete(ev.id); });
+    tm.promotions && tm.promotions.forEach(function(p) { expandedIds.delete(p.id); });
+    const id = newId('event');
+    tm.events.push({ id: id, name: '', dateTime: '', description: '', flyerUrl: '' });
+    expandedIds.add(id);
     renderEvents();
+    renderPromos();
     onSave();
   });
   renderEvents();
+
+  function _promoSummary(p) {
+    const title = (p.name || '').trim() || 'Untitled promo';
+    const bits = [];
+    if (p.deal) bits.push(p.deal);
+    const range = [p.startDate, p.endDate].filter(Boolean).join(' – ');
+    if (range) bits.push(range);
+    return { title: title, sub: bits.join(' · '), flyerUrl: p.flyerUrl || '' };
+  }
+  function _eventSummary(ev) {
+    const title = (ev.name || '').trim() || 'Untitled event';
+    const bits = [];
+    if (ev.dateTime) bits.push(ev.dateTime);
+    if (ev.description) bits.push(ev.description);
+    return { title: title, sub: bits.join(' · '), flyerUrl: ev.flyerUrl || '' };
+  }
 
   // ────────── SECTION 4: DO NOT POST (red, agency-only) ──────────
   if (showDoNotPost) {
@@ -6776,8 +6815,61 @@ function _renderThisMonth(opts) {
 
   // ────── Internal helper: card builder for promo/event items ──────
   function buildItemCard(cfg) {
+    // Collapsed summary — compact row shown once a card has content
+    if (!cfg.expanded) {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.03);display:flex;gap:12px;align-items:center;cursor:pointer;';
+      row.addEventListener('mouseover', function(){ row.style.background = '#f8fafc'; });
+      row.addEventListener('mouseout',  function(){ row.style.background = '#fff'; });
+      row.addEventListener('click', function(e) {
+        if (e.target && e.target.getAttribute && e.target.getAttribute('data-stop')) return;
+        cfg.onExpand();
+      });
+
+      const mini = document.createElement('div');
+      mini.style.cssText = 'flex:0 0 auto;width:40px;height:40px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc no-repeat center/cover;display:flex;align-items:center;justify-content:center;font-size:14px;color:#94a3b8;';
+      if (cfg.summary && cfg.summary.flyerUrl) {
+        mini.style.backgroundImage = "url('" + cfg.summary.flyerUrl.replace(/'/g, "\\'") + "')";
+      } else {
+        mini.textContent = '\u{1F5BC}';
+      }
+      row.appendChild(mini);
+
+      const textCol = document.createElement('div');
+      textCol.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;';
+      const t = document.createElement('div');
+      t.textContent = (cfg.summary && cfg.summary.title) || '(untitled)';
+      t.style.cssText = 'font-size:14px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      textCol.appendChild(t);
+      if (cfg.summary && cfg.summary.sub) {
+        const s = document.createElement('div');
+        s.textContent = cfg.summary.sub;
+        s.style.cssText = 'font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        textCol.appendChild(s);
+      }
+      row.appendChild(textCol);
+
+      const editHint = document.createElement('span');
+      editHint.textContent = 'Edit';
+      editHint.style.cssText = 'flex:0 0 auto;font-size:11px;color:#2563eb;font-weight:600;';
+      row.appendChild(editHint);
+
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '\u2715';
+      rm.title = 'Delete';
+      rm.setAttribute('data-stop', '1');
+      rm.style.cssText = 'flex:0 0 auto;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px;line-height:1;';
+      rm.addEventListener('mouseover', function(){ rm.style.color = '#dc2626'; });
+      rm.addEventListener('mouseout',  function(){ rm.style.color = '#94a3b8'; });
+      rm.addEventListener('click', function(e) { e.stopPropagation(); cfg.onRemove(); });
+      row.appendChild(rm);
+
+      return row;
+    }
+
     const card = document.createElement('div');
-    card.style.cssText = 'padding:14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.03);display:flex;gap:14px;align-items:flex-start;';
+    card.style.cssText = 'padding:14px;background:#fff;border:1px solid #93c5fd;border-radius:10px;box-shadow:0 1px 3px rgba(37,99,235,0.12);display:flex;gap:14px;align-items:flex-start;';
 
     // Flyer thumb / upload column
     const flyerCol = document.createElement('div');
@@ -6880,16 +6972,31 @@ function _renderThisMonth(opts) {
     });
     card.appendChild(fieldsCol);
 
-    // Delete button column
+    // Actions column — Done (collapse) + Delete
+    const actionsCol = document.createElement('div');
+    actionsCol.style.cssText = 'flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px;';
+
+    const doneBtn = document.createElement('button');
+    doneBtn.type = 'button';
+    doneBtn.textContent = 'Done';
+    doneBtn.title = 'Collapse';
+    doneBtn.style.cssText = 'padding:6px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;';
+    doneBtn.addEventListener('mouseover', function(){ doneBtn.style.background = '#1d4ed8'; });
+    doneBtn.addEventListener('mouseout',  function(){ doneBtn.style.background = '#2563eb'; });
+    doneBtn.addEventListener('click', function() { if (cfg.onCollapse) cfg.onCollapse(); });
+    actionsCol.appendChild(doneBtn);
+
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.textContent = '\u2715';
     delBtn.title = 'Delete';
-    delBtn.style.cssText = 'flex:0 0 auto;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0 4px;line-height:1;align-self:flex-start;';
+    delBtn.style.cssText = 'background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0 4px;line-height:1;';
     delBtn.addEventListener('mouseover', function(){ delBtn.style.color = '#dc2626'; });
     delBtn.addEventListener('mouseout',  function(){ delBtn.style.color = '#94a3b8'; });
     delBtn.addEventListener('click', cfg.onRemove);
-    card.appendChild(delBtn);
+    actionsCol.appendChild(delBtn);
+
+    card.appendChild(actionsCol);
 
     return card;
   }
