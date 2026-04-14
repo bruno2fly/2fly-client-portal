@@ -4422,9 +4422,11 @@ function renderAILGenerator(tc, clients, clientIds) {
 
   // ── Upload slots card ──
   h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
-  h += '<h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0f172a;">Step 2 &mdash; Upload Images</h3>';
-  h += '<p style="color:#64748b;font-size:12px;margin:0 0 14px;">Drop photos or click each slot. Ambient &amp; Subject are required.</p>';
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">';
+  h += '<h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0f172a;"><span id="pgUploadHeading">Step 2 &mdash; Upload Images</span></h3>';
+  h += '<p id="pgUploadSubcopy" style="color:#64748b;font-size:12px;margin:0 0 14px;">Drop photos or click each slot. Ambient &amp; Subject are required.</p>';
+
+  // Photography slots (ambient / subject / reference)
+  h += '<div id="pgPhotoSlots" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">';
   ['ambient','subject','reference'].forEach(function(slot) {
     var meta = slot === 'ambient'
       ? { emoji:'\uD83C\uDFE0', title:'Ambient / Background', sub:'Venue / environment' }
@@ -4441,6 +4443,36 @@ function renderAILGenerator(tc, clients, clientIds) {
     h += '<button type="button" class="pg-slot-clear" data-slot="' + slot + '" style="display:none;position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:rgba(15,23,42,0.8);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;">&times;</button>';
     h += '</div>';
   });
+  h += '</div>';
+
+  // Design Brief slots (product image / copy text / reference-flyer image)
+  h += '<div id="pgBriefSlots" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">';
+  // Slot 1 — Product (image, required)
+  h += '<div class="pg-brief-slot" data-brief-slot="product" style="border:2px dashed #cbd5e1;border-radius:12px;padding:14px;background:#fafbfc;position:relative;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:all 0.15s;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px;">\uD83D\uDCE6 Product / Hero</div>';
+  h += '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">Required &mdash; the product photo</div>';
+  h += '<div class="pg-brief-slot-body" style="flex:1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;border:1px solid #e2e8f0;min-height:110px;overflow:hidden;">';
+  h += '<div class="pg-brief-slot-placeholder" style="color:#94a3b8;font-size:12px;text-align:center;padding:12px;">Drop or click<br/>to upload</div>';
+  h += '</div>';
+  h += '<input type="file" class="pg-brief-slot-input" data-brief-slot="product" accept="image/*" style="display:none;">';
+  h += '<button type="button" class="pg-brief-slot-clear" data-brief-slot="product" style="display:none;position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:rgba(15,23,42,0.8);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;">&times;</button>';
+  h += '</div>';
+  // Slot 2 — Copy (text input, optional)
+  h += '<div style="border:2px dashed #cbd5e1;border-radius:12px;padding:14px;background:#fafbfc;min-height:180px;display:flex;flex-direction:column;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px;">\u270D\uFE0F Copy (optional)</div>';
+  h += '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">Text that should appear on the post</div>';
+  h += '<textarea id="pgBriefCopy" rows="5" placeholder="Ex: FIM DE SEMANA DE DEGUSTA\u00C7\u00C3O DE A\u00C7A\u00CD!" style="flex:1;width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;background:#fff;"></textarea>';
+  h += '</div>';
+  // Slot 3 — Reference Flyer (image, optional)
+  h += '<div class="pg-brief-slot" data-brief-slot="referenceFlyer" style="border:2px dashed #cbd5e1;border-radius:12px;padding:14px;background:#fafbfc;position:relative;min-height:180px;display:flex;flex-direction:column;cursor:pointer;transition:all 0.15s;">';
+  h += '<div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px;">\uD83D\uDCCE Reference Flyer (optional)</div>';
+  h += '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">Style reference to match</div>';
+  h += '<div class="pg-brief-slot-body" style="flex:1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;border:1px solid #e2e8f0;min-height:110px;overflow:hidden;">';
+  h += '<div class="pg-brief-slot-placeholder" style="color:#94a3b8;font-size:12px;text-align:center;padding:12px;">Drop or click<br/>to upload</div>';
+  h += '</div>';
+  h += '<input type="file" class="pg-brief-slot-input" data-brief-slot="referenceFlyer" accept="image/*" style="display:none;">';
+  h += '<button type="button" class="pg-brief-slot-clear" data-brief-slot="referenceFlyer" style="display:none;position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:rgba(15,23,42,0.8);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;">&times;</button>';
+  h += '</div>';
   h += '</div>';
   h += '</div>';
 
@@ -4492,9 +4524,6 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '</select></div>';
 
   h += '</div>';
-  h += '<div class="ail-form-group" style="margin-top:12px;"><label class="ail-label">Copy</label>';
-  h += '<textarea id="pgBriefCopy" class="ail-select" rows="4" placeholder="Paste the post copy for the designer..." style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>';
-  h += '</div>';
   h += '</div>';
 
   // Generate button
@@ -4517,6 +4546,7 @@ function renderAILGenerator(tc, clients, clientIds) {
 
   // ─── State (scoped to this render) ───
   var slotImages = { ambient: null, subject: null, reference: null };
+  var briefSlotImages = { product: null, referenceFlyer: null }; // Design Brief image slots
   var currentMode = 'quick';
   var activeBrandKit = null;       // full kit object currently loaded
   var forbiddenElements = [];      // list of tokens to exclude from prompt output
@@ -4535,17 +4565,35 @@ function renderAILGenerator(tc, clients, clientIds) {
     var hint = tc.querySelector('#pgOutputTypeHint');
     if (hint) {
       hint.textContent = currentOutputType === 'design-brief'
-        ? 'Produces a briefing for the designer (Gui/Igor) \u2014 not an AI prompt.'
+        ? 'Generates a Gemini prompt to create a promotional design.'
         : 'Produces a Gemini photographer-style prompt.';
     }
     var genLbl = tc.querySelector('#pgGenerateBtnLabel');
-    if (genLbl) genLbl.textContent = currentOutputType === 'design-brief' ? 'Generate Design Brief' : 'Generate Prompt';
+    if (genLbl) genLbl.textContent = 'Generate Prompt';
     var outHdr = tc.querySelector('#pgOutputHeading');
-    if (outHdr) outHdr.innerHTML = currentOutputType === 'design-brief'
-      ? 'Step 4 \u2014 Generated Design Brief'
-      : 'Step 4 \u2014 Generated Prompt';
+    if (outHdr) outHdr.innerHTML = 'Step 4 \u2014 Generated Prompt';
     var copyLbl = tc.querySelector('#pgCopyBtnLabel');
-    if (copyLbl) copyLbl.innerHTML = currentOutputType === 'design-brief' ? '\uD83D\uDCCB Copy Brief' : '\uD83D\uDCCB Copy Prompt';
+    if (copyLbl) copyLbl.innerHTML = '\uD83D\uDCCB Copy Prompt';
+
+    // Swap upload-slots section and adjust heading/subcopy.
+    var photoSlots = tc.querySelector('#pgPhotoSlots');
+    var briefSlots = tc.querySelector('#pgBriefSlots');
+    var uploadHdr  = tc.querySelector('#pgUploadHeading');
+    var uploadSub  = tc.querySelector('#pgUploadSubcopy');
+    if (photoSlots && briefSlots) {
+      photoSlots.style.display = currentOutputType === 'design-brief' ? 'none' : 'grid';
+      briefSlots.style.display = currentOutputType === 'design-brief' ? 'grid' : 'none';
+    }
+    if (uploadHdr) {
+      uploadHdr.textContent = currentOutputType === 'design-brief'
+        ? 'Step 2 \u2014 Product, Copy & Reference'
+        : 'Step 2 \u2014 Upload Images';
+    }
+    if (uploadSub) {
+      uploadSub.innerHTML = currentOutputType === 'design-brief'
+        ? 'Upload the product photo (required). Add post copy and a reference flyer if you have them.'
+        : 'Drop photos or click each slot. Ambient &amp; Subject are required.';
+    }
 
     // Photography Prompt vs. Design Brief: swap advanced panels when advanced mode is on.
     var photoPanel = tc.querySelector('#pgAdvancedPanel');
@@ -4724,6 +4772,68 @@ function renderAILGenerator(tc, clients, clientIds) {
     });
   });
 
+  // ─── Design Brief slot handlers (product + referenceFlyer) ───
+  tc.querySelectorAll('.pg-brief-slot').forEach(function(slotEl) {
+    var slot = slotEl.getAttribute('data-brief-slot');
+    var input = slotEl.querySelector('.pg-brief-slot-input');
+    var body = slotEl.querySelector('.pg-brief-slot-body');
+    var clearBtn = slotEl.querySelector('.pg-brief-slot-clear');
+
+    function setImage(dataUrl) {
+      briefSlotImages[slot] = dataUrl;
+      body.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
+      clearBtn.style.display = 'block';
+      slotEl.style.borderStyle = 'solid';
+      slotEl.style.borderColor = '#3b82f6';
+    }
+
+    function clearImage() {
+      briefSlotImages[slot] = null;
+      body.innerHTML = '<div class="pg-brief-slot-placeholder" style="color:#94a3b8;font-size:12px;text-align:center;padding:12px;">Drop or click<br/>to upload</div>';
+      clearBtn.style.display = 'none';
+      slotEl.style.borderStyle = 'dashed';
+      slotEl.style.borderColor = '#cbd5e1';
+      input.value = '';
+    }
+
+    slotEl.addEventListener('click', function(e) {
+      if (e.target === clearBtn) return;
+      input.click();
+    });
+
+    input.addEventListener('change', function() {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) { setImage(e.target.result); };
+      reader.readAsDataURL(file);
+    });
+
+    slotEl.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      slotEl.style.borderColor = '#3b82f6';
+      slotEl.style.background = '#eff6ff';
+    });
+    slotEl.addEventListener('dragleave', function() {
+      slotEl.style.borderColor = briefSlotImages[slot] ? '#3b82f6' : '#cbd5e1';
+      slotEl.style.background = '#fafbfc';
+    });
+    slotEl.addEventListener('drop', function(e) {
+      e.preventDefault();
+      slotEl.style.background = '#fafbfc';
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) { setImage(ev.target.result); };
+      reader.readAsDataURL(file);
+    });
+
+    clearBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      clearImage();
+    });
+  });
+
   // ─── Mode toggle ───
   tc.querySelectorAll('#pgModeTabs [data-pg-mode]').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -4825,50 +4935,57 @@ function renderAILGenerator(tc, clients, clientIds) {
     return 'portrait';
   }
 
-  // Local fallback builder for Design Brief — used if the backend is down
-  // or the client has no kit with a clientName yet.
+  // Local fallback builder for Design Brief — used if the backend is down.
+  // Produces a Gemini-ready prompt (not a human briefing).
   function buildMockBrief() {
     var kit = activeBrandKit || {};
     var name = kit.clientName || '[Client]';
-    var styleSel = tc.querySelector('#pgBriefStyle');
-    var fmtSel   = tc.querySelector('#pgBriefFormat');
-    var copyEl   = tc.querySelector('#pgBriefCopy');
-    var styleVal = (styleSel && styleSel.value) || kit.style || 'bold-colorful';
-    var styleLabel = styleSel && styleSel.selectedIndex >= 0 ? styleSel.options[styleSel.selectedIndex].text : styleVal;
-    var fmtVal = (fmtSel && fmtSel.value) || 'portrait';
+    var copyEl = tc.querySelector('#pgBriefCopy');
+    var fmtSel = tc.querySelector('#pgBriefFormat');
+    var fmtVal = currentMode === 'advanced' && fmtSel ? fmtSel.value
+      : (kit.outputFormat === '1080x1080' ? 'feed' : kit.outputFormat === '1080x1920' ? 'story' : 'portrait');
     var fmtLabel = fmtVal === 'feed' ? '1080x1080' : fmtVal === 'story' ? '1080x1920' : '1080x1350';
-    var copyText = (copyEl && copyEl.value) || '[Paste post copy here]';
-    var colors = (kit.colorPalette && kit.colorPalette.join(', ')) || '[none on file]';
-    var styleDesc = kit.styleDescription || '[no style description on file]';
-    var notes = (kit.forbiddenElements && kit.forbiddenElements.length)
-      ? 'Avoid: ' + kit.forbiddenElements.join(', ')
-      : 'No client-specific exclusions on file.';
-    return [
-      'DESIGN BRIEF \u2014 ' + name,
-      'Style: ' + styleLabel,
-      'Format: ' + fmtLabel,
-      '',
-      'COPY:',
-      copyText,
-      '',
-      'LAYOUT SUGGESTION:',
-      'Product centered as hero, logo at top, bold typography for headline copy. Background uses brand colors (' + colors + '). CTA in footer.',
-      '',
-      'BRAND COLORS: ' + colors,
-      '',
-      'REFERENCE STYLE: ' + styleDesc,
-      '',
-      'NOTES: ' + notes
-    ].join('\n');
+    var copyText = (copyEl && copyEl.value || '').trim();
+    var hasProduct = !!briefSlotImages.product;
+    var hasReference = !!briefSlotImages.referenceFlyer;
+    var colors = (kit.colorPalette && kit.colorPalette.join(', ')) || '[brand colors on file]';
+    var styleDesc = kit.styleDescription || 'clean, on-brand';
+    var forbiddenLine = (kit.forbiddenElements && kit.forbiddenElements.length)
+      ? 'AVOID: ' + kit.forbiddenElements.join(', ') + '.'
+      : '';
+
+    // Intro sentence adapts to which assets were provided.
+    var assets = [];
+    assets.push(hasProduct ? 'a product photo' : '[no product photo provided]');
+    if (hasReference) assets.push('a reference flyer style');
+    var intro = 'I am providing ' + assets.join(' and ') + '. ' +
+      'Create a promotional Instagram post at ' + fmtLabel + '.';
+
+    var lines = [intro, ''];
+    lines.push('PRODUCT: ' + (hasProduct ? 'user-uploaded product photo (use as the hero of the composition)' : '[describe the product here]'));
+    if (copyText) lines.push('COPY TO INCLUDE: "' + copyText + '"');
+    if (hasReference) lines.push('MATCH THE STYLE of the reference flyer provided.');
+    lines.push('');
+    lines.push('DESIGN STYLE: Bold, vibrant, eye-catching. ' + styleDesc + '.');
+    lines.push('BRAND COLORS: ' + colors);
+    lines.push('LOGO: Place the ' + name + ' logo at the top center.');
+    if (forbiddenLine) lines.push(forbiddenLine);
+    lines.push('');
+    lines.push('OUTPUT: ' + fmtLabel + ' pixels. High quality. Ready for Instagram.');
+    return lines.join('\n');
   }
 
   async function runGenerate() {
     var cid = tc.querySelector('#pgClient').value;
     if (!cid) { showToast('Select a client first', 'error'); return; }
 
-    // Image uploads are only required for Photography Prompt mode.
+    // Image requirements differ by output type.
     if (currentOutputType === 'photography-prompt' && (!slotImages.ambient || !slotImages.subject)) {
       showToast('Upload at least Ambient + Subject images', 'error');
+      return;
+    }
+    if (currentOutputType === 'design-brief' && !briefSlotImages.product) {
+      showToast('Upload the product photo first', 'error');
       return;
     }
 
@@ -4877,7 +4994,7 @@ function renderAILGenerator(tc, clients, clientIds) {
     btn.disabled = true;
     var orig = btn.innerHTML;
     btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> ' +
-      (currentOutputType === 'design-brief' ? 'Assembling brief...' : 'Analyzing images and building your prompt...');
+      (currentOutputType === 'design-brief' ? 'Building design prompt...' : 'Analyzing images and building your prompt...');
     output.value = '';
 
     // Build one common payload; Design Brief uses a different shape.
@@ -4899,15 +5016,18 @@ function renderAILGenerator(tc, clients, clientIds) {
         };
       }
     } else {
-      // Design Brief: style + format + copy come from the brief advanced panel.
-      // In quick mode we fall back to the kit's style + default format + empty copy.
+      // Design Brief: style + format come from the brief advanced panel; copy from the slot-2 textarea.
       var briefStyleSel = tc.querySelector('#pgBriefStyle');
       var briefFmtSel   = tc.querySelector('#pgBriefFormat');
       var briefCopyEl   = tc.querySelector('#pgBriefCopy');
       body.briefOptions = {
         style:  currentMode === 'advanced' && briefStyleSel ? briefStyleSel.value : ((activeBrandKit && activeBrandKit.style) || 'bold-colorful'),
         format: currentMode === 'advanced' && briefFmtSel ? _formatToKey(briefFmtSel.value) : _formatToKey(activeBrandKit && activeBrandKit.outputFormat),
-        copy:   (briefCopyEl && briefCopyEl.value) || ''
+        copy:   (briefCopyEl && briefCopyEl.value) || '',
+        hasProduct: !!briefSlotImages.product,
+        hasReference: !!briefSlotImages.referenceFlyer,
+        productDescription: briefSlotImages.product ? 'user-uploaded product photo (use as the hero of the composition)' : '',
+        referenceDescription: briefSlotImages.referenceFlyer ? 'user-uploaded reference flyer' : ''
       };
     }
 
@@ -4930,7 +5050,7 @@ function renderAILGenerator(tc, clients, clientIds) {
       } else {
         var data = await r.json();
         output.value = data.prompt || fallback;
-        showToast(currentOutputType === 'design-brief' ? 'Design brief generated' : 'Prompt generated', 'success');
+        showToast('Prompt generated', 'success');
       }
     } catch (e) {
       console.error('[prompt-generator] fetch failed:', e);

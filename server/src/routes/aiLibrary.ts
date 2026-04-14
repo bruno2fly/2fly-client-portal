@@ -422,38 +422,54 @@ interface BriefOptions {
   style?: string;
   format?: string;
   copy?: string;
+  hasProduct?: boolean;
+  hasReference?: boolean;
+  productDescription?: string;
+  referenceDescription?: string;
 }
 
 function buildDesignBrief(
   kit: BrandKitEntry,
   briefOpts: BriefOptions,
 ): string {
+  // styleLabel is kept in metadata/use if needed, but the new Gemini-prompt
+  // template embeds the style via the kit's styleDescription rather than a label.
   const styleKey = String(briefOpts.style || kit.style || 'bold-colorful').toLowerCase();
-  const styleLabel = STYLE_LABELS[styleKey] || styleKey.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  const formatLabel = resolveFormatLabel(briefOpts.format || '', kit);
-  const copy = (briefOpts.copy && briefOpts.copy.trim()) || '[Paste post copy here]';
-  const colors = (kit.colorPalette && kit.colorPalette.length) ? kit.colorPalette.join(', ') : '[none on file]';
-  const styleDesc = kit.styleDescription || '[no style description on file]';
-  const notes = (kit.forbiddenElements && kit.forbiddenElements.length)
-    ? 'Avoid: ' + kit.forbiddenElements.join(', ')
-    : 'No client-specific exclusions on file.';
+  // Surface the style label internally (unused in output, but validates the key).
+  void (STYLE_LABELS[styleKey] || styleKey);
 
-  const lines: string[] = [];
-  lines.push(`DESIGN BRIEF \u2014 ${kit.clientName}`);
-  lines.push(`Style: ${styleLabel}`);
-  lines.push(`Format: ${formatLabel}`);
+  const formatLabel = resolveFormatLabel(briefOpts.format || '', kit);
+  const copy = (briefOpts.copy || '').trim();
+  const hasProduct = briefOpts.hasProduct !== false; // default true if caller didn't specify
+  const hasReference = !!briefOpts.hasReference;
+  const productDesc = (briefOpts.productDescription && briefOpts.productDescription.trim())
+    || 'user-uploaded product photo (use as the hero of the composition)';
+  const colors = (kit.colorPalette && kit.colorPalette.length)
+    ? kit.colorPalette.join(', ')
+    : '[brand colors on file]';
+  const styleDesc = kit.styleDescription || 'clean, on-brand';
+  const forbiddenLine = (kit.forbiddenElements && kit.forbiddenElements.length)
+    ? 'AVOID: ' + kit.forbiddenElements.join(', ') + '.'
+    : '';
+
+  // Intro sentence adapts to which assets were provided.
+  const assets: string[] = [];
+  assets.push(hasProduct ? 'a product photo' : '[no product photo provided]');
+  if (hasReference) assets.push('a reference flyer style');
+  const intro = `I am providing ${assets.join(' and ')}. ` +
+    `Create a promotional Instagram post at ${formatLabel}.`;
+
+  const lines: string[] = [intro, ''];
+  lines.push(`PRODUCT: ${hasProduct ? productDesc : '[describe the product here]'}`);
+  if (copy) lines.push(`COPY TO INCLUDE: "${copy}"`);
+  if (hasReference) lines.push('MATCH THE STYLE of the reference flyer provided.');
   lines.push('');
-  lines.push('COPY:');
-  lines.push(copy);
-  lines.push('');
-  lines.push('LAYOUT SUGGESTION:');
-  lines.push(`Product centered as hero, logo at top, bold typography for headline copy. Background uses brand colors (${colors}). CTA in footer.`);
-  lines.push('');
+  lines.push(`DESIGN STYLE: Bold, vibrant, eye-catching. ${styleDesc}.`);
   lines.push(`BRAND COLORS: ${colors}`);
+  lines.push(`LOGO: Place the ${kit.clientName} logo at the top center.`);
+  if (forbiddenLine) lines.push(forbiddenLine);
   lines.push('');
-  lines.push(`REFERENCE STYLE: ${styleDesc}`);
-  lines.push('');
-  lines.push(`NOTES: ${notes}`);
+  lines.push(`OUTPUT: ${formatLabel} pixels. High quality. Ready for Instagram.`);
   return lines.join('\n');
 }
 
