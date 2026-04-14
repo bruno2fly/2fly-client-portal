@@ -409,26 +409,96 @@ function buildPromptFromKit(
   return lines.join('\n');
 }
 
+// ── Design Brief helpers ──
+
+const STYLE_LABELS: Record<string, string> = {
+  'bold-colorful': 'Bold & Colorful',
+  'clean-minimal': 'Clean & Minimal',
+  'festive': 'Festive',
+  'professional': 'Professional',
+};
+
+interface BriefOptions {
+  style?: string;
+  format?: string;
+  copy?: string;
+}
+
+function buildDesignBrief(
+  kit: BrandKitEntry,
+  briefOpts: BriefOptions,
+): string {
+  const styleKey = String(briefOpts.style || kit.style || 'bold-colorful').toLowerCase();
+  const styleLabel = STYLE_LABELS[styleKey] || styleKey.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const formatLabel = resolveFormatLabel(briefOpts.format || '', kit);
+  const copy = (briefOpts.copy && briefOpts.copy.trim()) || '[Paste post copy here]';
+  const colors = (kit.colorPalette && kit.colorPalette.length) ? kit.colorPalette.join(', ') : '[none on file]';
+  const styleDesc = kit.styleDescription || '[no style description on file]';
+  const notes = (kit.forbiddenElements && kit.forbiddenElements.length)
+    ? 'Avoid: ' + kit.forbiddenElements.join(', ')
+    : 'No client-specific exclusions on file.';
+
+  const lines: string[] = [];
+  lines.push(`DESIGN BRIEF \u2014 ${kit.clientName}`);
+  lines.push(`Style: ${styleLabel}`);
+  lines.push(`Format: ${formatLabel}`);
+  lines.push('');
+  lines.push('COPY:');
+  lines.push(copy);
+  lines.push('');
+  lines.push('LAYOUT SUGGESTION:');
+  lines.push(`Product centered as hero, logo at top, bold typography for headline copy. Background uses brand colors (${colors}). CTA in footer.`);
+  lines.push('');
+  lines.push(`BRAND COLORS: ${colors}`);
+  lines.push('');
+  lines.push(`REFERENCE STYLE: ${styleDesc}`);
+  lines.push('');
+  lines.push(`NOTES: ${notes}`);
+  return lines.join('\n');
+}
+
 // POST /api/ai-library/generate-prompt
 router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const { clientId, mode, advancedOptions, imageDescriptions } = req.body as {
+    const { clientId, mode, outputType, advancedOptions, imageDescriptions, briefOptions } = req.body as {
       clientId?: string;
       mode?: 'quick' | 'advanced';
+      outputType?: 'photography-prompt' | 'design-brief';
       advancedOptions?: AdvancedOptions;
       imageDescriptions?: ImageDescriptions;
+      briefOptions?: BriefOptions;
     };
 
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
-    if (!imageDescriptions || !imageDescriptions.ambient || !imageDescriptions.subject) {
-      return res.status(400).json({ error: 'imageDescriptions.ambient and imageDescriptions.subject are required' });
-    }
-    const runMode: 'quick' | 'advanced' = mode === 'advanced' ? 'advanced' : 'quick';
 
     const kit = getBrandKit(clientId);
     if (!kit) return res.status(404).json({ error: `No brand kit found for client "${clientId}"` });
 
-    // Pick inputs based on mode.
+    const runMode: 'quick' | 'advanced' = mode === 'advanced' ? 'advanced' : 'quick';
+    const runOutputType: 'photography-prompt' | 'design-brief' =
+      outputType === 'design-brief' || outputType === 'photography-prompt'
+        ? outputType
+        : (kit.defaultOutputType || 'photography-prompt');
+
+    // ── Design Brief branch ──
+    if (runOutputType === 'design-brief') {
+      const brief = buildDesignBrief(kit, briefOptions || {});
+      return res.json({
+        prompt: brief,
+        metadata: {
+          client: kit.clientName,
+          template: 'design-brief',
+          clientType: kit.clientType,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    // ── Photography Prompt branch (original behavior) ──
+    if (!imageDescriptions || !imageDescriptions.ambient || !imageDescriptions.subject) {
+      return res.status(400).json({ error: 'imageDescriptions.ambient and imageDescriptions.subject are required' });
+    }
+
     const shotType = (runMode === 'advanced' && advancedOptions?.shotType) || inferShotTypeFromTemplate(kit.photographerTemplate);
     const lens = (runMode === 'advanced' && advancedOptions?.lens) || kit.defaultLens;
     const angleSlug = (runMode === 'advanced' && advancedOptions?.angle) || kit.defaultAngle;
@@ -449,6 +519,7 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
       metadata: {
         client: kit.clientName,
         template: kit.photographerTemplate,
+        clientType: kit.clientType,
         timestamp: new Date().toISOString(),
       },
     });

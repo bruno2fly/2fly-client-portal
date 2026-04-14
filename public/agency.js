@@ -4408,6 +4408,16 @@ function renderAILGenerator(tc, clients, clientIds) {
   });
   h += '</select></div>';
   h += '<div id="pgBrandKitStatus" style="margin-top:10px;"></div>';
+
+  // ── Output Type selector (shows once a client is chosen) ──
+  h += '<div id="pgOutputTypeWrap" style="display:none;margin-top:16px;">';
+  h += '<div class="ail-label" style="margin-bottom:8px;">Output Type</div>';
+  h += '<div id="pgOutputTypeTabs" style="display:inline-flex;gap:0;background:#f1f5f9;border-radius:10px;padding:4px;">';
+  h += '<button type="button" data-pg-outtype="photography-prompt" style="padding:8px 14px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\uD83D\uDCF8 Photography Prompt</button>';
+  h += '<button type="button" data-pg-outtype="design-brief" style="padding:8px 14px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\uD83C\uDFA8 Design Brief</button>';
+  h += '</div>';
+  h += '<div id="pgOutputTypeHint" style="font-size:12px;color:#94a3b8;margin-top:6px;"></div>';
+  h += '</div>';
   h += '</div>';
 
   // ── Upload slots card ──
@@ -4442,7 +4452,7 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '<button type="button" data-pg-mode="advanced" style="padding:8px 16px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\u2699\uFE0F Advanced Mode</button>';
   h += '</div>';
 
-  // Advanced panel (hidden by default)
+  // Photography Prompt — advanced panel (hidden by default)
   h += '<div id="pgAdvancedPanel" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px;">';
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">';
 
@@ -4469,18 +4479,36 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '</div>';
   h += '</div>';
 
+  // Design Brief — advanced panel (hidden by default)
+  h += '<div id="pgBriefAdvancedPanel" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px;">';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Style</label><select class="ail-select" id="pgBriefStyle">';
+  [['bold-colorful','Bold & Colorful'],['clean-minimal','Clean & Minimal'],['festive','Festive'],['professional','Professional']].forEach(function(o) { h += '<option value="' + o[0] + '">' + o[1] + '</option>'; });
+  h += '</select></div>';
+
+  h += '<div class="ail-form-group"><label class="ail-label">Format</label><select class="ail-select" id="pgBriefFormat">';
+  [['feed','Feed 1080x1080'],['portrait','Portrait 1080x1350'],['story','Story 1080x1920']].forEach(function(o) { h += '<option value="' + o[0] + '"' + (o[0] === 'portrait' ? ' selected' : '') + '>' + o[1] + '</option>'; });
+  h += '</select></div>';
+
+  h += '</div>';
+  h += '<div class="ail-form-group" style="margin-top:12px;"><label class="ail-label">Copy</label>';
+  h += '<textarea id="pgBriefCopy" class="ail-select" rows="4" placeholder="Paste the post copy for the designer..." style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>';
+  h += '</div>';
+  h += '</div>';
+
   // Generate button
   h += '<button type="button" id="pgGenerateBtn" class="ail-btn ail-btn-primary" style="padding:12px 28px;font-size:14px;">';
   h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
-  h += ' Generate Prompt</button>';
+  h += ' <span id="pgGenerateBtnLabel">Generate Prompt</span></button>';
   h += '</div>';
 
   // ── Output card ──
   h += '<div class="ail-card ail-section">';
-  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;">Step 4 &mdash; Generated Prompt</h3>';
+  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;"><span id="pgOutputHeading">Step 4 &mdash; Generated Prompt</span></h3>';
   h += '<textarea id="pgOutput" readonly rows="14" placeholder="Your generated prompt will appear here..." style="width:100%;font-family:\'SF Mono\',Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.6;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#0f172a;color:#e2e8f0;resize:vertical;box-sizing:border-box;"></textarea>';
   h += '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">';
-  h += '<button type="button" id="pgCopyBtn" class="ail-btn" style="background:#7c3aed;color:#fff;padding:10px 18px;font-size:13px;">\uD83D\uDCCB Copy Prompt</button>';
+  h += '<button type="button" id="pgCopyBtn" class="ail-btn" style="background:#7c3aed;color:#fff;padding:10px 18px;font-size:13px;"><span id="pgCopyBtnLabel">\uD83D\uDCCB Copy Prompt</span></button>';
   h += '<button type="button" id="pgRegenBtn" class="ail-btn ail-btn-secondary" style="padding:10px 18px;font-size:13px;">\uD83D\uDD04 Regenerate</button>';
   h += '</div>';
   h += '</div>';
@@ -4492,6 +4520,46 @@ function renderAILGenerator(tc, clients, clientIds) {
   var currentMode = 'quick';
   var activeBrandKit = null;       // full kit object currently loaded
   var forbiddenElements = [];      // list of tokens to exclude from prompt output
+  var currentOutputType = 'photography-prompt'; // 'photography-prompt' | 'design-brief'
+
+  // Reflect the active output type in the button pills, generate-button label,
+  // and the output-card heading. Also swaps which advanced panel is visible.
+  function _applyOutputTypeUI() {
+    var btns = tc.querySelectorAll('#pgOutputTypeTabs [data-pg-outtype]');
+    btns.forEach(function(b) {
+      var active = b.getAttribute('data-pg-outtype') === currentOutputType;
+      b.style.background = active ? '#fff' : 'transparent';
+      b.style.color = active ? '#0f172a' : '#64748b';
+      b.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
+    });
+    var hint = tc.querySelector('#pgOutputTypeHint');
+    if (hint) {
+      hint.textContent = currentOutputType === 'design-brief'
+        ? 'Produces a briefing for the designer (Gui/Igor) \u2014 not an AI prompt.'
+        : 'Produces a Gemini photographer-style prompt.';
+    }
+    var genLbl = tc.querySelector('#pgGenerateBtnLabel');
+    if (genLbl) genLbl.textContent = currentOutputType === 'design-brief' ? 'Generate Design Brief' : 'Generate Prompt';
+    var outHdr = tc.querySelector('#pgOutputHeading');
+    if (outHdr) outHdr.innerHTML = currentOutputType === 'design-brief'
+      ? 'Step 4 \u2014 Generated Design Brief'
+      : 'Step 4 \u2014 Generated Prompt';
+    var copyLbl = tc.querySelector('#pgCopyBtnLabel');
+    if (copyLbl) copyLbl.innerHTML = currentOutputType === 'design-brief' ? '\uD83D\uDCCB Copy Brief' : '\uD83D\uDCCB Copy Prompt';
+
+    // Photography Prompt vs. Design Brief: swap advanced panels when advanced mode is on.
+    var photoPanel = tc.querySelector('#pgAdvancedPanel');
+    var briefPanel = tc.querySelector('#pgBriefAdvancedPanel');
+    if (photoPanel && briefPanel) {
+      if (currentMode !== 'advanced') {
+        photoPanel.style.display = 'none';
+        briefPanel.style.display = 'none';
+      } else {
+        photoPanel.style.display = currentOutputType === 'photography-prompt' ? 'block' : 'none';
+        briefPanel.style.display = currentOutputType === 'design-brief' ? 'block' : 'none';
+      }
+    }
+  }
 
   // Map kit default slugs → the actual <option> labels rendered in the selects.
   function _matchOption(selectEl, candidates) {
@@ -4552,20 +4620,46 @@ function renderAILGenerator(tc, clients, clientIds) {
   function updateBrandKitStatus() {
     var cid = tc.querySelector('#pgClient').value;
     var box = tc.querySelector('#pgBrandKitStatus');
+    var outWrap = tc.querySelector('#pgOutputTypeWrap');
     activeBrandKit = null;
     forbiddenElements = [];
-    if (!cid) { box.innerHTML = ''; return; }
+    if (!cid) {
+      box.innerHTML = '';
+      if (outWrap) outWrap.style.display = 'none';
+      return;
+    }
     var kit = (typeof getBrandKit === 'function') ? getBrandKit(cid) : (window.brandKits && window.brandKits[cid]);
     if (kit) {
       activeBrandKit = kit;
       forbiddenElements = Array.isArray(kit.forbiddenElements) ? kit.forbiddenElements.slice() : [];
-      box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">\u2713 Brand Kit Loaded</span>';
+      var typeBadge = kit.clientType ? ' \u00B7 <span style="color:#64748b;font-weight:500;">' + kit.clientType + '</span>' : '';
+      box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;">\u2713 Brand Kit Loaded</span>' + typeBadge;
       _applyBrandKitDefaults(kit);
+      // Default the output type based on clientType (spec behavior).
+      currentOutputType = kit.defaultOutputType || _defaultOutputTypeForClientType(kit.clientType);
+      // If a Design Brief style is specified on the kit, match it.
+      var briefStyleSel = tc.querySelector('#pgBriefStyle');
+      if (briefStyleSel && kit.style) _matchOption(briefStyleSel, [String(kit.style).toLowerCase()]);
     } else {
       box.innerHTML = '<span style="display:inline-block;padding:4px 10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:12px;font-weight:600;">No brand kit for this client yet</span>';
+      currentOutputType = 'photography-prompt';
     }
+    if (outWrap) outWrap.style.display = 'block';
+    _applyOutputTypeUI();
+  }
+  function _defaultOutputTypeForClientType(clientType) {
+    var t = String(clientType || '').toLowerCase();
+    if (t === 'butcher-cafe' || t === 'retail') return 'design-brief';
+    return 'photography-prompt'; // restaurant, medspa, unknown
   }
   tc.querySelector('#pgClient').addEventListener('change', updateBrandKitStatus);
+  // Output-type pill clicks
+  tc.querySelectorAll('#pgOutputTypeTabs [data-pg-outtype]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      currentOutputType = b.getAttribute('data-pg-outtype');
+      _applyOutputTypeUI();
+    });
+  });
   updateBrandKitStatus();
 
   // ─── Upload slot handlers ───
@@ -4641,7 +4735,8 @@ function renderAILGenerator(tc, clients, clientIds) {
         b.style.color = active ? '#0f172a' : '#64748b';
         b.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
       });
-      tc.querySelector('#pgAdvancedPanel').style.display = currentMode === 'advanced' ? 'block' : 'none';
+      // Let the output-type renderer decide which advanced panel to show.
+      _applyOutputTypeUI();
     });
   });
 
@@ -4730,36 +4825,89 @@ function renderAILGenerator(tc, clients, clientIds) {
     return 'portrait';
   }
 
+  // Local fallback builder for Design Brief — used if the backend is down
+  // or the client has no kit with a clientName yet.
+  function buildMockBrief() {
+    var kit = activeBrandKit || {};
+    var name = kit.clientName || '[Client]';
+    var styleSel = tc.querySelector('#pgBriefStyle');
+    var fmtSel   = tc.querySelector('#pgBriefFormat');
+    var copyEl   = tc.querySelector('#pgBriefCopy');
+    var styleVal = (styleSel && styleSel.value) || kit.style || 'bold-colorful';
+    var styleLabel = styleSel && styleSel.selectedIndex >= 0 ? styleSel.options[styleSel.selectedIndex].text : styleVal;
+    var fmtVal = (fmtSel && fmtSel.value) || 'portrait';
+    var fmtLabel = fmtVal === 'feed' ? '1080x1080' : fmtVal === 'story' ? '1080x1920' : '1080x1350';
+    var copyText = (copyEl && copyEl.value) || '[Paste post copy here]';
+    var colors = (kit.colorPalette && kit.colorPalette.join(', ')) || '[none on file]';
+    var styleDesc = kit.styleDescription || '[no style description on file]';
+    var notes = (kit.forbiddenElements && kit.forbiddenElements.length)
+      ? 'Avoid: ' + kit.forbiddenElements.join(', ')
+      : 'No client-specific exclusions on file.';
+    return [
+      'DESIGN BRIEF \u2014 ' + name,
+      'Style: ' + styleLabel,
+      'Format: ' + fmtLabel,
+      '',
+      'COPY:',
+      copyText,
+      '',
+      'LAYOUT SUGGESTION:',
+      'Product centered as hero, logo at top, bold typography for headline copy. Background uses brand colors (' + colors + '). CTA in footer.',
+      '',
+      'BRAND COLORS: ' + colors,
+      '',
+      'REFERENCE STYLE: ' + styleDesc,
+      '',
+      'NOTES: ' + notes
+    ].join('\n');
+  }
+
   async function runGenerate() {
     var cid = tc.querySelector('#pgClient').value;
     if (!cid) { showToast('Select a client first', 'error'); return; }
-    if (!slotImages.ambient || !slotImages.subject) { showToast('Upload at least Ambient + Subject images', 'error'); return; }
+
+    // Image uploads are only required for Photography Prompt mode.
+    if (currentOutputType === 'photography-prompt' && (!slotImages.ambient || !slotImages.subject)) {
+      showToast('Upload at least Ambient + Subject images', 'error');
+      return;
+    }
 
     var btn = tc.querySelector('#pgGenerateBtn');
     var output = tc.querySelector('#pgOutput');
     btn.disabled = true;
     var orig = btn.innerHTML;
-    btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Analyzing images and building your prompt...';
+    btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> ' +
+      (currentOutputType === 'design-brief' ? 'Assembling brief...' : 'Analyzing images and building your prompt...');
     output.value = '';
 
-    // Assemble request body. Image descriptions are placeholders until we add
-    // GPT-4V analysis — good enough for the endpoint to build a real prompt.
-    var body = {
-      clientId: cid,
-      mode: currentMode,
-      imageDescriptions: {
+    // Build one common payload; Design Brief uses a different shape.
+    var body = { clientId: cid, mode: currentMode, outputType: currentOutputType };
+
+    if (currentOutputType === 'photography-prompt') {
+      body.imageDescriptions = {
         ambient: slotImages.ambient && slotImages.ambient.description ? slotImages.ambient.description : (activeBrandKit ? activeBrandKit.ambientDescription : 'user-uploaded ambient / venue reference'),
         subject: slotImages.subject && slotImages.subject.description ? slotImages.subject.description : 'user-uploaded hero subject (product / dish / drink)',
         reference: slotImages.reference ? 'user-uploaded style reference' : undefined
+      };
+      if (currentMode === 'advanced') {
+        body.advancedOptions = {
+          shotType: (tc.querySelector('#pgShotType') || {}).value || 'Bar Shot',
+          angle:    _angleToSlug((tc.querySelector('#pgAngle')    || {}).value),
+          lens:     (tc.querySelector('#pgLens')     || {}).value || '85mm f/1.8',
+          mood:     _moodToSlug((tc.querySelector('#pgMood')     || {}).value),
+          format:   _formatToKey((tc.querySelector('#pgFormat')   || {}).value)
+        };
       }
-    };
-    if (currentMode === 'advanced') {
-      body.advancedOptions = {
-        shotType: (tc.querySelector('#pgShotType') || {}).value || 'Bar Shot',
-        angle:    _angleToSlug((tc.querySelector('#pgAngle')    || {}).value),
-        lens:     (tc.querySelector('#pgLens')     || {}).value || '85mm f/1.8',
-        mood:     _moodToSlug((tc.querySelector('#pgMood')     || {}).value),
-        format:   _formatToKey((tc.querySelector('#pgFormat')   || {}).value)
+    } else {
+      // Design Brief: style + format + copy come from the brief advanced panel.
+      // In quick mode we fall back to the kit's style + default format + empty copy.
+      var briefStyleSel = tc.querySelector('#pgBriefStyle');
+      var briefFmtSel   = tc.querySelector('#pgBriefFormat');
+      var briefCopyEl   = tc.querySelector('#pgBriefCopy');
+      body.briefOptions = {
+        style:  currentMode === 'advanced' && briefStyleSel ? briefStyleSel.value : ((activeBrandKit && activeBrandKit.style) || 'bold-colorful'),
+        format: currentMode === 'advanced' && briefFmtSel ? _formatToKey(briefFmtSel.value) : _formatToKey(activeBrandKit && activeBrandKit.outputFormat),
+        copy:   (briefCopyEl && briefCopyEl.value) || ''
       };
     }
 
@@ -4770,24 +4918,24 @@ function renderAILGenerator(tc, clients, clientIds) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
+      var fallback = currentOutputType === 'design-brief' ? buildMockBrief() : buildMockPrompt();
       if (!r.ok) {
-        // Fallback to local mock so the user still sees something useful.
         var errBody = await r.json().catch(function(){ return {}; });
         if (r.status === 404) {
           showToast(errBody.error || 'No brand kit for this client yet — showing preview from inputs', 'info');
         } else {
           showToast(errBody.error || ('Server error (' + r.status + ')'), 'error');
         }
-        output.value = buildMockPrompt();
+        output.value = fallback;
       } else {
         var data = await r.json();
-        output.value = data.prompt || buildMockPrompt();
-        showToast('Prompt generated', 'success');
+        output.value = data.prompt || fallback;
+        showToast(currentOutputType === 'design-brief' ? 'Design brief generated' : 'Prompt generated', 'success');
       }
     } catch (e) {
       console.error('[prompt-generator] fetch failed:', e);
       showToast('Network error — showing local preview', 'info');
-      output.value = buildMockPrompt();
+      output.value = currentOutputType === 'design-brief' ? buildMockBrief() : buildMockPrompt();
     } finally {
       btn.disabled = false;
       btn.innerHTML = orig;
