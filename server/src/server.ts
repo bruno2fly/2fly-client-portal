@@ -436,6 +436,14 @@ const server = app.listen(PORT, () => {
     }
   }, REFRESH_INTERVAL);
   console.log(`🔑 Token refresh timer started (every 6 hours)`);
+
+  // ── Keep Railway from cold-starting — ping self every 4 minutes ──
+  if (process.env.NODE_ENV === 'production') {
+    setInterval(() => {
+      fetch('https://api.2flyflow.com/health').catch(() => {});
+    }, 240000);
+    console.log(`🔁 Self-ping timer started (every 4 min) to prevent Railway cold starts`);
+  }
 });
 
 // Increase server timeouts for long-running requests (AI image generation)
