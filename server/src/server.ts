@@ -85,14 +85,11 @@ app.use(cors({
   credentials: true
 }));
 
-// HTTP/2 stability: ensure keep-alive is signaled on every response.
-// Railway's edge proxy can drop idle connections and trigger ERR_HTTP2_PROTOCOL_ERROR
-// on the browser side if connections are not properly kept alive.
-app.use((req, res, next) => {
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Keep-Alive', 'timeout=120');
-  next();
-});
+// NOTE: Do NOT set Connection/Keep-Alive response headers here.
+// HTTP/2 (RFC 9113 §8.2.2) prohibits connection-specific headers;
+// Railway's edge proxy serves HTTP/2 to browsers and may reject or
+// corrupt responses containing them. The proper stability fix is
+// server.headersTimeout > server.keepAliveTimeout (set below).
 app.use(cookieParser());
 // Security headers
 if (process.env.NODE_ENV === 'production') {
