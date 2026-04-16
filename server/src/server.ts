@@ -54,11 +54,16 @@ const PORT = process.env.PORT || 3001;
 const prodOrigins = [
   process.env.FRONTEND_URL,
   'https://2flyflow.com',
-  'https://www.2flyflow.com'
+  'https://www.2flyflow.com',
+  'https://2fly-client-portal.vercel.app'
 ].filter(Boolean);
 const allowedOrigins = process.env.NODE_ENV === 'development'
   ? ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174']
   : (prodOrigins.length > 0 ? prodOrigins : ['https://2flyflow.com']);
+
+// Regex for Vercel preview deployments of the client portal
+// Matches: https://2fly-client-portal-<anything>.vercel.app
+const vercelPreviewRegex = /^https:\/\/2fly-client-portal(-[a-z0-9-]+)?\.vercel\.app$/i;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -66,14 +71,28 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
     }
+    // Allow Vercel preview deployments for the client portal project
+    if (vercelPreviewRegex.test(origin)) {
+      return callback(null, true);
+    }
     // In development, allow any localhost:* origin so any dev port works
     if (process.env.NODE_ENV === 'development' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
+    console.warn('[CORS] Blocked origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
+
+// HTTP/2 stability: ensure keep-alive is signaled on every response.
+// Railway's edge proxy can drop idle connections and trigger ERR_HTTP2_PROTOCOL_ERROR
+// on the browser side if connections are not properly kept alive.
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=120');
+  next();
+});
 app.use(cookieParser());
 // Security headers
 if (process.env.NODE_ENV === 'production') {
@@ -422,6 +441,11 @@ const server = app.listen(PORT, () => {
 // Increase server timeouts for long-running requests (AI image generation)
 server.timeout = 120000;       // 2 minutes
 server.keepAliveTimeout = 120000;
+// headersTimeout MUST be greater than keepAliveTimeout to prevent Railway/proxy
+// races that surface as ERR_HTTP2_PROTOCOL_ERROR in the browser.
+// See: https://nodejs.org/api/http.html#serverheaderstimeout
+server.headersTimeout = 125000; // 2 min 5 sec
+server.requestTimeout = 0;      // disable per-request timeout (server.timeout handles it)
 
 server.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
