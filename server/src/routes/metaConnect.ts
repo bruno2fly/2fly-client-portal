@@ -813,15 +813,34 @@ router.post('/health-check', async (req: Request, res: Response) => {
   }
 
   const all = getMetaIntegrations();
-  const results: Array<{ clientId: string; pageName: string; status: string; error?: string }> = [];
 
-  for (const integration of Object.values(all)) {
-    const currentStatus = (integration as any).status || 'connected';
-    if (currentStatus === 'disconnected') continue;
+  // Filter to active integrations only
+  const activeIntegrations = Object.values(all).filter(
+    (i) => ((i as any).status || 'connected') !== 'disconnected'
+  );
 
+  // Helper: wrap a promise with a timeout so one slow client can't block the rest
+  function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms for ${label}`)), ms);
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
+  }
+
+  // Check ALL integrations in parallel (5s timeout per check)
+  const PER_CLIENT_TIMEOUT = 5000;
+
+  const results = await Promise.all(activeIntegrations.map(async (integration) => {
     try {
       // Quick check: can we read the page?
-      const pageRes = await fetch(`https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`);
+      const pageRes = await withTimeout(
+        fetch(`https://graph.facebook.com/v21.0/${integration.metaPageId}?fields=id,name&access_token=${integration.metaAccessToken}`),
+        PER_CLIENT_TIMEOUT,
+        integration.clientId,
+      );
       const pageData: any = await pageRes.json();
 
       if (pageData.error) {
@@ -830,7 +849,11 @@ router.post('/health-check', async (req: Request, res: Response) => {
         let recovered = false;
         if (userToken) {
           try {
-            const freshPages = await getPages(userToken);
+            const freshPages = await withTimeout(
+              getPages(userToken),
+              PER_CLIENT_TIMEOUT,
+              `recovery-${integration.clientId}`,
+            );
             const freshPage = freshPages.find(p => p.id === integration.metaPageId) || freshPages[0];
             if (freshPage) {
               integration.metaAccessToken = freshPage.access_token;
@@ -852,12 +875,12 @@ router.post('/health-check', async (req: Request, res: Response) => {
           saveMetaIntegration(integration);
         }
 
-        results.push({
+        return {
           clientId: integration.clientId,
           pageName: integration.metaPageName || '',
           status: recovered ? 'recovered' : 'expired',
           error: recovered ? undefined : pageData.error.message,
-        });
+        };
       } else {
         // Connection is healthy
         (integration as any).status = 'connected';
@@ -866,23 +889,23 @@ router.post('/health-check', async (req: Request, res: Response) => {
         integration.updatedAt = Date.now();
         saveMetaIntegration(integration);
 
-        results.push({
+        return {
           clientId: integration.clientId,
           pageName: integration.metaPageName || '',
-          status: 'connected',
-        });
+          status: 'connected' as const,
+        };
       }
     } catch (e: any) {
-      results.push({
+      return {
         clientId: integration.clientId,
         pageName: integration.metaPageName || '',
-        status: 'error',
+        status: 'error' as const,
         error: e.message,
-      });
+      };
     }
-  }
+  }));
 
-  console.log(`[Meta health-check] Checked ${results.length} connections: ${results.filter(r => r.status === 'connected').length} healthy, ${results.filter(r => r.status === 'expired').length} expired, ${results.filter(r => r.status === 'recovered').length} recovered`);
+  console.log(`[Meta health-check] Checked ${results.length} connections in parallel: ${results.filter(r => r.status === 'connected').length} healthy, ${results.filter(r => r.status === 'expired').length} expired, ${results.filter(r => r.status === 'recovered').length} recovered, ${results.filter(r => r.status === 'error').length} errors`);
   res.json({ success: true, results });
 });
 

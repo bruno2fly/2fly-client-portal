@@ -390,7 +390,7 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
 router.get('/scheduled', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const { clientId, platform, status } = req.query;
+    const { clientId, platform, status, limit: limitParam } = req.query;
 
     let posts = getScheduledPostsByAgency(agencyId);
     if (clientId && typeof clientId === 'string') {
@@ -404,8 +404,20 @@ router.get('/scheduled', authenticate, requireCanViewDashboard, (req: Authentica
       posts = posts.filter(p => p.status === status);
     }
 
+    // Sort newest-scheduled first so the limit keeps the most relevant posts,
+    // then reverse to ascending for the calendar UI.
+    posts.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+
+    // Default limit: 100 posts. Pass ?limit=0 to disable (not recommended).
+    const maxPosts = limitParam && typeof limitParam === 'string' ? parseInt(limitParam, 10) : 100;
+    if (maxPosts > 0 && posts.length > maxPosts) {
+      posts = posts.slice(0, maxPosts);
+    }
+
+    // Re-sort ascending (chronological) for the frontend calendar
     posts.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    res.json({ success: true, posts });
+
+    res.json({ success: true, posts, total: posts.length });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to list posts' });
   }
