@@ -161,6 +161,7 @@ function verifyCronAuth(req: Request, res: Response): boolean {
  * Pass ?retry=1 to include failed post retries.
  */
 router.get('/publish-posts', async (req: Request, res: Response) => {
+  try {
   if (!verifyCronAuth(req, res)) return;
 
   const includeRetries = req.query.retry === '1';
@@ -401,6 +402,10 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, processed: results.length, results });
+  } catch (err: any) {
+    console.error('[cron/publish-posts] Unhandled error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error', message: err?.message });
+  }
 });
 
 /**
@@ -409,6 +414,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
  * Should run daily via Vercel Cron to prevent tokens from going stale.
  */
 router.get('/refresh-tokens', async (req: Request, res: Response) => {
+  try {
   if (!verifyCronAuth(req, res)) return;
 
   const { getMetaIntegrations } = await import('../db.js');
@@ -469,6 +475,10 @@ router.get('/refresh-tokens', async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, processed: results.length, results });
+  } catch (err: any) {
+    console.error('[cron/refresh-tokens] Unhandled error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error', message: err?.message });
+  }
 });
 
 /**
@@ -477,6 +487,7 @@ router.get('/refresh-tokens', async (req: Request, res: Response) => {
  * Only retries posts that failed within the last 24 hours and have a valid token now.
  */
 router.get('/retry-failed', async (req: Request, res: Response) => {
+  try {
   if (!verifyCronAuth(req, res)) return;
 
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
@@ -603,76 +614,12 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, retried: results.length, results });
-});
-
-/**
- * GET /api/cron/refresh-tokens
- * Proactively refreshes ALL Meta integration tokens.
- * Run daily via Railway cron or external scheduler to keep tokens alive.
- * This prevents the "#200 Subject does not have permission" errors.
- */
-router.get('/refresh-tokens', async (req: Request, res: Response) => {
-  if (!verifyCronAuth(req, res)) return;
-
-  const integrations = Object.values(getMetaIntegrations());
-  const results: { clientId: string; pageId: string; status: string; error?: string; expiresAt?: string }[] = [];
-
-  for (const integration of integrations) {
-    let userToken = (integration as any).metaUserAccessToken;
-    if (!userToken) {
-      results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'skipped', error: 'No user token stored' });
-      continue;
-    }
-
-    try {
-      // Step 1: Refresh the long-lived user token (extends by 60 days)
-      try {
-        const refreshed = await refreshLongLivedToken(userToken);
-        userToken = refreshed.access_token;
-        (integration as any).metaUserAccessToken = refreshed.access_token;
-        integration.tokenExpiresAt = Date.now() + (refreshed.expires_in * 1000);
-        console.log(`[refresh-tokens] User token refreshed for page ${integration.metaPageId}, expires: ${new Date(integration.tokenExpiresAt).toISOString()}`);
-      } catch (e: any) {
-        console.log(`[refresh-tokens] User token refresh failed for ${integration.metaPageId}: ${e.message}`);
-        // Continue anyway — try to get fresh page token with existing user token
-      }
-
-      // Step 2: Get fresh page token
-      const freshPages = await getPages(userToken);
-      const freshPage = freshPages.find((p: any) => p.id === integration.metaPageId) || freshPages[0];
-      if (freshPage) {
-        integration.metaAccessToken = freshPage.access_token;
-        integration.updatedAt = Date.now();
-
-        // Step 3: Refresh Instagram account info
-        const igAcct = await getInstagramAccount(freshPage.id, freshPage.access_token);
-        if (igAcct) {
-          integration.metaInstagramAccountId = igAcct.id;
-          integration.metaInstagramUsername = igAcct.username;
-        }
-
-        saveMetaIntegration(integration);
-        results.push({
-          clientId: integration.clientId,
-          pageId: integration.metaPageId,
-          status: 'refreshed',
-          expiresAt: new Date(integration.tokenExpiresAt).toISOString()
-        });
-      } else {
-        results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'failed', error: 'No pages found for user token' });
-      }
-    } catch (err: any) {
-      results.push({ clientId: integration.clientId, pageId: integration.metaPageId, status: 'failed', error: err.message });
-    }
+  } catch (err: any) {
+    console.error('[cron/retry-failed] Unhandled error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error', message: err?.message });
   }
-
-  res.json({
-    success: true,
-    refreshed: results.filter(r => r.status === 'refreshed').length,
-    failed: results.filter(r => r.status === 'failed').length,
-    skipped: results.filter(r => r.status === 'skipped').length,
-    results
-  });
 });
+
+// NOTE: Duplicate /refresh-tokens handler was removed — the handler above (line ~416) covers all cases.
 
 export default router;

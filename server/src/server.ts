@@ -45,6 +45,14 @@ import { generateToken, generateId, generateUsernameFromEmail, generateRandomPas
 import { sendCredentialsEmail } from './utils/email.js';
 import { clearRateLimit, clearAllRateLimits } from './utils/rateLimit.js';
 
+// ── Global crash handlers — prevent silent process death ──
+process.on('uncaughtException', (err) => {
+  console.error('🔴 UNCAUGHT EXCEPTION — keeping server alive:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('🔴 UNHANDLED REJECTION — keeping server alive:', reason);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 

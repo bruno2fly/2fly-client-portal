@@ -71,4 +71,6 @@ export function cleanupExpiredEntries(): void {
 }
 
 // Clean up expired entries every 5 minutes
-setInterval(cleanupExpiredEntries, 5 * 60 * 1000);
+// unref() so this timer doesn't keep the process alive during graceful shutdown
+const cleanupTimer = setInterval(cleanupExpiredEntries, 5 * 60 * 1000);
+cleanupTimer.unref();

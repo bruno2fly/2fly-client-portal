@@ -954,15 +954,21 @@ router.get('/status', authenticate, requireCanViewDashboard, (req: Authenticated
 
 /** Legacy: POST /disconnect (used by scheduled posts tab) */
 router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
-  const clientId = req.body?.clientId;
-  if (!clientId) return res.status(400).json({ error: 'clientId required' });
-  const { agencyId } = getAgencyScope(req);
-  deleteMetaIntegrationByClient(agencyId, clientId);
-  res.json({ success: true });
+  try {
+    const clientId = req.body?.clientId;
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+    const { agencyId } = getAgencyScope(req);
+    deleteMetaIntegrationByClient(agencyId, clientId);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[meta/disconnect] Error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 /** Legacy: GET /debug?clientId=xxx (used by Test Connection button) */
 router.get('/debug', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
+  try {
   // Just proxy to the verify endpoint logic
   const clientId = req.query.clientId as string;
   if (!clientId) return res.status(400).json({ error: 'clientId required' });
@@ -1068,6 +1074,10 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
     canPost,
     postError,
   });
+  } catch (err: any) {
+    console.error('[meta/debug] Unhandled error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ═══════════════════════════════════════════════════════
