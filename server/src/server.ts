@@ -170,9 +170,28 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check
+// Health check (with optional disk usage for monitoring)
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
+  const result: any = { status: 'ok', timestamp: Date.now() };
+  // Add disk info if ?disk=1
+  if (req.query.disk === '1') {
+    try {
+      const { readdirSync, statSync } = require('fs');
+      const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || require('path').join(process.cwd(), 'data');
+      const files = readdirSync(dbDir);
+      let totalBytes = 0;
+      const fileSizes: Record<string, string> = {};
+      for (const f of files) {
+        try {
+          const sz = statSync(require('path').join(dbDir, f)).size;
+          totalBytes += sz;
+          fileSizes[f] = (sz / 1024).toFixed(1) + 'KB';
+        } catch { /* skip */ }
+      }
+      result.disk = { totalMB: (totalBytes / 1024 / 1024).toFixed(1), files: fileSizes };
+    } catch { /* ignore */ }
+  }
+  res.json(result);
 });
 
 // Dev-only: Clear rate limits (for testing)

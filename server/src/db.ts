@@ -5,7 +5,7 @@
  * Production: Migrate to PostgreSQL/MongoDB
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type {
   Workspace,
@@ -116,18 +116,21 @@ function writeJSON<T>(file: string, data: T): void {
     console.error(`[db] BLOCKED write of suspiciously small data to ${file} (${json.length} bytes)`);
     return;
   }
-  const isCriticalBak = file === PORTAL_STATE_FILE || file === CLIENTS_FILE;
-  try {
-    if (existsSync(file)) {
-      const existing = readFileSync(file, 'utf-8');
-      if (isCriticalBak && existing.trim().length > 0) {
-        atomicWriteUtf8(file + '.bak', existing);
-      } else if (!isCriticalBak && existing.trim().length > 20) {
-        atomicWriteUtf8(file + '.bak', existing);
+  // Only backup critical files (portal-state, clients, meta-integrations, users)
+  // Backing up ALL files doubles disk usage and filled the Railway volume
+  const CRITICAL_FILES = [PORTAL_STATE_FILE, CLIENTS_FILE, META_INTEGRATIONS_FILE, USERS_FILE];
+  const isCritical = CRITICAL_FILES.includes(file);
+  if (isCritical) {
+    try {
+      if (existsSync(file)) {
+        const existing = readFileSync(file, 'utf-8');
+        if (existing.trim().length > 0) {
+          atomicWriteUtf8(file + '.bak', existing);
+        }
       }
+    } catch {
+      // Don't fail the write if backup fails
     }
-  } catch {
-    // Don't fail the write if backup fails
   }
   atomicWriteUtf8(file, json);
 }
@@ -167,6 +170,110 @@ function validateCriticalJsonStoresAtStartup(): void {
 }
 
 validateCriticalJsonStoresAtStartup();
+
+// ── Disk cleanup — prevent Railway volume from filling up ──
+function cleanupDiskSpace(): void {
+  try {
+    const files = readdirSync(DB_DIR);
+    let freedBytes = 0;
+
+    // 1. Delete .tmp files (leftover from failed atomic writes)
+    for (const f of files) {
+      if (f.endsWith('.tmp')) {
+        try {
+          const fp = join(DB_DIR, f);
+          const sz = statSync(fp).size;
+          unlinkSync(fp);
+          freedBytes += sz;
+        } catch { /* ignore */ }
+      }
+    }
+
+    // 2. Trim audit logs to 2,000 entries (was 10,000 — each entry ~500 bytes = 5MB cap → 1MB)
+    try {
+      const logsFile = join(DB_DIR, 'audit-logs.json');
+      if (existsSync(logsFile)) {
+        const logs = JSON.parse(readFileSync(logsFile, 'utf-8'));
+        if (Array.isArray(logs) && logs.length > 2000) {
+          const before = Buffer.byteLength(JSON.stringify(logs));
+          logs.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+          logs.splice(2000);
+          const trimmed = JSON.stringify(logs, null, 2);
+          atomicWriteUtf8(logsFile, trimmed);
+          freedBytes += before - Buffer.byteLength(trimmed);
+        }
+      }
+    } catch (e) { console.warn('[cleanup] audit logs trim failed:', e); }
+
+    // 3. Trim old completed/failed scheduled posts (keep last 500, remove posts older than 90 days)
+    try {
+      const postsFile = join(DB_DIR, 'scheduled-posts.json');
+      if (existsSync(postsFile)) {
+        const posts = JSON.parse(readFileSync(postsFile, 'utf-8'));
+        if (Array.isArray(posts) && posts.length > 500) {
+          const before = Buffer.byteLength(JSON.stringify(posts));
+          const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
+          const cutoff = Date.now() - NINETY_DAYS;
+          // Keep: all scheduled/pending + recent completed/failed + up to 500 total
+          const kept = posts.filter((p: any) => {
+            if (p.status === 'scheduled' || p.status === 'pending') return true;
+            const ts = new Date(p.updatedAt || p.createdAt || 0).getTime();
+            return ts > cutoff;
+          });
+          // If still too many, sort by date and keep newest 500
+          if (kept.length > 500) {
+            kept.sort((a: any, b: any) => {
+              const ta = new Date(b.updatedAt || b.createdAt || 0).getTime();
+              const tb = new Date(a.updatedAt || a.createdAt || 0).getTime();
+              return ta - tb;
+            });
+            kept.splice(500);
+          }
+          const trimmed = JSON.stringify(kept, null, 2);
+          atomicWriteUtf8(postsFile, trimmed);
+          freedBytes += before - Buffer.byteLength(trimmed);
+        }
+      }
+    } catch (e) { console.warn('[cleanup] scheduled posts trim failed:', e); }
+
+    // 4. Trim expired invite/password-reset tokens (older than 7 days)
+    for (const tokenFile of ['invite-tokens.json', 'password-reset-tokens.json']) {
+      try {
+        const fp = join(DB_DIR, tokenFile);
+        if (!existsSync(fp)) continue;
+        const tokens = JSON.parse(readFileSync(fp, 'utf-8'));
+        if (Array.isArray(tokens)) {
+          const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+          const cutoff = Date.now() - SEVEN_DAYS;
+          const kept = tokens.filter((t: any) => !t.usedAt && t.expiresAt > cutoff);
+          if (kept.length < tokens.length) {
+            const before = Buffer.byteLength(JSON.stringify(tokens));
+            const trimmed = JSON.stringify(kept, null, 2);
+            atomicWriteUtf8(fp, trimmed);
+            freedBytes += before - Buffer.byteLength(trimmed);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 5. Log disk usage summary
+    let totalBytes = 0;
+    for (const f of readdirSync(DB_DIR)) {
+      try { totalBytes += statSync(join(DB_DIR, f)).size; } catch { /* ignore */ }
+    }
+    const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+    const freedMB = (freedBytes / 1024 / 1024).toFixed(1);
+    console.log(`[cleanup] Disk: ${totalMB}MB used in ${DB_DIR} | freed ${freedMB}MB`);
+  } catch (e) {
+    console.error('[cleanup] Disk cleanup failed:', e);
+  }
+}
+
+// Run cleanup on startup
+cleanupDiskSpace();
+// Run cleanup every 6 hours
+const cleanupInterval = setInterval(cleanupDiskSpace, 6 * 60 * 60 * 1000);
+cleanupInterval.unref();
 
 // Workspaces
 export function getWorkspaces(): Record<string, Workspace> {
@@ -450,9 +557,9 @@ export function getAuditLogsByAgency(agencyId: string, limit: number = 100): Aud
 export function saveAuditLog(log: AuditLog): void {
   const logs = getAuditLogs();
   logs.push(log);
-  if (logs.length > 10000) {
+  if (logs.length > 2000) {
     logs.sort((a, b) => b.createdAt - a.createdAt);
-    logs.splice(10000);
+    logs.splice(2000);
   }
   writeJSON(AUDIT_LOGS_FILE, logs);
 }
