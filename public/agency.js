@@ -696,6 +696,7 @@ function deleteNotification(id) {
 }
 
 /** Create and store one notification. ACTION defaults to unread; PROGRESS/REWARD default read. */
+var MAX_NOTIFICATIONS = 200; // Cap to prevent unbounded localStorage growth
 function createNotification(opts) {
   const type = opts.type || 'PROGRESS';
   const n = {
@@ -710,6 +711,8 @@ function createNotification(opts) {
   };
   const list = loadNotifications();
   list.unshift(n);
+  // Trim old notifications to prevent memory bloat
+  if (list.length > MAX_NOTIFICATIONS) list.length = MAX_NOTIFICATIONS;
   saveNotifications(list);
   renderNotificationBell();
   return n;
@@ -14468,7 +14471,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { syncProductionArtOnLoad(); } catch (e) { console.error('Error syncing production art:', e); }
 
     // Poll portal state so client-side actions create agency notifications live (no refresh)
+    // Runs every 30s (was 5s with duplicate intervals — caused memory bloat & Chrome tab crashes)
+    var _pollTimer = null;
     function pollClientActions() {
+      // Skip polling when tab is hidden (saves memory + network)
+      if (document.hidden) return;
       var clients = loadClientsRegistry();
       var ids = clients ? Object.keys(clients) : [];
       ids.forEach(function(cid) {
@@ -14484,13 +14491,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       var clients = loadClientsRegistry();
       var ids = clients ? Object.keys(clients) : [];
       if (ids.length === 0) {
-        setInterval(pollClientActions, 5000);
+        _pollTimer = setInterval(pollClientActions, 30000);
         return;
       }
       Promise.all(ids.map(function(cid) { return fetchPortalStateFromAPI(cid).catch(function() {}); })).then(function() {
         if (typeof renderNotificationBell === 'function') renderNotificationBell();
-        setInterval(pollClientActions, 5000);
-        setTimeout(pollClientActions, 2000);
+        _pollTimer = setInterval(pollClientActions, 30000);
         if (typeof maybeGenerateMonthlyProgressSummaryNotifications === 'function') maybeGenerateMonthlyProgressSummaryNotifications();
       });
     })();
@@ -15213,7 +15219,7 @@ var _origRenderProdView = typeof renderProductionView === 'function' ? renderPro
 if (_origRenderProdView) {
   var _origRPVRef = renderProductionView;
   // We patch via a post-render hook instead of overriding to avoid breaking the function
-  setInterval(function() { if (copilotOpen) updateCopilotContext(); }, 2000);
+  setInterval(function() { if (copilotOpen && !document.hidden) updateCopilotContext(); }, 2000);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
