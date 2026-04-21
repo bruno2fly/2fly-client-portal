@@ -875,4 +875,156 @@ router.post('/references', authenticate, async (req: AuthenticatedRequest, res) 
   }
 });
 
+// ── Reels Factory ──
+
+const TONE_DESCRIPTIONS: Record<string, string> = {
+  energetic: 'High-energy, fast-paced, punchy cuts, bold transitions, upbeat music sync. Think TikTok-viral energy.',
+  premium: 'Sleek, cinematic, slow reveals, smooth transitions, luxury feel. Minimal text overlays, let visuals breathe.',
+  warm: 'Authentic, community-driven, natural pacing, warm color grading. Feels local, personal, inviting.'
+};
+
+// POST /api/ai-library/generate-reels-brief
+router.post('/generate-reels-brief', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { clientId, outputType, fileList, tone } = req.body as {
+      clientId?: string;
+      outputType?: string;
+      fileList?: string;
+      tone?: string;
+    };
+
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+    if (!fileList || !fileList.trim()) return res.status(400).json({ error: 'fileList required' });
+
+    const kit = getBrandKit(clientId);
+    const clientName = kit?.clientName || clientId;
+    const toneKey = tone || 'energetic';
+    const toneDesc = TONE_DESCRIPTIONS[toneKey] || TONE_DESCRIPTIONS.energetic;
+    const isAd = outputType === 'ad-brief';
+    const briefType = isAd ? 'Ad Brief' : 'Reels Brief';
+
+    // Parse file list — accept comma-separated or newline-separated
+    const files = fileList
+      .split(/[\n,]+/)
+      .map((f: string) => f.trim())
+      .filter((f: string) => f.length > 0);
+
+    // Build brand context if available
+    let brandContext = '';
+    if (kit) {
+      const parts: string[] = [];
+      if (kit.clientName) parts.push('Client: ' + kit.clientName);
+      if (kit.colorPalette && kit.colorPalette.length) parts.push('Brand colors: ' + kit.colorPalette.join(', '));
+      if (kit.styleDescription) parts.push('Visual style: ' + kit.styleDescription);
+      if (kit.forbiddenElements && kit.forbiddenElements.length) parts.push('Avoid: ' + kit.forbiddenElements.join(', '));
+      brandContext = parts.join('\n');
+    }
+
+    const apiKey = getOpenAIKey();
+
+    if (!apiKey) {
+      // Fallback: build a manual brief without AI
+      const brief = buildFallbackReelsBrief(clientName, files, briefType, toneKey, toneDesc, brandContext);
+      return res.json({ brief, metadata: { client: clientName, type: briefType, tone: toneKey, aiGenerated: false } });
+    }
+
+    const systemPrompt = `You are a senior video editor and social media strategist at a top creative agency.
+
+Your job: Given a list of raw video file names from a client shoot and a desired tone, produce a structured ${briefType} that a junior editor can immediately use to start cutting.
+
+Rules:
+- Output ONLY the brief, no preamble
+- Organize the files into logical scenes / sequences based on file name clues
+- For each scene, specify: which files to use, suggested order, estimated clip duration, transition type
+- Include an overall structure: hook (first 1-3s), body, CTA
+- Suggest music/audio direction matching the tone
+- Include pacing notes matching the tone
+- If it's an Ad Brief, include a clear CTA callout section and ad copy suggestion
+- Be specific and actionable — the editor should be able to start immediately
+- Keep the brief under 600 words
+- Format cleanly with sections and bullet points`;
+
+    const userMessage = `Client: ${clientName}
+Brief Type: ${briefType}
+Tone: ${toneKey} — ${toneDesc}
+${brandContext ? '\nBrand Guidelines:\n' + brandContext + '\n' : ''}
+Raw video files from client Drive:
+${files.map((f: string, i: number) => `${i + 1}. ${f}`).join('\n')}
+
+Generate the ${briefType} now.`;
+
+    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        max_tokens: 1200,
+        temperature: 0.7
+      })
+    });
+
+    if (!aiRes.ok) {
+      const errBody = await aiRes.text();
+      console.error('[Reels Factory] OpenAI error:', errBody);
+      // Fallback
+      const brief = buildFallbackReelsBrief(clientName, files, briefType, toneKey, toneDesc, brandContext);
+      return res.json({ brief, metadata: { client: clientName, type: briefType, tone: toneKey, aiGenerated: false } });
+    }
+
+    const data = await aiRes.json() as any;
+    const brief = data.choices?.[0]?.message?.content?.trim();
+    if (!brief) {
+      const fb = buildFallbackReelsBrief(clientName, files, briefType, toneKey, toneDesc, brandContext);
+      return res.json({ brief: fb, metadata: { client: clientName, type: briefType, tone: toneKey, aiGenerated: false } });
+    }
+
+    console.log(`[Reels Factory] Brief generated for ${clientName}: ${brief.length} chars`);
+    return res.json({ brief, metadata: { client: clientName, type: briefType, tone: toneKey, aiGenerated: true } });
+
+  } catch (err: any) {
+    console.error('[Reels Factory] Error:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to generate brief' });
+  }
+});
+
+function buildFallbackReelsBrief(
+  clientName: string,
+  files: string[],
+  briefType: string,
+  tone: string,
+  toneDesc: string,
+  brandContext: string
+): string {
+  const lines: string[] = [];
+  lines.push(`${briefType.toUpperCase()} — ${clientName}`);
+  lines.push(`Tone: ${tone.charAt(0).toUpperCase() + tone.slice(1)} — ${toneDesc}`);
+  lines.push('');
+  lines.push('── FOOTAGE INVENTORY ──');
+  files.forEach((f, i) => lines.push(`  ${i + 1}. ${f}`));
+  lines.push('');
+  lines.push('── SUGGESTED STRUCTURE ──');
+  lines.push('HOOK (0-3s): Open with the most visually striking clip. Fast cut or zoom-in.');
+  lines.push('BODY (3-12s): Cycle through key footage. Match cuts to beat drops.');
+  lines.push('CTA (12-15s): End card or final shot with clear call-to-action.');
+  lines.push('');
+  lines.push('── PACING NOTES ──');
+  lines.push(`Follow ${tone} pacing: ${toneDesc}`);
+  if (brandContext) {
+    lines.push('');
+    lines.push('── BRAND NOTES ──');
+    lines.push(brandContext);
+  }
+  lines.push('');
+  lines.push('── MUSIC DIRECTION ──');
+  lines.push(`Select a track that matches the ${tone} tone. Ensure beats align with major cuts.`);
+  return lines.join('\n');
+}
+
 export default router;

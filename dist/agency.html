@@ -3685,6 +3685,17 @@
   .ail-spinner { width:24px; height:24px; border:3px solid #e2e8f0; border-top-color:#1a56db; border-radius:50%; animation:spin 0.8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
+  /* ===== Reels Factory ===== */
+  .rf-toggle-group { display:flex; gap:8px; flex-wrap:wrap; }
+  .rf-toggle-btn { padding:10px 20px; border-radius:10px; border:2px solid #e2e8f0; background:#fff; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; transition:all .18s; display:inline-flex; align-items:center; gap:6px; }
+  .rf-toggle-btn:hover { border-color:#1a56db; color:#1e293b; background:#f0f6ff; }
+  .rf-toggle-btn.active { border-color:#1a56db; background:#1a56db; color:#fff; }
+  .rf-output-box { background:#0f172a; color:#e2e8f0; border-radius:12px; padding:20px; min-height:160px; font-family:'SF Mono','Fira Code',monospace; font-size:13px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-top:16px; position:relative; }
+  .rf-output-placeholder { color:#475569; font-style:italic; }
+  .rf-copy-btn { position:absolute; top:12px; right:12px; padding:6px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.08); color:#94a3b8; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
+  .rf-copy-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
+  .rf-step-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; display:block; }
+
   /* ===== Feed Preview Builder ===== */
   #feedBuilderSection {
     background: #f0f4ff;

@@ -4481,6 +4481,7 @@ async function renderGlobalAILibrary(container) {
   // Tabs
   h += '<div class="ail-tabs">';
   h += '<button class="ail-tab' + (ailCurrentTab === 'generator' ? ' active' : '') + '" data-ailtab="generator">Prompt Generator</button>';
+  h += '<button class="ail-tab' + (ailCurrentTab === 'reels' ? ' active' : '') + '" data-ailtab="reels">Reels Factory</button>';
   h += '<button class="ail-tab' + (ailCurrentTab === 'library' ? ' active' : '') + '" data-ailtab="library">Library</button>';
   h += '<button class="ail-tab' + (ailCurrentTab === 'brandkit' ? ' active' : '') + '" data-ailtab="brandkit">Brand Kit</button>';
   h += '</div>';
@@ -4501,6 +4502,8 @@ async function renderGlobalAILibrary(container) {
 
   if (ailCurrentTab === 'generator') {
     renderAILGenerator(tc, clients, clientIds);
+  } else if (ailCurrentTab === 'reels') {
+    renderReelsFactory(tc, clients, clientIds);
   } else if (ailCurrentTab === 'library') {
     await renderAILLibraryGrid(tc, clients, clientIds, null);
   } else if (ailCurrentTab === 'brandkit') {
@@ -5194,6 +5197,147 @@ function renderAILGenerator(tc, clients, clientIds) {
       setTimeout(function() { btn.innerHTML = orig; }, 1800);
       showToast('Copied to clipboard', 'success');
     }).catch(function() { showToast('Copy failed', 'error'); });
+  });
+}
+
+/* ================== Reels Factory ================== */
+
+function renderReelsFactory(tc, clients, clientIds) {
+  var h = '';
+
+  // ── Step 1 — Select Client ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0f172a;">Step 1 &mdash; Select Client</h3>';
+  h += '<div class="ail-form-group" style="max-width:420px;margin-bottom:14px;"><label class="ail-label">Client</label>';
+  h += '<select class="ail-select" id="rfClient"><option value="">Select client...</option>';
+  clientIds.forEach(function(cid) {
+    var name = clients[cid] ? (clients[cid].name || cid) : cid;
+    h += '<option value="' + cid + '"' + (cid === currentClientId ? ' selected' : '') + '>' + name + '</option>';
+  });
+  h += '</select></div>';
+
+  // Output Type toggle
+  h += '<div style="margin-bottom:0;">';
+  h += '<label class="ail-label">Output Type</label>';
+  h += '<div class="rf-toggle-group" id="rfOutputType">';
+  h += '<button type="button" class="rf-toggle-btn active" data-value="reels-brief">\uD83C\uDFAC Reels Brief</button>';
+  h += '<button type="button" class="rf-toggle-btn" data-value="ad-brief">\uD83D\uDCE3 Ad Brief</button>';
+  h += '</div></div>';
+  h += '</div>';
+
+  // ── Step 2 — Paste File List ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a;">Step 2 &mdash; Paste File List</h3>';
+  h += '<div class="ail-form-group">';
+  h += '<label class="ail-label">Paste video file names from client Drive folder</label>';
+  h += '<textarea class="ail-textarea" id="rfFileList" rows="5" style="min-height:100px;" placeholder="video_001.mp4, cozinha_gravacao.mp4, externo_dia.mp4..."></textarea>';
+  h += '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">Just paste the file names \u2014 one per line or comma separated.</div>';
+  h += '</div></div>';
+
+  // ── Step 3 — Tone ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a;">Step 3 &mdash; Tone</h3>';
+  h += '<div class="rf-toggle-group" id="rfTone">';
+  h += '<button type="button" class="rf-toggle-btn active" data-value="energetic">\u26A1 Energetic</button>';
+  h += '<button type="button" class="rf-toggle-btn" data-value="premium">\uD83D\uDC8E Premium</button>';
+  h += '<button type="button" class="rf-toggle-btn" data-value="warm">\uD83C\uDF3F Warm &amp; Local</button>';
+  h += '</div></div>';
+
+  // ── Generate Brief button ──
+  h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<button type="button" id="rfGenerateBtn" class="ail-btn ail-btn-primary" style="padding:12px 28px;font-size:14px;width:100%;">';
+  h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+  h += ' <span id="rfGenerateBtnLabel">Generate Brief</span></button>';
+  h += '</div>';
+
+  // ── Output Area ──
+  h += '<div class="ail-card ail-section">';
+  h += '<h3 style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f172a;">Generated Brief</h3>';
+  h += '<div id="rfOutput" style="width:100%;min-height:180px;font-family:\'SF Mono\',Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.6;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#0f172a;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;position:relative;box-sizing:border-box;">';
+  h += '<span style="color:#475569;font-style:italic;">Your edit brief will appear here...</span></div>';
+  h += '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">';
+  h += '<button type="button" id="rfCopyBtn" class="ail-btn" style="background:#7c3aed;color:#fff;padding:10px 18px;font-size:13px;display:none;"><span id="rfCopyBtnLabel">\uD83D\uDCCB Copy Brief</span></button>';
+  h += '</div>';
+  h += '</div>';
+
+  tc.innerHTML = h;
+
+  // ─── Toggle logic ───
+
+  // Output Type (single select)
+  tc.querySelectorAll('#rfOutputType .rf-toggle-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      tc.querySelectorAll('#rfOutputType .rf-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
+
+  // Tone (single select)
+  tc.querySelectorAll('#rfTone .rf-toggle-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      tc.querySelectorAll('#rfTone .rf-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
+
+  // ─── Copy button ───
+  tc.querySelector('#rfCopyBtn').addEventListener('click', function() {
+    var outputBox = tc.querySelector('#rfOutput');
+    var text = outputBox ? outputBox.innerText : '';
+    navigator.clipboard.writeText(text).then(function() {
+      var lbl = tc.querySelector('#rfCopyBtnLabel');
+      var orig = lbl ? lbl.innerHTML : '';
+      if (lbl) lbl.innerHTML = '\u2705 Copied!';
+      setTimeout(function() { if (lbl) lbl.innerHTML = orig; }, 1800);
+      showToast('Copied to clipboard', 'success');
+    }).catch(function() { showToast('Copy failed', 'error'); });
+  });
+
+  // ─── Generate Brief ───
+  tc.querySelector('#rfGenerateBtn').addEventListener('click', async function() {
+    var clientId = tc.querySelector('#rfClient').value;
+    var outputType = tc.querySelector('#rfOutputType .rf-toggle-btn.active');
+    var fileList = tc.querySelector('#rfFileList').value.trim();
+    var tone = tc.querySelector('#rfTone .rf-toggle-btn.active');
+    var outputBox = tc.querySelector('#rfOutput');
+    var btn = tc.querySelector('#rfGenerateBtn');
+    var lbl = tc.querySelector('#rfGenerateBtnLabel');
+    var copyBtn = tc.querySelector('#rfCopyBtn');
+
+    if (!clientId) { showToast('Select a client first', 'error'); return; }
+    if (!fileList) { showToast('Paste at least one file name', 'error'); return; }
+
+    var clientName = clients[clientId] ? (clients[clientId].name || clientId) : clientId;
+
+    btn.disabled = true;
+    if (lbl) lbl.textContent = 'Generating...';
+    outputBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#94a3b8;"><div class="ail-spinner"></div><span>Generating brief for ' + clientName + '...</span></div>';
+    if (copyBtn) copyBtn.style.display = 'none';
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate-reels-brief', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: clientId,
+          outputType: outputType ? outputType.getAttribute('data-value') : 'reels-brief',
+          fileList: fileList,
+          tone: tone ? tone.getAttribute('data-value') : 'energetic'
+        })
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Generation failed');
+
+      var brief = d.brief || '';
+      outputBox.textContent = brief;
+      if (copyBtn) copyBtn.style.display = '';
+      showToast('Brief generated!', 'success');
+    } catch (err) {
+      outputBox.innerHTML = '<span style="color:#f87171;">Failed: ' + ((err && err.message) || 'Unknown error').replace(/</g, '&lt;') + '</span>';
+      showToast((err && err.message) || 'Generation failed', 'error');
+    }
+
+    btn.disabled = false;
+    if (lbl) lbl.textContent = 'Generate Brief';
   });
 }
 
