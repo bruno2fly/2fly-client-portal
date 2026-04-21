@@ -274,38 +274,6 @@
     .mockup-nav-item.active { color: #3b82f6; font-weight: 700; }
     .mockup-nav-item.active svg { stroke: #3b82f6; }
 
-    /* Pulsing ring around Strategy nav item */
-    .nav-pulse-ring {
-      position: absolute; bottom: 2px; right: 16px;
-      width: 42px; height: 42px;
-      border: 2px solid #3b82f6;
-      border-radius: 50%;
-      animation: pulseRing 2s ease-in-out infinite;
-      pointer-events: none;
-    }
-    @keyframes pulseRing {
-      0% { transform: scale(0.85); opacity: 1; }
-      50% { transform: scale(1.15); opacity: 0.4; }
-      100% { transform: scale(0.85); opacity: 1; }
-    }
-    /* Floating arrow pointing to Strategy tab */
-    .nav-arrow {
-      position: absolute; bottom: 54px; right: 12px;
-      display: flex; flex-direction: column; align-items: center;
-      animation: arrowBounce 1.5s ease-in-out infinite;
-    }
-    .nav-arrow-text {
-      font-size: 8px; font-weight: 700; color: #3b82f6;
-      background: rgba(59,130,246,0.1);
-      padding: 3px 8px; border-radius: 6px;
-      margin-bottom: 4px;
-      white-space: nowrap;
-    }
-    .nav-arrow svg { width: 16px; height: 16px; stroke: #3b82f6; fill: none; stroke-width: 2; }
-    @keyframes arrowBounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(5px); }
-    }
 
     /* Lang toggle */
     .lang-toggle {
@@ -430,14 +398,6 @@
         </div>
       </div>
 
-      <!-- Animated pointer to Strategy tab -->
-      <div class="nav-pulse-ring"></div>
-      <div class="nav-arrow">
-        <span class="nav-arrow-text"
-              data-en="New!"
-              data-pt="Novo!">New!</span>
-        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
-      </div>
     </div>
   </div>
 </div>
