@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0B0F14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>New: Strategy Tab — 2FlyFlow</title>
+  <meta name="description" content="Plan your monthly social media strategy right from 2FlyFlow. Set goals, add promotions & events — all in one place.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: #0B0F14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 60px 24px 40px;
+      background: linear-gradient(135deg, #0B0F14 0%, #0c2a4a 40%, #1a1145 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(circle at 50% 50%, rgba(59,130,246,0.1) 0%, transparent 50%);
+      animation: heroGlow 8s ease-in-out infinite;
+    }
+    @keyframes heroGlow {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(59,130,246,0.15); color: #93c5fd;
+      padding: 6px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      margin-bottom: 20px;
+      border: 1px solid rgba(59,130,246,0.2);
+    }
+
+    .hero-icon {
+      width: 80px; height: 80px; border-radius: 20px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 32px rgba(37,99,235,0.35);
+    }
+    .hero-icon svg { width: 40px; height: 40px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .hero h1 {
+      font-size: 30px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff, #93c5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .hero p { color: #94a3b8; font-size: 16px; max-width: 380px; margin: 0 auto; }
+
+    /* Content */
+    .content { max-width: 520px; margin: 0 auto; padding: 40px 20px 60px; }
+
+    /* What changed card */
+    .change-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 28px 24px; margin-bottom: 20px;
+    }
+    .change-card h2 {
+      font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #fff;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .change-card .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+
+    /* Before/after */
+    .change-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .change-row:last-child { border-bottom: none; }
+    .change-before {
+      background: rgba(239,68,68,0.1); color: #fca5a5;
+      padding: 6px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      text-decoration: line-through;
+      min-width: 80px; text-align: center;
+    }
+    .change-arrow { color: #64748b; font-size: 18px; flex-shrink: 0; }
+    .change-after {
+      background: rgba(34,197,94,0.12); color: #86efac;
+      padding: 6px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      min-width: 80px; text-align: center;
+    }
+    .change-desc { color: #94a3b8; font-size: 13px; margin-left: auto; }
+
+    /* Features */
+    .features { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+    .feature {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 24px;
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .feature-icon.goals { background: rgba(59,130,246,0.15); }
+    .feature-icon.promos { background: rgba(168,85,247,0.15); }
+    .feature-icon.events { background: rgba(245,158,11,0.15); }
+    .feature h3 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .feature p { font-size: 14px; color: #94a3b8; line-height: 1.5; }
+
+    /* CTA */
+    .cta-section { text-align: center; margin-top: 32px; }
+    .cta-btn {
+      display: inline-block; width: 100%; max-width: 360px;
+      padding: 16px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff; font-size: 17px; font-weight: 700; cursor: pointer;
+      font-family: inherit; text-decoration: none;
+      transition: all 0.3s; box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+    }
+    .cta-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(37,99,235,0.45); }
+    .cta-hint {
+      color: #64748b; font-size: 13px; margin-top: 12px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center; padding: 24px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .footer a {
+      color: #3b82f6; text-decoration: none; font-weight: 600; font-size: 14px;
+    }
+    .footer a:hover { text-decoration: underline; }
+    .footer p { color: #475569; font-size: 12px; margin-top: 8px; }
+
+    /* Phone mockup */
+    .mockup {
+      margin: 32px auto 0;
+      width: 220px; height: 380px;
+      background: #1e293b;
+      border-radius: 28px;
+      border: 3px solid #334155;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .mockup-notch {
+      width: 100px; height: 24px;
+      background: #0B0F14;
+      border-radius: 0 0 14px 14px;
+      margin: 0 auto;
+    }
+    .mockup-screen {
+      padding: 12px 16px;
+    }
+    .mockup-header {
+      text-align: center; font-size: 10px; font-weight: 700;
+      color: #fff; margin-bottom: 12px; opacity: 0.8;
+    }
+    .mockup-card {
+      background: rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 10px;
+      margin-bottom: 8px;
+    }
+    .mockup-card-title {
+      font-size: 8px; font-weight: 700; color: #93c5fd;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .mockup-card-text {
+      font-size: 9px; color: #94a3b8; line-height: 1.4;
+    }
+    .mockup-input {
+      width: 100%; height: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 5px; margin-top: 4px;
+    }
+    .mockup-nav {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #0f172a;
+      display: flex; justify-content: space-around;
+      padding: 8px 0 12px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .mockup-nav-item {
+      text-align: center; font-size: 7px; color: #64748b;
+    }
+    .mockup-nav-item.active { color: #3b82f6; }
+    .mockup-nav-dot {
+      width: 14px; height: 14px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 4px;
+      margin: 0 auto 2px;
+    }
+    .mockup-nav-item.active .mockup-nav-dot {
+      background: rgba(59,130,246,0.2);
+    }
+
+    /* Lang toggle */
+    .lang-toggle {
+      position: fixed; top: 16px; right: 16px; z-index: 100;
+      display: flex; gap: 2px; background: rgba(255,255,255,0.06);
+      border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .lang-btn {
+      padding: 6px 14px; font-size: 13px; font-weight: 600;
+      background: none; border: none; color: #64748b; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .lang-btn.active { background: rgba(37,99,235,0.2); color: #93c5fd; }
+  </style>
+</head>
+<body>
+
+<div class="lang-toggle">
+  <button class="lang-btn active" onclick="setLang('en')">EN</button>
+  <button class="lang-btn" onclick="setLang('pt')">PT</button>
+</div>
+
+<div class="hero">
+  <div class="hero-content">
+    <div class="badge"
+         data-en="&#x2728; New Feature"
+         data-pt="&#x2728; Novidade">&#x2728; New Feature</div>
+
+    <div class="hero-icon">
+      <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    </div>
+
+    <h1 data-en="Meet Your Strategy Tab"
+        data-pt="Conhe&ccedil;a a Aba Estrat&eacute;gia">Meet Your Strategy Tab</h1>
+    <p data-en="A dedicated space to plan your month. Set goals, share promotions and events — so your content always hits the mark."
+       data-pt="Um espa&ccedil;o dedicado para planejar o seu m&ecirc;s. Defina metas, compartilhe promo&ccedil;&otilde;es e eventos — para que seu conte&uacute;do acerte sempre.">
+      A dedicated space to plan your month. Set goals, share promotions and events — so your content always hits the mark.
+    </p>
+
+    <!-- Mini phone mockup -->
+    <div class="mockup">
+      <div class="mockup-notch"></div>
+      <div class="mockup-screen">
+        <div class="mockup-header"
+             data-en="This Month's Strategy"
+             data-pt="Estrat&eacute;gia do M&ecirc;s">This Month's Strategy</div>
+        <div class="mockup-card">
+          <div class="mockup-card-title"
+               data-en="Goals"
+               data-pt="Metas">Goals</div>
+          <div class="mockup-input"></div>
+        </div>
+        <div class="mockup-card">
+          <div class="mockup-card-title"
+               data-en="Active Promotions"
+               data-pt="Promo&ccedil;&otilde;es Ativas">Active Promotions</div>
+          <div class="mockup-card-text"
+               data-en="+ Add Promotion"
+               data-pt="+ Adicionar Promo&ccedil;&atilde;o">+ Add Promotion</div>
+        </div>
+        <div class="mockup-card">
+          <div class="mockup-card-title"
+               data-en="Upcoming Events"
+               data-pt="Pr&oacute;ximos Eventos">Upcoming Events</div>
+          <div class="mockup-card-text"
+               data-en="+ Add Event"
+               data-pt="+ Adicionar Evento">+ Add Event</div>
+        </div>
+      </div>
+      <div class="mockup-nav">
+        <div class="mockup-nav-item"><div class="mockup-nav-dot"></div>Home</div>
+        <div class="mockup-nav-item"><div class="mockup-nav-dot"></div>Content</div>
+        <div class="mockup-nav-item"><div class="mockup-nav-dot"></div>Calendar</div>
+        <div class="mockup-nav-item active"><div class="mockup-nav-dot"></div>Strategy</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- What changed -->
+  <div class="change-card">
+    <h2 data-en="What changed?" data-pt="O que mudou?">What changed?</h2>
+    <p class="subtitle"
+       data-en="We reorganized the app to give you a better experience"
+       data-pt="Reorganizamos o app para uma experi&ecirc;ncia melhor">We reorganized the app to give you a better experience</p>
+
+    <div class="change-row">
+      <span class="change-before"
+            data-en="Images"
+            data-pt="Imagens">Images</span>
+      <span class="change-arrow">&rarr;</span>
+      <span class="change-after"
+            data-en="Strategy"
+            data-pt="Estrat&eacute;gia">Strategy</span>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon goals">&#127919;</div>
+      <div>
+        <h3 data-en="Monthly Goals"
+            data-pt="Metas do M&ecirc;s">Monthly Goals</h3>
+        <p data-en="Tell us what you want to focus on this month. We'll create content around your priorities."
+           data-pt="Diga o que voc&ecirc; quer focar este m&ecirc;s. Criaremos conte&uacute;do em torno das suas prioridades.">
+          Tell us what you want to focus on this month. We'll create content around your priorities.
+        </p>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon promos">&#127991;&#65039;</div>
+      <div>
+        <h3 data-en="Active Promotions"
+            data-pt="Promo&ccedil;&otilde;es Ativas">Active Promotions</h3>
+        <p data-en="Running a sale or special offer? Add it here so we can promote it across your social channels."
+           data-pt="Tem uma promo&ccedil;&atilde;o ou oferta especial? Adicione aqui para promovermos nos seus canais sociais.">
+          Running a sale or special offer? Add it here so we can promote it across your social channels.
+        </p>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon events">&#128197;</div>
+      <div>
+        <h3 data-en="Upcoming Events"
+            data-pt="Pr&oacute;ximos Eventos">Upcoming Events</h3>
+        <p data-en="Got an event, grand opening, or holiday special? We'll make sure your audience knows about it."
+           data-pt="Tem um evento, inaugura&ccedil;&atilde;o ou especial de feriado? Vamos garantir que seu p&uacute;blico saiba.">
+          Got an event, grand opening, or holiday special? We'll make sure your audience knows about it.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <a href="/" class="cta-btn"
+       data-en="Open 2FlyFlow &rarr;"
+       data-pt="Abrir 2FlyFlow &rarr;">Open 2FlyFlow &rarr;</a>
+    <p class="cta-hint"
+       data-en="Open the app and tap the Strategy tab at the bottom"
+       data-pt="Abra o app e toque na aba Estrat&eacute;gia na parte de baixo">Open the app and tap the Strategy tab at the bottom</p>
+  </div>
+
+</div>
+
+<div class="footer">
+  <a href="/install"
+     data-en="Don't have the app yet? Install it &rarr;"
+     data-pt="Ainda n&atilde;o tem o app? Instale &rarr;">Don't have the app yet? Install it &rarr;</a>
+  <p data-en="2FlyFlow &mdash; by 2Fly Digital Marketing"
+     data-pt="2FlyFlow &mdash; por 2Fly Digital Marketing">2FlyFlow &mdash; by 2Fly Digital Marketing</p>
+</div>
+
+<script>
+// Language toggle
+var currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.trim().toLowerCase() === lang);
+  });
+  document.querySelectorAll('[data-' + lang + ']').forEach(function(el) {
+    var val = el.getAttribute('data-' + lang);
+    if (el.tagName === 'INPUT' || el.tagName === 'BUTTON') {
+      if (el.querySelector('span[data-' + lang + ']')) return;
+      el.textContent = val;
+    } else {
+      el.innerHTML = val;
+    }
+  });
+}
+</script>
+</body>
+</html>
