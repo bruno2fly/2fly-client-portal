@@ -5202,7 +5202,81 @@ function renderAILGenerator(tc, clients, clientIds) {
 
 /* ================== Reels Factory ================== */
 
+var rfUploadedVideos = []; // [{ file, name, size, url, objectUrl }]
+
+function rfFormatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function rfRenderVideoCards(tc) {
+  var list = tc.querySelector('#rfVideoList');
+  if (!list) return;
+  if (rfUploadedVideos.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+  var h = '';
+  rfUploadedVideos.forEach(function(v, i) {
+    h += '<div class="rf-video-card" data-idx="' + i + '">';
+    h += '<div class="rf-video-thumb">';
+    if (v.objectUrl) {
+      h += '<video src="' + v.objectUrl + '" muted preload="metadata"></video>';
+    } else {
+      h += '<span class="rf-video-thumb-icon">\uD83C\uDFAC</span>';
+    }
+    h += '</div>';
+    h += '<div class="rf-video-info">';
+    h += '<div class="rf-video-name">' + v.name.replace(/</g, '&lt;') + '</div>';
+    h += '<div class="rf-video-meta">' + rfFormatSize(v.size);
+    if (v.url) h += ' \u2022 <span style="color:#059669;">Uploaded \u2713</span>';
+    h += '</div>';
+    if (v.uploading) {
+      h += '<div class="rf-video-progress"><div class="rf-video-progress-bar" style="width:' + (v.progress || 0) + '%;"></div></div>';
+    }
+    h += '</div>';
+    h += '<button type="button" class="rf-video-remove" data-idx="' + i + '" title="Remove">\u00D7</button>';
+    h += '</div>';
+  });
+  list.innerHTML = h;
+  // Bind remove buttons
+  list.querySelectorAll('.rf-video-remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (rfUploadedVideos[idx] && rfUploadedVideos[idx].objectUrl) {
+        URL.revokeObjectURL(rfUploadedVideos[idx].objectUrl);
+      }
+      rfUploadedVideos.splice(idx, 1);
+      rfRenderVideoCards(tc);
+    });
+  });
+}
+
+async function rfUploadVideoToBlob(file) {
+  // Read as base64 and upload via existing /api/upload/media
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = async function() {
+      try {
+        var base64 = reader.result;
+        var r = await fetch(getApiBaseUrl() + '/api/upload/media', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ media: base64, filename: file.name })
+        });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Upload failed');
+        resolve(d.url);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = function() { reject(new Error('Failed to read file')); };
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderReelsFactory(tc, clients, clientIds) {
+  rfUploadedVideos = [];
   var h = '';
 
   // ── Step 1 — Select Client ──
@@ -5225,14 +5299,18 @@ function renderReelsFactory(tc, clients, clientIds) {
   h += '</div></div>';
   h += '</div>';
 
-  // ── Step 2 — Paste File List ──
+  // ── Step 2 — Upload Videos ──
   h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
-  h += '<h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a;">Step 2 &mdash; Paste File List</h3>';
-  h += '<div class="ail-form-group">';
-  h += '<label class="ail-label">Paste video file names from client Drive folder</label>';
-  h += '<textarea class="ail-textarea" id="rfFileList" rows="5" style="min-height:100px;" placeholder="video_001.mp4, cozinha_gravacao.mp4, externo_dia.mp4..."></textarea>';
-  h += '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">Just paste the file names \u2014 one per line or comma separated.</div>';
-  h += '</div></div>';
+  h += '<h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a;">Step 2 &mdash; Upload Video Clips</h3>';
+  h += '<div class="rf-dropzone" id="rfDropzone">';
+  h += '<input type="file" id="rfFileInput" multiple accept="video/mp4,video/quicktime,video/x-msvideo,video/mov,.mp4,.mov,.avi">';
+  h += '<div class="rf-dropzone-icon">\uD83C\uDFAC</div>';
+  h += '<div class="rf-dropzone-label">Upload up to 4 video clips</div>';
+  h += '<div class="rf-dropzone-hint">Drop clips from the client folder. The AI will analyze each one.</div>';
+  h += '<div class="rf-dropzone-hint" style="margin-top:2px;">MP4, MOV, AVI \u2022 Max 20 MB each</div>';
+  h += '</div>';
+  h += '<div class="rf-video-list" id="rfVideoList"></div>';
+  h += '</div>';
 
   // ── Step 3 — Tone ──
   h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
@@ -5245,6 +5323,7 @@ function renderReelsFactory(tc, clients, clientIds) {
 
   // ── Generate Brief button ──
   h += '<div class="ail-card ail-section" style="margin-bottom:16px;">';
+  h += '<div id="rfProgressArea"></div>';
   h += '<button type="button" id="rfGenerateBtn" class="ail-btn ail-btn-primary" style="padding:12px 28px;font-size:14px;width:100%;">';
   h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
   h += ' <span id="rfGenerateBtnLabel">Generate Brief</span></button>';
@@ -5262,17 +5341,52 @@ function renderReelsFactory(tc, clients, clientIds) {
 
   tc.innerHTML = h;
 
-  // ─── Toggle logic ───
+  // ─── Drag & drop + file input ───
+  var dropzone = tc.querySelector('#rfDropzone');
+  var fileInput = tc.querySelector('#rfFileInput');
 
-  // Output Type (single select)
+  function handleFiles(files) {
+    var validTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/mov'];
+    for (var i = 0; i < files.length; i++) {
+      if (rfUploadedVideos.length >= 4) {
+        showToast('Maximum 4 video clips allowed', 'error');
+        break;
+      }
+      var f = files[i];
+      // Check type (also accept by extension if type is empty)
+      var ext = f.name.split('.').pop().toLowerCase();
+      if (!validTypes.includes(f.type) && !['mp4','mov','avi'].includes(ext)) {
+        showToast(f.name + ' is not a supported video format', 'error');
+        continue;
+      }
+      if (f.size > 20 * 1024 * 1024) {
+        showToast(f.name + ' exceeds 20 MB limit', 'error');
+        continue;
+      }
+      var objectUrl = URL.createObjectURL(f);
+      rfUploadedVideos.push({ file: f, name: f.name, size: f.size, url: null, objectUrl: objectUrl, uploading: false, progress: 0 });
+    }
+    rfRenderVideoCards(tc);
+    // Reset input so same file can be re-added
+    fileInput.value = '';
+  }
+
+  dropzone.addEventListener('dragover', function(e) { e.preventDefault(); dropzone.classList.add('rf-dragover'); });
+  dropzone.addEventListener('dragleave', function() { dropzone.classList.remove('rf-dragover'); });
+  dropzone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropzone.classList.remove('rf-dragover');
+    if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', function() { if (fileInput.files) handleFiles(fileInput.files); });
+
+  // ─── Toggle logic ───
   tc.querySelectorAll('#rfOutputType .rf-toggle-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       tc.querySelectorAll('#rfOutputType .rf-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
     });
   });
-
-  // Tone (single select)
   tc.querySelectorAll('#rfTone .rf-toggle-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       tc.querySelectorAll('#rfTone .rf-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -5296,43 +5410,67 @@ function renderReelsFactory(tc, clients, clientIds) {
   // ─── Generate Brief ───
   tc.querySelector('#rfGenerateBtn').addEventListener('click', async function() {
     var clientId = tc.querySelector('#rfClient').value;
-    var outputType = tc.querySelector('#rfOutputType .rf-toggle-btn.active');
-    var fileList = tc.querySelector('#rfFileList').value.trim();
-    var tone = tc.querySelector('#rfTone .rf-toggle-btn.active');
+    var outputTypeBtn = tc.querySelector('#rfOutputType .rf-toggle-btn.active');
+    var toneBtn = tc.querySelector('#rfTone .rf-toggle-btn.active');
     var outputBox = tc.querySelector('#rfOutput');
     var btn = tc.querySelector('#rfGenerateBtn');
     var lbl = tc.querySelector('#rfGenerateBtnLabel');
     var copyBtn = tc.querySelector('#rfCopyBtn');
+    var progressArea = tc.querySelector('#rfProgressArea');
 
     if (!clientId) { showToast('Select a client first', 'error'); return; }
-    if (!fileList) { showToast('Paste at least one file name', 'error'); return; }
+    if (rfUploadedVideos.length === 0) { showToast('Upload at least one video clip', 'error'); return; }
 
     var clientName = clients[clientId] ? (clients[clientId].name || clientId) : clientId;
+    var outputType = outputTypeBtn ? outputTypeBtn.getAttribute('data-value') : 'reels-brief';
+    var tone = toneBtn ? toneBtn.getAttribute('data-value') : 'energetic';
 
     btn.disabled = true;
-    if (lbl) lbl.textContent = 'Generating...';
-    outputBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#94a3b8;"><div class="ail-spinner"></div><span>Generating brief for ' + clientName + '...</span></div>';
+    if (lbl) lbl.textContent = 'Processing...';
     if (copyBtn) copyBtn.style.display = 'none';
 
     try {
-      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate-reels-brief', {
+      // Phase 1: Upload videos that haven't been uploaded yet
+      var needsUpload = rfUploadedVideos.filter(function(v) { return !v.url; });
+      if (needsUpload.length > 0) {
+        progressArea.innerHTML = '<div class="rf-step-progress"><div class="ail-spinner"></div>Uploading ' + needsUpload.length + ' video' + (needsUpload.length > 1 ? 's' : '') + '...</div>';
+        for (var i = 0; i < rfUploadedVideos.length; i++) {
+          if (rfUploadedVideos[i].url) continue;
+          rfUploadedVideos[i].uploading = true;
+          rfRenderVideoCards(tc);
+          var url = await rfUploadVideoToBlob(rfUploadedVideos[i].file);
+          rfUploadedVideos[i].url = url;
+          rfUploadedVideos[i].uploading = false;
+          rfRenderVideoCards(tc);
+        }
+      }
+
+      // Phase 2: Send to AI for analysis
+      progressArea.innerHTML = '<div class="rf-step-progress"><div class="ail-spinner"></div>AI is analyzing ' + rfUploadedVideos.length + ' clip' + (rfUploadedVideos.length > 1 ? 's' : '') + '... (this may take 30\u201360s)</div>';
+      outputBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#94a3b8;"><div class="ail-spinner"></div><span>Analyzing clips and generating brief for ' + clientName + '...</span></div>';
+
+      var videoData = rfUploadedVideos.map(function(v) { return { name: v.name, url: v.url, size: v.size }; });
+
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/analyze-reels', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: clientId,
-          outputType: outputType ? outputType.getAttribute('data-value') : 'reels-brief',
-          fileList: fileList,
-          tone: tone ? tone.getAttribute('data-value') : 'energetic'
+          outputType: outputType,
+          tone: tone,
+          videos: videoData
         })
       });
       var d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Generation failed');
+      if (!r.ok) throw new Error(d.error || 'Analysis failed');
 
       var brief = d.brief || '';
       outputBox.textContent = brief;
       if (copyBtn) copyBtn.style.display = '';
+      progressArea.innerHTML = '';
       showToast('Brief generated!', 'success');
     } catch (err) {
       outputBox.innerHTML = '<span style="color:#f87171;">Failed: ' + ((err && err.message) || 'Unknown error').replace(/</g, '&lt;') + '</span>';
+      progressArea.innerHTML = '';
       showToast((err && err.message) || 'Generation failed', 'error');
     }
 
