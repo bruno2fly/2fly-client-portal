@@ -9251,18 +9251,32 @@ async function markRequestDone(id) {
   state.activity.push(activityEntry);
 
   // Optimistic render — the "Mark Done" button disappears immediately so the
-  // click feels instant, regardless of how long the PUT takes.
+  // click feels instant, regardless of how long the POST takes.
   try { renderRequestsTab(); } catch (_) {}
   try { updateTabCountBadges(); } catch (_) {}
   if (currentTab === 'overview' && typeof renderOverviewTab === 'function') {
     try { renderOverviewTab(); } catch (_) {}
   }
 
+  // Use dedicated atomic endpoint — immune to race conditions from full-state saves
   let saved = false;
   try {
-    saved = await save(state);
+    const r = await fetch(getApiBaseUrl() + '/api/agency/request-done', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: currentClientId, requestId: id })
+    });
+    const j = await parseJsonOrThrow(r, '/api/agency/request-done');
+    if (r.ok && j.success) {
+      saved = true;
+      // Refresh cache from server to stay in sync
+      try { await fetchPortalStateFromAPI(currentClientId, true); } catch (_) {}
+    } else {
+      console.error('markRequestDone: server returned', j);
+    }
   } catch (e) {
-    console.error('markRequestDone: save threw', e);
+    console.error('markRequestDone: request failed', e);
     saved = false;
   }
 
@@ -9285,6 +9299,8 @@ async function markRequestDone(id) {
   }
 
   delete req._markingDone;
+  try { renderRequestsTab(); } catch (_) {}
+  try { updateTabCountBadges(); } catch (_) {}
 
   // Notify client their request was completed (fire-and-forget; never blocks UI).
   if (currentClientId) {

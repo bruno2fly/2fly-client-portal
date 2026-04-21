@@ -243,4 +243,47 @@ router.put('/portal-state', (req: AuthenticatedRequest, res) => {
   }
 });
 
+/**
+ * POST /api/agency/request-done
+ * Body: { clientId, requestId }
+ * Atomically marks a single request as "done" on the server.
+ * This is immune to race conditions from full-state saves.
+ */
+router.post('/request-done', (req: AuthenticatedRequest, res) => {
+  try {
+    const { agencyId } = getAgencyScope(req);
+    const { clientId, requestId } = (req as any).body || {};
+    const cid = (clientId || '').toString().trim();
+    const rid = (requestId || '').toString().trim();
+    if (!cid || !rid) {
+      return res.status(400).json({ error: 'clientId and requestId required' });
+    }
+    const client = getClient(cid);
+    if (!client || client.agencyId !== agencyId) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    const state = getPortalState(agencyId, cid);
+    if (!state) {
+      return res.status(404).json({ error: 'Portal state not found' });
+    }
+    const request = (state.requests as any[] || []).find((r: any) => r && r.id === rid);
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    request.status = 'done';
+    request.done = true;
+    request.doneAt = Date.now();
+    if (!request.createdAt) request.createdAt = Date.now();
+    // Add activity entry
+    if (!state.activity) state.activity = [];
+    (state.activity as any[]).unshift({ when: Date.now(), text: `Marked request as done: ${request.type || 'Request'}` });
+    savePortalState(agencyId, cid, state);
+    console.log(`[agency] Request ${rid} marked done for client ${cid}`);
+    res.json({ success: true, requestId: rid });
+  } catch (e: any) {
+    console.error('[agency/request-done] Error:', e);
+    res.status(500).json({ error: e.message || 'Failed to mark request done' });
+  }
+});
+
 export default router;
