@@ -751,7 +751,7 @@
     body.has-bottom-nav[data-active-tab="content"] .main-content-area [data-show-tabs="content"]{display:block !important;}
     body.has-bottom-nav[data-active-tab="requests"] .main-content-area [data-show-tabs="requests"]{display:block !important;}
     body.has-bottom-nav[data-active-tab="activity"] .main-content-area [data-show-tabs="activity"]{display:block !important;}
-    body.has-bottom-nav[data-active-tab="images"] .main-content-area [data-show-tabs="images"]{display:block !important;}
+    body.has-bottom-nav[data-active-tab="strategy"] .main-content-area [data-show-tabs="strategy"]{display:block !important;}
   }
   @keyframes tabFadeIn{ from{ opacity:0; } to{ opacity:1; } }
   @media (prefers-reduced-motion: reduce){ @keyframes tabFadeIn{ from{ opacity:1; } to{ opacity:1; } } }
@@ -1223,8 +1223,8 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
 
     </section>
 
-    <!-- This Month's Strategy (client-facing; Do Not Post is omitted) -->
-    <section class="panel" style="margin-top:16px;padding:0;background:transparent;border:none;" aria-label="This Month's Strategy" data-show-tabs="dashboard">
+    <!-- This Month's Strategy (client-facing; Do Not Post is omitted) — shown on Strategy tab -->
+    <section class="panel" style="margin-top:0;padding:0;background:transparent;border:none;" aria-label="This Month's Strategy" data-show-tabs="strategy">
       <div id="thisMonthMount"></div>
     </section>
 
@@ -1253,17 +1253,8 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
       </div>
     </section>
 
-    <!-- Client Image Library — moved to Images tab -->
-    <section class="panel" id="clientImageLibrary" style="border-radius:16px;" aria-label="Image Library" data-show-tabs="images">
-      <h2 style="font-size:22px;font-weight:700;color:#ffffff;margin:0 0 8px 0;">Image Library</h2>
-      <p style="font-size:14px;color:rgba(255,255,255,.7);margin:0 0 20px 0;line-height:1.5;">Review and approve photos and videos for your upcoming posts. Your team uploads media here for your review — approve the ones you'd like us to use in your content.</p>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <h3 style="font-size:18px;font-weight:600;color:#ffffff;margin:0;">Your Media</h3>
-        <div id="clientImgLibStats" style="display:flex;gap:12px;font-size:13px;color:rgba(255,255,255,.6);"></div>
-      </div>
-      <div id="clientImgLibFilter" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
-      <div id="clientImgLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
-    </section>
+    <!-- Client Image Library — removed (replaced by Strategy tab) -->
+    <!-- Image Library section removed — replaced by Strategy tab -->
 
     <div class="grid" style="margin-top:16px">
       <!-- What we need + Quick Request -->
@@ -1438,9 +1429,9 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span>Requests</span>
       </button>
-      <button type="button" class="bottom-nav-btn" data-tab="images" aria-label="Images">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        <span>Images</span>
+      <button type="button" class="bottom-nav-btn" data-tab="strategy" aria-label="Strategy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span>Strategy</span>
       </button>
     </div>
   </nav>
