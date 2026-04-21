@@ -579,14 +579,35 @@ export function getPortalState(agencyId: string, clientId: string): PortalStateD
 export function savePortalState(agencyId: string, clientId: string, data: PortalStateData): void {
   const map = readJSON<PortalStateMap>(PORTAL_STATE_FILE, {});
   const key = portalKey(agencyId, clientId);
-  // Safety: if incoming data has empty approvals but existing data had approvals, log a warning
   const existing = map[key];
+
+  // Safety: if incoming data has empty approvals but existing data had approvals, preserve them
   if (existing && Array.isArray(existing.approvals) && existing.approvals.length > 0) {
     if (!data.approvals || !Array.isArray(data.approvals) || data.approvals.length === 0) {
       console.warn(`[db] WARNING: savePortalState for ${key} would clear ${existing.approvals.length} approvals. Preserving existing approvals.`);
       data.approvals = existing.approvals;
     }
   }
+
+  // Merge request statuses: once a request is marked "done", never let a stale save revert it.
+  // This prevents race conditions where agency marks done but client's cached state overwrites it.
+  if (existing && Array.isArray(existing.requests) && existing.requests.length > 0 && Array.isArray(data.requests)) {
+    const existingById: Record<string, any> = {};
+    for (const r of existing.requests) {
+      const req = r as any;
+      if (req && req.id) existingById[req.id] = req;
+    }
+    data.requests = data.requests.map((r: any) => {
+      if (!r || !r.id) return r;
+      const prev = existingById[r.id];
+      if (prev && (prev.status === 'done' || prev.done === true) && r.status !== 'done') {
+        // Server already has this request as done — don't let it revert
+        return { ...r, status: 'done', done: true, doneAt: prev.doneAt || r.doneAt || Date.now() };
+      }
+      return r;
+    });
+  }
+
   map[key] = data;
   writeJSON(PORTAL_STATE_FILE, map);
 }
