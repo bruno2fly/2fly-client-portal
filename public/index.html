@@ -2342,8 +2342,9 @@ function render(){
 
         var detailsText = (r.details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
 
-        // Card container
+        // Card container — clickable to open detail modal
         var card = el("div",{class:"request-card"});
+        card.style.cursor = 'pointer';
 
         // Left: info
         var infoDiv = el("div",{class:"request-card-info"});
@@ -2363,7 +2364,13 @@ function render(){
         }
         infoDiv.appendChild(el("div",{class:"request-card-meta"}, dateStr + ' \u00b7 ' + (r.by || 'Client')));
 
+        // Right: chevron arrow to hint it's tappable
+        var chevron = el("div",{style:"flex-shrink:0;color:var(--text-secondary);opacity:0.5;"});
+        chevron.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>';
+
         card.appendChild(infoDiv);
+        card.appendChild(chevron);
+        card.addEventListener('click', function(){ openClientRequestDetail(r.id); });
 
         reqList.append(card);
       });
@@ -3798,21 +3805,241 @@ if (requestForm) {
   }, 100);
   });
 }
-function closeRequest(id){ 
-  const s=load(); 
-  const r=s.requests.find(x=>x.id===id); 
-  if(r){ 
-    r.status='done'; 
-    r.doneAt = Date.now(); // Use doneAt instead of completedAt
-    // Ensure createdAt exists (for backward compatibility)
+function closeRequest(id){
+  const s=load();
+  const r=s.requests.find(x=>x.id===id);
+  if(r){
+    r.status='done';
+    r.doneAt = Date.now();
     if (!r.createdAt) r.createdAt = Date.now();
-    // Add to activity timeline at the beginning
     if (!s.activity) s.activity = [];
-    s.activity.unshift({when:Date.now(), text:'✅ Request completed: ' + r.type + (r.details !== "(no details)" ? " - " + r.details.substring(0, 40) + (r.details.length > 40 ? "..." : "") : "")}); 
-    save(s); 
+    s.activity.unshift({when:Date.now(), text:'✅ Request completed: ' + r.type + (r.details !== "(no details)" ? " - " + r.details.substring(0, 40) + (r.details.length > 40 ? "..." : "") : "")});
+    save(s);
     render();
-    // Recalculate request metrics after marking done
     renderRequestStats();
+  }
+}
+
+function deleteRequest(id){
+  var s = load();
+  if (!s.requests) return;
+  var idx = s.requests.findIndex(function(x){ return x.id === id; });
+  if (idx < 0) return;
+  var req = s.requests[idx];
+  s.requests.splice(idx, 1);
+  if (!s.activity) s.activity = [];
+  s.activity.unshift({when:Date.now(), text:'🗑️ Request deleted: ' + (req.type || 'Request')});
+  save(s);
+  render();
+  renderRequestStats();
+}
+
+function openClientRequestDetail(reqId){
+  var s = load();
+  var req = (s.requests || []).find(function(x){ return x.id === reqId; });
+  if (!req) return;
+
+  // Remove any existing modal
+  var existing = document.getElementById('clientReqDetailModal');
+  if (existing) existing.remove();
+
+  var isDark = document.body.getAttribute('data-theme') === 'dark';
+  var bgColor = isDark ? '#1e293b' : '#ffffff';
+  var textColor = isDark ? '#e2e8f0' : '#0f172a';
+  var subColor = isDark ? '#94a3b8' : '#475569';
+  var borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0';
+  var inputBg = isDark ? '#0f172a' : '#f8fafc';
+
+  var overlay = document.createElement('div');
+  overlay.id = 'clientReqDetailModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) overlay.remove(); });
+
+  var panel = document.createElement('div');
+  panel.style.cssText = 'background:' + bgColor + ';border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;padding:24px 20px 32px;position:relative;box-shadow:0 -10px 40px rgba(0,0,0,0.2);animation:slideUp 0.25s ease;';
+
+  // Drag handle
+  var handle = document.createElement('div');
+  handle.style.cssText = 'width:40px;height:4px;background:' + borderColor + ';border-radius:2px;margin:0 auto 16px;';
+  panel.appendChild(handle);
+
+  // Close button
+  var closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;border:none;background:' + (isDark ? '#334155' : '#f1f5f9') + ';font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:' + subColor + ';';
+  closeBtn.addEventListener('click', function(){ overlay.remove(); });
+  panel.appendChild(closeBtn);
+
+  // Title + status
+  var headerDiv = document.createElement('div');
+  headerDiv.style.cssText = 'margin-bottom:16px;';
+  headerDiv.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span><span style="font-size:11px;font-weight:600;color:#3b82f6;text-transform:uppercase;letter-spacing:0.05em;">Open</span></div>' +
+    '<h3 style="margin:0;font-size:20px;font-weight:700;color:' + textColor + ';">' + (req.type || 'Request').replace(/</g,'&lt;') + '</h3>';
+  panel.appendChild(headerDiv);
+
+  // Details (editable)
+  var detailsLabel = document.createElement('label');
+  detailsLabel.style.cssText = 'display:block;font-size:12px;font-weight:600;color:' + subColor + ';margin-bottom:6px;text-transform:uppercase;letter-spacing:0.03em;';
+  detailsLabel.textContent = 'Details';
+  panel.appendChild(detailsLabel);
+
+  var detailsArea = document.createElement('textarea');
+  detailsArea.id = 'reqDetailEdit';
+  detailsArea.value = (req.details && req.details !== '(no details)') ? req.details : '';
+  detailsArea.placeholder = 'Add more details...';
+  detailsArea.style.cssText = 'width:100%;min-height:80px;padding:12px;border-radius:10px;border:1px solid ' + borderColor + ';background:' + inputBg + ';color:' + textColor + ';font-size:14px;font-family:inherit;resize:vertical;line-height:1.5;box-sizing:border-box;';
+  panel.appendChild(detailsArea);
+
+  // Link (editable)
+  var linkLabel = document.createElement('label');
+  linkLabel.style.cssText = 'display:block;font-size:12px;font-weight:600;color:' + subColor + ';margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.03em;';
+  linkLabel.textContent = 'Link';
+  panel.appendChild(linkLabel);
+
+  var linkInput = document.createElement('input');
+  linkInput.type = 'url';
+  linkInput.id = 'reqLinkEdit';
+  linkInput.value = req.link || '';
+  linkInput.placeholder = 'https://...';
+  linkInput.style.cssText = 'width:100%;padding:10px 12px;border-radius:10px;border:1px solid ' + borderColor + ';background:' + inputBg + ';color:' + textColor + ';font-size:14px;font-family:inherit;box-sizing:border-box;';
+  panel.appendChild(linkInput);
+
+  // Existing images
+  var imagesSection = document.createElement('div');
+  imagesSection.style.cssText = 'margin-top:16px;';
+  var imagesLabel = document.createElement('div');
+  imagesLabel.style.cssText = 'font-size:12px;font-weight:600;color:' + subColor + ';margin-bottom:8px;text-transform:uppercase;letter-spacing:0.03em;';
+  imagesLabel.textContent = 'Images (' + (req.images ? req.images.length : 0) + ')';
+  imagesSection.appendChild(imagesLabel);
+
+  var imagesGrid = document.createElement('div');
+  imagesGrid.id = 'reqDetailImages';
+  imagesGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+
+  if (req.images && req.images.length) {
+    req.images.forEach(function(img, i){
+      var thumb = document.createElement('div');
+      thumb.style.cssText = 'position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid ' + borderColor + ';';
+      thumb.innerHTML = '<img src="' + img + '" style="width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;" alt="Attachment ' + (i+1) + '">' +
+        '<button type="button" data-img-idx="' + i + '" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>';
+      // Image lightbox on click
+      thumb.querySelector('img').addEventListener('click', function(){
+        var lb = document.createElement('div');
+        lb.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10001;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+        lb.innerHTML = '<img src="' + img + '" style="max-width:92%;max-height:92%;border-radius:8px;object-fit:contain;">';
+        lb.addEventListener('click', function(){ lb.remove(); });
+        document.body.appendChild(lb);
+      });
+      // Remove image button
+      thumb.querySelector('button').addEventListener('click', function(e){
+        e.stopPropagation();
+        var s2 = load();
+        var r2 = (s2.requests || []).find(function(x){ return x.id === reqId; });
+        if (r2 && r2.images) {
+          r2.images.splice(i, 1);
+          save(s2);
+          overlay.remove();
+          render();
+          renderRequestStats();
+          openClientRequestDetail(reqId);
+        }
+      });
+      imagesGrid.appendChild(thumb);
+    });
+  }
+  imagesSection.appendChild(imagesGrid);
+
+  // Upload more images button
+  var uploadBtn = document.createElement('label');
+  uploadBtn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 14px;border-radius:8px;border:1.5px dashed ' + borderColor + ';background:transparent;color:' + subColor + ';font-size:13px;font-weight:600;cursor:pointer;';
+  uploadBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload images';
+  var uploadInput = document.createElement('input');
+  uploadInput.type = 'file';
+  uploadInput.accept = 'image/*';
+  uploadInput.multiple = true;
+  uploadInput.style.display = 'none';
+  uploadInput.addEventListener('change', function(){
+    var files = uploadInput.files;
+    if (!files || !files.length) return;
+    var s2 = load();
+    var r2 = (s2.requests || []).find(function(x){ return x.id === reqId; });
+    if (!r2) return;
+    if (!r2.images) r2.images = [];
+    var remaining = files.length;
+    for (var fi = 0; fi < files.length; fi++){
+      (function(file){
+        var reader = new FileReader();
+        reader.onload = function(){
+          r2.images.push(reader.result);
+          remaining--;
+          if (remaining === 0) {
+            save(s2);
+            overlay.remove();
+            render();
+            renderRequestStats();
+            openClientRequestDetail(reqId);
+          }
+        };
+        reader.readAsDataURL(file);
+      })(files[fi]);
+    }
+  });
+  uploadBtn.appendChild(uploadInput);
+  imagesSection.appendChild(uploadBtn);
+  panel.appendChild(imagesSection);
+
+  // Meta info
+  var metaDiv = document.createElement('div');
+  metaDiv.style.cssText = 'font-size:12px;color:' + subColor + ';margin-top:16px;padding-top:12px;border-top:1px solid ' + borderColor + ';';
+  var dd = new Date(req.createdAt || Date.now());
+  metaDiv.textContent = 'Submitted by ' + (req.by || 'Client') + ' · ' + dd.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dd.getMonth()] + ' ' + dd.getFullYear() + ', ' + String(dd.getHours()).padStart(2,'0') + ':' + String(dd.getMinutes()).padStart(2,'0');
+  panel.appendChild(metaDiv);
+
+  // Action buttons: Save + Delete
+  var actionsDiv = document.createElement('div');
+  actionsDiv.style.cssText = 'display:flex;gap:10px;margin-top:20px;';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save changes';
+  saveBtn.style.cssText = 'flex:1;padding:13px;border:none;border-radius:12px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;';
+  saveBtn.addEventListener('click', function(){
+    var s2 = load();
+    var r2 = (s2.requests || []).find(function(x){ return x.id === reqId; });
+    if (!r2) return;
+    var newDetails = detailsArea.value.trim();
+    r2.details = newDetails || '(no details)';
+    r2.link = linkInput.value.trim();
+    save(s2);
+    overlay.remove();
+    render();
+    renderRequestStats();
+    var toast = document.getElementById("toastContainer");
+    if (toast) { toast.style.display = "block"; toast.textContent = "Request updated!"; toast.classList.add("show"); setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000); }
+  });
+
+  var deleteBtn = document.createElement('button');
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.style.cssText = 'padding:13px 20px;border:none;border-radius:12px;background:' + (isDark ? 'rgba(239,68,68,0.15)' : '#fef2f2') + ';color:#ef4444;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;';
+  deleteBtn.addEventListener('click', function(){
+    if (confirm('Delete this request? This cannot be undone.')) {
+      overlay.remove();
+      deleteRequest(reqId);
+    }
+  });
+
+  actionsDiv.appendChild(saveBtn);
+  actionsDiv.appendChild(deleteBtn);
+  panel.appendChild(actionsDiv);
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  // Add slide-up animation
+  if (!document.getElementById('reqModalAnim')) {
+    var styleEl = document.createElement('style');
+    styleEl.id = 'reqModalAnim';
+    styleEl.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+    document.head.appendChild(styleEl);
   }
 }
 
