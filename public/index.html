@@ -4933,6 +4933,160 @@ async function initializeApp() {
       .catch(function(e) { pushDebug('Registration error: ' + e.message); });
   }
 
+// ═══════════════════════════════════════════════════════════════════════
+// ONE-TIME TOUR: Introduce the new Strategy tab
+// Shows once per device, stored in localStorage
+// ═══════════════════════════════════════════════════════════════════════
+(function() {
+  var TOUR_KEY = '2fly_tour_strategy_v1';
+  if (localStorage.getItem(TOUR_KEY)) return; // Already seen
+
+  // Wait for app to finish loading
+  setTimeout(function() {
+    // Only show on mobile/tablet (where bottom nav exists)
+    if (!document.querySelector('.bottom-nav-btn[data-tab="strategy"]')) return;
+
+    var currentStep = 0;
+    var steps = [
+      {
+        title: "We've got something new! 🎉",
+        text: "We reorganized your app to make things easier. The Images tab is now your <strong>Strategy</strong> tab — a dedicated space to plan your month.",
+        target: null, // No specific element, just a welcome overlay
+        position: 'center'
+      },
+      {
+        title: "Your monthly game plan 📋",
+        text: "Set your goals, add promotions and events — all in one place. Your team uses this to create content that's actually aligned with what matters to you.",
+        target: '.bottom-nav-btn[data-tab="strategy"]',
+        position: 'above'
+      },
+      {
+        title: "You're all set! 🚀",
+        text: "That's it! Tap <strong>Strategy</strong> anytime to update your monthly direction. The more you share, the better your content gets.",
+        target: '.bottom-nav-btn[data-tab="strategy"]',
+        position: 'above'
+      }
+    ];
+
+    // Inject styles
+    var style = document.createElement('style');
+    style.textContent = [
+      '.tour-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);z-index:99998;opacity:0;transition:opacity .3s ease;}',
+      '.tour-overlay.visible{opacity:1;}',
+      '.tour-spotlight{position:fixed;z-index:99999;border-radius:16px;box-shadow:0 0 0 4000px rgba(0,0,0,.65);transition:all .3s ease;pointer-events:none;}',
+      '.tour-card{position:fixed;z-index:100000;background:#fff;border-radius:16px;padding:24px;max-width:320px;width:calc(100vw - 40px);',
+      '  box-shadow:0 20px 60px rgba(0,0,0,.3);transition:all .3s ease;opacity:0;transform:translateY(12px);}',
+      '.tour-card.visible{opacity:1;transform:translateY(0);}',
+      '.tour-card-title{font-size:18px;font-weight:700;color:#0f172a;margin:0 0 8px 0;line-height:1.3;}',
+      '.tour-card-text{font-size:14px;color:#475569;margin:0 0 20px 0;line-height:1.6;}',
+      '.tour-card-footer{display:flex;justify-content:space-between;align-items:center;}',
+      '.tour-dots{display:flex;gap:6px;}',
+      '.tour-dot{width:8px;height:8px;border-radius:50%;background:#e2e8f0;transition:background .2s;}',
+      '.tour-dot.active{background:#3b82f6;}',
+      '.tour-btn{padding:10px 24px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s ease;}',
+      '.tour-btn-primary{background:#3b82f6;color:#fff;}',
+      '.tour-btn-primary:hover{background:#2563eb;}',
+      '.tour-btn-skip{background:transparent;color:#94a3b8;font-size:13px;padding:10px 12px;}',
+      '.tour-btn-skip:hover{color:#64748b;}'
+    ].join('\n');
+    document.head.appendChild(style);
+
+    // Create overlay
+    var overlay = document.createElement('div');
+    overlay.className = 'tour-overlay';
+    document.body.appendChild(overlay);
+
+    // Create spotlight
+    var spotlight = document.createElement('div');
+    spotlight.className = 'tour-spotlight';
+    spotlight.style.display = 'none';
+    document.body.appendChild(spotlight);
+
+    // Create card
+    var card = document.createElement('div');
+    card.className = 'tour-card';
+    document.body.appendChild(card);
+
+    function renderStep(idx) {
+      var step = steps[idx];
+      var dots = steps.map(function(_, i) {
+        return '<span class="tour-dot' + (i === idx ? ' active' : '') + '"></span>';
+      }).join('');
+      var isLast = idx === steps.length - 1;
+      card.innerHTML = [
+        '<div class="tour-card-title">' + step.title + '</div>',
+        '<div class="tour-card-text">' + step.text + '</div>',
+        '<div class="tour-card-footer">',
+        idx === 0 ? '<button class="tour-btn tour-btn-skip" id="tourSkip">Skip</button>' : '<div class="tour-dots">' + dots + '</div>',
+        '<button class="tour-btn tour-btn-primary" id="tourNext">' + (isLast ? "Let's go!" : 'Next') + '</button>',
+        '</div>'
+      ].join('');
+
+      // Position card and spotlight
+      if (step.target) {
+        var el = document.querySelector(step.target);
+        if (el) {
+          var rect = el.getBoundingClientRect();
+          // Highlight the target
+          spotlight.style.display = 'block';
+          spotlight.style.top = (rect.top - 6) + 'px';
+          spotlight.style.left = (rect.left - 6) + 'px';
+          spotlight.style.width = (rect.width + 12) + 'px';
+          spotlight.style.height = (rect.height + 12) + 'px';
+          // Position card above target
+          card.style.bottom = (window.innerHeight - rect.top + 16) + 'px';
+          card.style.top = 'auto';
+          card.style.left = '50%';
+          card.style.transform = 'translateX(-50%)';
+        }
+      } else {
+        spotlight.style.display = 'none';
+        card.style.top = '50%';
+        card.style.left = '50%';
+        card.style.bottom = 'auto';
+        card.style.transform = 'translate(-50%, -50%)';
+      }
+
+      // Animate in
+      requestAnimationFrame(function() {
+        overlay.classList.add('visible');
+        card.classList.add('visible');
+      });
+
+      // Bind events
+      var nextBtn = document.getElementById('tourNext');
+      var skipBtn = document.getElementById('tourSkip');
+      if (nextBtn) nextBtn.onclick = function() {
+        if (isLast) {
+          closeTour();
+          // Switch to Strategy tab
+          var stratBtn = document.querySelector('.bottom-nav-btn[data-tab="strategy"]');
+          if (stratBtn) stratBtn.click();
+        } else {
+          card.classList.remove('visible');
+          setTimeout(function() { currentStep++; renderStep(currentStep); }, 200);
+        }
+      };
+      if (skipBtn) skipBtn.onclick = closeTour;
+    }
+
+    function closeTour() {
+      localStorage.setItem(TOUR_KEY, Date.now().toString());
+      card.classList.remove('visible');
+      overlay.classList.remove('visible');
+      setTimeout(function() {
+        try { overlay.remove(); spotlight.remove(); card.remove(); style.remove(); } catch(e){}
+      }, 350);
+    }
+
+    // Also close on overlay click
+    overlay.addEventListener('click', closeTour);
+
+    // Start the tour
+    renderStep(0);
+  }, 1500); // Delay to let the app fully render
+})();
+
 </script>
 </body>
 </html>
