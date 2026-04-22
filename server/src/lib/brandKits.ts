@@ -24,6 +24,8 @@ export interface BrandKitEntry {
   colorPalette: string[];
   styleDescription: string;
   style?: string;
+  headlineFont?: string;       // e.g. "Didot Bold", "Montserrat Black"
+  bodyFont?: string;           // e.g. "Montserrat Regular", "Poppins Light"
 }
 
 export const brandKits: Record<string, BrandKitEntry> = {
@@ -43,6 +45,8 @@ export const brandKits: Record<string, BrandKitEntry> = {
     colorPalette: ['#1E3A5F', '#D4A24C', '#0F172A'],
     styleDescription:
       'Elegant, warm, upscale Eastern European dining. Cinematic warmth with moody amber highlights.',
+    headlineFont: 'Playfair Display Bold',
+    bodyFont: 'Lato Regular',
   },
   'sudbury-point-grill': {
     clientType: 'restaurant',
@@ -60,6 +64,8 @@ export const brandKits: Record<string, BrandKitEntry> = {
     colorPalette: ['#0B2447', '#C8102E', '#F5F5F5'],
     styleDescription:
       'Energetic, social, classic American sports bar. Warm amber bar ambience with blue-white TV glow.',
+    headlineFont: 'Impact',
+    bodyFont: 'Roboto Regular',
   },
   'casa-nova': {
     clientType: 'butcher-cafe',
@@ -71,6 +77,8 @@ export const brandKits: Record<string, BrandKitEntry> = {
     defaultOutputType: 'design-brief',
     styleDescription:
       'Vibrant, eye-catching, bold typography. Brazilian market energy. Bilingual PT/EN. Customer wants variety — alternates between colorful event posts and clean product shots.',
+    headlineFont: 'Bebas Neue',
+    bodyFont: 'Montserrat Regular',
     ambientDescription:
       'Brazilian butcher counter and cafe with warm wood, produce display, flags and market signage',
     defaultLens: '50mm f/1.4',
@@ -95,6 +103,8 @@ export const brandKits: Record<string, BrandKitEntry> = {
     colorPalette: ['#E8D7C3', '#6B5847', '#FFFFFF'],
     styleDescription:
       'Editorial beauty. Soft neutrals, refined, calm, skin-first. Premium wellness aesthetic.',
+    headlineFont: 'Didot Bold',
+    bodyFont: 'Montserrat Light',
   },
   'retail-default': {
     clientType: 'retail',

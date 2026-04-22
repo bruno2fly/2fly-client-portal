@@ -5081,6 +5081,8 @@ function renderAILGenerator(tc, clients, clientIds) {
     lines.push('**Design style:**');
     lines.push('- ' + styleDesc);
     lines.push('- Brand colors: ' + colors);
+    if (kit.headlineFont) lines.push('- Headline font: ' + kit.headlineFont + ' (use this exact style)');
+    if (kit.bodyFont) lines.push('- Body/subtitle font: ' + kit.bodyFont);
     lines.push('- Modern, high-quality, ready for Instagram');
     lines.push('');
     if (hasProduct) {
@@ -5107,6 +5109,7 @@ function renderAILGenerator(tc, clients, clientIds) {
     lines.push('- Do NOT add any text that is not listed above');
     lines.push('- Spell all copy exactly as written \u2014 no autocorrect');
     lines.push('- Output size: exactly ' + fmtLabel + 'px');
+    if (kit.headlineFont) lines.push('- Match the headline font style exactly: ' + kit.headlineFont);
     if (forbiddenLine) lines.push('- ' + forbiddenLine);
 
     return lines.join('\n');
