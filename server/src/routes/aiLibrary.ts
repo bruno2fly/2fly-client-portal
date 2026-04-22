@@ -432,15 +432,9 @@ function buildDesignBrief(
   kit: BrandKitEntry,
   briefOpts: BriefOptions,
 ): string {
-  // styleLabel is kept in metadata/use if needed, but the new Gemini-prompt
-  // template embeds the style via the kit's styleDescription rather than a label.
-  const styleKey = String(briefOpts.style || kit.style || 'bold-colorful').toLowerCase();
-  // Surface the style label internally (unused in output, but validates the key).
-  void (STYLE_LABELS[styleKey] || styleKey);
-
   const formatLabel = resolveFormatLabel(briefOpts.format || '', kit);
   const copy = (briefOpts.copy || '').trim();
-  const hasProduct = briefOpts.hasProduct !== false; // default true if caller didn't specify
+  const hasProduct = briefOpts.hasProduct !== false;
   const hasReference = !!briefOpts.hasReference;
   const productDesc = (briefOpts.productDescription && briefOpts.productDescription.trim())
     || 'user-uploaded product photo (use as the hero of the composition)';
@@ -449,27 +443,43 @@ function buildDesignBrief(
     : '[brand colors on file]';
   const styleDesc = kit.styleDescription || 'clean, on-brand';
   const forbiddenLine = (kit.forbiddenElements && kit.forbiddenElements.length)
-    ? 'AVOID: ' + kit.forbiddenElements.join(', ') + '.'
+    ? '- Do NOT include: ' + kit.forbiddenElements.join(', ') + '.'
     : '';
 
-  // Intro sentence adapts to which assets were provided.
-  const assets: string[] = [];
-  assets.push(hasProduct ? 'a product photo' : '[no product photo provided]');
-  if (hasReference) assets.push('a reference flyer style');
-  const intro = `I am providing ${assets.join(' and ')}. ` +
-    `Create a promotional Instagram post at ${formatLabel}.`;
-
-  const lines: string[] = [intro, ''];
-  lines.push(`PRODUCT: ${hasProduct ? productDesc : '[describe the product here]'}`);
-  if (copy) lines.push(`COPY TO INCLUDE: "${copy}"`);
-  if (hasReference) lines.push('MATCH THE STYLE of the reference flyer provided.');
+  const lines: string[] = [];
+  lines.push(`Create a promotional Instagram post (${formatLabel}px) for ${kit.clientName}.`);
   lines.push('');
-  lines.push(`DESIGN STYLE: Bold, vibrant, eye-catching. ${styleDesc}.`);
-  lines.push(`BRAND COLORS: ${colors}`);
-  lines.push(`LOGO: Place the ${kit.clientName} logo at the top center.`);
+  lines.push('**Design style:**');
+  lines.push(`- ${styleDesc}`);
+  lines.push(`- Brand colors: ${colors}`);
+  lines.push('- Modern, high-quality, ready for Instagram');
+  lines.push('');
+  if (hasProduct) {
+    lines.push('**Product/Hero image:**');
+    lines.push(`- ${productDesc}`);
+    lines.push('');
+  }
+  if (copy) {
+    lines.push('**Copy to include on the design:**');
+    copy.split('\n').forEach(line => {
+      if (line.trim()) lines.push(`- "${line.trim()}"`);
+    });
+    lines.push('');
+  }
+  if (hasReference) {
+    lines.push('**Style reference:**');
+    lines.push('- A reference flyer has been provided. Match its layout and visual style.');
+    lines.push('');
+  }
+  lines.push('**Logo:**');
+  lines.push(`- Place the ${kit.clientName} logo at the top center.`);
+  lines.push('');
+  lines.push('**Rules:**');
+  lines.push('- Do NOT add any text that is not listed above');
+  lines.push('- Spell all copy exactly as written — no autocorrect');
+  lines.push(`- Output size: exactly ${formatLabel}px`);
   if (forbiddenLine) lines.push(forbiddenLine);
-  lines.push('');
-  lines.push(`OUTPUT: ${formatLabel} pixels. High quality. Ready for Instagram.`);
+
   return lines.join('\n');
 }
 

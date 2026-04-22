@@ -4535,7 +4535,7 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '<div class="ail-label" style="margin-bottom:8px;">Output Type</div>';
   h += '<div id="pgOutputTypeTabs" style="display:inline-flex;gap:0;background:#f1f5f9;border-radius:10px;padding:4px;">';
   h += '<button type="button" data-pg-outtype="photography-prompt" style="padding:8px 14px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\uD83D\uDCF8 Photography Prompt</button>';
-  h += '<button type="button" data-pg-outtype="design-brief" style="padding:8px 14px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\uD83C\uDFA8 Design Brief</button>';
+  h += '<button type="button" data-pg-outtype="design-brief" style="padding:8px 14px;border-radius:7px;border:none;background:transparent;color:#64748b;font-weight:600;font-size:13px;cursor:pointer;">\uD83C\uDFA8 Design Prompt</button>';
   h += '</div>';
   h += '<div id="pgOutputTypeHint" style="font-size:12px;color:#94a3b8;margin-top:6px;"></div>';
   h += '</div>';
@@ -4686,7 +4686,7 @@ function renderAILGenerator(tc, clients, clientIds) {
     var hint = tc.querySelector('#pgOutputTypeHint');
     if (hint) {
       hint.textContent = currentOutputType === 'design-brief'
-        ? 'Generates a Gemini prompt to create a promotional design.'
+        ? 'Generates a structured ChatGPT prompt for creating promotional graphics. Upload a product photo, add your copy, and get a prompt ready to paste into ChatGPT.'
         : 'Produces a Gemini photographer-style prompt.';
     }
     var genLbl = tc.querySelector('#pgGenerateBtnLabel');
@@ -5056,8 +5056,8 @@ function renderAILGenerator(tc, clients, clientIds) {
     return 'portrait';
   }
 
-  // Local fallback builder for Design Brief — used if the backend is down.
-  // Produces a Gemini-ready prompt (not a human briefing).
+  // Local fallback builder for Design Prompt — used if the backend is down.
+  // Produces a ChatGPT-ready structured prompt for image generation.
   function buildMockBrief() {
     var kit = activeBrandKit || {};
     var name = kit.clientName || '[Client]';
@@ -5072,27 +5072,43 @@ function renderAILGenerator(tc, clients, clientIds) {
     var colors = (kit.colorPalette && kit.colorPalette.join(', ')) || '[brand colors on file]';
     var styleDesc = kit.styleDescription || 'clean, on-brand';
     var forbiddenLine = (kit.forbiddenElements && kit.forbiddenElements.length)
-      ? 'AVOID: ' + kit.forbiddenElements.join(', ') + '.'
+      ? 'Do NOT include: ' + kit.forbiddenElements.join(', ') + '.'
       : '';
 
-    // Intro sentence adapts to which assets were provided.
-    var assets = [];
-    assets.push(hasProduct ? 'a product photo' : '[no product photo provided]');
-    if (hasReference) assets.push('a reference flyer style');
-    var intro = 'I am providing ' + assets.join(' and ') + '. ' +
-      'Create a promotional Instagram post at ' + fmtLabel + '.';
+    var lines = [];
+    lines.push('Create a promotional Instagram post (' + fmtLabel + 'px) for ' + name + '.');
+    lines.push('');
+    lines.push('**Design style:**');
+    lines.push('- ' + styleDesc);
+    lines.push('- Brand colors: ' + colors);
+    lines.push('- Modern, high-quality, ready for Instagram');
+    lines.push('');
+    if (hasProduct) {
+      lines.push('**Product/Hero image:**');
+      lines.push('- I am attaching the product photo. Use it as the hero of the composition.');
+      lines.push('');
+    }
+    if (copyText) {
+      lines.push('**Copy to include on the design:**');
+      copyText.split('\n').forEach(function(line) {
+        if (line.trim()) lines.push('- "' + line.trim() + '"');
+      });
+      lines.push('');
+    }
+    if (hasReference) {
+      lines.push('**Style reference:**');
+      lines.push('- I am attaching a reference flyer. Match its layout and visual style.');
+      lines.push('');
+    }
+    lines.push('**Logo:**');
+    lines.push('- Place the ' + name + ' logo at the top center.');
+    lines.push('');
+    lines.push('**Rules:**');
+    lines.push('- Do NOT add any text that is not listed above');
+    lines.push('- Spell all copy exactly as written \u2014 no autocorrect');
+    lines.push('- Output size: exactly ' + fmtLabel + 'px');
+    if (forbiddenLine) lines.push('- ' + forbiddenLine);
 
-    var lines = [intro, ''];
-    lines.push('PRODUCT: ' + (hasProduct ? 'user-uploaded product photo (use as the hero of the composition)' : '[describe the product here]'));
-    if (copyText) lines.push('COPY TO INCLUDE: "' + copyText + '"');
-    if (hasReference) lines.push('MATCH THE STYLE of the reference flyer provided.');
-    lines.push('');
-    lines.push('DESIGN STYLE: Bold, vibrant, eye-catching. ' + styleDesc + '.');
-    lines.push('BRAND COLORS: ' + colors);
-    lines.push('LOGO: Place the ' + name + ' logo at the top center.');
-    if (forbiddenLine) lines.push(forbiddenLine);
-    lines.push('');
-    lines.push('OUTPUT: ' + fmtLabel + ' pixels. High quality. Ready for Instagram.');
     return lines.join('\n');
   }
 
