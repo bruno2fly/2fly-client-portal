@@ -4669,18 +4669,49 @@ function renderRequestStats(){
   }
 }
 
-/* ================== Reports (manual, positive-only) ================== */
+/* ================== Reports (real data from API) ================== */
 const LS_REPORTS_KEY = "client_portal_reports_v1";
 const _nowPeriod = (function(){ var d = new Date(); return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); })();
 const reportSeed = {
   period: _nowPeriod,
-  ads:{ running:4, impressions:48000, clicks:1200, leads:35 },
-  visibility:{ gmbViews:3800, profileSearches:1200, websiteClicks:220, igFollowersDelta:75 },
-  work:{ posts:16, reels:8, campaigns:2, requestsResolved:3 },
-  prev:{ period:"Oct 2025", ads:{ running:3, impressions:42000, clicks:1100, leads:31 }, visibility:{ gmbViews:3220, profileSearches:1090, websiteClicks:208, igFollowersDelta:54 }, work:{ posts:15, reels:6, campaigns:1, requestsResolved:2 } },
+  ads:{ running:0, impressions:0, clicks:0, leads:0 },
+  visibility:{ gmbViews:0, profileSearches:0, websiteClicks:0, igFollowersDelta:0 },
+  work:{ posts:0, reels:0, campaigns:0, requestsResolved:0 },
+  prev: null,
   _sample: true
 };
-function loadReports(){ const raw = localStorage.getItem(LS_REPORTS_KEY); if(!raw){ localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(reportSeed)); return reportSeed; } try{ return JSON.parse(raw);}catch{return reportSeed;} }
+async function loadReports(){
+  // Try fetching real progress from the API
+  var token = (session && session.token) || null;
+  if (token) {
+    try {
+      var r = await fetch(API_BASE + '/api/client/progress', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (r.ok) {
+        var j = await r.json();
+        if (j.success && j._sample === false) {
+          // Build report object from real data
+          var real = {
+            period: j.period || _nowPeriod,
+            ads: { running: 0, impressions: 0, clicks: 0, leads: 0 },
+            visibility: { gmbViews: 0, profileSearches: 0, websiteClicks: 0, igFollowersDelta: 0 },
+            work: { posts: j.posts || 0, reels: j.reels || 0, campaigns: 0, requestsResolved: j.requestsResolved || 0 },
+            prev: null,
+            _sample: false
+          };
+          return real;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load progress from API, using fallback:', e);
+    }
+  }
+  // Fallback: localStorage or seed
+  var raw = localStorage.getItem(LS_REPORTS_KEY);
+  if (!raw) { localStorage.setItem(LS_REPORTS_KEY, JSON.stringify(reportSeed)); return reportSeed; }
+  try { return JSON.parse(raw); } catch(e) { return reportSeed; }
+}
 function pctChange(cur, prev){ if(prev===0) return 100; return Math.round(((cur - prev) / prev) * 100); }
 function positivePhrase(label, p){ if(p>0) return `${label} up ${p}% vs last period`; if(p===0) return `${label} holding steady`; return `${label} steady with ongoing optimization`; }
 function summarizePositive(r, prev){
@@ -4710,8 +4741,8 @@ function getProgressHeroHighlights(r, prev) {
   return highlights.slice(0, 5);
 }
 
-function renderReports(){
-  const r = loadReports(); const prev = r.prev;
+async function renderReports(){
+  const r = await loadReports(); const prev = r.prev;
   const adsRunning = r.ads.running;
   const growthScore = prev ? Math.max(0, pctChange(r.visibility.gmbViews + r.visibility.profileSearches + r.visibility.websiteClicks, prev.visibility.gmbViews + prev.visibility.profileSearches + prev.visibility.websiteClicks)) : 0;
 
@@ -4891,9 +4922,9 @@ async function initializeApp() {
   try { setupClientNotificationBell(); } catch (e) { console.warn('Client notification bell setup:', e); }
 
   var skeletonOverlay = document.getElementById('skeletonOverlay');
-  setTimeout(function() {
+  setTimeout(async function() {
     render();
-    renderReports();
+    await renderReports();
     if (skeletonOverlay) skeletonOverlay.classList.add('hidden');
   }, 300);
 

@@ -144,6 +144,55 @@ router.post('/request-changes', (req, res) => {
 });
 
 /**
+ * GET /api/client/progress
+ * Returns real progress metrics for the authenticated client this month.
+ * Posts published, reels count, requests resolved — computed from actual data.
+ */
+router.get('/progress', (req, res) => {
+  const ctx = authenticateClient(req, res);
+  if (!ctx) return;
+  try {
+    // Start of current month (UTC)
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
+
+    // --- Posts published this month for this client ---
+    const allPosts = getScheduledPostsByAgency(ctx.agencyId)
+      .filter(p => p.clientId === ctx.clientId && p.status === 'published' && p.publishedAt && p.publishedAt >= monthStart);
+
+    const postsPublished = allPosts.length;
+
+    // Reels = posts with 'reels' in placements
+    const reelsCount = allPosts.filter(p => Array.isArray(p.placements) && p.placements.includes('reels')).length;
+
+    // --- Requests resolved this month ---
+    const state = getPortalState(ctx.agencyId, ctx.clientId);
+    const requests: any[] = (state && Array.isArray((state as any).requests)) ? (state as any).requests : [];
+    const requestsResolved = requests.filter((r: any) => {
+      if (r.status !== 'done') return false;
+      // Use doneAt timestamp if available, else include it anyway
+      if (r.doneAt) return r.doneAt >= monthStart;
+      return true; // no timestamp → count it
+    }).length;
+
+    // Build period label
+    const period = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    res.json({
+      success: true,
+      period,
+      posts: postsPublished,
+      reels: reelsCount,
+      requestsResolved,
+      _sample: false
+    });
+  } catch (e: any) {
+    console.error('Progress endpoint error:', e?.message);
+    res.status(500).json({ error: e.message || 'Failed to compute progress' });
+  }
+});
+
+/**
  * GET /api/client/scheduled-posts
  * Returns scheduled posts for the authenticated client.
  */
