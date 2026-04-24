@@ -4,7 +4,7 @@
  * Endpoints for:
  * - Brand Kit CRUD
  * - AI prompt enhancement with OpenAI GPT
- * - AI Image generation with DALL-E 3
+ * - AI Image generation with gpt-image-1
  * - AI Image approval workflow
  * - Image management (list, filter, delete, regenerate)
  */
@@ -31,7 +31,7 @@ function getOpenAIKey(): string {
 
 /**
  * Use GPT-4o-mini to enhance a user prompt with brand kit context
- * into an optimized DALL-E 3 image generation prompt
+ * into an optimized gpt-image-1 image generation prompt
  */
 async function enhancePromptWithAI(
   userPrompt: string,
@@ -55,9 +55,9 @@ async function enhancePromptWithAI(
     brandContext = parts.join('\n');
   }
 
-  const systemPrompt = `You are an expert social media visual designer and prompt engineer for DALL-E 3 image generation.
+  const systemPrompt = `You are an expert social media visual designer and prompt engineer for AI image generation (gpt-image-1).
 
-Your job: Take a brief content description and brand guidelines, then create a detailed, optimized DALL-E 3 prompt that will generate a professional, high-quality social media image.
+Your job: Take a brief content description and brand guidelines, then create a detailed, optimized prompt that will generate a professional, high-quality social media image.
 
 Rules:
 - Output ONLY the image generation prompt, nothing else
@@ -65,7 +65,7 @@ Rules:
 - Incorporate the brand colors and style naturally (don't just list them)
 - Specify the image should be ${format.label} aspect ratio
 - Make it feel like premium, agency-quality social media content
-- Do NOT include any text/typography in the image description (DALL-E handles text poorly)
+- You can include text/typography instructions — gpt-image-1 handles text well
 - Focus on visuals, photography style, and mood
 - Keep the prompt under 300 words`;
 
@@ -129,16 +129,17 @@ function buildFallbackPrompt(
 }
 
 /**
- * Generate an image using DALL-E 3 and upload to Vercel Blob
+ * Generate an image using gpt-image-1 and upload to Vercel Blob
  */
-async function generateWithDallE3(
+async function generateWithGptImage1(
   prompt: string,
-  size: '1024x1024' | '1024x1792' | '1792x1024'
-): Promise<{ url: string; revisedPrompt: string }> {
+  size: '1024x1024' | '1024x1536' | '1536x1024',
+  quality: 'low' | 'medium' | 'high' = 'medium'
+): Promise<{ url: string; revisedPrompt: string; b64: string }> {
   const apiKey = getOpenAIKey();
   if (!apiKey) throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
 
-  console.log(`[AI Library] Calling DALL-E 3 (size: ${size})...`);
+  console.log(`[AI Library] Calling gpt-image-1 (size: ${size}, quality: ${quality})...`);
   const res = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: {
@@ -146,19 +147,18 @@ async function generateWithDallE3(
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'dall-e-3',
+      model: 'gpt-image-1',
       prompt,
       n: 1,
       size,
-      quality: 'hd',
-      response_format: 'b64_json'
+      quality
     })
   });
 
   if (!res.ok) {
     const errBody = await res.text();
-    console.error('[AI Library] DALL-E 3 error:', errBody);
-    let errMsg = 'DALL-E 3 generation failed';
+    console.error('[AI Library] gpt-image-1 error:', errBody);
+    let errMsg = 'gpt-image-1 generation failed';
     try {
       const errJson = JSON.parse(errBody);
       errMsg = errJson.error?.message || errMsg;
@@ -168,15 +168,14 @@ async function generateWithDallE3(
 
   const data = await res.json() as any;
   const imageB64 = data.data?.[0]?.b64_json;
-  const revisedPrompt = data.data?.[0]?.revised_prompt || prompt;
 
-  if (!imageB64) throw new Error('No image data in DALL-E 3 response');
+  if (!imageB64) throw new Error('No image data in gpt-image-1 response');
 
   // Upload to Vercel Blob for persistence
   const imageUrl = await uploadToVercelBlob(imageB64, `ai-library/ai_${generateId()}_${Date.now()}.png`);
   console.log(`[AI Library] Image uploaded to Vercel Blob: ${imageUrl}`);
 
-  return { url: imageUrl, revisedPrompt };
+  return { url: imageUrl, revisedPrompt: prompt, b64: imageB64 };
 }
 
 /**
@@ -566,7 +565,7 @@ function inferShotTypeFromTemplate(template: string): string {
   return 'Bar Shot';
 }
 
-// ── AI Image Generation (DALL-E 3) ──
+// ── AI Image Generation (gpt-image-1) ──
 
 // POST /api/ai-library/generate
 router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) => {
@@ -578,11 +577,11 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
     const userId = (req as any).user?.id || '';
     const kit = getBrandKitByClient(clientId);
 
-    const formatMap: Record<string, { w: number; h: number; label: string; dalleSize: '1024x1024' | '1024x1792' | '1792x1024' }> = {
-      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       dalleSize: '1024x1024' },
-      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      dalleSize: '1024x1792' },
-      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   dalleSize: '1024x1024' },
-      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   dalleSize: '1792x1024' }
+    const formatMap: Record<string, { w: number; h: number; label: string; gptSize: '1024x1024' | '1024x1536' | '1536x1024' }> = {
+      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       gptSize: '1024x1024' },
+      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      gptSize: '1024x1536' },
+      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   gptSize: '1024x1536' },
+      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   gptSize: '1536x1024' }
     };
     const fmt = formatMap[format] || formatMap.feed;
 
@@ -595,7 +594,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
     const enhancedPrompt = await enhancePromptWithAI(prompt, kit, fmt);
     console.log(`[AI Library] Enhanced prompt (${enhancedPrompt.length} chars): "${enhancedPrompt.slice(0, 100)}..."`);
 
-    // Step 2: Generate each variation with DALL-E 3
+    // Step 2: Generate each variation with gpt-image-1
     for (let i = 0; i < count; i++) {
       try {
         console.log(`[AI Library] Generating variation ${i + 1}/${count}...`);
@@ -605,7 +604,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
           ? `${enhancedPrompt} (Variation ${i + 1}: different composition and angle)`
           : enhancedPrompt;
 
-        const result = await generateWithDallE3(variationPrompt, fmt.dalleSize);
+        const result = await generateWithGptImage1(variationPrompt, fmt.gptSize);
         const now = Date.now();
 
         const aiImg: AIImage = {
@@ -625,7 +624,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
           approvalDate: null,
           feedback: '',
           usedInPostId: null,
-          modelUsed: 'dall-e-3',
+          modelUsed: 'gpt-image-1',
           batchId,
           createdAt: now,
           updatedAt: now
@@ -653,6 +652,47 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
   } catch (err: any) {
     console.error('[AI Library] Generation error:', err);
     res.status(500).json({ error: 'Image generation failed: ' + (err.message || 'Unknown error') });
+  }
+});
+
+// POST /api/ai-library/generate-image-from-prompt
+// Direct image generation from a prompt (used by Prompt Generator "Generate with AI" button).
+// No DB save — returns the image immediately.
+router.post('/generate-image-from-prompt', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { clientId, prompt, format, quality } = req.body as {
+      clientId?: string;
+      prompt?: string;
+      format?: string;
+      quality?: 'low' | 'medium' | 'high';
+    };
+
+    if (!clientId || !prompt) return res.status(400).json({ error: 'clientId and prompt required' });
+
+    const sizeMap: Record<string, '1024x1024' | '1024x1536' | '1536x1024'> = {
+      feed: '1024x1024',
+      '1080x1080': '1024x1024',
+      story: '1024x1536',
+      '1080x1920': '1024x1536',
+      portrait: '1024x1536',
+      '1080x1350': '1024x1536',
+      carousel: '1024x1536',
+      ad_banner: '1536x1024',
+    };
+    const size = sizeMap[format || ''] || '1024x1024';
+    const q = quality || 'medium';
+
+    console.log(`[AI Library] generate-image-from-prompt: client=${clientId}, size=${size}, quality=${q}`);
+    const result = await generateWithGptImage1(prompt, size, q);
+
+    res.json({
+      success: true,
+      imageUrl: result.url,
+      b64: result.b64,
+    });
+  } catch (err: any) {
+    console.error('[AI Library] generate-image-from-prompt error:', err);
+    res.status(500).json({ error: err.message || 'Image generation failed' });
   }
 });
 
@@ -777,19 +817,19 @@ router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedReq
     const newPrompt = req.body.prompt || img.prompt;
     const kit = getBrandKitByClient(img.clientId);
 
-    const formatMap: Record<string, { w: number; h: number; label: string; dalleSize: '1024x1024' | '1024x1792' | '1792x1024' }> = {
-      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       dalleSize: '1024x1024' },
-      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      dalleSize: '1024x1792' },
-      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   dalleSize: '1024x1024' },
-      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   dalleSize: '1792x1024' }
+    const formatMap: Record<string, { w: number; h: number; label: string; gptSize: '1024x1024' | '1024x1536' | '1536x1024' }> = {
+      feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       gptSize: '1024x1024' },
+      story:      { w: 1080, h: 1920, label: '1080x1920 (Story)',      gptSize: '1024x1536' },
+      carousel:   { w: 1080, h: 1350, label: '1080x1350 (Carousel)',   gptSize: '1024x1536' },
+      ad_banner:  { w: 1200, h: 628,  label: '1200x628 (Ad Banner)',   gptSize: '1536x1024' }
     };
     const fmt = formatMap[img.format] || formatMap.feed;
 
     // Enhance prompt
     const enhancedPrompt = await enhancePromptWithAI(newPrompt, kit, fmt);
 
-    // Generate with DALL-E 3
-    const result = await generateWithDallE3(enhancedPrompt, fmt.dalleSize);
+    // Generate with gpt-image-1
+    const result = await generateWithGptImage1(enhancedPrompt, fmt.gptSize);
     const now = Date.now();
 
     const newImg: AIImage = {
@@ -803,7 +843,7 @@ router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedReq
       approvedBy: null,
       approvalDate: null,
       feedback: '',
-      modelUsed: 'dall-e-3',
+      modelUsed: 'gpt-image-1',
       createdAt: now,
       updatedAt: now
     };

@@ -4660,7 +4660,9 @@ function renderAILGenerator(tc, clients, clientIds) {
   h += '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">';
   h += '<button type="button" id="pgCopyBtn" class="ail-btn" style="background:#7c3aed;color:#fff;padding:10px 18px;font-size:13px;"><span id="pgCopyBtnLabel">\uD83D\uDCCB Copy Prompt</span></button>';
   h += '<button type="button" id="pgRegenBtn" class="ail-btn ail-btn-secondary" style="padding:10px 18px;font-size:13px;">\uD83D\uDD04 Regenerate</button>';
+  h += '<button type="button" id="pgGenerateAIBtn" class="ail-btn" style="background:#059669;color:#fff;padding:10px 18px;font-size:13px;">\uD83C\uDFA8 Generate with AI</button>';
   h += '</div>';
+  h += '<div id="pgAIImageResult" style="display:none;margin-top:16px;"></div>';
   h += '</div>';
 
   tc.innerHTML = h;
@@ -5216,6 +5218,61 @@ function renderAILGenerator(tc, clients, clientIds) {
       setTimeout(function() { btn.innerHTML = orig; }, 1800);
       showToast('Copied to clipboard', 'success');
     }).catch(function() { showToast('Copy failed', 'error'); });
+  });
+
+  // ─── Generate with AI button ───
+  tc.querySelector('#pgGenerateAIBtn').addEventListener('click', async function() {
+    var promptText = tc.querySelector('#pgOutput').value;
+    if (!promptText || !promptText.trim()) { showToast('Generate a prompt first', 'error'); return; }
+    var cid = (tc.querySelector('#pgClient') || {}).value;
+    if (!cid) { showToast('Select a client first', 'error'); return; }
+
+    // Determine format
+    var kit = activeBrandKit || {};
+    var fmt;
+    if (currentOutputType === 'design-brief') {
+      var briefFmtSel = tc.querySelector('#pgBriefFormat');
+      fmt = currentMode === 'advanced' && briefFmtSel ? briefFmtSel.value : (kit.outputFormat === '1080x1080' ? 'feed' : kit.outputFormat === '1080x1920' ? 'story' : 'portrait');
+    } else {
+      var photoFmtSel = tc.querySelector('#pgFormat');
+      fmt = currentMode === 'advanced' && photoFmtSel ? photoFmtSel.value : (kit.outputFormat === '1080x1080' ? 'feed' : kit.outputFormat === '1080x1920' ? 'story' : 'portrait');
+    }
+
+    var btn = tc.querySelector('#pgGenerateAIBtn');
+    var resultArea = tc.querySelector('#pgAIImageResult');
+    var origLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<div class="ail-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Generating image...';
+    resultArea.style.display = 'block';
+    resultArea.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:20px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;"><div class="ail-spinner" style="width:20px;height:20px;border-width:2px;"></div><span style="color:#64748b;font-size:13px;">Generating image with AI — this may take 30-60 seconds...</span></div>';
+
+    try {
+      var r = await fetch(getApiBaseUrl() + '/api/ai-library/generate-image-from-prompt', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: cid, prompt: promptText, format: fmt, quality: 'medium' })
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Generation failed');
+
+      var imgUrl = data.imageUrl;
+      resultArea.innerHTML = '<div style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:16px;">' +
+        '<div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:10px;">\u2705 Image Generated</div>' +
+        '<img src="' + imgUrl + '" alt="AI Generated Image" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px;display:block;" />' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<a href="' + imgUrl + '" download="ai-generated.png" class="ail-btn" style="background:#1a56db;color:#fff;padding:8px 16px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">\u2B07 Download</a>' +
+        '<button type="button" class="ail-btn ail-btn-secondary" style="padding:8px 16px;font-size:12px;" onclick="this.closest(\'#pgAIImageResult\').style.display=\'none\';">Dismiss</button>' +
+        '</div></div>';
+      showToast('Image generated successfully', 'success');
+    } catch (e) {
+      console.error('[prompt-generator] AI image generation failed:', e);
+      resultArea.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;color:#991b1b;font-size:13px;">\u274C ' + (e.message || 'Image generation failed') + '</div>';
+      showToast(e.message || 'Image generation failed', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origLabel;
+    }
   });
 }
 
