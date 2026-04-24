@@ -390,11 +390,10 @@ function cleanupDiskSpace(): void {
   }
 }
 
-// Run cleanup on startup
-cleanupDiskSpace();
-// Run cleanup every 6 hours
-const cleanupInterval = setInterval(cleanupDiskSpace, 6 * 60 * 60 * 1000);
-cleanupInterval.unref();
+// Cleanup disabled - caused data issues
+// cleanupDiskSpace();
+// const cleanupInterval = setInterval(cleanupDiskSpace, 6 * 60 * 60 * 1000);
+// cleanupInterval.unref();
 
 // Workspaces
 export function getWorkspaces(): Record<string, Workspace> {
