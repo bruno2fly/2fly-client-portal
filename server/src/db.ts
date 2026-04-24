@@ -256,7 +256,128 @@ function cleanupDiskSpace(): void {
       } catch { /* ignore */ }
     }
 
-    // 5. Log disk usage summary
+    // 5. Trim stale push subscriptions (older than 60 days — browsers auto-expire them anyway)
+    try {
+      const subFile = join(DB_DIR, 'push-subscriptions.json');
+      if (existsSync(subFile)) {
+        const subs = JSON.parse(readFileSync(subFile, 'utf-8'));
+        if (subs && typeof subs === 'object') {
+          const SIXTY_DAYS = 60 * 24 * 60 * 60 * 1000;
+          const cutoff = Date.now() - SIXTY_DAYS;
+          const before = Buffer.byteLength(JSON.stringify(subs));
+          let removed = 0;
+          for (const key of Object.keys(subs)) {
+            if ((subs[key].createdAt || 0) < cutoff) {
+              delete subs[key];
+              removed++;
+            }
+          }
+          if (removed > 0) {
+            const trimmed = JSON.stringify(subs, null, 2);
+            atomicWriteUtf8(subFile, trimmed);
+            freedBytes += before - Buffer.byteLength(trimmed);
+            console.log(`[cleanup] Removed ${removed} stale push subscriptions`);
+          }
+        }
+      }
+    } catch (e) { console.warn('[cleanup] push subscriptions trim failed:', e); }
+
+    // 6. Trim AI images — keep last 500 per agency, always keep pending_approval
+    try {
+      const aiImgFile = join(DB_DIR, 'ai-images.json');
+      if (existsSync(aiImgFile)) {
+        const images = JSON.parse(readFileSync(aiImgFile, 'utf-8'));
+        if (images && typeof images === 'object') {
+          const allImages = Object.values(images) as any[];
+          if (allImages.length > 500) {
+            const before = Buffer.byteLength(JSON.stringify(images));
+            // Group by agency, trim each to 500 (keep pending_approval first)
+            const byAgency: Record<string, any[]> = {};
+            for (const img of allImages) {
+              const aid = img.agencyId || 'unknown';
+              if (!byAgency[aid]) byAgency[aid] = [];
+              byAgency[aid].push(img);
+            }
+            const kept: Record<string, any> = {};
+            for (const agencyImages of Object.values(byAgency)) {
+              // Sort: pending_approval first, then newest first
+              agencyImages.sort((a: any, b: any) => {
+                if (a.status === 'pending_approval' && b.status !== 'pending_approval') return -1;
+                if (b.status === 'pending_approval' && a.status !== 'pending_approval') return 1;
+                return (b.createdAt || 0) - (a.createdAt || 0);
+              });
+              const capped = agencyImages.slice(0, 500);
+              for (const img of capped) kept[img.id] = img;
+            }
+            const trimmed = JSON.stringify(kept, null, 2);
+            atomicWriteUtf8(aiImgFile, trimmed);
+            freedBytes += before - Buffer.byteLength(trimmed);
+            console.log(`[cleanup] Trimmed AI images from ${allImages.length} to ${Object.keys(kept).length}`);
+          }
+        }
+      }
+    } catch (e) { console.warn('[cleanup] ai images trim failed:', e); }
+
+    // 7. Trim production tasks — keep all active + last 300 completed/cancelled
+    try {
+      const tasksFile = join(DB_DIR, 'production-tasks.json');
+      if (existsSync(tasksFile)) {
+        const tasks = JSON.parse(readFileSync(tasksFile, 'utf-8'));
+        if (Array.isArray(tasks) && tasks.length > 300) {
+          const before = Buffer.byteLength(JSON.stringify(tasks));
+          const active = tasks.filter((t: any) => t.status !== 'completed' && t.status !== 'cancelled');
+          const terminal = tasks.filter((t: any) => t.status === 'completed' || t.status === 'cancelled');
+          terminal.sort((a: any, b: any) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+          const kept = [...active, ...terminal.slice(0, 300)];
+          if (kept.length < tasks.length) {
+            const trimmed = JSON.stringify(kept, null, 2);
+            atomicWriteUtf8(tasksFile, trimmed);
+            freedBytes += before - Buffer.byteLength(trimmed);
+            console.log(`[cleanup] Trimmed production tasks from ${tasks.length} to ${kept.length}`);
+          }
+        }
+      }
+    } catch (e) { console.warn('[cleanup] production tasks trim failed:', e); }
+
+    // 8. Trim portal-state per-client history — cap approvals to 200 per client
+    try {
+      const psFile = join(DB_DIR, 'portal-state.json');
+      if (existsSync(psFile)) {
+        const raw = readFileSync(psFile, 'utf-8');
+        const map = JSON.parse(raw);
+        if (map && typeof map === 'object') {
+          const before = Buffer.byteLength(raw);
+          let changed = false;
+          for (const key of Object.keys(map)) {
+            const state = map[key];
+            if (!state) continue;
+            // Trim approvals: keep newest 200
+            if (Array.isArray(state.approvals) && state.approvals.length > 200) {
+              state.approvals = state.approvals.slice(-200);
+              changed = true;
+            }
+            // Trim requests: keep all pending + newest 200 done ones
+            if (Array.isArray(state.requests) && state.requests.length > 200) {
+              const pending = state.requests.filter((r: any) => r.status !== 'done' && !r.done);
+              const done = state.requests.filter((r: any) => r.status === 'done' || r.done);
+              if (done.length > 200) {
+                done.sort((a: any, b: any) => (b.doneAt || b.updatedAt || 0) - (a.doneAt || a.updatedAt || 0));
+                state.requests = [...pending, ...done.slice(0, 200)];
+                changed = true;
+              }
+            }
+          }
+          if (changed) {
+            const trimmed = JSON.stringify(map, null, 2);
+            atomicWriteUtf8(psFile, trimmed);
+            freedBytes += before - Buffer.byteLength(trimmed);
+            console.log('[cleanup] Trimmed portal-state history');
+          }
+        }
+      }
+    } catch (e) { console.warn('[cleanup] portal-state trim failed:', e); }
+
+    // Log disk usage summary
     let totalBytes = 0;
     for (const f of readdirSync(DB_DIR)) {
       try { totalBytes += statSync(join(DB_DIR, f)).size; } catch { /* ignore */ }
