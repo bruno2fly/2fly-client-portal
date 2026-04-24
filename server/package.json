@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "node --max-old-space-size=2048 ./node_modules/typescript/bin/tsc",
     "seed": "npx tsx create-admin-user.ts",
     "start": "node dist/server.js",
     "start:with-seed": "npm run seed && node dist/server.js",
