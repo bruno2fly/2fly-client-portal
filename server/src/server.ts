@@ -7,15 +7,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import * as Sentry from "@sentry/node";
-
-// Sentry — crash reporting and error tracking
-Sentry.init({
-  dsn: "https://1a0c9421ed1ec7eccc7654116dd84f3f@o4511276627853312.ingest.us.sentry.io/4511276637421568",
-  environment: process.env.NODE_ENV || "production",
-  tracesSampleRate: 0.1,
-});
-
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -427,10 +418,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
-
-
-// Sentry error handler (must be after routes)
-Sentry.setupExpressErrorHandler(app);
 
 // Start server with error handling
 const server = app.listen(PORT, () => {

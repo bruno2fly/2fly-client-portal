@@ -6424,10 +6424,10 @@ function renderOverviewTab() {
   }
 
   // ── Load AI Summary + Ideas ──
+  // Disabled: AI overview-summary calls were causing CORS timeouts and
+  // slowing down page loads. Re-enable when AI copilot is properly configured.
   function loadOverviewAI(force) {
-    var summaryEl = document.getElementById('ovAiSummary');
-    var ideasEl = document.getElementById('ovAiIdeas');
-    if (!summaryEl || !ideasEl) return;
+    return; // disabled — removes CORS error on overview-summary endpoint
     if (force) {
       summaryEl.innerHTML = '<div style="color:#94a3b8;font-style:italic;">Generating...</div>';
       ideasEl.innerHTML = '<div style="color:#94a3b8;font-style:italic;">Generating...</div>';
