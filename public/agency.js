@@ -5976,19 +5976,8 @@ function renderOverviewTab() {
   });
   h += '</div>';
 
-  // ─── ROW 2: AI SUMMARY + IMPORTANT LINKS (compact) ───
-  h += '<div style="display:grid;grid-template-columns:1fr 300px;gap:10px;margin-bottom:12px;" class="ov-row2">';
-
-  // AI Summary Card
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;display:flex;flex-direction:column;min-height:140px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-  h += '<div style="display:flex;align-items:center;gap:8px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#dbeafe,#c7d2fe);display:flex;align-items:center;justify-content:center;font-size:14px;">🧠</div>';
-  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Summary</span></div>';
-  h += '<button type="button" class="ov-ai-refresh" data-type="summary" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;">Refresh</button>';
-  h += '</div>';
-  h += '<div id="ovAiSummary" style="flex:1;font-size:12px;color:#475569;line-height:1.55;">';
-  h += '<div style="color:#94a3b8;font-style:italic;">Loading summary...</div></div></div>';
+  // ─── ROW 2: IMPORTANT LINKS (AI Summary removed — was causing CORS errors) ───
+  h += '<div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px;" class="ov-row2">';
 
   // Important Links Card
   var cLinks = client.clientLinks || {};
@@ -6132,20 +6121,7 @@ function renderOverviewTab() {
   h += '<button type="button" class="ov-view-production" style="margin-top:auto;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e40af;font-size:11px;font-weight:700;cursor:pointer;">View Production →</button>';
   h += '</div></div>';
 
-  // ─── ROW 4: AI Ideas (collapsed by default) ───
-  h += '<div style="margin-bottom:12px;" class="ov-row4">';
-  h += '<div style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">';
-  h += '<button type="button" class="ov-ideas-toggle" aria-expanded="false" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:0;text-align:left;">';
-  h += '<span style="font-size:11px;color:#64748b;font-weight:800;">▶</span>';
-  h += '<div style="display:flex;align-items:center;gap:8px;">';
-  h += '<div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:14px;">💡</div>';
-  h += '<span style="font-size:13px;font-weight:800;color:#0f172a;">AI Ideas</span></div></button>';
-  h += '<button type="button" class="ov-ai-refresh" data-type="ideas" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;">Refresh</button>';
-  h += '</div>';
-  h += '<div id="ovAiIdeas" class="ov-ideas-body" style="display:none;margin-top:10px;font-size:12px;color:#475569;line-height:1.55;">';
-  h += '<div style="color:#94a3b8;font-style:italic;">Loading ideas...</div></div>';
-  h += '</div></div>';
+  // ROW 4: AI Ideas — removed (was causing CORS errors)
 
   // Blockers (only if exists)
   if (openNeeds.length > 0) {
