@@ -131,19 +131,20 @@ async function insertFieldChunked(fieldName, fieldData) {
 console.log(`[stpetersburg] Starting chunked field-by-field migration...`);
 
 try {
-  // Check if already has data (more than empty {})
+  // Check which fields already exist
   const checkClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await checkClient.connect();
   const existing = await checkClient.query(
-    `SELECT jsonb_object_keys("data") FROM "PortalState"
-     WHERE "agencyId" = $1 AND "clientId" = $2 LIMIT 1`,
+    `SELECT jsonb_object_keys("data") as key FROM "PortalState"
+     WHERE "agencyId" = $1 AND "clientId" = $2`,
     [AGENCY_ID, CLIENT_ID]
   );
   await checkClient.end();
+  const existingFields = new Set(existing.rows.map(r => r.key));
+  console.log(`[stpetersburg] Fields already in DB: ${[...existingFields].join(', ') || 'none'}`);
 
-  if (existing.rows.length > 0) {
-    console.log('[stpetersburg] Already has data — skipping');
-  } else {
+  // Always proceed — we'll skip individual fields that already exist
+  {
     // Get field list
     console.log('[stpetersburg] Getting field list from Railway...');
     const fieldsRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-fields/${encodeURIComponent(KEY)}`);
@@ -165,9 +166,14 @@ try {
       );
       await initClient.end();
 
-      // Process each field
+      // Process each field — skip ones already in DB
       let done = 0;
       for (const field of fields) {
+        if (existingFields.has(field.name)) {
+          console.log(`[stpetersburg] "${field.name}" — already exists, skipping`);
+          done++;
+          continue;
+        }
         try {
           console.log(`[stpetersburg] Fetching "${field.name}"...`);
           const fieldData = await fetchFile(
