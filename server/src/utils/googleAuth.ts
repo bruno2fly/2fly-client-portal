@@ -80,7 +80,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{
  * Get access token for a workspace (refreshes if needed)
  */
 export async function getAccessTokenForWorkspace(workspaceId: string): Promise<string> {
-  const integration = getGoogleIntegrationByWorkspace(workspaceId);
+  const integration = await getGoogleIntegrationByWorkspace(workspaceId);
   if (!integration || integration.status !== 'active') {
     throw new Error('Google Drive not connected for this workspace');
   }
@@ -99,12 +99,12 @@ export async function getAccessTokenForWorkspace(workspaceId: string): Promise<s
     
     // Update last used time
     integration.lastUsedAt = Date.now();
-    updateGoogleIntegrationStatus(workspaceId, 'active');
+    await updateGoogleIntegrationStatus(workspaceId, 'active');
     
     return credentials.access_token;
   } catch (error: any) {
     console.error('Error refreshing access token:', error);
-    updateGoogleIntegrationStatus(workspaceId, 'error', error.message);
+    await updateGoogleIntegrationStatus(workspaceId, 'error', error.message);
     throw error;
   }
 }

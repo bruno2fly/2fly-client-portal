@@ -14,10 +14,10 @@ const router = Router();
  * GET /api/integrations/meta/list
  * List all Meta integrations for the agency (all clients)
  */
-router.get('/list', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/list', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const all = getMetaIntegrations();
+    const all = await getMetaIntegrations();
     const agencyIntegrations = Object.values(all)
       .filter(i => i.agencyId === agencyId)
       .map(i => ({
@@ -41,14 +41,14 @@ router.get('/list', authenticate, requireCanViewDashboard, (req: AuthenticatedRe
  * GET /api/integrations/meta/status?clientId=xxx
  * Check if Meta is connected for the client
  */
-router.get('/status', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/status', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const clientId = req.query.clientId as string;
     if (!clientId) {
       return res.status(400).json({ error: 'clientId query parameter is required' });
     }
     const { agencyId } = getAgencyScope(req);
-    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, clientId);
 
     if (!integration) {
       return res.json({
@@ -91,7 +91,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
     const clientId = req.query.clientId as string;
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
     const { agencyId } = getAgencyScope(req);
-    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, clientId);
     if (!integration) return res.json({ connected: false, message: 'No integration found' });
 
     const tokenExpired = integration.tokenExpiresAt < Date.now();
@@ -173,7 +173,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
             console.log(`[Meta debug] IG account refresh failed: ${igErr.message}`);
           }
 
-          saveMetaIntegration(integration);
+          await saveMetaIntegration(integration);
           autoFixed = true;
 
           // Re-test with new token
@@ -241,7 +241,7 @@ router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: Au
     const { agencyId } = getAgencyScope(req);
     const revokeOnFacebook = req.body?.revokeOnFacebook === true;
 
-    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, clientId);
 
     // Only revoke on Facebook if explicitly requested (full reset)
     // By default, just delete from our DB so reconnect is smooth
@@ -255,7 +255,7 @@ router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: Au
       }
     }
 
-    deleteMetaIntegrationByClient(agencyId, clientId);
+    await deleteMetaIntegrationByClient(agencyId, clientId);
     console.log(`[Meta disconnect] Removed integration for client ${clientId}${revokeOnFacebook ? ' (with Facebook revocation)' : ''}`);
     res.json({ success: true });
   } catch (e: any) {

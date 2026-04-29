@@ -281,12 +281,12 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
       return res.status(400).json({ error: 'Instagram requires media (image or video). Provide mediaUrl or post to Facebook only.' });
     }
 
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
@@ -366,7 +366,7 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
       updatedAt: now,
     };
 
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
     const clientName = client.name || clientId;
     const schedDateStr = new Date(post.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     // Notify agency staff
@@ -387,12 +387,12 @@ router.post('/schedule', authenticate, requireCanViewDashboard, async (req: Auth
  * GET /api/posts/scheduled
  * List scheduled posts with filters
  */
-router.get('/scheduled', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/scheduled', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { clientId, platform, status, limit: limitParam } = req.query;
 
-    let posts = getScheduledPostsByAgency(agencyId);
+    let posts = await getScheduledPostsByAgency(agencyId);
     if (clientId && typeof clientId === 'string') {
       posts = posts.filter(p => p.clientId === clientId);
     }
@@ -427,10 +427,10 @@ router.get('/scheduled', authenticate, requireCanViewDashboard, (req: Authentica
  * PUT /api/posts/:id/reschedule
  * Change scheduled time
  */
-router.put('/:id/reschedule', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.put('/:id/reschedule', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const post = getScheduledPostById(req.params.id);
+    const post = await getScheduledPostById(req.params.id);
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -443,8 +443,8 @@ router.put('/:id/reschedule', authenticate, requireCanViewDashboard, (req: Authe
 
     post.scheduledAt = scheduledAt;
     post.updatedAt = new Date().toISOString();
-    saveScheduledPost(post);
-    const clientName = getClient(post.clientId)?.name || 'Client';
+    await saveScheduledPost(post);
+    const clientName = (await getClient(post.clientId))?.name || 'Client';
     const newDateStr = new Date(scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postRescheduled(
       clientName, post.caption ? post.caption.substring(0, 40) : 'Post', newDateStr
@@ -460,16 +460,16 @@ router.put('/:id/reschedule', authenticate, requireCanViewDashboard, (req: Authe
  * DELETE /api/posts/:id/cancel
  * Remove a post from the calendar (scheduled → cancelled; failed/published → deleted from list).
  */
-router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.delete('/:id/cancel', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const post = getScheduledPostById(req.params.id);
+    const post = await getScheduledPostById(req.params.id);
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    const clientName = getClient(post.clientId)?.name || 'Client';
+    const clientName = (await getClient(post.clientId))?.name || 'Client';
     const postTitle = post.caption ? post.caption.substring(0, 40) : 'Post';
-    deleteScheduledPost(post.id);
+    await deleteScheduledPost(post.id);
     sendPushToRole(agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postCancelled(
       clientName, postTitle
     )).catch(() => {});
@@ -488,7 +488,7 @@ router.delete('/:id/cancel', authenticate, requireCanViewDashboard, (req: Authen
 router.get('/:id/diagnose', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const post = getScheduledPostById(req.params.id);
+    const post = await getScheduledPostById(req.params.id);
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -557,7 +557,7 @@ router.get('/:id/diagnose', authenticate, requireCanViewDashboard, async (req: A
 router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const post = getScheduledPostById(req.params.id);
+    const post = await getScheduledPostById(req.params.id);
     if (!post || post.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -569,7 +569,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       return res.status(400).json({ error: `Cannot publish post in status "${post.status}"` });
     }
 
-    const integration = getMetaIntegrationByClient(agencyId, post.clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       return res.status(400).json({ error: 'Connect Facebook & Instagram for this client in the Scheduled Posts tab first' });
     }
@@ -603,7 +603,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
             integration.metaInstagramUsername = igAcct.username;
           }
         }
-        saveMetaIntegration(integration);
+        await saveMetaIntegration(integration);
       } catch (refreshErr: any) {
         console.log(`[publish-now] Token refresh failed (will try with existing): ${refreshErr.message}`);
       }
@@ -611,7 +611,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
 
     post.status = 'publishing';
     post.updatedAt = new Date().toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
 
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
@@ -812,7 +812,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
     }
 
     post.updatedAt = new Date().toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
 
     // Auto-save images to References when published successfully
     if (post.status === 'published') {
@@ -825,8 +825,8 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
           post.mediaUrls.forEach((u: string) => { if (u && u.startsWith('http') && !allUrls.includes(u)) allUrls.push(u); });
         }
         for (const url of allUrls) {
-          if (!referenceExistsForUrl(post.clientId, url)) {
-            saveReference({
+          if (!(await referenceExistsForUrl(post.clientId, url))) {
+            await saveReference({
               id: genRefId(),
               agencyId: post.agencyId,
               clientId: post.clientId,
@@ -846,7 +846,7 @@ router.post('/:id/publish-now', authenticate, requireCanViewDashboard, async (re
       }
     }
 
-    const clientName = getClient(post.clientId)?.name || 'Client';
+    const clientName = (await getClient(post.clientId))?.name || 'Client';
     const allPlatforms = (post.platforms || []).join(' & ');
 
     if (post.status === 'failed') {

@@ -172,7 +172,7 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
 
     // Get task context if provided
     if (taskId) {
-      const task = getProductionTaskById(taskId);
+      const task = await getProductionTaskById(taskId);
       if (task) {
         contextParts.push(`CURRENT TASK:`);
         contextParts.push(`- Title/Caption: ${task.caption || task.title || 'Untitled'}`);
@@ -188,7 +188,7 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
         // Get client info from task
         const effectiveClientId = clientId || task.clientId;
         if (effectiveClientId) {
-          const client = getClient(effectiveClientId);
+          const client = await getClient(effectiveClientId);
           if (client) {
             contextParts.push(`\nCLIENT:`);
             contextParts.push(`- Name: ${client.name}`);
@@ -199,7 +199,7 @@ router.post('/chat', authenticate, requireProductionAccess, async (req: Authenti
         }
       }
     } else if (clientId) {
-      const client = getClient(clientId);
+      const client = await getClient(clientId);
       if (client) {
         contextParts.push(`CLIENT:`);
         contextParts.push(`- Name: ${client.name}`);
@@ -315,7 +315,7 @@ router.post('/overview-summary', authenticate, requireCanViewDashboard, async (r
     const { clientId, forceRefresh } = req.body;
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -328,14 +328,14 @@ router.post('/overview-summary', authenticate, requireCanViewDashboard, async (r
     }
 
     // Build context from all available data
-    const portalState = getPortalState(agencyId, clientId);
+    const portalState = await getPortalState(agencyId, clientId);
     const approvals = (portalState?.approvals || []) as any[];
     const requests = (portalState?.requests || []) as any[];
     const needs = (portalState?.needs || []) as any[];
     const activity = (portalState?.activity || []) as any[];
 
     // Get production tasks
-    const prodTasks = getProductionTasksByClient(agencyId, clientId);
+    const prodTasks = await getProductionTasksByClient(agencyId, clientId);
 
     const contextLines: string[] = [];
     contextLines.push(`Client: ${client.name}`);
@@ -391,7 +391,7 @@ router.post('/overview-summary', authenticate, requireCanViewDashboard, async (r
 
     // Cache results on the client object
     (client as any).aiSummaryCache = { summary, ideas, generatedAt: Date.now() };
-    saveClient(client);
+    await saveClient(client);
 
     res.json({ success: true, summary, ideas, cached: false });
   } catch (err: any) {

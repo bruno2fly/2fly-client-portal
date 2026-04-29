@@ -42,14 +42,14 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
     }
 
     // Check if user already exists in this agency
-    const existingUser = getUserByEmail(actorUser.agencyId, email);
+    const existingUser = await getUserByEmail(actorUser.agencyId, email);
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists in this agency' });
     }
 
     // If CLIENT role, verify client exists and belongs to agency
     if (role === 'CLIENT' && clientId) {
-      const clients = getClientsByAgency(actorUser.agencyId);
+      const clients = await getClientsByAgency(actorUser.agencyId);
       const client = clients.find(c => c.id === clientId);
       if (!client) {
         return res.status(400).json({ error: 'Client not found or does not belong to this agency' });
@@ -72,19 +72,19 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
       updatedAt: Date.now()
     };
 
-    saveUser(newUser);
+    await saveUser(newUser);
 
     // Generate invite token
     const { token, tokenHash } = generateToken();
     const expiresAt = Date.now() + (72 * 60 * 60 * 1000); // 72 hours
 
     // Invalidate previous invite tokens for this user
-    const previousTokens = getInviteTokensByUser(userId);
-    previousTokens.forEach(t => {
+    const previousTokens = await getInviteTokensByUser(userId);
+    for (const t of previousTokens) {
       if (!t.usedAt && t.expiresAt > Date.now()) {
-        markInviteTokenUsed(t.id);
+        await markInviteTokenUsed(t.id);
       }
-    });
+    }
 
     const inviteToken = {
       id: generateId('invite'),
@@ -96,7 +96,7 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
       createdAt: Date.now()
     };
 
-    saveInviteToken(inviteToken);
+    await saveInviteToken(inviteToken);
 
     // Generate invite link
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -106,7 +106,7 @@ router.post('/invite', authenticate, requireRole(['OWNER', 'ADMIN']), async (req
     await sendInviteEmail(newUser.email, newUser.name, inviteLink);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: actorUser.agencyId,
       actorUserId: actorUser.id,
@@ -165,7 +165,7 @@ router.post('/create-admin', authenticate, requireRole(['OWNER']), async (req: a
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const agencies = getAgencies();
+    const agencies = await getAgencies();
     let agencyId: string;
     let agency = Object.values(agencies).find(a => a.name.trim() === trimmedAgencyName);
 
@@ -179,14 +179,14 @@ router.post('/create-admin', authenticate, requireRole(['OWNER']), async (req: a
         createdAt: Date.now()
       };
       agencies[agencyId] = agency;
-      saveAgency(agency);
+      await saveAgency(agency);
     }
 
-    const existingByEmail = getUserByEmail(agencyId, trimmedEmail);
+    const existingByEmail = await getUserByEmail(agencyId, trimmedEmail);
     if (existingByEmail) {
       return res.status(400).json({ error: 'A user with this email already exists in that agency' });
     }
-    const existingByUsername = getUserByUsername(agencyId, trimmedUsername);
+    const existingByUsername = await getUserByUsername(agencyId, trimmedUsername);
     if (existingByUsername) {
       return res.status(400).json({ error: 'Username already taken in that agency' });
     }
@@ -208,9 +208,9 @@ router.post('/create-admin', authenticate, requireRole(['OWNER']), async (req: a
       createdAt: now,
       updatedAt: now
     };
-    saveUser(newUser);
+    await saveUser(newUser);
 
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: actorUser.agencyId,
       actorUserId: actorUser.id,
@@ -252,7 +252,7 @@ router.post('/resend-invite', authenticate, requireRole(['OWNER', 'ADMIN']), asy
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const user = getUser(userId);
+    const user = await getUser(userId);
     if (!user || user.agencyId !== actorUser.agencyId) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -266,12 +266,12 @@ router.post('/resend-invite', authenticate, requireRole(['OWNER', 'ADMIN']), asy
     const expiresAt = Date.now() + (72 * 60 * 60 * 1000); // 72 hours
 
     // Invalidate previous invite tokens
-    const previousTokens = getInviteTokensByUser(userId);
-    previousTokens.forEach(t => {
+    const previousTokens = await getInviteTokensByUser(userId);
+    for (const t of previousTokens) {
       if (!t.usedAt && t.expiresAt > Date.now()) {
-        markInviteTokenUsed(t.id);
+        await markInviteTokenUsed(t.id);
       }
-    });
+    }
 
     const inviteToken = {
       id: generateId('invite'),
@@ -283,7 +283,7 @@ router.post('/resend-invite', authenticate, requireRole(['OWNER', 'ADMIN']), asy
       createdAt: Date.now()
     };
 
-    saveInviteToken(inviteToken);
+    await saveInviteToken(inviteToken);
 
     // Generate invite link
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -293,7 +293,7 @@ router.post('/resend-invite', authenticate, requireRole(['OWNER', 'ADMIN']), asy
     await sendInviteEmail(user.email, user.name, inviteLink);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: actorUser.agencyId,
       actorUserId: actorUser.id,
@@ -331,7 +331,7 @@ router.post('/accept-invite', async (req, res) => {
 
     // Hash the token to look it up
     const tokenHash = hashToken(token);
-    const inviteToken = getInviteTokenByHash(tokenHash);
+    const inviteToken = await getInviteTokenByHash(tokenHash);
 
     if (!inviteToken || inviteToken.agencyId !== agencyId) {
       return res.status(400).json({ error: 'Invalid or expired invitation token' });
@@ -346,7 +346,7 @@ router.post('/accept-invite', async (req, res) => {
     }
 
     // Get user
-    const user = getUser(inviteToken.userId);
+    const user = await getUser(inviteToken.userId);
     if (!user || user.agencyId !== agencyId) {
       return res.status(400).json({ error: 'Invalid invitation token' });
     }
@@ -360,13 +360,13 @@ router.post('/accept-invite', async (req, res) => {
     user.passwordHash = passwordHash;
     user.status = 'ACTIVE';
     user.updatedAt = Date.now();
-    saveUser(user);
+    await saveUser(user);
 
     // Mark token as used
-    markInviteTokenUsed(inviteToken.id);
+    await markInviteTokenUsed(inviteToken.id);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: user.agencyId,
       actorUserId: user.id,
@@ -391,7 +391,7 @@ router.get('/', authenticate, async (req: any, res) => {
     const { role, status, clientId } = req.query;
     const actorUser = req.user;
 
-    let users = getUsersByAgency(actorUser.agencyId);
+    let users = await getUsersByAgency(actorUser.agencyId);
 
     // Filter by role
     if (role) {
@@ -440,7 +440,7 @@ router.patch('/:id', authenticate, requireRole(['OWNER', 'ADMIN']), async (req: 
     const { role, status } = req.body;
     const actorUser = req.user;
 
-    const user = getUser(id);
+    const user = await getUser(id);
     if (!user || user.agencyId !== actorUser.agencyId) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -454,7 +454,7 @@ router.patch('/:id', authenticate, requireRole(['OWNER', 'ADMIN']), async (req: 
 
     // Prevent disabling/deleting the last OWNER
     if (status === 'DISABLED' && user.role === 'OWNER') {
-      const owners = getUsersByAgency(actorUser.agencyId).filter(u => u.role === 'OWNER' && u.status === 'ACTIVE');
+      const owners = (await getUsersByAgency(actorUser.agencyId)).filter(u => u.role === 'OWNER' && u.status === 'ACTIVE');
       if (owners.length <= 1) {
         return res.status(400).json({ error: 'Cannot disable the last active OWNER' });
       }
@@ -464,10 +464,10 @@ router.patch('/:id', authenticate, requireRole(['OWNER', 'ADMIN']), async (req: 
     if (role) user.role = role;
     if (status) user.status = status;
     user.updatedAt = Date.now();
-    saveUser(user);
+    await saveUser(user);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: actorUser.agencyId,
       actorUserId: actorUser.id,
@@ -503,14 +503,14 @@ router.delete('/:id', authenticate, requireRole(['OWNER', 'ADMIN']), async (req:
     const { id } = req.params;
     const actorUser = req.user;
 
-    const user = getUser(id);
+    const user = await getUser(id);
     if (!user || user.agencyId !== actorUser.agencyId) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Prevent deleting the last OWNER
     if (user.role === 'OWNER') {
-      const owners = getUsersByAgency(actorUser.agencyId).filter(u => u.role === 'OWNER' && u.status === 'ACTIVE');
+      const owners = (await getUsersByAgency(actorUser.agencyId)).filter(u => u.role === 'OWNER' && u.status === 'ACTIVE');
       if (owners.length <= 1) {
         return res.status(400).json({ error: 'Cannot delete the last active OWNER' });
       }
@@ -519,10 +519,10 @@ router.delete('/:id', authenticate, requireRole(['OWNER', 'ADMIN']), async (req:
     // Soft delete: set status to DISABLED
     user.status = 'DISABLED';
     user.updatedAt = Date.now();
-    saveUser(user);
+    await saveUser(user);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: actorUser.agencyId,
       actorUserId: actorUser.id,

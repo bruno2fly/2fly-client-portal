@@ -82,7 +82,7 @@ router.get('/callback', async (req, res) => {
     const encryptedToken = await encryptToken(refreshToken);
     
     // Check if integration already exists
-    let integration = getGoogleIntegrationByWorkspace(workspaceId);
+    let integration = await getGoogleIntegrationByWorkspace(workspaceId);
     
     if (integration) {
       // Update existing integration
@@ -103,8 +103,8 @@ router.get('/callback', async (req, res) => {
       };
     }
     
-    saveGoogleIntegration(integration);
-    
+    await saveGoogleIntegration(integration);
+
     // Redirect to success page (or close popup in production)
     res.send(`
       <html>
@@ -140,10 +140,10 @@ router.get('/callback', async (req, res) => {
  * GET /api/integrations/google-drive/status
  * Check if Google Drive is connected for the workspace
  */
-router.get('/status', authenticate, (req: AuthenticatedRequest, res) => {
+router.get('/status', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const workspaceId = req.workspaceId!;
-    const integration = getGoogleIntegrationByWorkspace(workspaceId);
+    const integration = await getGoogleIntegrationByWorkspace(workspaceId);
     
     res.json({
       connected: integration?.status === 'active' || false,
@@ -229,7 +229,7 @@ router.get('/access-token', authenticate, async (req: AuthenticatedRequest, res)
 router.post('/disconnect', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const workspaceId = req.workspaceId!;
-    updateGoogleIntegrationStatus(workspaceId, 'revoked');
+    await updateGoogleIntegrationStatus(workspaceId, 'revoked');
     
     res.json({ success: true });
   } catch (error: any) {

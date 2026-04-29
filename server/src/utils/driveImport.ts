@@ -156,7 +156,7 @@ export async function importDriveFiles(
         updatedAt: Date.now()
       };
       
-      saveAsset(asset);
+      await saveAsset(asset);
       importedAssets.push(asset);
     } catch (error: any) {
       console.error(`Error importing file ${file.fileId}:`, error);

@@ -97,7 +97,7 @@ function parseMetaError(err: any): MetaErrorInfo {
  * Flag a client's Meta connection as broken and send urgent notification.
  * All future publish attempts for this client will be skipped until reconnected.
  */
-function flagConnectionBroken(
+async function flagConnectionBroken(
   integration: any,
   errorType: 'permission_error' | 'token_expired' | 'blocked',
   errorMessage: string,
@@ -111,9 +111,9 @@ function flagConnectionBroken(
   integration.connectionError = errorMessage;
   integration.connectionFlaggedAt = Date.now();
   integration.updatedAt = Date.now();
-  saveMetaIntegration(integration);
+  await saveMetaIntegration(integration);
 
-  const clientName = getClient(clientId)?.name || 'Client';
+  const clientName = (await getClient(clientId))?.name || 'Client';
   console.error(`[cron] ⛔ FLAGGED connection for ${clientName} (${clientId}): ${errorType} — ${errorMessage}`);
 
   // Send urgent notification to agency owners/admins
@@ -133,12 +133,12 @@ function isConnectionFlagged(integration: any): boolean {
 /**
  * Clear a connection's error flags (called when reconnect happens).
  */
-function clearConnectionFlags(integration: any) {
+async function clearConnectionFlags(integration: any) {
   integration.connectionStatus = 'ok';
   integration.connectionError = undefined;
   integration.connectionFlaggedAt = undefined;
   integration.updatedAt = Date.now();
-  saveMetaIntegration(integration);
+  await saveMetaIntegration(integration);
 }
 
 function verifyCronAuth(req: Request, res: Response): boolean {
@@ -167,7 +167,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
   const includeRetries = req.query.retry === '1';
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const now = new Date();
-  const posts = getScheduledPosts().filter(p => {
+  const posts = (await getScheduledPosts()).filter(p => {
     // Normal scheduled posts due now
     if (p.status === 'scheduled') {
       const scheduled = new Date(p.scheduledAt);
@@ -186,12 +186,12 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
   const results: { id: string; status: string; error?: string }[] = [];
 
   for (const post of posts) {
-    const integration = getMetaIntegrationByClient(post.agencyId, post.clientId);
+    const integration = await getMetaIntegrationByClient(post.agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       post.status = 'failed';
       post.error = 'Token expired or not connected';
       post.updatedAt = new Date().toISOString();
-      saveScheduledPost(post);
+      await saveScheduledPost(post);
       results.push({ id: post.id, status: 'failed', error: post.error });
       continue;
     }
@@ -201,7 +201,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
       post.status = 'failed';
       post.error = `Connection blocked: ${integration.connectionError || integration.connectionStatus}. Reconnect Meta to resume.`;
       post.updatedAt = new Date().toISOString();
-      saveScheduledPost(post);
+      await saveScheduledPost(post);
       results.push({ id: post.id, status: 'failed', error: post.error });
       console.warn(`[cron] SKIPPED post ${post.id} — connection flagged: ${integration.connectionStatus}`);
       continue;
@@ -236,7 +236,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
             integration.metaInstagramUsername = igAcct.username;
           }
         }
-        saveMetaIntegration(integration);
+        await saveMetaIntegration(integration);
       } catch (refreshErr: any) {
         console.log(`[cron] Token refresh failed (will try with existing): ${refreshErr.message}`);
       }
@@ -244,7 +244,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
 
     post.status = 'publishing';
     post.updatedAt = new Date().toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
 
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     const platformErrors: string[] = [];
@@ -287,7 +287,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
         // Flag connection if error is fatal (permissions or token)
         if (parsed.fatal) {
           const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
-          flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+          await flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
         }
       }
     }
@@ -337,7 +337,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
           // Flag connection if error is fatal (permissions or token)
           if (parsed.fatal) {
             const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
-            flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+            await flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
           }
         }
       }
@@ -369,7 +369,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
     }
 
     // ── Push notifications based on result ──
-    const clientName = getClient(post.clientId)?.name || 'Client';
+    const clientName = (await getClient(post.clientId))?.name || 'Client';
     const allPlatforms = (post.platforms || []).join(' & ');
 
     if (hasAnySuccess && !hasAnyFailure) {
@@ -398,7 +398,7 @@ router.get('/publish-posts', async (req: Request, res: Response) => {
     }
 
     post.updatedAt = new Date().toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
   }
 
   res.json({ success: true, processed: results.length, results });
@@ -418,7 +418,7 @@ router.get('/refresh-tokens', async (req: Request, res: Response) => {
   if (!verifyCronAuth(req, res)) return;
 
   const { getMetaIntegrations } = await import('../db.js');
-  const all = getMetaIntegrations();
+  const all = await getMetaIntegrations();
   const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
   const now = Date.now();
   const results: { clientId: string; status: string; error?: string; newExpiry?: string }[] = [];
@@ -465,7 +465,7 @@ router.get('/refresh-tokens', async (req: Request, res: Response) => {
         }
       }
 
-      saveMetaIntegration(integration);
+      await saveMetaIntegration(integration);
       console.log(`[refresh-tokens] Refreshed token for client ${integration.clientId}, new expiry: ${new Date(integration.tokenExpiresAt).toISOString()}`);
       results.push({ clientId: integration.clientId, status: 'refreshed', newExpiry: new Date(integration.tokenExpiresAt).toISOString() });
     } catch (err: any) {
@@ -492,7 +492,7 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
 
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const now = new Date();
-  const posts = getScheduledPosts().filter(p => {
+  const posts = (await getScheduledPosts()).filter(p => {
     if (p.status !== 'failed') return false;
     // Only retry recent failures (within 24h)
     const updatedAt = new Date(p.updatedAt);
@@ -505,7 +505,7 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
   const results: { id: string; status: string; error?: string }[] = [];
 
   for (const post of posts) {
-    const integration = getMetaIntegrationByClient(post.agencyId, post.clientId);
+    const integration = await getMetaIntegrationByClient(post.agencyId, post.clientId);
     if (!integration || integration.tokenExpiresAt < Date.now()) {
       results.push({ id: post.id, status: 'skipped', error: 'Still no valid token' });
       continue;
@@ -526,14 +526,14 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
         if (freshPage) {
           integration.metaAccessToken = freshPage.access_token;
           integration.updatedAt = Date.now();
-          saveMetaIntegration(integration);
+          await saveMetaIntegration(integration);
         }
       } catch { /* use existing token */ }
     }
 
     post.status = 'publishing';
     post.updatedAt = now.toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
 
     const metaPostIds: { instagram?: string; facebook?: string } = {};
     let error: string | undefined;
@@ -587,7 +587,7 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
       delete post.error;
       results.push({ id: post.id, status: 'published' });
       // Fire-and-forget push notifications
-      const clientName = getClient(post.clientId)?.name || 'Client';
+      const clientName = (await getClient(post.clientId))?.name || 'Client';
       sendPushToRole(post.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.postPublished(
         clientName,
         post.platforms.join(' & ')
@@ -605,12 +605,12 @@ router.get('/retry-failed', async (req: Request, res: Response) => {
       // Flag if fatal error detected on retry
       if (parsed.fatal) {
         const flagType = parsed.type === 'token_expired' ? 'token_expired' : 'permission_error';
-        flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
+        await flagConnectionBroken(integration, flagType, parsed.message, post.agencyId, post.clientId);
       }
     }
 
     post.updatedAt = now.toISOString();
-    saveScheduledPost(post);
+    await saveScheduledPost(post);
   }
 
   res.json({ success: true, retried: results.length, results });

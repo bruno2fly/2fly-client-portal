@@ -49,15 +49,15 @@ function authenticateClient(req: Request, res: Response): { clientId: string; ag
  * GET /api/client/portal-state
  * Returns portal state for the authenticated client.
  */
-router.get('/portal-state', (req, res) => {
+router.get('/portal-state', async (req, res) => {
   const ctx = authenticateClient(req, res);
   if (!ctx) return;
   try {
-    let state = getPortalState(ctx.agencyId, ctx.clientId);
-    const client = getClient(ctx.clientId);
+    let state = await getPortalState(ctx.agencyId, ctx.clientId);
+    const client = await getClient(ctx.clientId);
     if (!state) {
       state = defaultPortalState(ctx.clientId, client?.name || ctx.clientId, client?.primaryContactWhatsApp);
-      savePortalState(ctx.agencyId, ctx.clientId, state);
+      await savePortalState(ctx.agencyId, ctx.clientId, state);
     }
     // Ensure logoUrl from client record is included in the response
     if (client && state.client) {
@@ -74,7 +74,7 @@ router.get('/portal-state', (req, res) => {
  * PUT /api/client/portal-state
  * Body: { data }. Updates portal state for the authenticated client.
  */
-router.put('/portal-state', (req, res) => {
+router.put('/portal-state', async (req, res) => {
   const ctx = authenticateClient(req, res);
   if (!ctx) return;
   try {
@@ -86,7 +86,7 @@ router.put('/portal-state', (req, res) => {
     if (!state.client || !state.kpis || !Array.isArray(state.assets)) {
       return res.status(400).json({ error: 'Invalid portal state shape' });
     }
-    savePortalState(ctx.agencyId, ctx.clientId, state);
+    await savePortalState(ctx.agencyId, ctx.clientId, state);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to save portal state' });
@@ -99,7 +99,7 @@ router.put('/portal-state', (req, res) => {
  * Finds linked production task and sets it to changes_requested with reviewNotes.
  * Body: { approvalId, note, images? }
  */
-router.post('/request-changes', (req, res) => {
+router.post('/request-changes', async (req, res) => {
   const ctx = authenticateClient(req, res);
   if (!ctx) return;
   try {
@@ -108,7 +108,7 @@ router.post('/request-changes', (req, res) => {
       return res.status(400).json({ error: 'approvalId and note are required' });
     }
     // Find production task linked to this approval
-    const tasks = getProductionTasksByAgency(ctx.agencyId);
+    const tasks = await getProductionTasksByAgency(ctx.agencyId);
     const linkedTask = tasks.find(
       (t: any) => (t.approvalId === approvalId || t.contentId === approvalId) && t.clientId === ctx.clientId
     );
@@ -122,9 +122,9 @@ router.post('/request-changes', (req, res) => {
       linkedTask.status = 'changes_requested' as any;
       linkedTask.reviewNotes = 'Client change request: ' + String(note).slice(0, 2000);
       linkedTask.updatedAt = new Date().toISOString();
-      saveProductionTask(linkedTask);
+      await saveProductionTask(linkedTask);
       // Fire-and-forget push to agency staff about client change request
-      const clientName = getClient(ctx.clientId)?.name || 'Client';
+      const clientName = (await getClient(ctx.clientId))?.name || 'Client';
       sendPushToRole(ctx.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.clientChanges(
         clientName,
         linkedTask.title || 'Task'
@@ -148,7 +148,7 @@ router.post('/request-changes', (req, res) => {
  * Returns real progress metrics for the authenticated client this month.
  * Posts published, reels count, requests resolved — computed from actual data.
  */
-router.get('/progress', (req, res) => {
+router.get('/progress', async (req, res) => {
   const ctx = authenticateClient(req, res);
   if (!ctx) return;
   try {
@@ -157,7 +157,7 @@ router.get('/progress', (req, res) => {
     const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
 
     // --- Posts published this month for this client ---
-    const allPosts = getScheduledPostsByAgency(ctx.agencyId)
+    const allPosts = (await getScheduledPostsByAgency(ctx.agencyId))
       .filter(p => p.clientId === ctx.clientId && p.status === 'published' && p.publishedAt && p.publishedAt >= monthStart);
 
     const postsPublished = allPosts.length;
@@ -166,7 +166,7 @@ router.get('/progress', (req, res) => {
     const reelsCount = allPosts.filter(p => Array.isArray(p.placements) && p.placements.includes('reels')).length;
 
     // --- Requests resolved this month ---
-    const state = getPortalState(ctx.agencyId, ctx.clientId);
+    const state = await getPortalState(ctx.agencyId, ctx.clientId);
     const requests: any[] = (state && Array.isArray((state as any).requests)) ? (state as any).requests : [];
     const requestsResolved = requests.filter((r: any) => {
       if (r.status !== 'done') return false;
@@ -196,11 +196,11 @@ router.get('/progress', (req, res) => {
  * GET /api/client/scheduled-posts
  * Returns scheduled posts for the authenticated client.
  */
-router.get('/scheduled-posts', (req, res) => {
+router.get('/scheduled-posts', async (req, res) => {
   const ctx = authenticateClient(req, res);
   if (!ctx) return;
   try {
-    let posts = getScheduledPostsByAgency(ctx.agencyId);
+    let posts = await getScheduledPostsByAgency(ctx.agencyId);
     // Filter to only this client's posts
     posts = posts.filter(p => p.clientId === ctx.clientId);
     // Sort by scheduledAt ascending

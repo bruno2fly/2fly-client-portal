@@ -113,16 +113,16 @@ async function getInstagramPicture(igId: string, accessToken: string): Promise<s
  * Pass in (agencyId, targetClientId, igId, pageId) BEFORE saving a new connection
  * to see if that IG/Page is already owned by a different client.
  */
-function detectConflictForNewConnection(
+async function detectConflictForNewConnection(
   agencyId: string,
   targetClientId: string,
   igId: string | undefined,
   pageId: string | undefined
 ): { conflictingClientId: string; conflictingClientName: string; reason: 'instagram' | 'page' } | null {
-  const all = Object.values(getMetaIntegrations()).filter(
+  const all = Object.values(await getMetaIntegrations()).filter(
     (i: any) => i.agencyId === agencyId && i.clientId !== targetClientId && (i.status || 'connected') !== 'disconnected'
   );
-  const clientList = getClientsByAgency(agencyId);
+  const clientList = await getClientsByAgency(agencyId);
   const clientNameById: Record<string, string> = {};
   clientList.forEach((c: any) => { clientNameById[c.id] = c.name || c.id; });
 
@@ -154,15 +154,15 @@ function detectConflictForNewConnection(
  * conflicts (same IG account or FB page on two or more clients).
  * Used to surface historical conflicts that slipped in before detection was added.
  */
-function findAllAgencyConflicts(agencyId: string): Array<{
+async function findAllAgencyConflicts(agencyId: string): Promise<Array<{
   reason: 'instagram' | 'page';
   identifier: string;
   clients: Array<{ clientId: string; clientName: string; instagramUsername?: string; pageName?: string }>;
-}> {
-  const all = Object.values(getMetaIntegrations()).filter(
+}>> {
+  const all = Object.values(await getMetaIntegrations()).filter(
     (i: any) => i.agencyId === agencyId && (i.status || 'connected') !== 'disconnected'
   );
-  const clientList = getClientsByAgency(agencyId);
+  const clientList = await getClientsByAgency(agencyId);
   const clientNameById: Record<string, string> = {};
   clientList.forEach((c: any) => { clientNameById[c.id] = c.name || c.id; });
 
@@ -353,9 +353,9 @@ router.get('/callback', async (req: Request, res: Response) => {
       const page = pagesWithDetails[0];
 
       // Cross-client conflict check — is this IG/Page already linked to another client?
-      const conflict = detectConflictForNewConnection(agencyId, clientId, page.instagram?.id, page.id);
+      const conflict = await detectConflictForNewConnection(agencyId, clientId, page.instagram?.id, page.id);
       if (conflict) {
-        const clients = getClientsByAgency(agencyId);
+        const clients = await getClientsByAgency(agencyId);
         const targetName = clients.find((c: any) => c.id === clientId)?.name || clientId;
         const identifier = conflict.reason === 'instagram'
           ? (page.instagram?.username ? '@' + page.instagram.username : 'Instagram account')
@@ -397,7 +397,7 @@ router.get('/callback', async (req: Request, res: Response) => {
         connectionError: undefined,
         connectionFlaggedAt: undefined,
       };
-      saveMetaIntegration(integration);
+      await saveMetaIntegration(integration);
       console.log(`[Meta OAuth] Auto-connected page "${page.name}" for client ${clientId}`);
       return res.send(renderResultPage(true, undefined, page.name, page.instagram?.username, clientId));
     }
@@ -450,9 +450,9 @@ router.post('/select-page', authenticate, requireCanViewDashboard, async (req: A
     }
 
     // Cross-client conflict check — is this IG/Page already linked to another client?
-    const conflict = detectConflictForNewConnection(agencyId, session.clientId, page.instagram?.id, page.id);
+    const conflict = await detectConflictForNewConnection(agencyId, session.clientId, page.instagram?.id, page.id);
     if (conflict) {
-      const clients = getClientsByAgency(agencyId);
+      const clients = await getClientsByAgency(agencyId);
       const targetName = clients.find((c: any) => c.id === session.clientId)?.name || session.clientId;
       const identifier = conflict.reason === 'instagram'
         ? (page.instagram?.username ? '@' + page.instagram.username : 'Instagram account')
@@ -498,8 +498,8 @@ router.post('/select-page', authenticate, requireCanViewDashboard, async (req: A
     };
 
     // Remove old connection for this client first
-    deleteMetaIntegrationByClient(agencyId, session.clientId);
-    saveMetaIntegration(integration);
+    await deleteMetaIntegrationByClient(agencyId, session.clientId);
+    await saveMetaIntegration(integration);
 
     // Clean up session
     oauthSessions.delete(sessionKey);
@@ -530,10 +530,10 @@ router.post('/select-page', authenticate, requireCanViewDashboard, async (req: A
  * GET /connections/client/:clientId
  * Get connection status for a specific client
  */
-router.get('/connections/client/:clientId', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/connections/client/:clientId', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const integration = getMetaIntegrationByClient(agencyId, req.params.clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, req.params.clientId);
 
     if (!integration) {
       return res.json({ connected: false, status: 'none' });
@@ -576,10 +576,10 @@ router.get('/connections/client/:clientId', authenticate, requireCanViewDashboar
  * Also includes `conflicts` — any IG/Page account that ended up linked
  * to more than one client within the agency, so the UI can surface a warning.
  */
-router.get('/connections/all', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/connections/all', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const all = getMetaIntegrations();
+    const all = await getMetaIntegrations();
     const connections = Object.values(all)
       .filter(i => i.agencyId === agencyId)
       .map(i => {
@@ -598,7 +598,7 @@ router.get('/connections/all', authenticate, requireCanViewDashboard, (req: Auth
           errorMessage: (i as any).errorMessage,
         };
       });
-    const conflicts = findAllAgencyConflicts(agencyId);
+    const conflicts = await findAllAgencyConflicts(agencyId);
     res.json({ success: true, connections, conflicts });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -610,10 +610,10 @@ router.get('/connections/all', authenticate, requireCanViewDashboard, (req: Auth
  * Returns only the conflicts (same IG/Page linked to 2+ clients).
  * Lightweight endpoint for fast polling from the overview/dashboard.
  */
-router.get('/connections/conflicts', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/connections/conflicts', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const conflicts = findAllAgencyConflicts(agencyId);
+    const conflicts = await findAllAgencyConflicts(agencyId);
     res.json({ success: true, conflicts });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -628,7 +628,7 @@ router.get('/connections/conflicts', authenticate, requireCanViewDashboard, (req
 router.post('/connections/:clientId/verify', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const integration = getMetaIntegrationByClient(agencyId, req.params.clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, req.params.clientId);
     if (!integration) return res.json({ status: 'none', message: 'No connection found' });
 
     let userToken = (integration as any).metaUserAccessToken;
@@ -734,7 +734,7 @@ router.post('/connections/:clientId/verify', authenticate, requireCanViewDashboa
       }
     }
     integration.updatedAt = Date.now();
-    saveMetaIntegration(integration);
+    await saveMetaIntegration(integration);
 
     res.json({
       status: pageValid ? 'connected' : status,
@@ -761,7 +761,7 @@ router.post('/connections/:clientId/disconnect', authenticate, requireCanViewDas
 
     // Don't revoke on Facebook — just remove from our DB
     // This way reconnecting is smooth (no need to go to FB settings)
-    deleteMetaIntegrationByClient(agencyId, clientId);
+    await deleteMetaIntegrationByClient(agencyId, clientId);
     console.log(`[Meta] Disconnected client ${clientId}`);
     res.json({ success: true });
   } catch (e: any) {
@@ -777,7 +777,7 @@ router.post('/connections/:clientId/disconnect-full', authenticate, requireCanVi
   try {
     const { agencyId } = getAgencyScope(req);
     const clientId = req.params.clientId;
-    const integration = getMetaIntegrationByClient(agencyId, clientId);
+    const integration = await getMetaIntegrationByClient(agencyId, clientId);
 
     if (integration) {
       const token = (integration as any).metaUserAccessToken || integration.metaAccessToken;
@@ -789,7 +789,7 @@ router.post('/connections/:clientId/disconnect-full', authenticate, requireCanVi
       }
     }
 
-    deleteMetaIntegrationByClient(agencyId, clientId);
+    await deleteMetaIntegrationByClient(agencyId, clientId);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -812,7 +812,7 @@ router.post('/health-check', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const all = getMetaIntegrations();
+  const all = await getMetaIntegrations();
 
   // Filter to active integrations only
   const activeIntegrations = Object.values(all).filter(
@@ -861,7 +861,7 @@ router.post('/health-check', async (req: Request, res: Response) => {
               (integration as any).lastVerifiedAt = Date.now();
               (integration as any).errorMessage = undefined;
               integration.updatedAt = Date.now();
-              saveMetaIntegration(integration);
+              await saveMetaIntegration(integration);
               recovered = true;
             }
           } catch { /* recovery failed */ }
@@ -872,7 +872,7 @@ router.post('/health-check', async (req: Request, res: Response) => {
           (integration as any).errorMessage = pageData.error.message;
           (integration as any).lastVerifiedAt = Date.now();
           integration.updatedAt = Date.now();
-          saveMetaIntegration(integration);
+          await saveMetaIntegration(integration);
         }
 
         return {
@@ -887,7 +887,7 @@ router.post('/health-check', async (req: Request, res: Response) => {
         (integration as any).lastVerifiedAt = Date.now();
         (integration as any).errorMessage = undefined;
         integration.updatedAt = Date.now();
-        saveMetaIntegration(integration);
+        await saveMetaIntegration(integration);
 
         return {
           clientId: integration.clientId,
@@ -915,11 +915,11 @@ router.post('/health-check', async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════════════════
 
 /** Legacy: GET /status?clientId=xxx (used by scheduled posts tab) */
-router.get('/status', authenticate, requireCanViewDashboard, (req: AuthenticatedRequest, res) => {
+router.get('/status', authenticate, requireCanViewDashboard, async (req: AuthenticatedRequest, res) => {
   const clientId = req.query.clientId as string;
   if (!clientId) return res.status(400).json({ error: 'clientId required' });
   const { agencyId } = getAgencyScope(req);
-  const integration = getMetaIntegrationByClient(agencyId, clientId);
+  const integration = await getMetaIntegrationByClient(agencyId, clientId);
 
   if (!integration) {
     return res.json({ connected: false, pageName: null, instagramUsername: null });
@@ -958,7 +958,7 @@ router.post('/disconnect', authenticate, requireCanViewDashboard, async (req: Au
     const clientId = req.body?.clientId;
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
     const { agencyId } = getAgencyScope(req);
-    deleteMetaIntegrationByClient(agencyId, clientId);
+    await deleteMetaIntegrationByClient(agencyId, clientId);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[meta/disconnect] Error:', err);
@@ -973,7 +973,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
   const clientId = req.query.clientId as string;
   if (!clientId) return res.status(400).json({ error: 'clientId required' });
   const { agencyId } = getAgencyScope(req);
-  const integration = getMetaIntegrationByClient(agencyId, clientId);
+  const integration = await getMetaIntegrationByClient(agencyId, clientId);
   if (!integration) return res.json({ connected: false, message: 'No integration found' });
 
   // Inline verify logic for backward compatibility
@@ -1035,7 +1035,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
             integration.metaInstagramUsername = igAcct.username;
           }
         } catch { /* keep */ }
-        saveMetaIntegration(integration);
+        await saveMetaIntegration(integration);
         autoFixed = true;
         pageError = undefined;
         postError = undefined;
@@ -1052,7 +1052,7 @@ router.get('/debug', authenticate, requireCanViewDashboard, async (req: Authenti
   (integration as any).lastVerifiedAt = Date.now();
   (integration as any).status = pageValid ? 'connected' : 'expired';
   integration.updatedAt = Date.now();
-  saveMetaIntegration(integration);
+  await saveMetaIntegration(integration);
 
   const tokenExpired = integration.tokenExpiresAt < Date.now();
   res.json({

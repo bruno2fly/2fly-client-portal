@@ -27,9 +27,9 @@ const router = Router();
 const AGENT_TOKEN = process.env.AGENT_API_SECRET || '2fly-agent-secret-scribe-2026';
 
 /** Resolve the agency ID: env override → first agency in DB → fallback '2fly' */
-function resolveAgencyId(): string {
+async function resolveAgencyId(): Promise<string> {
   if (process.env.AGENT_AGENCY_ID) return process.env.AGENT_AGENCY_ID;
-  const agencies = getAgencies();
+  const agencies = await getAgencies();
   const ids = Object.keys(agencies);
   return ids.length > 0 ? ids[0]! : '2fly';
 }
@@ -47,10 +47,10 @@ function agentAuth(req: Request, res: Response, next: NextFunction): void {
 router.use(agentAuth);
 
 // ─── GET /api/agent/debug — shows resolved agencyId and agencies list
-router.get('/debug', (req: Request, res: Response) => {
-  const agencies = getAgencies();
+router.get('/debug', async (req: Request, res: Response) => {
+  const agencies = await getAgencies();
   res.json({
-    resolvedAgencyId: resolveAgencyId(),
+    resolvedAgencyId: await resolveAgencyId(),
     availableAgencyIds: Object.keys(agencies),
     agentApiSecret: process.env.AGENT_API_SECRET ? '[set]' : '[using default]',
     agentAgencyIdEnv: process.env.AGENT_AGENCY_ID || '[not set — using first agency]',
@@ -58,17 +58,17 @@ router.get('/debug', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/dashboard ─────────────────────────────────────────────────
-router.get('/dashboard', (req: Request, res: Response) => {
+router.get('/dashboard', async (req: Request, res: Response) => {
   try {
-    const agencyId = resolveAgencyId();
-    const clients = getClientsByAgency(agencyId);
-    const tasks = getProductionTasksByAgency(agencyId);
-    const posts = getScheduledPostsByAgency(agencyId);
+    const agencyId = await resolveAgencyId();
+    const clients = await getClientsByAgency(agencyId);
+    const tasks = await getProductionTasksByAgency(agencyId);
+    const posts = await getScheduledPostsByAgency(agencyId);
 
     // Count pending approvals across all portal states
     let pendingApprovals = 0;
     for (const client of clients) {
-      const state = getPortalState(agencyId, client.id);
+      const state = await getPortalState(agencyId, client.id);
       if (state) {
         const approvals = (state.approvals || []) as any[];
         pendingApprovals += approvals.filter((a: any) => a.status === 'pending').length;
@@ -93,9 +93,9 @@ router.get('/dashboard', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/clients ───────────────────────────────────────────────────
-router.get('/clients', (req: Request, res: Response) => {
+router.get('/clients', async (req: Request, res: Response) => {
   try {
-    const clients = getClientsByAgency(resolveAgencyId());
+    const clients = await getClientsByAgency(await resolveAgencyId());
     res.json({
       success: true,
       clients: clients.map((c) => ({
@@ -114,9 +114,9 @@ router.get('/clients', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/users ─────────────────────────────────────────────────────
-router.get('/users', (req: Request, res: Response) => {
+router.get('/users', async (req: Request, res: Response) => {
   try {
-    const users = getUsersByAgency(resolveAgencyId());
+    const users = await getUsersByAgency(await resolveAgencyId());
     res.json({
       success: true,
       users: users.map((u) => ({
@@ -133,9 +133,9 @@ router.get('/users', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/production-tasks ─────────────────────────────────────────
-router.get('/production-tasks', (req: Request, res: Response) => {
+router.get('/production-tasks', async (req: Request, res: Response) => {
   try {
-    const tasks = getProductionTasksByAgency(resolveAgencyId());
+    const tasks = await getProductionTasksByAgency(await resolveAgencyId());
     res.json({ success: true, tasks });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to list production tasks' });
@@ -143,9 +143,9 @@ router.get('/production-tasks', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/production-queue ─────────────────────────────────────────
-router.get('/production-queue', (req: Request, res: Response) => {
+router.get('/production-queue', async (req: Request, res: Response) => {
   try {
-    const tasks = getProductionTasksByAgency(resolveAgencyId());
+    const tasks = await getProductionTasksByAgency(await resolveAgencyId());
     const queue = tasks.filter(
       (t) => t.status === 'assigned' || t.status === 'in_progress' || t.status === 'review' || t.status === 'changes_requested'
     );
@@ -156,9 +156,9 @@ router.get('/production-queue', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/production-tasks/:taskId ─────────────────────────────────
-router.get('/production-tasks/:taskId', (req: Request, res: Response) => {
+router.get('/production-tasks/:taskId', async (req: Request, res: Response) => {
   try {
-    const task = getProductionTaskById(req.params.taskId);
+    const task = await getProductionTaskById(req.params.taskId);
     if (!task) return res.status(404).json({ error: 'Task not found' });
     res.json({ success: true, task });
   } catch (e: any) {
@@ -167,9 +167,9 @@ router.get('/production-tasks/:taskId', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/posts/scheduled ──────────────────────────────────────────
-router.get('/posts/scheduled', (req: Request, res: Response) => {
+router.get('/posts/scheduled', async (req: Request, res: Response) => {
   try {
-    const posts = getScheduledPostsByAgency(resolveAgencyId());
+    const posts = await getScheduledPostsByAgency(await resolveAgencyId());
     const scheduled = posts.filter((p) => p.status === 'scheduled');
     res.json({ success: true, posts: scheduled });
   } catch (e: any) {
@@ -178,9 +178,9 @@ router.get('/posts/scheduled', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/posts/:postId ─────────────────────────────────────────────
-router.get('/posts/:postId', (req: Request, res: Response) => {
+router.get('/posts/:postId', async (req: Request, res: Response) => {
   try {
-    const post = getScheduledPostById(req.params.postId);
+    const post = await getScheduledPostById(req.params.postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     res.json({ success: true, post });
   } catch (e: any) {
@@ -189,14 +189,14 @@ router.get('/posts/:postId', (req: Request, res: Response) => {
 });
 
 // ─── GET /api/agent/clients/:clientId/requests ───────────────────────────────
-router.get('/clients/:clientId/requests', (req: Request, res: Response) => {
+router.get('/clients/:clientId/requests', async (req: Request, res: Response) => {
   try {
     const { clientId } = req.params;
-    const client = getClient(clientId);
-    if (!client || client.agencyId !== resolveAgencyId()) {
+    const client = await getClient(clientId);
+    if (!client || client.agencyId !== await resolveAgencyId()) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    const state = getPortalState(resolveAgencyId(), clientId);
+    const state = await getPortalState(await resolveAgencyId(), clientId);
     const requests = state?.requests || [];
     res.json({ success: true, clientId, requests });
   } catch (e: any) {
@@ -205,7 +205,7 @@ router.get('/clients/:clientId/requests', (req: Request, res: Response) => {
 });
 
 // ─── POST /api/agent/production-tasks ────────────────────────────────────────
-router.post('/production-tasks', (req: Request, res: Response) => {
+router.post('/production-tasks', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const { clientId, title, description, priority, assignedTo, dueDate, contentType, platform } = body;
@@ -214,15 +214,15 @@ router.post('/production-tasks', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'clientId and title are required' });
     }
 
-    const client = getClient(clientId);
-    if (!client || client.agencyId !== resolveAgencyId()) {
+    const client = await getClient(clientId);
+    if (!client || client.agencyId !== await resolveAgencyId()) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     const now = new Date().toISOString();
     const task: ProductionTask = {
       id: generateId(),
-      agencyId: resolveAgencyId(),
+      agencyId: await resolveAgencyId(),
       clientId,
       contentId: '',
       approvalId: '',
@@ -246,7 +246,7 @@ router.post('/production-tasks', (req: Request, res: Response) => {
       approvedAt: '',
     };
 
-    saveProductionTask(task);
+    await saveProductionTask(task);
     res.json({ success: true, task });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to create production task' });
@@ -254,10 +254,10 @@ router.post('/production-tasks', (req: Request, res: Response) => {
 });
 
 // ─── PATCH /api/agent/production-tasks/:id/status ────────────────────────────
-router.patch('/production-tasks/:id/status', (req: Request, res: Response) => {
+router.patch('/production-tasks/:id/status', async (req: Request, res: Response) => {
   try {
-    const task = getProductionTaskById(req.params.id);
-    if (!task || task.agencyId !== resolveAgencyId()) {
+    const task = await getProductionTaskById(req.params.id);
+    if (!task || task.agencyId !== await resolveAgencyId()) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
@@ -284,7 +284,7 @@ router.patch('/production-tasks/:id/status', (req: Request, res: Response) => {
       }),
     };
 
-    saveProductionTask(updated);
+    await saveProductionTask(updated);
     res.json({ success: true, task: updated });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to update task status' });
@@ -293,7 +293,7 @@ router.patch('/production-tasks/:id/status', (req: Request, res: Response) => {
 
 // ─── POST /api/agent/push-task ────────────────────────────────────────────────
 // Alias for creating a production task (same as POST /production-tasks)
-router.post('/push-task', (req: Request, res: Response) => {
+router.post('/push-task', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const { clientId, title, description, priority, assignedTo, dueDate, contentType, platform } = body;
@@ -302,15 +302,15 @@ router.post('/push-task', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'clientId and title are required' });
     }
 
-    const client = getClient(clientId);
-    if (!client || client.agencyId !== resolveAgencyId()) {
+    const client = await getClient(clientId);
+    if (!client || client.agencyId !== await resolveAgencyId()) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     const now = new Date().toISOString();
     const task: ProductionTask = {
       id: generateId(),
-      agencyId: resolveAgencyId(),
+      agencyId: await resolveAgencyId(),
       clientId,
       contentId: '',
       approvalId: '',
@@ -334,7 +334,7 @@ router.post('/push-task', (req: Request, res: Response) => {
       approvedAt: '',
     };
 
-    saveProductionTask(task);
+    await saveProductionTask(task);
     res.json({ success: true, task });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to push task' });
@@ -343,7 +343,7 @@ router.post('/push-task', (req: Request, res: Response) => {
 
 // ─── POST /api/agent/push-content ────────────────────────────────────────────
 // Push a content item (approval/request) to a client's portal state
-router.post('/push-content', (req: Request, res: Response) => {
+router.post('/push-content', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const { clientId, type, title, description, imageUrl, platform, scheduledFor } = body;
@@ -352,12 +352,12 @@ router.post('/push-content', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'clientId and title are required' });
     }
 
-    const client = getClient(clientId);
-    if (!client || client.agencyId !== resolveAgencyId()) {
+    const client = await getClient(clientId);
+    if (!client || client.agencyId !== await resolveAgencyId()) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    const state: PortalStateData = getPortalState(resolveAgencyId(), clientId) || {
+    const state: PortalStateData = await getPortalState(await resolveAgencyId(), clientId) || {
       client: { id: clientId, name: client.name },
       kpis: { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
       approvals: [],
@@ -382,7 +382,7 @@ router.post('/push-content', (req: Request, res: Response) => {
 
     const approvals = [...((state.approvals || []) as any[]), contentItem];
     const updated = { ...state, approvals };
-    savePortalState(resolveAgencyId(), clientId, updated);
+    await savePortalState(await resolveAgencyId(), clientId, updated);
 
     res.json({ success: true, content: contentItem });
   } catch (e: any) {

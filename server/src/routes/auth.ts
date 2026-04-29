@@ -61,11 +61,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Try to find by email first
-    let user = getUserByEmail(trimmedAgencyId, loginIdentifier);
+    let user = await getUserByEmail(trimmedAgencyId, loginIdentifier);
 
     // If not found by email, try by username
     if (!user) {
-      user = getUserByUsername(trimmedAgencyId, loginIdentifier);
+      user = await getUserByUsername(trimmedAgencyId, loginIdentifier);
     }
 
     if (process.env.NODE_ENV !== 'production') {
@@ -102,7 +102,7 @@ router.post('/login', async (req, res) => {
     // Update last login (non-blocking - don't let save failures break login)
     try {
       user.lastLoginAt = Date.now();
-      saveUser(user);
+      await saveUser(user);
     } catch (saveError: any) {
       console.error('Failed to save user lastLoginAt (non-fatal):', saveError);
     }
@@ -148,7 +148,7 @@ router.post('/login', async (req, res) => {
 
     // Log audit (non-blocking - don't let audit failures break login)
     try {
-      saveAuditLog({
+      await saveAuditLog({
         id: generateId('audit'),
         agencyId: user.agencyId,
         actorUserId: user.id,
@@ -182,12 +182,12 @@ router.post('/client-login', async (req, res) => {
       return res.status(400).json({ error: 'Client ID and password are required' });
     }
 
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client) {
       return res.status(401).json({ error: 'Invalid client ID or password' });
     }
 
-    const stored = getClientCredentials(client.agencyId, client.id);
+    const stored = await getClientCredentials(client.agencyId, client.id);
     if (!stored || stored !== pwd) {
       return res.status(401).json({ error: 'Invalid client ID or password' });
     }
@@ -213,14 +213,14 @@ router.post('/client-login', async (req, res) => {
  * GET /api/auth/me
  * Return current session info (for debugging auth issues)
  */
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   try {
     const token = req.cookies?.[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
       return res.json({ authenticated: false, reason: 'no token' });
     }
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    const user = decoded.userId ? getUserByEmail(decoded.agencyId, decoded.email) || getUser(decoded.userId) : null;
+    const user = decoded.userId ? (await getUserByEmail(decoded.agencyId, decoded.email)) || (await getUser(decoded.userId)) : null;
     return res.json({
       authenticated: true,
       token: { userId: decoded.userId, agencyId: decoded.agencyId, role: decoded.role, email: decoded.email, clientId: decoded.clientId || null, purpose: decoded.purpose || null },
@@ -270,7 +270,7 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    const user = getUserByEmail(agencyId, email);
+    const user = await getUserByEmail(agencyId, email);
     
     // Always return success (don't reveal if email exists)
     if (!user || user.status !== 'ACTIVE') {
@@ -297,7 +297,7 @@ router.post('/forgot-password', async (req, res) => {
       createdAt: Date.now()
     };
 
-    savePasswordResetToken(resetToken);
+    await savePasswordResetToken(resetToken);
 
     // Generate reset link
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -307,7 +307,7 @@ router.post('/forgot-password', async (req, res) => {
     await sendPasswordResetEmail(user.email, user.name, resetLink);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: user.agencyId,
       actorUserId: user.id,
@@ -351,7 +351,7 @@ router.post('/reset-password', async (req, res) => {
 
     // Hash the token to look it up
     const tokenHash = hashToken(token);
-    const resetToken = getPasswordResetTokenByHash(tokenHash);
+    const resetToken = await getPasswordResetTokenByHash(tokenHash);
 
     if (!resetToken || resetToken.agencyId !== agencyId) {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
@@ -366,7 +366,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     // Get user
-    const user = getUser(resetToken.userId);
+    const user = await getUser(resetToken.userId);
     if (!user || user.agencyId !== agencyId) {
       return res.status(400).json({ error: 'Invalid reset token' });
     }
@@ -375,13 +375,13 @@ router.post('/reset-password', async (req, res) => {
     const passwordHash = await hashPassword(newPassword);
     user.passwordHash = passwordHash;
     user.updatedAt = Date.now();
-    saveUser(user);
+    await saveUser(user);
 
     // Mark token as used
-    markPasswordResetTokenUsed(resetToken.id);
+    await markPasswordResetTokenUsed(resetToken.id);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: user.agencyId,
       actorUserId: user.id,

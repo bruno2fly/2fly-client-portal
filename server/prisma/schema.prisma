@@ -1,0 +1,495 @@
+// 2FLY Flow — Prisma schema
+// Migrated from JSON file storage to PostgreSQL
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────── Core entities ───────────────────────
+
+model Agency {
+  id        String   @id
+  name      String
+  createdAt DateTime @default(now())
+
+  users             User[]
+  clients           Client[]
+  auditLogs         AuditLog[]
+  assets            Asset[]
+  metaIntegrations  MetaIntegration[]
+  scheduledPosts    ScheduledPost[]
+  productionTasks   ProductionTask[]
+  pushSubscriptions PushSubscription[]
+  brandKits         BrandKit[]
+  aiImages          AIImage[]
+  references        ReferenceImage[]
+  inviteTokens      InviteToken[]
+  passwordResets    PasswordResetToken[]
+}
+
+model User {
+  id           String     @id
+  agencyId     String
+  email        String
+  username     String?
+  name         String
+  role         UserRole
+  status       UserStatus @default(INVITED)
+  passwordHash String?
+  tempPassword String?
+  clientId     String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  agency Agency  @relation(fields: [agencyId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
+
+  @@unique([agencyId, email])
+  @@index([agencyId])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+  CLIENT
+  DESIGNER
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+model Client {
+  id        String       @id
+  agencyId  String
+  name      String
+  status    ClientStatus @default(active)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Contact & config
+  category               String?
+  primaryContactName     String?
+  primaryContactWhatsApp String?
+  primaryContactEmail    String?
+  preferredChannel       String?
+  platformsManaged       String[] // Postgres array
+  postingFrequency       String?
+  postingFrequencyNote   String?
+  approvalRequired       Boolean  @default(false)
+  language               String?
+  assetsLink             String?
+  brandGuidelinesLink    String?
+  primaryGoal            String?
+  secondaryGoal          String?
+  internalBehaviorType   String?
+  riskLevel              String?
+  internalNotes          String?
+  logoUrl                String?
+
+  // Nested JSON — stored as JSONB for flexibility
+  clientLinks    Json? // { instagram, facebook, website, ... }
+  aiSummaryCache Json? // { summary, ideas, generatedAt }
+
+  // Client portal login password (plain text stored by the app)
+  portalPassword String?
+
+  agency           Agency            @relation(fields: [agencyId], references: [id])
+  users            User[]
+  portalState      PortalState?
+  assets           Asset[]
+  metaIntegrations MetaIntegration[]
+  scheduledPosts   ScheduledPost[]
+  productionTasks  ProductionTask[]
+  brandKit         BrandKit?
+  aiImages         AIImage[]
+  references       ReferenceImage[]
+
+  @@index([agencyId])
+}
+
+enum ClientStatus {
+  active
+  inactive
+  archived
+}
+
+// ─────────────────────── Auth tokens ───────────────────────
+
+model InviteToken {
+  id        String    @id
+  agencyId  String
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@index([tokenHash])
+}
+
+model PasswordResetToken {
+  id        String    @id
+  agencyId  String
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@index([tokenHash])
+}
+
+// ─────────────────────── Audit ───────────────────────
+
+model AuditLog {
+  id             String   @id
+  agencyId       String
+  actorUserId    String
+  action         String
+  targetUserId   String?
+  targetClientId String?
+  metaJson       String?  // additional metadata as JSON string
+  createdAt      DateTime @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@index([agencyId, createdAt])
+}
+
+// ─────────────────────── Portal state (per client) ───────────────────────
+// The big JSONB blob — approvals, requests, needs, assets, activity, KPIs.
+// Kept as JSONB because the internal structure is highly dynamic/untyped.
+
+model PortalState {
+  agencyId  String
+  clientId  String   @unique
+  data      Json     // The full PortalStateData object
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@id([agencyId, clientId])
+}
+
+// ─────────────────────── Assets ───────────────────────
+
+model Asset {
+  id              String      @id
+  workspaceId     String      // legacy — same as agencyId
+  agencyId        String
+  clientId        String
+  source          AssetSource
+  originalFileId  String?
+  originalName    String
+  filename        String
+  mimeType        String
+  size            Int
+  storageUrl      String
+  thumbnailUrl    String?
+  type            AssetType
+  status          AssetStatus @default(pending)
+  tags            String[]
+  caption         String?
+  createdByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+enum AssetSource {
+  upload
+  google_drive
+}
+
+enum AssetType {
+  photo
+  video
+  logo
+  doc
+}
+
+enum AssetStatus {
+  pending
+  approved
+  changes
+}
+
+// ─────────────────────── Google Drive integration (legacy) ───────────────────────
+
+model GoogleIntegration {
+  id                    String   @id
+  workspaceId           String
+  encryptedRefreshToken String
+  status                String   @default("active") // active | revoked | error
+  connectedAt           DateTime
+  lastUsedAt            DateTime
+  errorMessage          String?
+}
+
+// ─────────────────────── Meta (Facebook/Instagram) ───────────────────────
+
+model MetaIntegration {
+  id                      String    @id
+  agencyId                String
+  clientId                String
+  metaAccessToken         String
+  metaUserAccessToken     String?
+  metaPageId              String
+  metaPageName            String?
+  metaInstagramAccountId  String?
+  metaInstagramUsername   String?
+  tokenExpiresAt          DateTime
+  connectedAt             DateTime
+  updatedAt               DateTime  @updatedAt
+  connectionStatus        String?   // ok | permission_error | token_expired | blocked
+  connectionError         String?
+  connectionFlaggedAt     DateTime?
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+// ─────────────────────── Scheduled posts ───────────────────────
+
+model ScheduledPost {
+  id           String              @id
+  agencyId     String
+  clientId     String
+  contentId    String
+  caption      String
+  mediaUrl     String
+  mediaUrls    String[]            // multi-image carousel
+  platforms    String[]            // instagram, facebook
+  placements   String[]            // feed, stories, reels
+  scheduledAt  DateTime
+  timezone     String
+  status       ScheduledPostStatus @default(scheduled)
+  publishedAt  DateTime?
+  error        String?
+  metaPostIds  Json?               // { instagram?: string, facebook?: string }
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([agencyId])
+  @@index([status, scheduledAt])
+}
+
+enum ScheduledPostStatus {
+  scheduled
+  publishing
+  published
+  failed
+}
+
+// ─────────────────────── Production tasks (designer workflow) ───────────────────────
+
+model ProductionTask {
+  id              String                 @id
+  agencyId        String
+  clientId        String
+  contentId       String                 @default("")
+  approvalId      String                 @default("")
+  designerId      String
+  title           String
+  caption         String                 @default("")
+  copyText        String                 @default("")
+  referenceImages String[]
+  briefNotes      String                 @default("")
+  finalArt        String[]
+  designerNotes   String                 @default("")
+  status          ProductionTaskStatus   @default(assigned)
+  priority        ProductionTaskPriority @default(medium)
+  deadline        DateTime
+  reviewNotes     String                 @default("")
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  startedAt       DateTime?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+
+  comments ProductionTaskComment[]
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([agencyId])
+  @@index([designerId])
+  @@index([clientId])
+  @@index([approvalId])
+}
+
+enum ProductionTaskStatus {
+  assigned
+  in_progress
+  review
+  changes_requested
+  approved
+  ready_to_post
+}
+
+enum ProductionTaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+model ProductionTaskComment {
+  id           String   @id
+  taskId       String
+  authorId     String
+  authorName   String
+  authorRole   String   // admin | staff | designer
+  message      String
+  statusChange String?
+  createdAt    DateTime @default(now())
+
+  task ProductionTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+// ─────────────────────── Push subscriptions ───────────────────────
+
+model PushSubscription {
+  id        String   @id
+  userId    String
+  agencyId  String
+  role      String
+  endpoint  String   @unique
+  keys      Json     // { p256dh, auth }
+  createdAt DateTime @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@index([userId])
+  @@index([agencyId, role])
+}
+
+// ─────────────────────── AI Library ───────────────────────
+
+model BrandKit {
+  id              String   @id
+  clientId        String   @unique
+  agencyId        String
+  logoUrls        String[]
+  colors          Json     // [{ name, hex }]
+  fonts           Json     // { heading, body, weights }
+  styleTags       String[]
+  photoStyle      String   @default("")
+  rulesText       String   @default("")
+  referenceImages String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model AIImage {
+  id               String        @id
+  clientId         String
+  agencyId         String
+  brandKitId       String?
+  prompt           String
+  enhancedPrompt   String        @default("")
+  imageUrl         String
+  thumbnailUrl     String        @default("")
+  format           AIImageFormat @default(feed)
+  formatDimensions String        @default("")
+  status           AIImageStatus @default(generated)
+  generatedBy      String
+  approvedBy       String?
+  approvalDate     DateTime?
+  feedback         String        @default("")
+  usedInPostId     String?
+  modelUsed        String        @default("")
+  batchId          String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+enum AIImageFormat {
+  feed
+  story
+  carousel
+  ad_banner
+}
+
+enum AIImageStatus {
+  generated
+  pending_approval
+  approved
+  rejected
+  used_in_post
+}
+
+// ─────────────────────── Reference images ───────────────────────
+
+model ReferenceImage {
+  id          String   @id
+  agencyId    String
+  clientId    String
+  imageUrl    String
+  source      String   // published_post | ai_approved | client_approved
+  sourceId    String?
+  caption     String   @default("")
+  platforms   String[]
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+}
+
+// ─────────────────────── Legacy (workspace/staff — kept for migration) ───────────────────────
+
+model Workspace {
+  id        String   @id
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Staff {
+  id          String   @id
+  username    String
+  fullName    String
+  email       String
+  workspaceId String
+  createdAt   DateTime @default(now())
+}

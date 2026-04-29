@@ -226,7 +226,7 @@ router.get('/brand-kit', authenticate, async (req: AuthenticatedRequest, res) =>
   if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
   try {
-    const kit = getBrandKitByClient(clientId);
+    const kit = await getBrandKitByClient(clientId);
     res.json({ brandKit: kit });
   } catch (err: any) {
     console.error('[AI Library] Get brand kit error:', err);
@@ -241,7 +241,7 @@ router.put('/brand-kit', authenticate, async (req: AuthenticatedRequest, res) =>
 
   try {
     const agencyId = (req as any).user?.agencyId || '';
-    let kit = getBrandKitByClient(clientId);
+    let kit = await getBrandKitByClient(clientId);
     const now = Date.now();
 
     if (kit) {
@@ -273,7 +273,7 @@ router.put('/brand-kit', authenticate, async (req: AuthenticatedRequest, res) =>
       };
     }
 
-    saveBrandKit(kit);
+    await saveBrandKit(kit);
     res.json({ brandKit: kit });
   } catch (err: any) {
     console.error('[AI Library] Save brand kit error:', err);
@@ -287,10 +287,10 @@ router.delete('/brand-kit', authenticate, async (req: AuthenticatedRequest, res)
   if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
   try {
-    const kit = getBrandKitByClient(clientId);
+    const kit = await getBrandKitByClient(clientId);
     if (!kit) return res.status(404).json({ error: 'Brand kit not found' });
 
-    deleteBrandKit(kit.id);
+    await deleteBrandKit(kit.id);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[AI Library] Delete brand kit error:', err);
@@ -499,7 +499,7 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
 
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-    const kit = getBrandKit(clientId);
+    const kit = await getBrandKit(clientId);
     if (!kit) return res.status(404).json({ error: `No brand kit found for client "${clientId}"` });
 
     const runMode: 'quick' | 'advanced' = mode === 'advanced' ? 'advanced' : 'quick';
@@ -575,7 +575,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
   try {
     const agencyId = (req as any).user?.agencyId || '';
     const userId = (req as any).user?.id || '';
-    const kit = getBrandKitByClient(clientId);
+    const kit = await getBrandKitByClient(clientId);
 
     const formatMap: Record<string, { w: number; h: number; label: string; gptSize: '1024x1024' | '1024x1536' | '1536x1024' }> = {
       feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       gptSize: '1024x1024' },
@@ -630,7 +630,7 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
           updatedAt: now
         };
 
-        saveAIImage(aiImg);
+        await saveAIImage(aiImg);
         generatedImages.push(aiImg);
         console.log(`[AI Library] Variation ${i + 1} saved: ${aiImg.id}`);
       } catch (err: any) {
@@ -706,9 +706,9 @@ router.get('/images', authenticate, async (req: AuthenticatedRequest, res) => {
 
     let images: AIImage[];
     if (clientId) {
-      images = getAIImagesByClient(clientId);
+      images = await getAIImagesByClient(clientId);
     } else {
-      images = getAIImagesByAgency(agencyId);
+      images = await getAIImagesByAgency(agencyId);
     }
 
     // Sort by newest first
@@ -730,7 +730,7 @@ router.get('/images', authenticate, async (req: AuthenticatedRequest, res) => {
 // GET /api/ai-library/images/:id
 router.get('/images/:id', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const img = getAIImageById(req.params.id);
+    const img = await getAIImageById(req.params.id);
     if (!img) return res.status(404).json({ error: 'Image not found' });
     res.json({ image: img });
   } catch (err: any) {
@@ -742,7 +742,7 @@ router.get('/images/:id', authenticate, async (req: AuthenticatedRequest, res) =
 // PUT /api/ai-library/images/:id/status
 router.put('/images/:id/status', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const img = getAIImageById(req.params.id);
+    const img = await getAIImageById(req.params.id);
     if (!img) return res.status(404).json({ error: 'Image not found' });
 
     const { status, feedback, postId } = req.body;
@@ -757,8 +757,8 @@ router.put('/images/:id/status', authenticate, async (req: AuthenticatedRequest,
       // Auto-save to References
       try {
         const { saveReference, referenceExistsForUrl } = await import('../db.js');
-        if (img.imageUrl && !referenceExistsForUrl(img.clientId, img.imageUrl)) {
-          saveReference({
+        if (img.imageUrl && !(await referenceExistsForUrl(img.clientId, img.imageUrl))) {
+          await saveReference({
             id: generateId(),
             agencyId: img.agencyId,
             clientId: img.clientId,
@@ -786,7 +786,7 @@ router.put('/images/:id/status', authenticate, async (req: AuthenticatedRequest,
     }
 
     img.updatedAt = now;
-    saveAIImage(img);
+    await saveAIImage(img);
     res.json({ image: img });
   } catch (err: any) {
     console.error('[AI Library] Update image status error:', err);
@@ -797,10 +797,10 @@ router.put('/images/:id/status', authenticate, async (req: AuthenticatedRequest,
 // DELETE /api/ai-library/images/:id
 router.delete('/images/:id', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const img = getAIImageById(req.params.id);
+    const img = await getAIImageById(req.params.id);
     if (!img) return res.status(404).json({ error: 'Image not found' });
 
-    deleteAIImage(req.params.id);
+    await deleteAIImage(req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[AI Library] Delete image error:', err);
@@ -811,11 +811,11 @@ router.delete('/images/:id', authenticate, async (req: AuthenticatedRequest, res
 // POST /api/ai-library/images/:id/regenerate
 router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const img = getAIImageById(req.params.id);
+    const img = await getAIImageById(req.params.id);
     if (!img) return res.status(404).json({ error: 'Image not found' });
 
     const newPrompt = req.body.prompt || img.prompt;
-    const kit = getBrandKitByClient(img.clientId);
+    const kit = await getBrandKitByClient(img.clientId);
 
     const formatMap: Record<string, { w: number; h: number; label: string; gptSize: '1024x1024' | '1024x1536' | '1536x1024' }> = {
       feed:       { w: 1080, h: 1080, label: '1080x1080 (Feed)',       gptSize: '1024x1024' },
@@ -848,7 +848,7 @@ router.post('/images/:id/regenerate', authenticate, async (req: AuthenticatedReq
       updatedAt: now
     };
 
-    saveAIImage(newImg);
+    await saveAIImage(newImg);
     res.json({ image: newImg });
   } catch (err: any) {
     console.error('[AI Library] Regenerate error:', err);
@@ -866,9 +866,9 @@ router.get('/references', authenticate, async (req: AuthenticatedRequest, res) =
 
     let refs: ReferenceImage[];
     if (clientId) {
-      refs = getReferencesByClient(clientId);
+      refs = await getReferencesByClient(clientId);
     } else {
-      refs = getReferencesByAgency(agencyId);
+      refs = await getReferencesByAgency(agencyId);
     }
 
     // Sort newest first
@@ -888,7 +888,7 @@ router.get('/references', authenticate, async (req: AuthenticatedRequest, res) =
 // DELETE /api/ai-library/references/:id
 router.delete('/references/:id', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    deleteReference(req.params.id);
+    await deleteReference(req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[References] Delete error:', err);
@@ -903,7 +903,7 @@ router.post('/references', authenticate, async (req: AuthenticatedRequest, res) 
     if (!clientId || !imageUrl) return res.status(400).json({ error: 'clientId and imageUrl required' });
 
     const agencyId = (req as any).user?.agencyId || '';
-    if (referenceExistsForUrl(clientId, imageUrl)) {
+    if (await referenceExistsForUrl(clientId, imageUrl)) {
       return res.status(409).json({ error: 'Reference already exists for this image' });
     }
 
@@ -920,7 +920,7 @@ router.post('/references', authenticate, async (req: AuthenticatedRequest, res) 
       createdAt: new Date().toISOString()
     };
 
-    saveReference(ref);
+    await saveReference(ref);
     res.status(201).json({ reference: ref });
   } catch (err: any) {
     console.error('[References] Create error:', err);
@@ -970,7 +970,7 @@ router.post('/analyze-reels', authenticate, async (req: AuthenticatedRequest, re
       return res.status(503).json({ error: 'OpenAI API key not configured. Set OPENAI_API_KEY.' });
     }
 
-    const kit = getBrandKit(clientId);
+    const kit = await getBrandKit(clientId);
     const clientName = kit?.clientName || clientId;
     const toneKey = tone || 'energetic';
     const toneDesc = TONE_DESCRIPTIONS[toneKey] || TONE_DESCRIPTIONS.energetic;

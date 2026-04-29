@@ -24,10 +24,10 @@ import type { User } from '../types.js';
 const router = Router();
 
 /** GET /api/designers — List agency designers (agency staff and designers can list). */
-router.get('/', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.get('/', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const users = getUsersByAgency(agencyId).filter((u: User) => u.role === 'DESIGNER');
+    const users = (await getUsersByAgency(agencyId)).filter((u: User) => u.role === 'DESIGNER');
     const result: any = {
       success: true,
       designers: users.map((u: User) => ({
@@ -54,7 +54,7 @@ router.post('/', authenticate, requireAgencyOnly, async (req: AuthenticatedReque
     if (!email || !name) {
       return res.status(400).json({ error: 'Email and name are required' });
     }
-    const existing = getUserByEmail(agencyId, email);
+    const existing = await getUserByEmail(agencyId, email);
     if (existing) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
@@ -72,7 +72,7 @@ router.post('/', authenticate, requireAgencyOnly, async (req: AuthenticatedReque
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    saveUser(newUser);
+    await saveUser(newUser);
 
     const { token, tokenHash } = generateToken();
     const expiresAt = Date.now() + 72 * 60 * 60 * 1000;
@@ -85,13 +85,13 @@ router.post('/', authenticate, requireAgencyOnly, async (req: AuthenticatedReque
       usedAt: null,
       createdAt: Date.now(),
     };
-    saveInviteToken(inviteToken);
+    await saveInviteToken(inviteToken);
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://2flyflow.com';
     const inviteLink = `${frontendUrl}/accept-invite?token=${token}&agencyId=${agencyId}`;
     await sendInviteEmail(newUser.email, newUser.name, inviteLink);
 
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId,
       actorUserId: (req as any).user.id,
@@ -120,19 +120,19 @@ router.post('/', authenticate, requireAgencyOnly, async (req: AuthenticatedReque
 });
 
 /** PUT /api/designers/:id — Update designer (agency only). */
-router.put('/:id', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.put('/:id', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { id } = req.params;
     const { name, email } = req.body || {};
-    const user = getUser(id);
+    const user = await getUser(id);
     if (!user || user.agencyId !== agencyId || user.role !== 'DESIGNER') {
       return res.status(404).json({ error: 'Designer not found' });
     }
     if (name != null) user.name = String(name).trim();
     if (email != null) user.email = String(email).toLowerCase();
     user.updatedAt = Date.now();
-    saveUser(user);
+    await saveUser(user);
     const result: any = {
       success: true,
       designer: {
@@ -152,15 +152,15 @@ router.put('/:id', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, 
 });
 
 /** DELETE /api/designers/:id — Remove designer (agency only). */
-router.delete('/:id', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.delete('/:id', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { id } = req.params;
-    const user = getUser(id);
+    const user = await getUser(id);
     if (!user || user.agencyId !== agencyId || user.role !== 'DESIGNER') {
       return res.status(404).json({ error: 'Designer not found' });
     }
-    deleteUser(id);
+    await deleteUser(id);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to delete designer' });

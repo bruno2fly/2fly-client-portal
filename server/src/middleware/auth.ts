@@ -60,7 +60,7 @@ export function getAgencyScope(req: AuthenticatedRequest): { agencyId: string } 
  * Extract user info from JWT cookie or legacy headers
  * Supports both new credentials system and legacy staff system
  */
-export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     // Try JWT cookie first (new credentials system)
     const token = req.cookies?.[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
@@ -87,7 +87,7 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
         }
 
         // Get user from database (staff/admin tokens)
-        const user = getUser(decoded.userId);
+        const user = await getUser(decoded.userId);
         if (!user || user.agencyId !== decoded.agencyId) {
           return res.status(401).json({ error: 'Invalid session' });
         }
@@ -125,9 +125,9 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
     }
     
     // Try to find staff by ID first, then by username
-    let staff = getStaffById(userId);
+    let staff = await getStaffById(userId);
     if (!staff) {
-      staff = getStaffByUsername(userId);
+      staff = await getStaffByUsername(userId);
     }
     
     // In production, reject unknown staff. In development, allow for testing.

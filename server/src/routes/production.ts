@@ -64,13 +64,13 @@ function canTransition(from: ProductionTaskStatus, to: ProductionTaskStatus, isD
  *   - If `markArtApproved` is false, only the art URLs are synced (used when the
  *     designer uploads/replaces art mid-flight).
  */
-function syncProductionArtToApproval(task: ProductionTask, markArtApproved: boolean): void {
+async function syncProductionArtToApproval(task: ProductionTask, markArtApproved: boolean): Promise<void> {
   const hasArt = task.finalArt && task.finalArt.length > 0;
   if (!hasArt) {
     console.warn('[production] syncProductionArtToApproval skipped: task has no finalArt');
     return;
   }
-  const state = getPortalState(task.agencyId, task.clientId);
+  const state = await getPortalState(task.agencyId, task.clientId);
   if (!state || !Array.isArray(state.approvals)) {
     console.warn('[production] No portal state or approvals for client:', task.clientId);
     return;
@@ -90,18 +90,18 @@ function syncProductionArtToApproval(task: ProductionTask, markArtApproved: bool
     originalItem.productionStatus = 'art_approved';
   }
   originalItem.updatedAt = new Date().toISOString();
-  savePortalState(task.agencyId, task.clientId, state);
+  await savePortalState(task.agencyId, task.clientId, state);
   console.log('[production] Synced final art to approval:', originalItem.id, 'markArtApproved=', markArtApproved);
 }
 
 /** Legacy wrapper — always marks the approval as art-approved. */
-function updateOriginalApprovalWithFinalArt(task: ProductionTask): void {
-  syncProductionArtToApproval(task, true);
+async function updateOriginalApprovalWithFinalArt(task: ProductionTask): Promise<void> {
+  await syncProductionArtToApproval(task, true);
 }
 
 /** When designer resubmits after changes, push the approval back to content_pending for the client. */
-function returnApprovalToPending(task: ProductionTask): void {
-  const state = getPortalState(task.agencyId, task.clientId);
+async function returnApprovalToPending(task: ProductionTask): Promise<void> {
+  const state = await getPortalState(task.agencyId, task.clientId);
   if (!state || !Array.isArray(state.approvals)) return;
   const item = state.approvals.find(
     (a: any) => a.id === task.approvalId || a.id === task.contentId
@@ -120,7 +120,7 @@ function returnApprovalToPending(task: ProductionTask): void {
       item.imageUrl = task.finalArt[0] || item.imageUrl || '';
     }
     item.updatedAt = new Date().toISOString();
-    savePortalState(task.agencyId, task.clientId, state);
+    await savePortalState(task.agencyId, task.clientId, state);
     console.log('[production] Returned approval to pending:', item.id, item.status);
   }
 }
@@ -131,10 +131,10 @@ function returnApprovalToPending(task: ProductionTask): void {
  * no portal-state, nothing sensitive. Used to populate the AI Library client
  * dropdown for designers, who cannot hit /api/agency/clients.
  */
-router.get('/clients', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.get('/clients', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const list = getClientsByAgency(agencyId);
+    const list = await getClientsByAgency(agencyId);
     const clients = list.map((c) => ({
       id: c.id,
       name: c.name,
@@ -147,7 +147,7 @@ router.get('/clients', authenticate, requireProductionAccess, (req: Authenticate
 });
 
 /** GET /api/production/tasks — List tasks. Agency: all; Designer: own only. */
-router.get('/tasks', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.get('/tasks', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const user = (req as any).user;
@@ -155,8 +155,8 @@ router.get('/tasks', authenticate, requireProductionAccess, (req: AuthenticatedR
     const { designerId, clientId, status, approvalId } = req.query;
 
     let tasks = isDesigner
-      ? getProductionTasksByDesigner(user.id)
-      : getProductionTasksByAgency(agencyId);
+      ? await getProductionTasksByDesigner(user.id)
+      : await getProductionTasksByAgency(agencyId);
 
     if (designerId && typeof designerId === 'string') {
       tasks = tasks.filter((t: ProductionTask) => t.designerId === designerId);
@@ -179,11 +179,11 @@ router.get('/tasks', authenticate, requireProductionAccess, (req: AuthenticatedR
 });
 
 /** GET /api/production/tasks/:id — Get single task. */
-router.get('/tasks/:id', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.get('/tasks/:id', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const user = (req as any).user;
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -198,7 +198,7 @@ router.get('/tasks/:id', authenticate, requireProductionAccess, (req: Authentica
 });
 
 /** POST /api/production/tasks — Create task (agency only). */
-router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.post('/tasks', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const body = req.body || {};
@@ -223,7 +223,7 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
     }
     // Prevent duplicate tasks — reuse existing task for the same approvalId
     if (approvalId) {
-      const existingTasks = getProductionTasksByAgency(agencyId);
+      const existingTasks = await getProductionTasksByAgency(agencyId);
       const existingTask = existingTasks.find(
         (t: ProductionTask) => t.approvalId === approvalId && t.clientId === clientId
       );
@@ -246,15 +246,15 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
         if (initialStatus === 'changes_requested' && bodyReviewNotes) {
           existingTask.reviewNotes = String(bodyReviewNotes).slice(0, 2000);
         }
-        saveProductionTask(existingTask);
+        await saveProductionTask(existingTask);
         return res.json({ task: existingTask, reused: true });
       }
     }
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    const designer = getUser(designerId);
+    const designer = await getUser(designerId);
     if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'STAFF'].includes(designer.role)) {
       return res.status(400).json({ error: 'Invalid designer' });
     }
@@ -285,7 +285,7 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
       submittedAt: '',
       approvedAt: '',
     };
-    saveProductionTask(task);
+    await saveProductionTask(task);
     // Fire-and-forget push notification for task assignment
     sendPushToUser(task.designerId, NOTIFY.taskAssigned(
       client?.name || 'Client',
@@ -300,11 +300,11 @@ router.post('/tasks', authenticate, requireAgencyOnly, (req: AuthenticatedReques
 });
 
 /** PUT /api/production/tasks/:id/status — Update status (with transition rules). */
-router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.put('/tasks/:id/status', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const user = (req as any).user;
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -326,10 +326,10 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
     if (status === 'in_progress' && !task.startedAt) task.startedAt = now;
     if (status === 'review') task.submittedAt = now;
     if (status === 'approved') task.approvedAt = now;
-    saveProductionTask(task);
+    await saveProductionTask(task);
     // When designer submits for review, sync images to approval item preview (no art-approved flag yet)
     if (status === 'review' && task.finalArt && task.finalArt.length > 0) {
-      try { syncProductionArtToApproval(task, false); } catch (e: any) {
+      try { await syncProductionArtToApproval(task, false); } catch (e: any) {
         console.error('[production] Failed to sync images on review submit:', e?.message);
       }
     }
@@ -337,13 +337,13 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
     // mark the approval as art-approved and sync the final art. Agency will
     // manually move the approval from Copy Approved → Content Pending when ready.
     if (status === 'approved' && !isDesigner) {
-      try { updateOriginalApprovalWithFinalArt(task); } catch (e: any) {
+      try { await updateOriginalApprovalWithFinalArt(task); } catch (e: any) {
         console.error('[production] Failed to mark art-approved on PUT status:', e?.message);
       }
     }
     // When designer resubmits after changes, push approval back to content pending for client
     if (previousStatus === 'changes_requested' && status === 'review') {
-      try { returnApprovalToPending(task); } catch (e: any) {
+      try { await returnApprovalToPending(task); } catch (e: any) {
         console.error('[production] Failed to return approval to pending:', e?.message);
       }
     }
@@ -355,10 +355,10 @@ router.put('/tasks/:id/status', authenticate, requireProductionAccess, (req: Aut
 });
 
 /** PUT /api/production/tasks/:id — Update task details (agency only). */
-router.put('/tasks/:id', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.put('/tasks/:id', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -369,13 +369,13 @@ router.put('/tasks/:id', authenticate, requireAgencyOnly, (req: AuthenticatedReq
     if (body.deadline != null) task.deadline = body.deadline;
     if (body.briefNotes != null) task.briefNotes = String(body.briefNotes).slice(0, 2000);
     if (body.designerId != null) {
-      const designer = getUser(body.designerId);
+      const designer = await getUser(body.designerId);
       if (designer && designer.agencyId === agencyId && designer.role === 'DESIGNER') {
         task.designerId = body.designerId;
       }
     }
     task.updatedAt = new Date().toISOString();
-    saveProductionTask(task);
+    await saveProductionTask(task);
     const result: any = { success: true, task };
     res.json(result);
   } catch (e: any) {
@@ -384,11 +384,11 @@ router.put('/tasks/:id', authenticate, requireAgencyOnly, (req: AuthenticatedReq
 });
 
 /** POST /api/production/tasks/:id/upload-art — Designer uploads final art (URLs from client). */
-router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const user = (req as any).user;
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -402,12 +402,12 @@ router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, (req
     task.finalArt = newUrls;
     if (designerNotes != null) task.designerNotes = String(designerNotes).slice(0, 2000);
     task.updatedAt = new Date().toISOString();
-    saveProductionTask(task);
+    await saveProductionTask(task);
     // Always keep the approval item's image URLs in sync with the task's latest art.
     // If the task was already art-approved, preserve that flag; otherwise just update URLs.
     try {
       const alreadyApproved = task.status === 'approved' || task.status === 'ready_to_post';
-      syncProductionArtToApproval(task, alreadyApproved);
+      await syncProductionArtToApproval(task, alreadyApproved);
     } catch (e: any) {
       console.error('[production] Failed to sync art to approval on upload-art:', e?.message);
     }
@@ -419,11 +419,11 @@ router.post('/tasks/:id/upload-art', authenticate, requireProductionAccess, (req
 });
 
 /** POST /api/production/tasks/:id/comment — Add comment and optionally update status. */
-router.post('/tasks/:id/comment', authenticate, requireProductionAccess, (req: AuthenticatedRequest, res) => {
+router.post('/tasks/:id/comment', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const user = (req as any).user;
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -461,7 +461,7 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, (req: A
         sendPushToRole(task.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.designerSubmitted(
           user.name || user.email || 'Designer',
           task.title || task.caption || 'Task',
-          getClient(task.clientId)?.name || 'Client'
+          (await getClient(task.clientId))?.name || 'Client'
         )).catch(() => {});
       }
       if (statusChange === 'approved') {
@@ -479,7 +479,7 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, (req: A
     }
     task.comments.push(comment);
     task.updatedAt = now;
-    saveProductionTask(task);
+    await saveProductionTask(task);
     const result: any = { success: true, task };
     res.json(result);
   } catch (e: any) {
@@ -488,10 +488,10 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, (req: A
 });
 
 /** POST /api/production/tasks/:id/review — Manager approve or request changes. */
-router.post('/tasks/:id/review', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.post('/tasks/:id/review', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -512,7 +512,7 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, (req: Authenti
       // Fire-and-forget push notification for approval
       sendPushToUser(task.designerId, NOTIFY.designApproved(
         task.title || 'Task',
-        getClient(task.clientId)?.name || 'Client'
+        (await getClient(task.clientId))?.name || 'Client'
       )).catch(() => {});
     } else if (action === 'request_changes') {
       task.status = 'changes_requested';
@@ -520,13 +520,13 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, (req: Authenti
       // Fire-and-forget push notification for revision request
       sendPushToUser(task.designerId, NOTIFY.designRevision(
         task.title || 'Task',
-        getClient(task.clientId)?.name || 'Client'
+        (await getClient(task.clientId))?.name || 'Client'
       )).catch(() => {});
     } else {
       return res.status(400).json({ error: 'action must be approve or request_changes' });
     }
     task.updatedAt = now;
-    saveProductionTask(task);
+    await saveProductionTask(task);
     const result: any = { success: true, task };
     res.json(result);
   } catch (e: any) {
@@ -535,14 +535,14 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, (req: Authenti
 });
 
 /** DELETE /api/production/tasks/:id — Delete task (agency only). */
-router.delete('/tasks/:id', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.delete('/tasks/:id', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const task = getProductionTaskById(req.params.id);
+    const task = await getProductionTaskById(req.params.id);
     if (!task || task.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    deleteProductionTask(req.params.id);
+    await deleteProductionTask(req.params.id);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to delete task' });
@@ -550,10 +550,10 @@ router.delete('/tasks/:id', authenticate, requireAgencyOnly, (req: Authenticated
 });
 
 /** POST /api/production/migrate-approved-art — One-time fix: sync all approved task art back to approvals page. */
-router.post('/migrate-approved-art', authenticate, requireAgencyOnly, (req: AuthenticatedRequest, res) => {
+router.post('/migrate-approved-art', authenticate, requireAgencyOnly, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const tasks = getProductionTasksByAgency(agencyId);
+    const tasks = await getProductionTasksByAgency(agencyId);
     const approvedTasks = tasks.filter((t: ProductionTask) =>
       (t.status === 'approved' || t.status === 'ready_to_post') &&
       t.finalArt && t.finalArt.length > 0
@@ -562,7 +562,7 @@ router.post('/migrate-approved-art', authenticate, requireAgencyOnly, (req: Auth
     const results: { taskId: string; approvalId: string; clientId: string; status: string }[] = [];
 
     for (const task of approvedTasks) {
-      const state = getPortalState(task.agencyId, task.clientId);
+      const state = await getPortalState(task.agencyId, task.clientId);
       if (!state || !Array.isArray(state.approvals)) continue;
 
       const item = state.approvals.find(
@@ -583,7 +583,7 @@ router.post('/migrate-approved-art', authenticate, requireAgencyOnly, (req: Auth
       item.productionTaskId = task.id;
       item.updatedAt = new Date().toISOString();
 
-      savePortalState(task.agencyId, task.clientId, state);
+      await savePortalState(task.agencyId, task.clientId, state);
       results.push({ taskId: task.id, approvalId: item.id, clientId: task.clientId, status: 'migrated' });
     }
 

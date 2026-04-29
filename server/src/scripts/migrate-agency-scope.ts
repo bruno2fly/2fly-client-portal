@@ -12,10 +12,10 @@ import type { Agency, Asset } from '../types.js';
 
 const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
 
-function main() {
+async function main() {
   console.log('Migration: agency-scope...');
 
-  const agencies = getAgencies();
+  const agencies = await getAgencies();
   let agency = agencies[DEFAULT_AGENCY_ID];
   if (!agency) {
     agency = {
@@ -23,17 +23,17 @@ function main() {
       name: '2Fly',
       createdAt: Date.now(),
     };
-    saveAgency(agency);
+    await saveAgency(agency);
     console.log('Created agency:', agency.id, agency.name);
   } else if (agency.name !== '2Fly') {
     agency.name = '2Fly';
-    saveAgency(agency);
+    await saveAgency(agency);
     console.log('Updated agency name to 2Fly');
   } else {
     console.log('Agency 2Fly already present');
   }
 
-  const assets = getAssets();
+  const assets = await getAssets();
   let changed = 0;
   for (const a of assets) {
     if (!a.agencyId && a.workspaceId) {
@@ -42,19 +42,19 @@ function main() {
     }
   }
   if (changed > 0) {
-    saveAssets(assets);
+    await saveAssets(assets);
     console.log('Backfilled agencyId on', changed, 'assets');
   } else {
     console.log('No assets to backfill');
   }
 
   // Backfill agencyId on clients that were created before agency-scoping
-  const clients = getClients();
+  const clients = await getClients();
   let clientsChanged = 0;
   for (const c of Object.values(clients)) {
     if (!c.agencyId) {
       c.agencyId = DEFAULT_AGENCY_ID;
-      saveClient(c);
+      await saveClient(c);
       clientsChanged++;
     }
   }

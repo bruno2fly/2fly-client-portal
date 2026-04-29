@@ -134,7 +134,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       updatedAt: now,
     };
 
-    saveMetaIntegration(integration);
+    await saveMetaIntegration(integration);
 
     res.send(renderCallbackPage(true, undefined, page.name, igAccount?.username, clientId));
   } catch (error: any) {

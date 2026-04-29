@@ -41,14 +41,15 @@ function defaultPortalState(clientId: string, name: string, whatsapp?: string): 
  * GET /api/agency/clients
  * List clients for the agency (agencyId-scoped). Includes saved credentials (password) when present.
  */
-router.get('/clients', (req: AuthenticatedRequest, res) => {
+router.get('/clients', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const list = getClientsByAgency(agencyId);
-    const clients = list.map((c) => {
-      const password = getClientCredentials(agencyId, c.id);
-      return { ...c, password: password ?? undefined };
-    });
+    const list = await getClientsByAgency(agencyId);
+    const clients = [];
+    for (const c of list) {
+      const password = await getClientCredentials(agencyId, c.id);
+      clients.push({ ...c, password: password ?? undefined });
+    }
     res.json({ success: true, clients });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to list clients' });
@@ -59,7 +60,7 @@ router.get('/clients', (req: AuthenticatedRequest, res) => {
  * POST /api/agency/clients
  * Create a client. agencyId from session.
  */
-router.post('/clients', (req: AuthenticatedRequest, res) => {
+router.post('/clients', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const body = req.body || {};
@@ -67,7 +68,7 @@ router.post('/clients', (req: AuthenticatedRequest, res) => {
     if (!id || !/^[a-z0-9-]+$/.test(id)) {
       return res.status(400).json({ error: 'Valid client id (lowercase, hyphens) required' });
     }
-    const existing = getClient(id);
+    const existing = await getClient(id);
     if (existing) {
       return res.status(400).json({ error: 'Client ID already exists' });
     }
@@ -98,15 +99,15 @@ router.post('/clients', (req: AuthenticatedRequest, res) => {
       internalNotes: body.internalNotes,
       logoUrl: body.logoUrl,
     };
-    saveClient(client);
+    await saveClient(client);
     const pwd = (body.password || '').toString();
-    if (pwd.length >= 6) saveClientCredentials(agencyId, id, pwd);
+    if (pwd.length >= 6) await saveClientCredentials(agencyId, id, pwd);
     const portal = defaultPortalState(
       id,
       client.name,
       client.primaryContactWhatsApp
     );
-    savePortalState(agencyId, id, portal);
+    await savePortalState(agencyId, id, portal);
     res.status(201).json({ success: true, client });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to create client' });
@@ -117,11 +118,11 @@ router.post('/clients', (req: AuthenticatedRequest, res) => {
  * PATCH /api/agency/clients/:id
  * Update a client. Must belong to agency.
  */
-router.patch('/clients/:id', (req: AuthenticatedRequest, res) => {
+router.patch('/clients/:id', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const id = (req.params.id || '').trim().toLowerCase();
-    const client = getClient(id);
+    const client = await getClient(id);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -151,9 +152,9 @@ router.patch('/clients/:id', (req: AuthenticatedRequest, res) => {
       logoUrl: body.logoUrl !== undefined ? body.logoUrl : client.logoUrl,
       clientLinks: body.clientLinks !== undefined ? body.clientLinks : client.clientLinks,
     };
-    saveClient(updated);
+    await saveClient(updated);
     const pwd = (body.password || '').toString();
-    if (pwd.length >= 6) saveClientCredentials(agencyId, id, pwd);
+    if (pwd.length >= 6) await saveClientCredentials(agencyId, id, pwd);
     res.json({ success: true, client: updated });
   } catch (e: any) {
     console.error('PATCH /api/agency/clients/:id error:', e);
@@ -165,17 +166,17 @@ router.patch('/clients/:id', (req: AuthenticatedRequest, res) => {
  * DELETE /api/agency/clients/:id
  * Delete a client and related portal state + credentials. Agency-scoped.
  */
-router.delete('/clients/:id', (req: AuthenticatedRequest, res) => {
+router.delete('/clients/:id', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const id = (req.params.id || '').trim().toLowerCase();
-    const client = getClient(id);
+    const client = await getClient(id);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    deletePortalState(agencyId, id);
-    deleteClientCredentials(agencyId, id);
-    deleteClient(id);
+    await deletePortalState(agencyId, id);
+    await deleteClientCredentials(agencyId, id);
+    await deleteClient(id);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to delete client' });
@@ -186,21 +187,21 @@ router.delete('/clients/:id', (req: AuthenticatedRequest, res) => {
  * GET /api/agency/portal-state?clientId=...
  * Portal state for a client (agency-scoped).
  */
-router.get('/portal-state', (req: AuthenticatedRequest, res) => {
+router.get('/portal-state', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const clientId = (req.query.clientId as string)?.trim();
     if (!clientId) {
       return res.status(400).json({ error: 'clientId required' });
     }
-    const client = getClient(clientId);
+    const client = await getClient(clientId);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    let state = getPortalState(agencyId, clientId);
+    let state = await getPortalState(agencyId, clientId);
     if (!state) {
       state = defaultPortalState(clientId, client.name, client.primaryContactWhatsApp);
-      savePortalState(agencyId, clientId, state);
+      await savePortalState(agencyId, clientId, state);
     }
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({ success: true, data: state });
@@ -213,7 +214,7 @@ router.get('/portal-state', (req: AuthenticatedRequest, res) => {
  * PUT /api/agency/portal-state
  * Body: { clientId, data }. Update portal state (agency-scoped).
  */
-router.put('/portal-state', (req: AuthenticatedRequest, res) => {
+router.put('/portal-state', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { clientId, data } = req.body || {};
@@ -221,7 +222,7 @@ router.put('/portal-state', (req: AuthenticatedRequest, res) => {
     if (!cid || !data || typeof data !== 'object') {
       return res.status(400).json({ error: 'clientId and data required' });
     }
-    const client = getClient(cid);
+    const client = await getClient(cid);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -236,7 +237,7 @@ router.put('/portal-state', (req: AuthenticatedRequest, res) => {
     if (!Array.isArray(state.assets)) {
       state.assets = [];
     }
-    savePortalState(agencyId, cid, state);
+    await savePortalState(agencyId, cid, state);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to save portal state' });
@@ -249,7 +250,7 @@ router.put('/portal-state', (req: AuthenticatedRequest, res) => {
  * Atomically marks a single request as "done" on the server.
  * This is immune to race conditions from full-state saves.
  */
-router.post('/request-done', (req: AuthenticatedRequest, res) => {
+router.post('/request-done', async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
     const { clientId, requestId } = (req as any).body || {};
@@ -258,11 +259,11 @@ router.post('/request-done', (req: AuthenticatedRequest, res) => {
     if (!cid || !rid) {
       return res.status(400).json({ error: 'clientId and requestId required' });
     }
-    const client = getClient(cid);
+    const client = await getClient(cid);
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    const state = getPortalState(agencyId, cid);
+    const state = await getPortalState(agencyId, cid);
     if (!state) {
       return res.status(404).json({ error: 'Portal state not found' });
     }
@@ -277,7 +278,7 @@ router.post('/request-done', (req: AuthenticatedRequest, res) => {
     // Add activity entry
     if (!state.activity) state.activity = [];
     (state.activity as any[]).unshift({ when: Date.now(), text: `Marked request as done: ${request.type || 'Request'}` });
-    savePortalState(agencyId, cid, state);
+    await savePortalState(agencyId, cid, state);
     console.log(`[agency] Request ${rid} marked done for client ${cid}`);
     res.json({ success: true, requestId: rid });
   } catch (e: any) {

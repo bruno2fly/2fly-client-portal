@@ -34,7 +34,7 @@ export interface PushPayload {
  */
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
   if (!initVapid()) return;
-  const subs = getPushSubscriptions();
+  const subs = await getPushSubscriptions();
   const userSubs = Object.values(subs).filter(s => s.userId === userId);
 
   for (const sub of userSubs) {
@@ -50,7 +50,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
     } catch (err: any) {
       // If subscription expired or invalid, remove it
       if (err.statusCode === 404 || err.statusCode === 410) {
-        deletePushSubscription(sub.endpoint);
+        await deletePushSubscription(sub.endpoint);
       }
       console.error(`[push] Failed to send to ${sub.userId}:`, err.message);
     }
@@ -67,8 +67,8 @@ export async function sendPushToRole(
 ): Promise<void> {
   if (!initVapid()) return;
   const roles = Array.isArray(role) ? role : [role];
-  const subs = getPushSubscriptions();
-  const users = getUsers();
+  const subs = await getPushSubscriptions();
+  const users = await getUsers();
 
   // Find user IDs matching the role
   const targetUserIds = new Set(
@@ -91,7 +91,7 @@ export async function sendPushToRole(
       );
     } catch (err: any) {
       if (err.statusCode === 404 || err.statusCode === 410) {
-        deletePushSubscription(sub.endpoint);
+        await deletePushSubscription(sub.endpoint);
       }
     }
   }
@@ -103,7 +103,7 @@ export async function sendPushToRole(
  */
 export async function sendPushToClient(clientId: string, payload: PushPayload): Promise<void> {
   if (!initVapid()) return;
-  const subs = getPushSubscriptions();
+  const subs = await getPushSubscriptions();
   const clientSubs = Object.values(subs).filter(s => s.userId === clientId);
 
   for (const sub of clientSubs) {
@@ -118,7 +118,7 @@ export async function sendPushToClient(clientId: string, payload: PushPayload): 
       );
     } catch (err: any) {
       if (err.statusCode === 404 || err.statusCode === 410) {
-        deletePushSubscription(sub.endpoint);
+        await deletePushSubscription(sub.endpoint);
       }
       console.error(`[push] Failed to send to client ${clientId}:`, err.message);
     }

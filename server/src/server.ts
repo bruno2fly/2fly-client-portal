@@ -222,21 +222,21 @@ app.post('/api/dev/clear-rate-limits', (req, res) => {
 
 // Dev-only: Generate invite link for owner user (for initial setup)
 // ⚠️ Remove this in production or add authentication
-app.get('/api/dev/generate-owner-invite', (req, res) => {
+app.get('/api/dev/generate-owner-invite', async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'This endpoint is only available in development' });
   }
 
   try {
     // Find owner user with INVITED status
-    const agencies = getAgencies();
+    const agencies = await getAgencies();
     const agencyList = Object.values(agencies);
     if (agencyList.length === 0) {
       return res.status(404).json({ error: 'No agency found. Run setup first.' });
     }
 
     const agencyId = agencyList[0].id;
-    const users = getUsersByAgency(agencyId);
+    const users = await getUsersByAgency(agencyId);
     const ownerUser = users.find(u => u.role === 'OWNER' && u.status === 'INVITED');
 
     if (!ownerUser) {
@@ -247,12 +247,12 @@ app.get('/api/dev/generate-owner-invite', (req, res) => {
     }
 
     // Invalidate old tokens
-    const oldTokens = getInviteTokensByUser(ownerUser.id);
-    oldTokens.forEach(t => {
+    const oldTokens = await getInviteTokensByUser(ownerUser.id);
+    for (const t of oldTokens) {
       if (!t.usedAt && t.expiresAt > Date.now()) {
-        markInviteTokenUsed(t.id);
+        await markInviteTokenUsed(t.id);
       }
-    });
+    }
 
     // Generate new token
     const { token, tokenHash } = generateToken();
@@ -268,7 +268,7 @@ app.get('/api/dev/generate-owner-invite', (req, res) => {
       createdAt: Date.now()
     };
 
-    saveInviteToken(inviteToken);
+    await saveInviteToken(inviteToken);
 
     // Generate invite link
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8000';
@@ -317,7 +317,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
       return res.status(400).json({ error: 'Agency ID is required. Staff must belong to your agency.' });
     }
 
-    const existingUser = getUserByEmail(targetAgencyId, email);
+    const existingUser = await getUserByEmail(targetAgencyId, email);
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
@@ -325,7 +325,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
     let username = generateUsernameFromEmail(email);
     let counter = 1;
     let finalUsername = username;
-    const existingUsernames = getUsersByAgency(targetAgencyId).map(u => {
+    const existingUsernames = (await getUsersByAgency(targetAgencyId)).map(u => {
       return u.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     });
     while (existingUsernames.includes(finalUsername)) {
@@ -356,7 +356,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
       updatedAt: Date.now()
     };
 
-    saveUser(newUser);
+    await saveUser(newUser);
 
     // Send credentials email
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8000';
@@ -365,7 +365,7 @@ app.post('/api/users/invite-with-pin', authenticate, requireCanManageUsers, asyn
     await sendCredentialsEmail(email, userName, finalUsername, password, loginUrl);
 
     // Log audit
-    saveAuditLog({
+    await saveAuditLog({
       id: generateId('audit'),
       agencyId: targetAgencyId,
       actorUserId: req.user!.id,
@@ -428,6 +428,57 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+
+// ── JSON→Postgres one-time migration endpoint ──
+// POST /api/migrate-json-to-postgres — runs the data migration from JSON files to Postgres.
+// Protected: only OWNER role. Safe to re-run (uses upsert).
+app.post('/api/migrate-json-to-postgres', authenticate, async (req: any, res: any) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only OWNER can run migration' });
+    }
+    const { migrateAll } = await import('./scripts/migrate-json-to-postgres.js');
+    const stats = await migrateAll();
+    res.json({ success: true, stats });
+  } catch (e: any) {
+    console.error('[migrate] Migration failed:', e);
+    res.status(500).json({ error: e.message || 'Migration failed' });
+  }
+});
+
+// ── Migration verification endpoint ──
+// GET /api/migration-status — compare JSON file record counts vs Postgres counts
+app.get('/api/migration-status', authenticate, async (req: any, res: any) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only OWNER can check migration status' });
+    }
+    const { PrismaClient } = await import('@prisma/client');
+    const p = new PrismaClient();
+    const counts: Record<string, number> = {
+      agencies: await p.agency.count(),
+      clients: await p.client.count(),
+      users: await p.user.count(),
+      portalStates: await p.portalState.count(),
+      assets: await p.asset.count(),
+      metaIntegrations: await p.metaIntegration.count(),
+      scheduledPosts: await p.scheduledPost.count(),
+      productionTasks: await p.productionTask.count(),
+      productionTaskComments: await p.productionTaskComment.count(),
+      inviteTokens: await p.inviteToken.count(),
+      passwordResetTokens: await p.passwordResetToken.count(),
+      auditLogs: await p.auditLog.count(),
+      pushSubscriptions: await p.pushSubscription.count(),
+      brandKits: await p.brandKit.count(),
+      aiImages: await p.aIImage.count(),
+      references: await p.referenceImage.count(),
+    };
+    await p.$disconnect();
+    res.json({ success: true, postgres: counts });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to check migration status' });
+  }
+});
 
 // Sentry error handler (must be after routes)
 Sentry.setupExpressErrorHandler(app);

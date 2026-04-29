@@ -32,7 +32,7 @@ router.post('/subscribe', authenticate, async (req: AuthenticatedRequest, res) =
     const agencyId = (req as any).auth?.agencyId || (req as any).agencyId;
     const role = (req as any).auth?.role || (req as any).user?.role || 'STAFF';
 
-    savePushSubscription({
+    await savePushSubscription({
       id: 'push_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       userId: userId || 'unknown',
       agencyId: agencyId || '',
@@ -53,7 +53,7 @@ router.post('/unsubscribe', authenticate, async (req: AuthenticatedRequest, res)
   try {
     const { endpoint } = req.body;
     if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
-    deletePushSubscription(endpoint);
+    await deletePushSubscription(endpoint);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -81,8 +81,8 @@ router.post('/test', authenticate, async (req: AuthenticatedRequest, res) => {
 });
 
 // GET /api/notifications/debug-subs — list all subscriptions (debug)
-router.get('/debug-subs', authenticate, (req: AuthenticatedRequest, res) => {
-  const subs = getPushSubscriptions();
+router.get('/debug-subs', authenticate, async (req: AuthenticatedRequest, res) => {
+  const subs = await getPushSubscriptions();
   const list = Object.values(subs).map(s => ({
     userId: s.userId,
     role: s.role,
@@ -100,8 +100,8 @@ router.get('/client-status', authenticate, async (req: AuthenticatedRequest, res
     const agencyId = (req as any).auth?.agencyId || (req as any).agencyId;
     if (!agencyId) return res.status(400).json({ error: 'No agencyId' });
 
-    const clients = getClientsByAgency(agencyId);
-    const subs = getPushSubscriptions();
+    const clients = await getClientsByAgency(agencyId);
+    const subs = await getPushSubscriptions();
     const allSubs = Object.values(subs);
 
     const result = clients.map(c => {
@@ -139,7 +139,7 @@ router.get('/client-status', authenticate, async (req: AuthenticatedRequest, res
 router.post('/send-to-all', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { title, body } = req.body;
-    const subs = getPushSubscriptions();
+    const subs = await getPushSubscriptions();
     const allSubs = Object.values(subs);
     let sent = 0;
 
@@ -165,7 +165,7 @@ router.post('/send-to-all', authenticate, async (req: AuthenticatedRequest, res)
         }
       } catch (err: any) {
         if (err.statusCode === 404 || err.statusCode === 410) {
-          deletePushSubscription(sub.endpoint);
+          await deletePushSubscription(sub.endpoint);
         }
       }
     }
@@ -183,7 +183,7 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
     const { sendPushToUser } = await import('../lib/pushService.js');
-    const subs = getPushSubscriptions();
+    const subs = await getPushSubscriptions();
     const allSubs = Object.values(subs);
 
     // Client portal subscriptions have userId = clientId (set by authenticate middleware)
@@ -220,7 +220,7 @@ router.post('/send-to-client', authenticate, async (req: AuthenticatedRequest, r
         } catch (err: any) {
           console.error(`[send-to-client] Failed: ${err.message}`);
           if (err.statusCode === 404 || err.statusCode === 410) {
-            deletePushSubscription(sub.endpoint);
+            await deletePushSubscription(sub.endpoint);
           }
         }
       }

@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node --max-old-space-size=2048 ./node_modules/typescript/bin/tsc",
+    "build": "npx prisma generate && node --max-old-space-size=2048 ./node_modules/typescript/bin/tsc",
+    "postinstall": "npx prisma generate",
+    "db:migrate": "npx prisma migrate deploy",
+    "db:seed": "npx tsx src/scripts/migrate-json-to-postgres.ts",
     "seed": "npx tsx create-admin-user.ts",
-    "start": "node dist/server.js",
+    "start": "npx prisma migrate deploy && node dist/server.js",
     "start:with-seed": "npm run seed && node dist/server.js",
     "setup": "tsx src/scripts/setup.ts",
     "setup:cli": "node setup-cli.js",
@@ -15,6 +18,7 @@
     "recover:portal": "npx tsx src/recover-data.ts"
   },
   "dependencies": {
+    "@prisma/client": "^7.8.0",
     "@sentry/node": "^10.50.0",
     "@types/web-push": "^3.6.4",
     "@vercel/blob": "^0.27.0",
@@ -28,6 +32,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "openai": "^6.32.0",
+    "prisma": "^7.8.0",
     "tsx": "^4.7.0",
     "web-push": "^3.6.7"
   },
