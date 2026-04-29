@@ -49,6 +49,30 @@ if (!existsSync(DB_DIR)) {
 }
 console.log(`[db] Data directory: ${DB_DIR} (volume: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'yes' : 'no'})`);
 
+// ── In-memory cache — read each file once, serve from memory ──
+// Every readJSON() was doing readFileSync + JSON.parse on EVERY request.
+// With large files (portal-state, scheduled-posts, etc.) this caused
+// multi-second response times and OOM crashes. Now we read once and cache.
+const _cache = new Map<string, { data: any; loadedAt: number }>();
+
+function cacheGet<T>(file: string): T | undefined {
+  const entry = _cache.get(file);
+  return entry ? (entry.data as T) : undefined;
+}
+
+function cacheSet<T>(file: string, data: T): void {
+  _cache.set(file, { data, loadedAt: Date.now() });
+}
+
+function cacheInvalidate(file: string): void {
+  _cache.delete(file);
+}
+
+/** Invalidate all cached data (used after cleanup trims files on disk). */
+function cacheInvalidateAll(): void {
+  _cache.clear();
+}
+
 /** Atomic replace: tmp file then rename (avoids half-written JSON if process dies mid-write). */
 function atomicWriteUtf8(targetPath: string, content: string): void {
   const tmpFile = targetPath + '.tmp';
@@ -66,8 +90,14 @@ function atomicWriteUtf8(targetPath: string, content: string): void {
 }
 
 function readJSON<T>(file: string, defaultValue: T): T {
+  // ── Check in-memory cache first ──
+  const cached = cacheGet<T>(file);
+  if (cached !== undefined) return cached;
+
+  // ── Cache miss — read from disk (only happens once per file) ──
   if (!existsSync(file)) {
     atomicWriteUtf8(file, JSON.stringify(defaultValue, null, 2));
+    cacheSet(file, defaultValue);
     return defaultValue;
   }
   try {
@@ -82,12 +112,16 @@ function readJSON<T>(file: string, defaultValue: T): T {
           const restored = JSON.parse(backupContent) as T;
           console.log(`[db] Restored ${file} from backup`);
           atomicWriteUtf8(file, backupContent);
+          cacheSet(file, restored);
           return restored;
         }
       }
+      cacheSet(file, defaultValue);
       return defaultValue;
     }
-    return JSON.parse(content) as T;
+    const parsed = JSON.parse(content) as T;
+    cacheSet(file, parsed);
+    return parsed;
   } catch (e) {
     console.error(`[db] Error reading ${file}:`, e);
     // Try backup before falling back to empty default (which causes data loss)
@@ -99,12 +133,14 @@ function readJSON<T>(file: string, defaultValue: T): T {
           const restored = JSON.parse(backupContent) as T;
           console.log(`[db] Restored ${file} from backup after read error`);
           atomicWriteUtf8(file, backupContent);
+          cacheSet(file, restored);
           return restored;
         }
       }
     } catch (backupErr) {
       console.error(`[db] Backup read also failed for ${file}:`, backupErr);
     }
+    cacheSet(file, defaultValue);
     return defaultValue;
   }
 }
@@ -133,6 +169,8 @@ function writeJSON<T>(file: string, data: T): void {
     }
   }
   atomicWriteUtf8(file, json);
+  // ── Update in-memory cache so subsequent reads are instant ──
+  cacheSet(file, data);
 }
 
 /** If portal-state.json or clients.json is corrupt on boot, restore from .bak before any request runs. */
@@ -390,10 +428,18 @@ function cleanupDiskSpace(): void {
   }
 }
 
-// Cleanup disabled - caused data issues
-// cleanupDiskSpace();
-// const cleanupInterval = setInterval(cleanupDiskSpace, 6 * 60 * 60 * 1000);
-// cleanupInterval.unref();
+// Run cleanup on startup (safe with NODE_OPTIONS=--max-old-space-size=2048)
+// Trims bloated JSON files so subsequent reads are fast.
+cleanupDiskSpace();
+// Invalidate cache after cleanup so we re-read the trimmed files
+cacheInvalidateAll();
+console.log('[db] Startup cleanup complete, cache cleared');
+// Run cleanup every 6 hours
+const cleanupInterval = setInterval(() => {
+  cleanupDiskSpace();
+  cacheInvalidateAll();
+}, 6 * 60 * 60 * 1000);
+cleanupInterval.unref();
 
 // Workspaces
 export function getWorkspaces(): Record<string, Workspace> {
