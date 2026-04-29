@@ -118,7 +118,7 @@ async function detectConflictForNewConnection(
   targetClientId: string,
   igId: string | undefined,
   pageId: string | undefined
-): { conflictingClientId: string; conflictingClientName: string; reason: 'instagram' | 'page' } | null {
+): Promise<{ conflictingClientId: string; conflictingClientName: string; reason: 'instagram' | 'page' } | null> {
   const all = Object.values(await getMetaIntegrations()).filter(
     (i: any) => i.agencyId === agencyId && i.clientId !== targetClientId && (i.status || 'connected') !== 'disconnected'
   );
