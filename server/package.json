@@ -11,7 +11,7 @@
     "db:migrate": "npx prisma migrate deploy",
     "db:seed": "npx tsx src/scripts/migrate-json-to-postgres.ts",
     "seed": "npx tsx create-admin-user.ts",
-    "start": "npx prisma migrate deploy && node dist/server.js",
+    "start": "npx prisma migrate deploy && node migrate-portal-states.js && node dist/server.js",
     "start:with-seed": "npm run seed && node dist/server.js",
     "setup": "tsx src/scripts/setup.ts",
     "setup:cli": "node setup-cli.js",
