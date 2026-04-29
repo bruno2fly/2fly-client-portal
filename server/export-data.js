@@ -27,6 +27,33 @@ const server = http.createServer((req, res) => {
     } catch (e) {
       res.end(JSON.stringify({ error: e.message, dataDir: DATA_DIR }));
     }
+  } else if (req.url.startsWith('/file/')) {
+    // Serve a single file by name: /file/clients.json
+    const filename = decodeURIComponent(req.url.slice(6));
+    const filePath = path.join(DATA_DIR, filename);
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      res.end(raw);
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message }));
+    }
+  } else if (req.url === '/dump-small') {
+    // Return all JSON files EXCEPT portal-state (too large)
+    const result = {};
+    try {
+      const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json') && !f.includes('portal-state') && !f.includes('.bak'));
+      for (const f of files) {
+        try {
+          const raw = fs.readFileSync(path.join(DATA_DIR, f), 'utf-8');
+          result[f] = raw.trim() ? JSON.parse(raw) : {};
+        } catch (e) {
+          result[f] = { _error: e.message };
+        }
+      }
+      res.end(JSON.stringify(result));
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message, dataDir: DATA_DIR }));
+    }
   } else if (req.url === '/ls') {
     try {
       const files = fs.readdirSync(DATA_DIR);
@@ -39,7 +66,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: e.message, dataDir: DATA_DIR }));
     }
   } else {
-    res.end(JSON.stringify({ status: 'ok', endpoints: ['/dump', '/ls'] }));
+    res.end(JSON.stringify({ status: 'ok', endpoints: ['/dump', '/dump-small', '/ls', '/file/:name'] }));
   }
 });
 
