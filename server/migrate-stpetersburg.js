@@ -1,9 +1,14 @@
 /**
- * ONE-TIME: Migrate stpetersburg portal-state using chunked inserts.
+ * ONE-TIME: Migrate stpetersburg portal-state using a text assembly column.
  *
- * Large fields (approvals 33MB, requests 42MB) kill DB connections.
- * Solution: split JSON into 5MB text chunks, store in a temp table,
- * reassemble inside Postgres, then update PortalState.
+ * The 33MB+ fields can't be cast to jsonb in one step. Instead:
+ * 1. Store each field as raw TEXT in a helper column (no jsonb parsing)
+ * 2. Append text chunks to the helper column
+ * 3. At the end, rebuild data from all text fields using a single controlled cast
+ *
+ * Actually simplest approach: use a _migration_text table that stores the complete
+ * assembled text, then do the jsonb cast in a single optimized UPDATE with
+ * SET work_mem = '256MB' for the session.
  */
 import pg from 'pg';
 import https from 'https';
@@ -12,7 +17,7 @@ const RAILWAY_EXPORT_URL = 'https://api.2flyflow.com';
 const AGENCY_ID = 'agency_1737676800000_abc123';
 const CLIENT_ID = 'stpetersburg';
 const KEY = `${AGENCY_ID}:${CLIENT_ID}`;
-const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks (safe margin under connection limit)
+const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
 
 function fetchFile(url) {
   return new Promise((resolve, reject) => {
@@ -33,13 +38,14 @@ function fetchFile(url) {
   });
 }
 
-async function insertFieldChunked(fieldName, fieldData) {
+async function insertFieldViaTextColumn(fieldName, fieldData) {
   const sizeMB = (Buffer.byteLength(fieldData) / 1024 / 1024).toFixed(1);
 
   if (Buffer.byteLength(fieldData) < CHUNK_SIZE) {
-    // Small enough for a direct insert
+    // Small enough for direct insert
     console.log(`[stpetersburg] "${fieldName}" (${sizeMB} MB) — direct insert`);
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL, statement_timeout: 60000 });
+    client.on('error', () => {});
     await client.connect();
     try {
       await client.query(
@@ -54,85 +60,97 @@ async function insertFieldChunked(fieldName, fieldData) {
     return;
   }
 
-  // Large field — split into chunks and reassemble in Postgres
+  // Large field — use text column approach
   const numChunks = Math.ceil(fieldData.length / CHUNK_SIZE);
-  console.log(`[stpetersburg] "${fieldName}" (${sizeMB} MB) — ${numChunks} chunks`);
+  console.log(`[stpetersburg] "${fieldName}" (${sizeMB} MB) — ${numChunks} chunks via text column`);
 
-  // Create temp table
+  // Setup: create helper table with a TEXT column we can append to
   const setupClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  setupClient.on('error', () => {});
   await setupClient.connect();
   await setupClient.query(`
-    CREATE TABLE IF NOT EXISTS _migration_chunks (
-      field_name TEXT,
-      chunk_index INT,
-      chunk_data TEXT,
-      PRIMARY KEY (field_name, chunk_index)
+    CREATE TABLE IF NOT EXISTS _migration_text (
+      field_name TEXT PRIMARY KEY,
+      assembled TEXT DEFAULT ''
     )
   `);
-  await setupClient.query(`DELETE FROM _migration_chunks WHERE field_name = $1`, [fieldName]);
+  await setupClient.query(
+    `INSERT INTO _migration_text (field_name, assembled) VALUES ($1, '')
+     ON CONFLICT (field_name) DO UPDATE SET assembled = ''`,
+    [fieldName]
+  );
   await setupClient.end();
 
-  // Insert chunks
+  // Append chunks to the text column one at a time
   for (let i = 0; i < numChunks; i++) {
     const start = i * CHUNK_SIZE;
     const chunk = fieldData.slice(start, start + CHUNK_SIZE);
     const chunkMB = (Buffer.byteLength(chunk) / 1024 / 1024).toFixed(1);
 
-    const chunkClient = new pg.Client({ connectionString: process.env.DATABASE_URL, statement_timeout: 60000 });
+    const chunkClient = new pg.Client({ connectionString: process.env.DATABASE_URL, statement_timeout: 120000 });
+    chunkClient.on('error', () => {});
     await chunkClient.connect();
     try {
       await chunkClient.query(
-        `INSERT INTO _migration_chunks (field_name, chunk_index, chunk_data)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (field_name, chunk_index) DO UPDATE SET chunk_data = $3`,
-        [fieldName, i, chunk]
+        `UPDATE _migration_text SET assembled = assembled || $1 WHERE field_name = $2`,
+        [chunk, fieldName]
       );
       console.log(`[stpetersburg]   chunk ${i + 1}/${numChunks} (${chunkMB} MB) ✓`);
     } finally {
       await chunkClient.end();
     }
-
     await new Promise(r => setTimeout(r, 1000));
   }
 
-  // Reassemble in Postgres and update PortalState
-  console.log(`[stpetersburg] Reassembling "${fieldName}" in Postgres...`);
-  const assembleClient = new pg.Client({
+  // Now cast text→jsonb and update PortalState
+  // Use higher work_mem and longer timeout
+  console.log(`[stpetersburg] Converting "${fieldName}" text→jsonb in Postgres...`);
+  const castClient = new pg.Client({
     connectionString: process.env.DATABASE_URL,
-    statement_timeout: 0, // No timeout for reassembly
-    query_timeout: 600000,
+    statement_timeout: 0,
+    query_timeout: 0,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 5000,
   });
-  await assembleClient.connect();
+  castClient.on('error', (err) => {
+    console.error(`[stpetersburg] Cast client error: ${err.message}`);
+  });
+  await castClient.connect();
   try {
-    await assembleClient.query(`
+    // Boost memory for this session
+    await castClient.query(`SET work_mem = '256MB'`);
+    await castClient.query(`SET maintenance_work_mem = '256MB'`);
+
+    await castClient.query(`
       UPDATE "PortalState"
       SET "data" = jsonb_set(
         "data",
         $1::text[],
-        (SELECT string_agg(chunk_data, '' ORDER BY chunk_index)::jsonb
-         FROM _migration_chunks
-         WHERE field_name = $2)
+        (SELECT assembled::jsonb FROM _migration_text WHERE field_name = $2)
       ),
       "updatedAt" = NOW()
       WHERE "agencyId" = $3 AND "clientId" = $4
     `, [`{${fieldName}}`, fieldName, AGENCY_ID, CLIENT_ID]);
-    console.log(`[stpetersburg] ✓ "${fieldName}" reassembled and inserted`);
+
+    console.log(`[stpetersburg] ✓ "${fieldName}" done!`);
   } finally {
-    await assembleClient.end();
+    await castClient.end();
   }
 
-  // Clean up chunks
+  // Cleanup
   const cleanClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  cleanClient.on('error', () => {});
   await cleanClient.connect();
-  await cleanClient.query(`DELETE FROM _migration_chunks WHERE field_name = $1`, [fieldName]);
+  await cleanClient.query(`DELETE FROM _migration_text WHERE field_name = $1`, [fieldName]);
   await cleanClient.end();
 }
 
-console.log(`[stpetersburg] Starting chunked field-by-field migration...`);
+console.log(`[stpetersburg] Starting migration with text column approach...`);
 
 try {
-  // Check which fields already exist
+  // Check which fields exist
   const checkClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  checkClient.on('error', () => {});
   await checkClient.connect();
   const existing = await checkClient.query(
     `SELECT jsonb_object_keys("data") as key FROM "PortalState"
@@ -141,64 +159,58 @@ try {
   );
   await checkClient.end();
   const existingFields = new Set(existing.rows.map(r => r.key));
-  console.log(`[stpetersburg] Fields already in DB: ${[...existingFields].join(', ') || 'none'}`);
+  console.log(`[stpetersburg] Fields in DB: ${[...existingFields].join(', ') || 'none'}`);
 
-  // Always proceed — we'll skip individual fields that already exist
-  {
-    // Get field list
-    console.log('[stpetersburg] Getting field list from Railway...');
-    const fieldsRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-fields/${encodeURIComponent(KEY)}`);
-    const fields = JSON.parse(fieldsRaw);
+  // Get field list from Railway
+  console.log('[stpetersburg] Getting field list...');
+  const fieldsRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-fields/${encodeURIComponent(KEY)}`);
+  const fields = JSON.parse(fieldsRaw);
 
-    if (fields.error) {
-      console.error('[stpetersburg] Railway error:', fields.error);
-    } else {
-      console.log(`[stpetersburg] ${fields.length} fields to migrate`);
+  if (fields.error) {
+    console.error('[stpetersburg] Railway error:', fields.error);
+  } else {
+    // Ensure row exists
+    const initClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    initClient.on('error', () => {});
+    await initClient.connect();
+    await initClient.query(
+      `INSERT INTO "PortalState" ("agencyId", "clientId", "data", "updatedAt")
+       VALUES ($1, $2, '{}'::jsonb, NOW())
+       ON CONFLICT ("agencyId", "clientId") DO NOTHING`,
+      [AGENCY_ID, CLIENT_ID]
+    );
+    await initClient.end();
 
-      // Ensure empty row exists
-      const initClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
-      await initClient.connect();
-      await initClient.query(
-        `INSERT INTO "PortalState" ("agencyId", "clientId", "data", "updatedAt")
-         VALUES ($1, $2, '{}'::jsonb, NOW())
-         ON CONFLICT ("agencyId", "clientId") DO NOTHING`,
-        [AGENCY_ID, CLIENT_ID]
-      );
-      await initClient.end();
-
-      // Process each field — skip ones already in DB
-      let done = 0;
-      for (const field of fields) {
-        if (existingFields.has(field.name)) {
-          console.log(`[stpetersburg] "${field.name}" — already exists, skipping`);
-          done++;
-          continue;
-        }
-        try {
-          console.log(`[stpetersburg] Fetching "${field.name}"...`);
-          const fieldData = await fetchFile(
-            `${RAILWAY_EXPORT_URL}/portal-state-field/${encodeURIComponent(KEY)}/${encodeURIComponent(field.name)}`
-          );
-
-          await insertFieldChunked(field.name, fieldData);
-          done++;
-        } catch (e) {
-          console.error(`[stpetersburg] ✗ "${field.name}":`, e.message?.slice(0, 300));
-        }
-
-        await new Promise(r => setTimeout(r, 2000));
+    let done = 0;
+    for (const field of fields) {
+      if (existingFields.has(field.name)) {
+        console.log(`[stpetersburg] "${field.name}" — exists, skipping`);
+        done++;
+        continue;
       }
-
-      console.log(`\n[stpetersburg] Complete: ${done}/${fields.length} fields`);
-
-      // Clean up temp table
       try {
-        const dropClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
-        await dropClient.connect();
-        await dropClient.query('DROP TABLE IF EXISTS _migration_chunks');
-        await dropClient.end();
-      } catch (e) { /* ignore */ }
+        console.log(`[stpetersburg] Fetching "${field.name}"...`);
+        const fieldData = await fetchFile(
+          `${RAILWAY_EXPORT_URL}/portal-state-field/${encodeURIComponent(KEY)}/${encodeURIComponent(field.name)}`
+        );
+        await insertFieldViaTextColumn(field.name, fieldData);
+        done++;
+      } catch (e) {
+        console.error(`[stpetersburg] ✗ "${field.name}":`, e.message?.slice(0, 300));
+      }
+      await new Promise(r => setTimeout(r, 2000));
     }
+    console.log(`\n[stpetersburg] Complete: ${done}/${fields.length} fields`);
+
+    // Final cleanup
+    try {
+      const dropClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+      dropClient.on('error', () => {});
+      await dropClient.connect();
+      await dropClient.query('DROP TABLE IF EXISTS _migration_text');
+      await dropClient.query('DROP TABLE IF EXISTS _migration_chunks');
+      await dropClient.end();
+    } catch (e) { /* ignore */ }
   }
 } catch (e) {
   console.error('[stpetersburg] Error:', e.message?.slice(0, 500));
