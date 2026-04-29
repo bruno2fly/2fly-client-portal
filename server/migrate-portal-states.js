@@ -1,10 +1,8 @@
 /**
  * ONE-TIME: Migrate portal-state entries from Railway → Render Postgres
- * Uses RAW SQL to avoid JSON.parse() in Node.js — inserts the JSON string
- * directly into Postgres which handles JSON natively. This prevents OOM
- * on entries like stpetersburg (75MB).
- *
- * Usage: node migrate-portal-states.js (runs on Render during startup)
+ * - Fresh PrismaClient per entry (prevents cascading connection failures)
+ * - Processes small entries first, big ones last
+ * - Uses raw SQL to avoid JSON.parse() OOM
  */
 import { PrismaClient } from '@prisma/client';
 import https from 'https';
@@ -30,81 +28,97 @@ function fetchFile(url) {
   });
 }
 
-console.log('[portal-state] Starting portal-state migration (raw SQL mode)...');
+async function upsertPortalState(agencyId, clientId, jsonString) {
+  // Fresh connection for each entry — if one fails, others still work
+  const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  });
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "PortalState" ("agencyId", "clientId", "data", "updatedAt")
+       VALUES ($1, $2, $3::jsonb, NOW())
+       ON CONFLICT ("agencyId", "clientId")
+       DO UPDATE SET "data" = $3::jsonb, "updatedAt" = NOW()`,
+      agencyId,
+      clientId,
+      jsonString
+    );
+    return true;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+console.log('[portal-state] Starting portal-state migration (raw SQL, fresh connections)...');
 
 try {
+  // 1. Get keys
   const keysRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-keys`);
   const keys = JSON.parse(keysRaw);
   console.log(`[portal-state] Found ${keys.length} entries`);
 
-  const prisma = new PrismaClient();
-  let migrated = 0, skipped = 0, errors = 0;
+  // 2. Check which ones already exist
+  const checkPrisma = new PrismaClient();
+  const existing = await checkPrisma.portalState.findMany({
+    select: { agencyId: true, clientId: true },
+  });
+  await checkPrisma.$disconnect();
 
-  for (const key of keys) {
-    const [agencyId, clientId] = key.split(':');
-    if (!agencyId || !clientId) {
-      console.warn(`[portal-state] Invalid key: ${key}`);
-      errors++;
-      continue;
-    }
+  const existingKeys = new Set(existing.map(e => `${e.agencyId}:${e.clientId}`));
+  const toMigrate = keys.filter(k => !existingKeys.has(k));
+  console.log(`[portal-state] ${existingKeys.size} already exist, ${toMigrate.length} to migrate`);
 
-    // Check if already migrated
-    try {
-      const existing = await prisma.portalState.findUnique({
-        where: { agencyId_clientId: { agencyId, clientId } },
-        select: { agencyId: true },
-      });
-      if (existing) {
-        console.log(`[portal-state] ${key} — already exists, skipping`);
-        skipped++;
-        continue;
+  if (toMigrate.length === 0) {
+    console.log('[portal-state] All portal states already migrated!');
+  } else {
+    // 3. Fetch sizes to sort small-first
+    const entries = [];
+    for (const key of toMigrate) {
+      console.log(`[portal-state] Downloading ${key}...`);
+      try {
+        const data = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-entry/${encodeURIComponent(key)}`);
+        entries.push({ key, data, size: Buffer.byteLength(data) });
+        console.log(`[portal-state]   ${(Buffer.byteLength(data) / 1024 / 1024).toFixed(1)} MB`);
+      } catch (e) {
+        console.error(`[portal-state] Failed to download ${key}:`, e.message);
       }
-    } catch (e) {
-      // If check fails, try to migrate anyway
     }
 
-    // Fetch raw JSON string from Railway
-    console.log(`[portal-state] Fetching ${key}...`);
-    let entryRaw;
-    try {
-      entryRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-entry/${encodeURIComponent(key)}`);
-    } catch (e) {
-      console.error(`[portal-state] Failed to fetch ${key}:`, e.message);
-      errors++;
-      continue;
+    // Sort smallest first
+    entries.sort((a, b) => a.size - b.size);
+    console.log(`[portal-state] Inserting ${entries.length} entries (smallest first)...`);
+
+    let migrated = 0, errors = 0;
+    for (const entry of entries) {
+      const [agencyId, clientId] = entry.key.split(':');
+      const sizeMB = (entry.size / 1024 / 1024).toFixed(1);
+
+      try {
+        console.log(`[portal-state] Inserting ${entry.key} (${sizeMB} MB)...`);
+        await upsertPortalState(agencyId, clientId, entry.data);
+        migrated++;
+        entry.data = null; // Free memory
+        console.log(`[portal-state] ✓ ${entry.key} — ${migrated}/${entries.length}`);
+      } catch (e) {
+        errors++;
+        entry.data = null;
+        console.error(`[portal-state] ✗ ${entry.key}:`, e.message?.slice(0, 300));
+      }
+
+      // Give DB and GC breathing room
+      await new Promise(r => setTimeout(r, 3000));
     }
 
-    const sizeMB = (Buffer.byteLength(entryRaw) / 1024 / 1024).toFixed(1);
-    console.log(`[portal-state] ${key}: ${sizeMB} MB — inserting via raw SQL...`);
-
-    // Insert using RAW SQL — no JSON.parse() needed!
-    // Postgres casts the string to jsonb natively, saving hundreds of MB of RAM
-    try {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "PortalState" ("agencyId", "clientId", "data", "updatedAt")
-         VALUES ($1, $2, $3::jsonb, NOW())
-         ON CONFLICT ("agencyId", "clientId")
-         DO UPDATE SET "data" = $3::jsonb, "updatedAt" = NOW()`,
-        agencyId,
-        clientId,
-        entryRaw
-      );
-
-      migrated++;
-      console.log(`[portal-state] ✓ ${key} — ${migrated} done`);
-    } catch (e) {
-      errors++;
-      console.error(`[portal-state] ✗ ${key}:`, e.message?.slice(0, 200));
-    }
-
-    // Free memory and give GC time
-    entryRaw = null;
-    await new Promise(r => setTimeout(r, 2000));
+    console.log(`\n[portal-state] Results: ${migrated} migrated, ${errors} errors, ${existingKeys.size} already existed`);
   }
-
-  await prisma.$disconnect();
-  console.log(`\n[portal-state] Complete: ${migrated} migrated, ${skipped} skipped, ${errors} errors (${keys.length} total)`);
 } catch (e) {
   console.error('[portal-state] Fatal error:', e);
-  process.exit(1);
+  // Don't exit(1) — let the server start anyway
 }
+
+console.log('[portal-state] Done. Starting server...\n');
