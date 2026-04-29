@@ -634,7 +634,23 @@ export function getClient(id: string): Client | null {
 
 export function getClientsByAgency(agencyId: string): Client[] {
   const clients = getClients();
-  return Object.values(clients).filter(c => c.agencyId === agencyId);
+  const result: Client[] = [];
+  let backfilled = 0;
+  for (const c of Object.values(clients)) {
+    if (c.agencyId === agencyId) {
+      result.push(c);
+    } else if (!c.agencyId) {
+      // Pre-migration client with no agencyId — adopt into requesting agency
+      c.agencyId = agencyId;
+      backfilled++;
+      result.push(c);
+    }
+  }
+  if (backfilled > 0) {
+    writeJSON(CLIENTS_FILE, clients);
+    console.log(`[db] Backfilled agencyId on ${backfilled} orphaned client(s)`);
+  }
+  return result;
 }
 
 export function saveClient(client: Client): void {

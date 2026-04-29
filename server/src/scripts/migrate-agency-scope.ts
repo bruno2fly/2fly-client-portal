@@ -7,7 +7,7 @@
  * Run: npx tsx src/scripts/migrate-agency-scope.ts (from server dir)
  */
 
-import { getAgencies, saveAgency, getAssets, saveAssets } from '../db.js';
+import { getAgencies, saveAgency, getAssets, saveAssets, getClients, saveClient } from '../db.js';
 import type { Agency, Asset } from '../types.js';
 
 const DEFAULT_AGENCY_ID = 'agency_1737676800000_abc123';
@@ -46,6 +46,22 @@ function main() {
     console.log('Backfilled agencyId on', changed, 'assets');
   } else {
     console.log('No assets to backfill');
+  }
+
+  // Backfill agencyId on clients that were created before agency-scoping
+  const clients = getClients();
+  let clientsChanged = 0;
+  for (const c of Object.values(clients)) {
+    if (!c.agencyId) {
+      c.agencyId = DEFAULT_AGENCY_ID;
+      saveClient(c);
+      clientsChanged++;
+    }
+  }
+  if (clientsChanged > 0) {
+    console.log('Backfilled agencyId on', clientsChanged, 'clients');
+  } else {
+    console.log('No clients to backfill');
   }
 
   console.log('Migration done.');
