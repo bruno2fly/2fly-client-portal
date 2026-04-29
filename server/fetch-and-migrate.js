@@ -14,7 +14,8 @@ import https from 'https';
 const RAILWAY_EXPORT_URL = 'https://api.2flyflow.com';
 const TMP_DIR = '/tmp/migration-data';
 
-// All JSON files to download
+// All JSON files to download — portal-state.json EXCLUDED (155MB, causes OOM on 512MB free tier)
+// Portal state will be migrated separately via streaming
 const FILES = [
   'agencies.json',
   'ai-images.json',
@@ -27,7 +28,6 @@ const FILES = [
   'invite-tokens.json',
   'meta-integrations.json',
   'password-reset-tokens.json',
-  'portal-state.json',
   'production-tasks.json',
   'push-subscriptions.json',
   'references.json',
@@ -96,7 +96,9 @@ async function downloadAll() {
     }
   }
 
-  console.log('[fetch] All files downloaded.');
+  // Write empty portal-state so migration script doesn't crash
+  writeFileSync(join(TMP_DIR, 'portal-state.json'), '{}');
+  console.log('[fetch] All files downloaded. (portal-state.json skipped — will migrate separately)');
 }
 
 async function runMigration() {
@@ -107,8 +109,64 @@ async function runMigration() {
   const { migrateAll } = await import('./dist/scripts/migrate-json-to-postgres.js');
   const stats = await migrateAll();
 
-  console.log('\n[fetch-and-migrate] Migration complete!');
+  console.log('\n[fetch-and-migrate] Core migration complete!');
   return stats;
+}
+
+/**
+ * Migrate portal-state entries one at a time to avoid OOM.
+ * Uses the /portal-state-keys and /portal-state-entry/:key endpoints
+ * on Railway export server to fetch one entry at a time (~14MB each).
+ */
+async function migratePortalStateOneByOne() {
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+
+  console.log('\n[portal-state] Fetching portal-state keys from Railway...');
+
+  let keys;
+  try {
+    const keysRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-keys`);
+    keys = JSON.parse(keysRaw);
+    console.log(`[portal-state] Found ${keys.length} portal state entries`);
+  } catch (e) {
+    console.error('[portal-state] Failed to get keys (Railway may need redeploy):', e.message);
+    console.log('[portal-state] Skipping portal-state migration — will retry on next deploy');
+    await prisma.$disconnect();
+    return;
+  }
+
+  let migrated = 0, errors = 0;
+  for (const key of keys) {
+    try {
+      const [agencyId, clientId] = key.split(':');
+      if (!agencyId || !clientId) {
+        console.warn(`[portal-state] Skipping invalid key: ${key}`);
+        errors++;
+        continue;
+      }
+
+      console.log(`[portal-state] Fetching ${key}...`);
+      const entryRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-entry/${encodeURIComponent(key)}`);
+      const state = JSON.parse(entryRaw);
+
+      await prisma.portalState.upsert({
+        where: { agencyId_clientId: { agencyId, clientId } },
+        update: { data: state },
+        create: { agencyId, clientId, data: state },
+      });
+
+      migrated++;
+      const sizeMB = (Buffer.byteLength(entryRaw) / 1024 / 1024).toFixed(1);
+      console.log(`[portal-state] ${migrated}/${keys.length} — ${key} (${sizeMB} MB)`);
+    } catch (e) {
+      errors++;
+      console.error(`[portal-state] Error for ${key}:`, e.message);
+    }
+  }
+
+  console.log(`[portal-state] Done: ${migrated}/${keys.length} migrated, ${errors} errors`);
+  await prisma.$disconnect();
 }
 
 // Main
@@ -119,6 +177,7 @@ console.log('══════════════════════�
 try {
   await downloadAll();
   await runMigration();
+  await migratePortalStateOneByOne();
   console.log('\n✅ Migration successful! All data transferred.');
 } catch (e) {
   console.error('\n❌ Migration failed:', e);

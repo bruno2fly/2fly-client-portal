@@ -54,6 +54,30 @@ const server = http.createServer((req, res) => {
     } catch (e) {
       res.end(JSON.stringify({ error: e.message, dataDir: DATA_DIR }));
     }
+  } else if (req.url === '/portal-state-keys') {
+    // Return just the top-level keys of portal-state.json (avoids loading 155MB into response)
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'portal-state.json'), 'utf-8');
+      const data = JSON.parse(raw);
+      const keys = Object.keys(data);
+      res.end(JSON.stringify(keys));
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message }));
+    }
+  } else if (req.url.startsWith('/portal-state-entry/')) {
+    // Serve a single portal-state entry by key: /portal-state-entry/agencyId:clientId
+    const key = decodeURIComponent(req.url.slice('/portal-state-entry/'.length));
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'portal-state.json'), 'utf-8');
+      const data = JSON.parse(raw);
+      if (key in data) {
+        res.end(JSON.stringify(data[key]));
+      } else {
+        res.end(JSON.stringify({ error: `Key "${key}" not found`, availableKeys: Object.keys(data) }));
+      }
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message }));
+    }
   } else if (req.url === '/ls') {
     try {
       const files = fs.readdirSync(DATA_DIR);
@@ -66,7 +90,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: e.message, dataDir: DATA_DIR }));
     }
   } else {
-    res.end(JSON.stringify({ status: 'ok', endpoints: ['/dump', '/dump-small', '/ls', '/file/:name'] }));
+    res.end(JSON.stringify({ status: 'ok', endpoints: ['/dump', '/dump-small', '/ls', '/file/:name', '/portal-state-keys', '/portal-state-entry/:key'] }));
   }
 });
 
