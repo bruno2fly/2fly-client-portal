@@ -78,6 +78,42 @@ const server = http.createServer((req, res) => {
     } catch (e) {
       res.end(JSON.stringify({ error: e.message }));
     }
+  } else if (req.url.startsWith('/portal-state-fields/')) {
+    // Return top-level field names of a portal-state entry
+    const key = decodeURIComponent(req.url.slice('/portal-state-fields/'.length));
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'portal-state.json'), 'utf-8');
+      const data = JSON.parse(raw);
+      if (key in data) {
+        const entry = data[key];
+        const fields = Object.keys(entry).map(f => ({
+          name: f,
+          size: JSON.stringify(entry[f]).length,
+        }));
+        res.end(JSON.stringify(fields));
+      } else {
+        res.end(JSON.stringify({ error: `Key "${key}" not found` }));
+      }
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message }));
+    }
+  } else if (req.url.startsWith('/portal-state-field/')) {
+    // Serve a single field of a portal-state entry: /portal-state-field/agencyId:clientId/fieldName
+    const rest = decodeURIComponent(req.url.slice('/portal-state-field/'.length));
+    const lastSlash = rest.lastIndexOf('/');
+    const key = rest.slice(0, lastSlash);
+    const field = rest.slice(lastSlash + 1);
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'portal-state.json'), 'utf-8');
+      const data = JSON.parse(raw);
+      if (key in data && field in data[key]) {
+        res.end(JSON.stringify(data[key][field]));
+      } else {
+        res.end(JSON.stringify({ error: `Field "${field}" not found in "${key}"` }));
+      }
+    } catch (e) {
+      res.end(JSON.stringify({ error: e.message }));
+    }
   } else if (req.url === '/ls') {
     try {
       const files = fs.readdirSync(DATA_DIR);
