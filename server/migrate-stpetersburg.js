@@ -17,7 +17,7 @@ const RAILWAY_EXPORT_URL = 'https://api.2flyflow.com';
 const AGENCY_ID = 'agency_1737676800000_abc123';
 const CLIENT_ID = 'stpetersburg';
 const KEY = `${AGENCY_ID}:${CLIENT_ID}`;
-const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB — smaller chunks to avoid crashing Postgres on 42MB fields
 
 function fetchFile(url) {
   return new Promise((resolve, reject) => {
@@ -80,6 +80,13 @@ async function insertFieldViaTextColumn(fieldName, fieldData) {
     [fieldName]
   );
   await setupClient.end();
+
+  // Clear any leftover data from previous failed attempts
+  const clearClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  clearClient.on('error', () => {});
+  await clearClient.connect();
+  await clearClient.query(`UPDATE _migration_text SET assembled = '' WHERE field_name = $1`, [fieldName]);
+  await clearClient.end();
 
   // Append chunks to the text column one at a time
   for (let i = 0; i < numChunks; i++) {
