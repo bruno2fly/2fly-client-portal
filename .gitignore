@@ -5,6 +5,7 @@ build/
 
 # Dependencies
 node_modules/
+server/package-lock.json
 
 # Environment
 .env
