@@ -1,6 +1,8 @@
 /**
  * ONE-TIME: Migrate portal-state entries from Railway → Render Postgres
- * Creates a fresh DB connection for each entry to avoid connection drops.
+ * Uses RAW SQL to avoid JSON.parse() in Node.js — inserts the JSON string
+ * directly into Postgres which handles JSON natively. This prevents OOM
+ * on entries like stpetersburg (75MB).
  *
  * Usage: node migrate-portal-states.js (runs on Render during startup)
  */
@@ -11,7 +13,7 @@ const RAILWAY_EXPORT_URL = 'https://api.2flyflow.com';
 
 function fetchFile(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 300000 }, (res) => {
+    https.get(url, { timeout: 600000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         fetchFile(res.headers.location).then(resolve).catch(reject);
         return;
@@ -28,14 +30,14 @@ function fetchFile(url) {
   });
 }
 
-console.log('[portal-state] Starting portal-state migration...');
+console.log('[portal-state] Starting portal-state migration (raw SQL mode)...');
 
 try {
-  // 1. Get all keys
   const keysRaw = await fetchFile(`${RAILWAY_EXPORT_URL}/portal-state-keys`);
   const keys = JSON.parse(keysRaw);
   console.log(`[portal-state] Found ${keys.length} entries`);
 
+  const prisma = new PrismaClient();
   let migrated = 0, skipped = 0, errors = 0;
 
   for (const key of keys) {
@@ -47,24 +49,21 @@ try {
     }
 
     // Check if already migrated
-    const checkPrisma = new PrismaClient();
     try {
-      const existing = await checkPrisma.portalState.findUnique({
+      const existing = await prisma.portalState.findUnique({
         where: { agencyId_clientId: { agencyId, clientId } },
         select: { agencyId: true },
       });
       if (existing) {
         console.log(`[portal-state] ${key} — already exists, skipping`);
         skipped++;
-        await checkPrisma.$disconnect();
         continue;
       }
     } catch (e) {
       // If check fails, try to migrate anyway
     }
-    await checkPrisma.$disconnect();
 
-    // Fetch entry from Railway
+    // Fetch raw JSON string from Railway
     console.log(`[portal-state] Fetching ${key}...`);
     let entryRaw;
     try {
@@ -76,33 +75,34 @@ try {
     }
 
     const sizeMB = (Buffer.byteLength(entryRaw) / 1024 / 1024).toFixed(1);
-    console.log(`[portal-state] ${key}: ${sizeMB} MB — inserting...`);
+    console.log(`[portal-state] ${key}: ${sizeMB} MB — inserting via raw SQL...`);
 
-    // Parse and insert with a FRESH connection
-    const prisma = new PrismaClient();
+    // Insert using RAW SQL — no JSON.parse() needed!
+    // Postgres casts the string to jsonb natively, saving hundreds of MB of RAM
     try {
-      const state = JSON.parse(entryRaw);
-      entryRaw = null; // Free memory
-
-      await prisma.portalState.upsert({
-        where: { agencyId_clientId: { agencyId, clientId } },
-        update: { data: state },
-        create: { agencyId, clientId, data: state },
-      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "PortalState" ("agencyId", "clientId", "data", "updatedAt")
+         VALUES ($1, $2, $3::jsonb, NOW())
+         ON CONFLICT ("agencyId", "clientId")
+         DO UPDATE SET "data" = $3::jsonb, "updatedAt" = NOW()`,
+        agencyId,
+        clientId,
+        entryRaw
+      );
 
       migrated++;
       console.log(`[portal-state] ✓ ${key} — ${migrated} done`);
     } catch (e) {
       errors++;
-      console.error(`[portal-state] ✗ ${key}:`, e.message);
-    } finally {
-      await prisma.$disconnect();
+      console.error(`[portal-state] ✗ ${key}:`, e.message?.slice(0, 200));
     }
 
-    // Small delay to let GC run
-    await new Promise(r => setTimeout(r, 1000));
+    // Free memory and give GC time
+    entryRaw = null;
+    await new Promise(r => setTimeout(r, 2000));
   }
 
+  await prisma.$disconnect();
   console.log(`\n[portal-state] Complete: ${migrated} migrated, ${skipped} skipped, ${errors} errors (${keys.length} total)`);
 } catch (e) {
   console.error('[portal-state] Fatal error:', e);
