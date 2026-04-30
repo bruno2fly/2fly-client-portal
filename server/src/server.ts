@@ -17,6 +17,7 @@ Sentry.init({
 });
 
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -107,6 +108,7 @@ app.use(cors({
 // Railway's edge proxy serves HTTP/2 to browsers and may reject or
 // corrupt responses containing them. The proper stability fix is
 // server.headersTimeout > server.keepAliveTimeout (set below).
+app.use(compression()); // gzip responses — reduces 33MB portal states to ~8MB over the wire
 app.use(cookieParser());
 // Security headers
 if (process.env.NODE_ENV === 'production') {

@@ -204,10 +204,8 @@ router.get('/portal-state', async (req: AuthenticatedRequest, res) => {
       state = defaultPortalState(clientId, client.name, client.primaryContactWhatsApp);
       await savePortalState(agencyId, clientId, state);
     }
-    // Strip base64 images before sending (reduces 33MB+ responses to KB)
-    const stripped = stripBase64FromPortalState(state);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json({ success: true, data: stripped });
+    res.json({ success: true, data: state });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to get portal state' });
   }
