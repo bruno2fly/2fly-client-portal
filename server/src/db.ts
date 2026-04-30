@@ -1001,6 +1001,57 @@ export async function getPortalState(agencyId: string, clientId: string): Promis
   return r ? (r.data as unknown as PortalStateData) : null;
 }
 
+/**
+ * Get a lightweight portal state: returns everything EXCEPT the heavy approvals
+ * images/base64 data. Uses SQL to extract only the fields the dashboard needs.
+ * For a client with 33MB of approvals images, this returns ~50KB instead.
+ */
+export async function getPortalStateLite(agencyId: string, clientId: string): Promise<PortalStateData | null> {
+  try {
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT
+        data->'client' as client,
+        data->'kpis' as kpis,
+        data->'needs' as needs,
+        data->'requests' as requests,
+        data->'assets' as assets,
+        data->'activity' as activity,
+        data->'seen' as seen,
+        (SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', a->>'id',
+            'title', a->>'title',
+            'status', a->>'status',
+            'type', a->>'type',
+            'dueDate', a->>'dueDate',
+            'postDate', a->>'postDate',
+            'caption', a->>'caption',
+            'platform', a->>'platform',
+            'pillar', a->>'pillar',
+            'createdAt', a->>'createdAt'
+          )
+        ) FROM jsonb_array_elements(data->'approvals') a) as approvals
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${clientId}
+    `;
+    if (!rows || rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      client: row.client || { id: clientId, name: clientId },
+      kpis: row.kpis || { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 },
+      approvals: row.approvals || [],
+      needs: row.needs || [],
+      requests: row.requests || [],
+      assets: row.assets || [],
+      activity: row.activity || [],
+      seen: row.seen ?? false,
+    } as PortalStateData;
+  } catch (e: any) {
+    console.warn('[db] getPortalStateLite failed, falling back to full load:', e.message);
+    return getPortalState(agencyId, clientId);
+  }
+}
+
 export async function savePortalState(agencyId: string, clientId: string, data: PortalStateData): Promise<void> {
   // Read existing to apply merge logic
   const existing = await getPortalState(agencyId, clientId);
@@ -1012,6 +1063,21 @@ export async function savePortalState(agencyId: string, clientId: string, data: 
         `[db] WARNING: savePortalState for ${agencyId}:${clientId} would clear ${existing.approvals.length} approvals. Preserving existing approvals.`,
       );
       data.approvals = existing.approvals;
+    } else {
+      // Merge: preserve heavy fields (images, media) from existing approvals
+      // when incoming data was served via getPortalStateLite (which strips them)
+      const existingApprovalsById: Record<string, any> = {};
+      for (const a of existing.approvals as any[]) {
+        if (a && a.id) existingApprovalsById[a.id] = a;
+      }
+      data.approvals = (data.approvals as any[]).map((a: any) => {
+        if (!a || !a.id) return a;
+        const prev = existingApprovalsById[a.id];
+        if (!prev) return a;
+        // Merge: copy over any fields from prev that are missing in incoming
+        const merged = { ...prev, ...a };
+        return merged;
+      });
     }
   }
 

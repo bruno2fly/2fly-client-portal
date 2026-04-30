@@ -12,6 +12,7 @@ import {
   saveClient,
   deleteClient,
   getPortalState,
+  getPortalStateLite,
   savePortalState,
   deletePortalState,
   getClientCredentials,
@@ -199,7 +200,8 @@ router.get('/portal-state', async (req: AuthenticatedRequest, res) => {
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    let state = await getPortalState(agencyId, clientId);
+    // Use lite query to avoid loading 33MB+ of approval images from JSONB
+    let state = await getPortalStateLite(agencyId, clientId);
     if (!state) {
       state = defaultPortalState(clientId, client.name, client.primaryContactWhatsApp);
       await savePortalState(agencyId, clientId, state);
