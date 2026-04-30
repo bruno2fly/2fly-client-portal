@@ -1074,8 +1074,12 @@ export async function savePortalState(agencyId: string, clientId: string, data: 
         if (!a || !a.id) return a;
         const prev = existingApprovalsById[a.id];
         if (!prev) return a;
-        // Merge: copy over any fields from prev that are missing in incoming
-        const merged = { ...prev, ...a };
+        // Merge: start with existing, overlay incoming, but skip stripped fields
+        const merged = { ...prev };
+        for (const [key, val] of Object.entries(a)) {
+          if (typeof val === 'string' && val === '[base64-stripped]') continue; // preserve original
+          merged[key] = val;
+        }
         return merged;
       });
     }
@@ -1091,10 +1095,20 @@ export async function savePortalState(agencyId: string, clientId: string, data: 
     data.requests = data.requests.map((r: any) => {
       if (!r || !r.id) return r;
       const prev = existingById[r.id];
-      if (prev && (prev.status === 'done' || prev.done === true) && r.status !== 'done') {
-        return { ...r, status: 'done', done: true, doneAt: prev.doneAt || r.doneAt || Date.now() };
+      if (!prev) return r;
+      // Merge: preserve base64 image data from existing when incoming has stripped markers
+      const merged = { ...prev };
+      for (const [key, val] of Object.entries(r)) {
+        if (typeof val === 'string' && val === '[base64-stripped]') continue;
+        merged[key] = val;
       }
-      return r;
+      // Once done, never revert
+      if ((prev.status === 'done' || prev.done === true) && merged.status !== 'done') {
+        merged.status = 'done';
+        merged.done = true;
+        merged.doneAt = prev.doneAt || merged.doneAt || Date.now();
+      }
+      return merged;
     });
   }
 

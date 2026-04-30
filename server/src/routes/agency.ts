@@ -200,14 +200,16 @@ router.get('/portal-state', async (req: AuthenticatedRequest, res) => {
     if (!client || client.agencyId !== agencyId) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    // Use lite query to avoid loading 33MB+ of approval images from JSONB
-    let state = await getPortalStateLite(agencyId, clientId);
+    let state = await getPortalState(agencyId, clientId);
     if (!state) {
       state = defaultPortalState(clientId, client.name, client.primaryContactWhatsApp);
       await savePortalState(agencyId, clientId, state);
     }
+    // Strip base64 images from response only (saves 33MB+ transfer)
+    // The merge logic in savePortalState preserves images on save-back
+    const responseData = stripBase64FromPortalState(state);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json({ success: true, data: state });
+    res.json({ success: true, data: responseData });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to get portal state' });
   }
