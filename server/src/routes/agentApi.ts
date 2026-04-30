@@ -395,4 +395,108 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
   });
 });
 
+// ─── POST /api/agent/cleanup-base64 ─────────────────────────────────────────
+// One-time cleanup: strip base64 images from portal state JSONB in the DB.
+// This permanently reduces bloated rows (e.g. 33MB St. Petersburg → ~500KB).
+// Images are replaced with "[image-removed-cleanup]" text.
+router.post('/cleanup-base64', async (req: Request, res: Response) => {
+  try {
+    const agencyId = await resolveAgencyId();
+    const targetClientId = (req.body?.clientId || '').toString().trim() || null;
+    const clients = await getClientsByAgency(agencyId);
+    const results: any[] = [];
+
+    for (const client of clients) {
+      if (targetClientId && client.id !== targetClientId) continue;
+
+      const state = await getPortalState(agencyId, client.id);
+      if (!state) {
+        results.push({ clientId: client.id, status: 'no-state' });
+        continue;
+      }
+
+      const beforeSize = JSON.stringify(state).length;
+      let changed = false;
+
+      // Strip base64 from approvals
+      if (Array.isArray(state.approvals)) {
+        for (const item of state.approvals as any[]) {
+          if (!item || typeof item !== 'object') continue;
+          changed = cleanBase64Fields(item) || changed;
+        }
+      }
+
+      // Strip base64 from requests
+      if (Array.isArray(state.requests)) {
+        for (const item of state.requests as any[]) {
+          if (!item || typeof item !== 'object') continue;
+          changed = cleanBase64Fields(item) || changed;
+        }
+      }
+
+      // Strip base64 from assets
+      if (Array.isArray(state.assets)) {
+        for (const item of state.assets as any[]) {
+          if (!item || typeof item !== 'object') continue;
+          changed = cleanBase64Fields(item) || changed;
+        }
+      }
+
+      const afterSize = JSON.stringify(state).length;
+
+      if (changed) {
+        await savePortalState(agencyId, client.id, state);
+        results.push({
+          clientId: client.id,
+          status: 'cleaned',
+          beforeKB: Math.round(beforeSize / 1024),
+          afterKB: Math.round(afterSize / 1024),
+          savedKB: Math.round((beforeSize - afterSize) / 1024),
+        });
+      } else {
+        results.push({
+          clientId: client.id,
+          status: 'already-clean',
+          sizeKB: Math.round(beforeSize / 1024),
+        });
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (e: any) {
+    console.error('[cleanup-base64] Error:', e);
+    res.status(500).json({ error: e.message || 'Cleanup failed' });
+  }
+});
+
+/** Recursively strip base64 strings from an object. Returns true if anything was changed. */
+function cleanBase64Fields(obj: any): boolean {
+  if (!obj || typeof obj !== 'object') return false;
+  let changed = false;
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (typeof val === 'string') {
+      if (val.length > 500 && /^data:[^;]+;base64,/.test(val)) {
+        obj[key] = '[image-removed-cleanup]';
+        changed = true;
+      } else if (typeof val === 'string' && val.length > 500 && /^[A-Za-z0-9+/]{500}/.test(val)) {
+        obj[key] = '[image-removed-cleanup]';
+        changed = true;
+      }
+    } else if (Array.isArray(val)) {
+      for (let i = 0; i < val.length; i++) {
+        if (typeof val[i] === 'string' && val[i].length > 500 && /^data:[^;]+;base64,/.test(val[i])) {
+          val[i] = '[image-removed-cleanup]';
+          changed = true;
+        } else if (typeof val[i] === 'object' && val[i] !== null) {
+          changed = cleanBase64Fields(val[i]) || changed;
+        }
+      }
+    } else if (typeof val === 'object' && val !== null) {
+      changed = cleanBase64Fields(val) || changed;
+    }
+  }
+  return changed;
+}
+
 export default router;

@@ -211,4 +211,54 @@ router.get('/scheduled-posts', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/client/upload-image
+ * Upload a base64 image to Vercel Blob CDN. Returns a public URL.
+ * Used by the client portal request form instead of storing base64 in portal state.
+ */
+router.post('/upload-image', async (req, res) => {
+  const ctx = authenticateClient(req, res);
+  if (!ctx) return;
+  try {
+    const { image } = req.body;
+    if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Valid base64 image required (data:image/...)' });
+    }
+
+    const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      // No blob token — return the base64 as-is (fallback for dev)
+      return res.json({ success: true, url: image });
+    }
+
+    let put: any;
+    try {
+      const blobModule = await import('@vercel/blob');
+      put = blobModule.put;
+    } catch {
+      return res.json({ success: true, url: image }); // fallback
+    }
+
+    const match = image.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid image format' });
+    }
+
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const filename = `requests/${ctx.clientId}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      contentType: `image/${match[1]}`,
+      token: blobToken,
+    });
+
+    res.json({ success: true, url: blob.url });
+  } catch (e: any) {
+    console.error('[client/upload-image] Error:', e?.message);
+    res.status(500).json({ error: e?.message || 'Upload failed' });
+  }
+});
+
 export default router;

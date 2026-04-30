@@ -3315,46 +3315,71 @@ if (requestForm) {
   if (reqTypeEl) { reqTypeEl.setAttribute("aria-invalid", "false"); if (reqTypeErrorEl) reqTypeErrorEl.style.display = "none"; }
   
   const s = load();
-  const req = {
-    id:"r"+Math.random().toString(36).slice(2,7),
-    type: reqType,
-    by: $("#reqContact").value.trim() || "Client",
-    details: $("#reqDetails").value.trim() || "(no details)",
-    link: $("#reqLink").value.trim(),
-    images: reqUploadedImages.map(function(img) { return img.data; }),
-    status: "open",
-    createdAt: Date.now()
-  };
+  // Upload images to CDN first (instead of storing base64 in portal state)
+  var submitBtn = requestForm.querySelector('button[type="submit"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading...'; }
 
-  if (!s.requests) s.requests = [];
-  s.requests.push(req);
-  if (!s.activity) s.activity = [];
-  const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
-  s.activity.unshift({when:Date.now(), text:activityText});
+  var imageUrls = [];
+  var uploadPromises = reqUploadedImages.map(function(img) {
+    var token = (session && session.token) || null;
+    if (!token) return Promise.resolve(img.data); // fallback to base64 if no token
+    return fetch(API_BASE + '/api/client/upload-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ image: img.data })
+    }).then(function(r) { return r.json(); })
+      .then(function(j) { return j.url || img.data; })
+      .catch(function() { return img.data; }); // fallback to base64 on error
+  });
 
-  save(s);
-  e.target.reset();
-  reqUploadedImages = [];
-  var namesEl2 = document.getElementById('reqFileNames');
-  var previewsEl2 = document.getElementById('reqImagePreviews');
-  if (namesEl2) namesEl2.textContent = '';
-  if (previewsEl2) previewsEl2.innerHTML = '';
-  if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
-  
-  var toast = document.getElementById("toastContainer");
-  if (toast) {
-    toast.style.display = "block";
-    toast.textContent = "Request submitted!";
-    toast.classList.add("show");
-    setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
-  }
-  
-  render();
-  renderRequestStats();
-  setTimeout(function() {
-    var requestsEl = document.querySelector('#requests');
-    if (requestsEl) requestsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 100);
+  Promise.all(uploadPromises).then(function(urls) {
+    imageUrls = urls;
+
+    const req = {
+      id:"r"+Math.random().toString(36).slice(2,7),
+      type: reqType,
+      by: $("#reqContact").value.trim() || "Client",
+      details: $("#reqDetails").value.trim() || "(no details)",
+      link: $("#reqLink").value.trim(),
+      images: imageUrls,
+      status: "open",
+      createdAt: Date.now()
+    };
+
+    if (!s.requests) s.requests = [];
+    s.requests.push(req);
+    if (!s.activity) s.activity = [];
+    const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
+    s.activity.unshift({when:Date.now(), text:activityText});
+
+    save(s);
+    e.target.reset();
+    reqUploadedImages = [];
+    var namesEl2 = document.getElementById('reqFileNames');
+    var previewsEl2 = document.getElementById('reqImagePreviews');
+    if (namesEl2) namesEl2.textContent = '';
+    if (previewsEl2) previewsEl2.innerHTML = '';
+    if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Request'; }
+
+    var toast = document.getElementById("toastContainer");
+    if (toast) {
+      toast.style.display = "block";
+      toast.textContent = "Request submitted!";
+      toast.classList.add("show");
+      setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
+    }
+
+    render();
+    renderRequestStats();
+    setTimeout(function() {
+      var requestsEl = document.querySelector('#requests');
+      if (requestsEl) requestsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  }).catch(function(err) {
+    console.error('Request submission error:', err);
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Request'; }
+  });
   });
 }
 function closeRequest(id){ 
