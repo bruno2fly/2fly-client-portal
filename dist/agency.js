@@ -11859,13 +11859,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       var clients = loadClientsRegistry();
       var ids = clients ? Object.keys(clients) : [];
       if (ids.length === 0) {
-        setInterval(pollClientActions, 5000);
+        setInterval(pollClientActions, 30000);
         return;
       }
       Promise.all(ids.map(function(cid) { return fetchPortalStateFromAPI(cid).catch(function() {}); })).then(function() {
         if (typeof renderNotificationBell === 'function') renderNotificationBell();
-        setInterval(pollClientActions, 5000);
-        setTimeout(pollClientActions, 2000);
+        setInterval(pollClientActions, 30000);
+        setTimeout(pollClientActions, 5000);
         if (typeof maybeGenerateMonthlyProgressSummaryNotifications === 'function') maybeGenerateMonthlyProgressSummaryNotifications();
       });
     })();

@@ -1039,6 +1039,80 @@ export async function savePortalState(agencyId: string, clientId: string, data: 
   });
 }
 
+/**
+ * Count pending approvals across all portal states for an agency using raw SQL.
+ * This avoids loading the full JSONB blobs (which can be 30MB+) into Node memory.
+ */
+export async function countPendingApprovals(agencyId: string): Promise<number> {
+  try {
+    const result = await prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count
+      FROM "PortalState",
+           jsonb_array_elements(data->'approvals') AS a
+      WHERE "agencyId" = ${agencyId}
+        AND a->>'status' = 'pending'
+    `;
+    return Number(result[0]?.count ?? 0);
+  } catch (e: any) {
+    console.warn('[db] countPendingApprovals raw query failed, falling back:', e.message);
+    // Fallback: if the query fails (e.g. empty approvals array), return 0
+    return 0;
+  }
+}
+
+/**
+ * Strip large base64 data from a portal state object before sending to clients.
+ * Replaces base64 image strings with a small placeholder, reducing 33MB+ to KB.
+ */
+export function stripBase64FromPortalState(state: PortalStateData): PortalStateData {
+  const stripped = JSON.parse(JSON.stringify(state));
+
+  // Strip base64 from approvals
+  if (Array.isArray(stripped.approvals)) {
+    for (const item of stripped.approvals) {
+      if (!item || typeof item !== 'object') continue;
+      stripBase64Fields(item);
+    }
+  }
+
+  // Strip base64 from requests
+  if (Array.isArray(stripped.requests)) {
+    for (const item of stripped.requests) {
+      if (!item || typeof item !== 'object') continue;
+      stripBase64Fields(item);
+    }
+  }
+
+  // Strip base64 from assets
+  if (Array.isArray(stripped.assets)) {
+    for (const item of stripped.assets) {
+      if (!item || typeof item !== 'object') continue;
+      stripBase64Fields(item);
+    }
+  }
+
+  return stripped;
+}
+
+function stripBase64Fields(obj: any): void {
+  if (!obj || typeof obj !== 'object') return;
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (typeof val === 'string' && val.length > 500 && /^data:[^;]+;base64,/.test(val)) {
+      obj[key] = '[base64-stripped]';
+    } else if (typeof val === 'string' && val.length > 500 && /^[A-Za-z0-9+/]{500}/.test(val)) {
+      // Raw base64 without data: prefix
+      obj[key] = '[base64-stripped]';
+    } else if (Array.isArray(val)) {
+      for (const item of val) {
+        if (typeof item === 'object' && item !== null) stripBase64Fields(item);
+      }
+    } else if (typeof val === 'object' && val !== null) {
+      stripBase64Fields(val);
+    }
+  }
+}
+
 export async function deletePortalState(agencyId: string, clientId: string): Promise<void> {
   await prisma.portalState.delete({
     where: { agencyId_clientId: { agencyId, clientId } },

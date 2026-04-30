@@ -17,6 +17,8 @@ import {
   getProductionTasksByAgency,
   getProductionTaskById,
   saveProductionTask,
+  countPendingApprovals,
+  stripBase64FromPortalState,
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
 import type { ProductionTask, ProductionTaskStatus, PortalStateData } from '../types.js';
@@ -65,15 +67,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const tasks = await getProductionTasksByAgency(agencyId);
     const posts = await getScheduledPostsByAgency(agencyId);
 
-    // Count pending approvals across all portal states
-    let pendingApprovals = 0;
-    for (const client of clients) {
-      const state = await getPortalState(agencyId, client.id);
-      if (state) {
-        const approvals = (state.approvals || []) as any[];
-        pendingApprovals += approvals.filter((a: any) => a.status === 'pending').length;
-      }
-    }
+    // Count pending approvals using optimized SQL (avoids loading 33MB+ JSONB blobs)
+    const pendingApprovals = await countPendingApprovals(agencyId);
 
     const pendingTasks = tasks.filter((t) => t.status !== 'ready_to_post' && t.status !== 'approved');
 
@@ -197,7 +192,8 @@ router.get('/clients/:clientId/requests', async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Client not found' });
     }
     const state = await getPortalState(await resolveAgencyId(), clientId);
-    const requests = state?.requests || [];
+    const stripped = state ? stripBase64FromPortalState(state) : null;
+    const requests = stripped?.requests || [];
     res.json({ success: true, clientId, requests });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to get client requests' });
