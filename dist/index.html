@@ -3314,45 +3314,43 @@ if (requestForm) {
   }
   if (reqTypeEl) { reqTypeEl.setAttribute("aria-invalid", "false"); if (reqTypeErrorEl) reqTypeErrorEl.style.display = "none"; }
   
-  const s = load();
-  // Upload images to CDN first (instead of storing base64 in portal state)
+  // Upload images to CDN first, then submit via atomic endpoint
   var submitBtn = requestForm.querySelector('button[type="submit"]');
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading...'; }
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
 
+  var token = (session && session.token) || null;
   var imageUrls = [];
   var uploadPromises = reqUploadedImages.map(function(img) {
-    var token = (session && session.token) || null;
-    if (!token) return Promise.resolve(img.data); // fallback to base64 if no token
+    if (!token) return Promise.resolve(img.data);
     return fetch(API_BASE + '/api/client/upload-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ image: img.data })
     }).then(function(r) { return r.json(); })
       .then(function(j) { return j.url || img.data; })
-      .catch(function() { return img.data; }); // fallback to base64 on error
+      .catch(function() { return img.data; });
   });
 
   Promise.all(uploadPromises).then(function(urls) {
     imageUrls = urls;
 
-    const req = {
-      id:"r"+Math.random().toString(36).slice(2,7),
-      type: reqType,
-      by: $("#reqContact").value.trim() || "Client",
-      details: $("#reqDetails").value.trim() || "(no details)",
-      link: $("#reqLink").value.trim(),
-      images: imageUrls,
-      status: "open",
-      createdAt: Date.now()
-    };
+    // Use atomic submit-request endpoint (sends push notification + no race condition)
+    return fetch(API_BASE + '/api/client/submit-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        type: reqType,
+        by: $("#reqContact").value.trim() || "Client",
+        details: $("#reqDetails").value.trim() || "(no details)",
+        link: $("#reqLink").value.trim(),
+        images: imageUrls
+      })
+    });
+  }).then(function(resp) {
+    return resp.json();
+  }).then(function(result) {
+    if (!result.success) throw new Error(result.error || 'Submit failed');
 
-    if (!s.requests) s.requests = [];
-    s.requests.push(req);
-    if (!s.activity) s.activity = [];
-    const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
-    s.activity.unshift({when:Date.now(), text:activityText});
-
-    save(s);
     e.target.reset();
     reqUploadedImages = [];
     var namesEl2 = document.getElementById('reqFileNames');
@@ -3370,15 +3368,26 @@ if (requestForm) {
       setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
     }
 
-    render();
-    renderRequestStats();
+    // Reload portal state from server to show the new request
+    fetch(API_BASE + '/api/client/portal-state?_=' + Date.now(), {
+      headers: { 'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache' }
+    }).then(function(r2) { return r2.json(); }).then(function(j2) {
+      if (j2 && j2.data) { portalStateCache = j2.data; render(); renderRequestStats(); }
+    }).catch(function() {});
     setTimeout(function() {
       var requestsEl = document.querySelector('#requests');
       if (requestsEl) requestsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 100);
+    }, 500);
   }).catch(function(err) {
     console.error('Request submission error:', err);
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Request'; }
+    var toast = document.getElementById("toastContainer");
+    if (toast) {
+      toast.style.display = "block";
+      toast.textContent = "Error: " + (err.message || 'Could not submit request');
+      toast.classList.add("show");
+      setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 4000);
+    }
   });
   });
 }

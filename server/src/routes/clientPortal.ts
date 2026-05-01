@@ -94,6 +94,67 @@ router.put('/portal-state', async (req, res) => {
 });
 
 /**
+ * POST /api/client/submit-request
+ * Atomically adds a new request to portal state and sends push notification.
+ * This prevents race conditions from full-state PUT saves.
+ * Body: { type, by?, details?, link?, images? }
+ */
+router.post('/submit-request', async (req, res) => {
+  const ctx = authenticateClient(req, res);
+  if (!ctx) return;
+  try {
+    const { type, by, details, link, images } = req.body || {};
+    if (!type || typeof type !== 'string') {
+      return res.status(400).json({ error: 'Request type is required' });
+    }
+
+    // Build request object
+    const reqId = 'r' + Math.random().toString(36).slice(2, 7);
+    const newRequest = {
+      id: reqId,
+      type: String(type).slice(0, 200),
+      by: String(by || 'Client').slice(0, 100),
+      details: String(details || '(no details)').slice(0, 5000),
+      link: link ? String(link).slice(0, 500) : '',
+      images: Array.isArray(images) ? images.slice(0, 10).map((u: any) => String(u).slice(0, 2000)) : [],
+      status: 'open',
+      createdAt: Date.now(),
+    };
+
+    // Atomically load, add request, and save
+    const client = await getClient(ctx.clientId);
+    let state = await getPortalState(ctx.agencyId, ctx.clientId);
+    if (!state) {
+      state = defaultPortalState(ctx.clientId, client?.name || ctx.clientId, client?.primaryContactWhatsApp);
+    }
+
+    if (!Array.isArray(state.requests)) state.requests = [];
+    (state.requests as any[]).push(newRequest);
+
+    // Add activity entry
+    if (!Array.isArray(state.activity)) state.activity = [];
+    const actText = '📩 New request: ' + newRequest.type +
+      (newRequest.details !== '(no details)' ? ' - ' + newRequest.details.substring(0, 50) : '');
+    (state.activity as any[]).unshift({ when: Date.now(), text: actText });
+
+    await savePortalState(ctx.agencyId, ctx.clientId, state);
+
+    // Send push notification to agency staff (fire-and-forget)
+    const clientName = client?.name || 'Client';
+    sendPushToRole(ctx.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.newRequest(
+      clientName,
+      newRequest.type + (newRequest.details !== '(no details)' ? ': ' + newRequest.details.substring(0, 40) : '')
+    )).catch(() => {});
+
+    console.log(`[client] New request ${reqId} from ${clientName}: ${newRequest.type}`);
+    res.json({ success: true, requestId: reqId });
+  } catch (e: any) {
+    console.error('[client/submit-request] Error:', e?.message);
+    res.status(500).json({ error: e.message || 'Failed to submit request' });
+  }
+});
+
+/**
  * POST /api/client/request-changes
  * Client requests changes on an approval item.
  * Finds linked production task and sets it to changes_requested with reviewNotes.
