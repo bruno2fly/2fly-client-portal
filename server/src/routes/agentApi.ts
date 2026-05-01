@@ -397,7 +397,25 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
 
 // ─── GET /api/agent/ping ─────────────────────────────────────────────────────
 router.get('/ping', (_req: Request, res: Response) => {
-  res.json({ pong: true, version: 'v2-jsonb-set', ts: Date.now() });
+  res.json({ pong: true, version: 'v3-debug', ts: Date.now() });
+});
+
+// ─── POST /api/agent/test-post ──────────────────────────────────────────────
+router.post('/test-post', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../db.js');
+    const agencyId = await resolveAgencyId();
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT "clientId", length(data::text) as size_bytes
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId}
+      ORDER BY length(data::text) DESC
+      LIMIT 3
+    `;
+    res.json({ success: true, agencyId, body: req.body, topRows: rows });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message, stack: e.stack?.substring(0, 500) });
+  }
 });
 
 // ─── POST /api/agent/cleanup-sql ────────────────────────────────────────────
