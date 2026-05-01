@@ -411,9 +411,9 @@ router.post('/test-post', async (req: Request, res: Response) => {
     // Find which approvals are large and what fields in them are big
     const approvalSizes = await prisma.$queryRaw<any[]>`
       SELECT
-        idx,
-        length(elem::text) as elem_size,
-        (SELECT json_agg(json_build_object('key', kv.key, 'len', length(kv.value::text), 'type', jsonb_typeof(kv.value)))
+        idx::int,
+        length(elem::text)::int as elem_size,
+        (SELECT json_agg(json_build_object('key', kv.key, 'len', length(kv.value::text)::int, 'type', jsonb_typeof(kv.value)))
          FROM jsonb_each(elem) kv
          WHERE length(kv.value::text) > 500
         ) as big_fields
