@@ -395,14 +395,22 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
   });
 });
 
+// ─── GET /api/agent/ping ─────────────────────────────────────────────────────
+router.get('/ping', (_req: Request, res: Response) => {
+  res.json({ pong: true, version: 'v2-jsonb-set', ts: Date.now() });
+});
+
 // ─── POST /api/agent/cleanup-sql ────────────────────────────────────────────
 // Memory-safe cleanup: uses jsonb_set to clear images arrays one approval at a
 // time. Never materializes the full 34MB text blob — each UPDATE modifies only
 // one small JSONB path. Safe even on Render's 2GB Node.js and free Postgres.
 router.post('/cleanup-sql', async (req: Request, res: Response) => {
+  console.log('[cleanup-sql] Handler entered, body:', JSON.stringify(req.body));
   try {
     const { prisma } = await import('../db.js');
+    console.log('[cleanup-sql] prisma imported');
     const agencyId = await resolveAgencyId();
+    console.log('[cleanup-sql] agencyId:', agencyId);
     const targetClientId = (req.body?.clientId || '').toString().trim();
     if (!targetClientId) {
       return res.status(400).json({ error: 'clientId is required' });
