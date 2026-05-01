@@ -463,35 +463,38 @@ router.post('/cleanup-sql', async (req: Request, res: Response) => {
     `;
     const approvalCount = Number(approvalCountRows[0]?.cnt || 0);
 
-    // Clear images array for each approval using jsonb_set (one at a time)
+    // Clear uploadedImages (the actual field with base64 data) for each approval
     let cleared = 0;
+    const fieldsToClean = ['uploadedImages', 'images', 'finalArt'];
     for (let i = 0; i < approvalCount; i++) {
-      const path = `{approvals,${i},images}`;
-      await prisma.$executeRawUnsafe(
-        `UPDATE "PortalState"
-         SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
-             "updatedAt" = NOW()
-         WHERE "agencyId" = $2 AND "clientId" = $3
-           AND data #> $1::text[] IS NOT NULL`,
-        path, agencyId, targetClientId
-      );
+      for (const field of fieldsToClean) {
+        const path = `{approvals,${i},${field}}`;
+        await prisma.$executeRawUnsafe(
+          `UPDATE "PortalState"
+           SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
+               "updatedAt" = NOW()
+           WHERE "agencyId" = $2 AND "clientId" = $3
+             AND data #> $1::text[] IS NOT NULL
+             AND length((data #> $1::text[])::text) > 500`,
+          path, agencyId, targetClientId
+        );
+      }
+      // Also clear base64 imageUrl/previewImageUrl string fields
+      for (const field of ['imageUrl', 'previewImageUrl']) {
+        const path = `{approvals,${i},${field}}`;
+        await prisma.$executeRawUnsafe(
+          `UPDATE "PortalState"
+           SET data = jsonb_set(data, $1::text[], '""'::jsonb),
+               "updatedAt" = NOW()
+           WHERE "agencyId" = $2 AND "clientId" = $3
+             AND length(data #>> $1::text[]) > 500`,
+          path, agencyId, targetClientId
+        );
+      }
       cleared++;
     }
 
-    // Also clear imageUrl fields that might be base64 (set to empty string)
-    for (let i = 0; i < approvalCount; i++) {
-      const pathUrl = `{approvals,${i},imageUrl}`;
-      await prisma.$executeRawUnsafe(
-        `UPDATE "PortalState"
-         SET data = jsonb_set(data, $1::text[], '""'::jsonb),
-             "updatedAt" = NOW()
-         WHERE "agencyId" = $2 AND "clientId" = $3
-           AND length(data #>> $1::text[]) > 500`,
-        pathUrl, agencyId, targetClientId
-      );
-    }
-
-    // Count and clear requests images
+    // Count and clear requests uploadedImages/images
     const reqCountRows = await prisma.$queryRaw<any[]>`
       SELECT COALESCE(jsonb_array_length(data->'requests'), 0) as cnt
       FROM "PortalState"
@@ -500,15 +503,18 @@ router.post('/cleanup-sql', async (req: Request, res: Response) => {
     const reqCount = Number(reqCountRows[0]?.cnt || 0);
 
     for (let i = 0; i < reqCount; i++) {
-      const path = `{requests,${i},images}`;
-      await prisma.$executeRawUnsafe(
-        `UPDATE "PortalState"
-         SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
-             "updatedAt" = NOW()
-         WHERE "agencyId" = $2 AND "clientId" = $3
-           AND data #> $1::text[] IS NOT NULL`,
-        path, agencyId, targetClientId
-      );
+      for (const field of ['uploadedImages', 'images']) {
+        const path = `{requests,${i},${field}}`;
+        await prisma.$executeRawUnsafe(
+          `UPDATE "PortalState"
+           SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
+               "updatedAt" = NOW()
+           WHERE "agencyId" = $2 AND "clientId" = $3
+             AND data #> $1::text[] IS NOT NULL
+             AND length((data #> $1::text[])::text) > 500`,
+          path, agencyId, targetClientId
+        );
+      }
     }
 
     // Get size after
