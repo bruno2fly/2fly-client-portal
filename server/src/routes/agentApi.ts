@@ -19,6 +19,7 @@ import {
   saveProductionTask,
   countPendingApprovals,
   stripBase64FromPortalState,
+  prisma,
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
 import type { ProductionTask, ProductionTaskStatus, PortalStateData } from '../types.js';
@@ -397,13 +398,13 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
 
 // ─── GET /api/agent/ping ─────────────────────────────────────────────────────
 router.get('/ping', (_req: Request, res: Response) => {
-  res.json({ pong: true, version: 'v3-debug', ts: Date.now() });
+  res.json({ pong: true, version: 'v4-static-import', ts: Date.now() });
 });
 
 // ─── POST /api/agent/test-post ──────────────────────────────────────────────
 router.post('/test-post', async (req: Request, res: Response) => {
   try {
-    const { prisma } = await import('../db.js');
+    // prisma is statically imported at top of file
     const agencyId = await resolveAgencyId();
     const rows = await prisma.$queryRaw<any[]>`
       SELECT "clientId", length(data::text) as size_bytes
@@ -425,7 +426,7 @@ router.post('/test-post', async (req: Request, res: Response) => {
 router.post('/cleanup-sql', async (req: Request, res: Response) => {
   console.log('[cleanup-sql] Handler entered, body:', JSON.stringify(req.body));
   try {
-    const { prisma } = await import('../db.js');
+    // prisma is statically imported at top of file
     console.log('[cleanup-sql] prisma imported');
     const agencyId = await resolveAgencyId();
     console.log('[cleanup-sql] agencyId:', agencyId);
