@@ -499,4 +499,65 @@ function cleanBase64Fields(obj: any): boolean {
   return changed;
 }
 
+// ─── POST /api/agent/cleanup-sql ────────────────────────────────────────────
+// SQL-based cleanup: strips base64 images directly in Postgres without loading
+// the data into Node.js memory. Prevents OOM crashes on large portal states.
+router.post('/cleanup-sql', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../db.js');
+    const agencyId = await resolveAgencyId();
+    const targetClientId = (req.body?.clientId || '').toString().trim() || null;
+
+    // Get sizes before cleanup
+    const beforeRows = await prisma.$queryRaw<any[]>`
+      SELECT "clientId", length(data::text) as size_bytes
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId}
+      ORDER BY length(data::text) DESC
+    `;
+
+    // Strip base64 data directly in Postgres using regexp_replace
+    // This operates entirely in PostgreSQL — no data loaded into Node.js
+    let updateResult: number;
+    if (targetClientId) {
+      updateResult = await prisma.$executeRaw`
+        UPDATE "PortalState"
+        SET data = regexp_replace(data::text, 'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '"[image-removed]"', 'g')::jsonb,
+            "updatedAt" = NOW()
+        WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+      `;
+    } else {
+      updateResult = await prisma.$executeRaw`
+        UPDATE "PortalState"
+        SET data = regexp_replace(data::text, 'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '"[image-removed]"', 'g')::jsonb,
+            "updatedAt" = NOW()
+        WHERE "agencyId" = ${agencyId}
+      `;
+    }
+
+    // Get sizes after cleanup
+    const afterRows = await prisma.$queryRaw<any[]>`
+      SELECT "clientId", length(data::text) as size_bytes
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId}
+      ORDER BY length(data::text) DESC
+    `;
+
+    const results = (afterRows || []).map((row: any) => {
+      const before = (beforeRows || []).find((b: any) => b.clientId === row.clientId);
+      return {
+        clientId: row.clientId,
+        beforeKB: before ? Math.round(Number(before.size_bytes) / 1024) : 0,
+        afterKB: Math.round(Number(row.size_bytes) / 1024),
+        savedKB: before ? Math.round((Number(before.size_bytes) - Number(row.size_bytes)) / 1024) : 0,
+      };
+    });
+
+    res.json({ success: true, rowsUpdated: updateResult, results });
+  } catch (e: any) {
+    console.error('[cleanup-sql] Error:', e);
+    res.status(500).json({ error: e.message || 'SQL cleanup failed' });
+  }
+});
+
 export default router;
