@@ -11709,9 +11709,10 @@ function setupImageUpload() {
       }
 
       try {
+        const _uploadBase = (typeof getApiBaseUrl === 'function' ? getApiBaseUrl() : '');
         if (isVideo) {
-          // Video: read as data URL directly (no compression)
-          showToast(`Processing ${file.name}...`, 'info');
+          // Video: read as data URL then upload to CDN; store URL only (prevents JSONB bloat)
+          showToast(`Uploading ${file.name}...`, 'info');
           const dataUrl = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result);
@@ -11719,17 +11720,20 @@ function setupImageUpload() {
             reader.readAsDataURL(file);
           });
 
-          if (currentClientId) {
-            uploadedImages.push({ dataUrl: dataUrl, name: file.name, type: file.type, size: file.size });
-            displayUploadedImages();
-            showToast(`${file.name} uploaded successfully`, 'success');
-          } else {
-            uploadedImages.push({ dataUrl: dataUrl, name: file.name, type: file.type, size: file.size });
-            displayUploadedImages();
-            showToast(`${file.name} uploaded successfully`, 'success');
-          }
+          const uploadRes = await fetch(_uploadBase + '/api/upload/media', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ media: dataUrl, filename: file.name })
+          });
+          if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
+          const uploadJson = await uploadRes.json();
+          if (!uploadJson.url) throw new Error('CDN upload returned no URL');
+          uploadedImages.push({ url: uploadJson.url, name: file.name, type: file.type, size: file.size });
+          displayUploadedImages();
+          showToast(`${file.name} uploaded successfully`, 'success');
         } else {
-          // Image: compress as before
+          // Image: compress then upload to CDN; store URL only (prevents JSONB bloat)
           showToast(`Compressing ${file.name}...`, 'info');
           let compressed = await compressImage(file);
 
@@ -11742,7 +11746,17 @@ function setupImageUpload() {
             compressed = moreCompressed;
           }
 
-          uploadedImages.push(compressed);
+          showToast(`Uploading ${file.name}...`, 'info');
+          const uploadRes = await fetch(_uploadBase + '/api/upload/media', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ media: compressed.dataUrl, filename: compressed.name })
+          });
+          if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
+          const uploadJson = await uploadRes.json();
+          if (!uploadJson.url) throw new Error('CDN upload returned no URL');
+          uploadedImages.push({ url: uploadJson.url, name: compressed.name, type: compressed.type, size: compressed.size });
           displayUploadedImages();
           showToast(`${file.name} uploaded successfully`, 'success');
         }
@@ -12003,9 +12017,10 @@ function displayUploadedImages() {
 
     const isVideo = image.type && image.type.startsWith('video/');
     let mediaEl;
+    const _mediaSrc = image.dataUrl || image.url || '';
     if (isVideo) {
       mediaEl = document.createElement('video');
-      mediaEl.src = image.dataUrl;
+      mediaEl.src = _mediaSrc;
       mediaEl.muted = true;
       mediaEl.playsInline = true;
       mediaEl.autoplay = false;
@@ -12015,7 +12030,7 @@ function displayUploadedImages() {
       mediaEl.addEventListener('loadeddata', () => { try { mediaEl.currentTime = 0.1; } catch(e){} });
     } else {
       mediaEl = el('img', {
-        src: image.dataUrl,
+        src: _mediaSrc,
         alt: image.name,
         style: 'width: 100%; height: 100%; object-fit: cover;'
       });

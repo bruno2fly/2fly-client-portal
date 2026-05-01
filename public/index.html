@@ -3106,7 +3106,7 @@ window.openApprovalModal = function(id){
           copyImageContainer.style.alignItems = 'center';
           item.uploadedImages.forEach(function(image) {
             const img = document.createElement('img');
-            img.src = image.dataUrl;
+            img.src = image.dataUrl || image.url || '';
             img.alt = image.name || item.title || 'Copy image';
             img.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; margin-bottom: 12px; border: 1px solid #e2e8f0;';
             img.onerror = function() { this.style.display = 'none'; };
@@ -3342,12 +3342,12 @@ window.openApprovalModal = function(id){
       }
       if (item.uploadedImages && item.uploadedImages.length > 0) {
         if (item.uploadedImages.length > 1) {
-          var upOrig = item.uploadedImages.map(function(im) { return im.dataUrl; });
+          var upOrig = item.uploadedImages.map(function(im) { return im.dataUrl || im.url || ''; });
           appendClientContentScrollCarousel(upOrig, upOrig.slice());
         } else {
           var one = item.uploadedImages[0];
           var img0 = document.createElement('img');
-          img0.src = one.dataUrl;
+          img0.src = one.dataUrl || one.url || '';
           img0.alt = one.name || item.title;
           img0.style.cssText = 'max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain; border: 1px solid #e2e8f0;';
           img0.onerror = function() { this.style.display = 'none'; };
