@@ -408,33 +408,24 @@ router.post('/test-post', async (req: Request, res: Response) => {
     const agencyId = await resolveAgencyId();
     const targetClientId = (req.body?.clientId || 'stpetersburg').toString().trim();
 
-    // Get keys and their sizes from the first approval element
-    const fieldSizes = await prisma.$queryRaw<any[]>`
+    // Find which approvals are large and what fields in them are big
+    const approvalSizes = await prisma.$queryRaw<any[]>`
       SELECT
-        key,
-        length(value::text) as val_length,
-        jsonb_typeof(value) as val_type
+        idx,
+        length(elem::text) as elem_size,
+        (SELECT json_agg(json_build_object('key', kv.key, 'len', length(kv.value::text), 'type', jsonb_typeof(kv.value)))
+         FROM jsonb_each(elem) kv
+         WHERE length(kv.value::text) > 500
+        ) as big_fields
       FROM "PortalState",
-        jsonb_each(data->'approvals'->0) as kv(key, value)
+        jsonb_array_elements(data->'approvals') WITH ORDINALITY AS arr(elem, idx)
       WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
-      ORDER BY length(value::text) DESC
-      LIMIT 20
+        AND length(elem::text) > 10000
+      ORDER BY length(elem::text) DESC
+      LIMIT 10
     `;
 
-    // Count approvals and check total size of approvals array
-    const meta = await prisma.$queryRaw<any[]>`
-      SELECT
-        jsonb_array_length(data->'approvals') as approval_count,
-        length((data->'approvals')::text) as approvals_size,
-        length((data->'requests')::text) as requests_size,
-        length((data->'assets')::text) as assets_size,
-        length((data->'activity')::text) as activity_size,
-        length(data::text) as total_size
-      FROM "PortalState"
-      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
-    `;
-
-    res.json({ success: true, clientId: targetClientId, meta: meta[0], approvalFields: fieldSizes });
+    res.json({ success: true, clientId: targetClientId, bloatedApprovals: approvalSizes });
   } catch (e: any) {
     res.status(500).json({ error: e.message, stack: e.stack?.substring(0, 500) });
   }
