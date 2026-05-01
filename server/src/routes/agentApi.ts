@@ -395,165 +395,102 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
   });
 });
 
-// ─── POST /api/agent/cleanup-base64 ─────────────────────────────────────────
-// One-time cleanup: strip base64 images from portal state JSONB in the DB.
-// This permanently reduces bloated rows (e.g. 33MB St. Petersburg → ~500KB).
-// Images are replaced with "[image-removed-cleanup]" text.
-router.post('/cleanup-base64', async (req: Request, res: Response) => {
-  try {
-    const agencyId = await resolveAgencyId();
-    const targetClientId = (req.body?.clientId || '').toString().trim() || null;
-    const clients = await getClientsByAgency(agencyId);
-    const results: any[] = [];
-
-    for (const client of clients) {
-      if (targetClientId && client.id !== targetClientId) continue;
-
-      const state = await getPortalState(agencyId, client.id);
-      if (!state) {
-        results.push({ clientId: client.id, status: 'no-state' });
-        continue;
-      }
-
-      const beforeSize = JSON.stringify(state).length;
-      let changed = false;
-
-      // Strip base64 from approvals
-      if (Array.isArray(state.approvals)) {
-        for (const item of state.approvals as any[]) {
-          if (!item || typeof item !== 'object') continue;
-          changed = cleanBase64Fields(item) || changed;
-        }
-      }
-
-      // Strip base64 from requests
-      if (Array.isArray(state.requests)) {
-        for (const item of state.requests as any[]) {
-          if (!item || typeof item !== 'object') continue;
-          changed = cleanBase64Fields(item) || changed;
-        }
-      }
-
-      // Strip base64 from assets
-      if (Array.isArray(state.assets)) {
-        for (const item of state.assets as any[]) {
-          if (!item || typeof item !== 'object') continue;
-          changed = cleanBase64Fields(item) || changed;
-        }
-      }
-
-      const afterSize = JSON.stringify(state).length;
-
-      if (changed) {
-        await savePortalState(agencyId, client.id, state);
-        results.push({
-          clientId: client.id,
-          status: 'cleaned',
-          beforeKB: Math.round(beforeSize / 1024),
-          afterKB: Math.round(afterSize / 1024),
-          savedKB: Math.round((beforeSize - afterSize) / 1024),
-        });
-      } else {
-        results.push({
-          clientId: client.id,
-          status: 'already-clean',
-          sizeKB: Math.round(beforeSize / 1024),
-        });
-      }
-    }
-
-    res.json({ success: true, results });
-  } catch (e: any) {
-    console.error('[cleanup-base64] Error:', e);
-    res.status(500).json({ error: e.message || 'Cleanup failed' });
-  }
-});
-
-/** Recursively strip base64 strings from an object. Returns true if anything was changed. */
-function cleanBase64Fields(obj: any): boolean {
-  if (!obj || typeof obj !== 'object') return false;
-  let changed = false;
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (typeof val === 'string') {
-      if (val.length > 500 && /^data:[^;]+;base64,/.test(val)) {
-        obj[key] = '[image-removed-cleanup]';
-        changed = true;
-      } else if (typeof val === 'string' && val.length > 500 && /^[A-Za-z0-9+/]{500}/.test(val)) {
-        obj[key] = '[image-removed-cleanup]';
-        changed = true;
-      }
-    } else if (Array.isArray(val)) {
-      for (let i = 0; i < val.length; i++) {
-        if (typeof val[i] === 'string' && val[i].length > 500 && /^data:[^;]+;base64,/.test(val[i])) {
-          val[i] = '[image-removed-cleanup]';
-          changed = true;
-        } else if (typeof val[i] === 'object' && val[i] !== null) {
-          changed = cleanBase64Fields(val[i]) || changed;
-        }
-      }
-    } else if (typeof val === 'object' && val !== null) {
-      changed = cleanBase64Fields(val) || changed;
-    }
-  }
-  return changed;
-}
-
 // ─── POST /api/agent/cleanup-sql ────────────────────────────────────────────
-// SQL-based cleanup: strips base64 images directly in Postgres without loading
-// the data into Node.js memory. Prevents OOM crashes on large portal states.
+// Memory-safe cleanup: uses jsonb_set to clear images arrays one approval at a
+// time. Never materializes the full 34MB text blob — each UPDATE modifies only
+// one small JSONB path. Safe even on Render's 2GB Node.js and free Postgres.
 router.post('/cleanup-sql', async (req: Request, res: Response) => {
   try {
     const { prisma } = await import('../db.js');
     const agencyId = await resolveAgencyId();
-    const targetClientId = (req.body?.clientId || '').toString().trim() || null;
-
-    // Get sizes before cleanup
-    const beforeRows = await prisma.$queryRaw<any[]>`
-      SELECT "clientId", length(data::text) as size_bytes
-      FROM "PortalState"
-      WHERE "agencyId" = ${agencyId}
-      ORDER BY length(data::text) DESC
-    `;
-
-    // Strip base64 data directly in Postgres using regexp_replace
-    // This operates entirely in PostgreSQL — no data loaded into Node.js
-    let updateResult: number;
-    if (targetClientId) {
-      updateResult = await prisma.$executeRaw`
-        UPDATE "PortalState"
-        SET data = regexp_replace(data::text, 'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '"[image-removed]"', 'g')::jsonb,
-            "updatedAt" = NOW()
-        WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
-      `;
-    } else {
-      updateResult = await prisma.$executeRaw`
-        UPDATE "PortalState"
-        SET data = regexp_replace(data::text, 'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '"[image-removed]"', 'g')::jsonb,
-            "updatedAt" = NOW()
-        WHERE "agencyId" = ${agencyId}
-      `;
+    const targetClientId = (req.body?.clientId || '').toString().trim();
+    if (!targetClientId) {
+      return res.status(400).json({ error: 'clientId is required' });
     }
 
-    // Get sizes after cleanup
-    const afterRows = await prisma.$queryRaw<any[]>`
-      SELECT "clientId", length(data::text) as size_bytes
+    // Get size before
+    const beforeRows = await prisma.$queryRaw<any[]>`
+      SELECT length(data::text) as size_bytes
       FROM "PortalState"
-      WHERE "agencyId" = ${agencyId}
-      ORDER BY length(data::text) DESC
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
     `;
+    const beforeBytes = Number(beforeRows[0]?.size_bytes || 0);
 
-    const results = (afterRows || []).map((row: any) => {
-      const before = (beforeRows || []).find((b: any) => b.clientId === row.clientId);
-      return {
-        clientId: row.clientId,
-        beforeKB: before ? Math.round(Number(before.size_bytes) / 1024) : 0,
-        afterKB: Math.round(Number(row.size_bytes) / 1024),
-        savedKB: before ? Math.round((Number(before.size_bytes) - Number(row.size_bytes)) / 1024) : 0,
-      };
+    // Count approvals
+    const approvalCountRows = await prisma.$queryRaw<any[]>`
+      SELECT COALESCE(jsonb_array_length(data->'approvals'), 0) as cnt
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+    `;
+    const approvalCount = Number(approvalCountRows[0]?.cnt || 0);
+
+    // Clear images array for each approval using jsonb_set (one at a time)
+    let cleared = 0;
+    for (let i = 0; i < approvalCount; i++) {
+      const path = `{approvals,${i},images}`;
+      await prisma.$executeRawUnsafe(
+        `UPDATE "PortalState"
+         SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
+             "updatedAt" = NOW()
+         WHERE "agencyId" = $2 AND "clientId" = $3
+           AND data #> $1::text[] IS NOT NULL`,
+        path, agencyId, targetClientId
+      );
+      cleared++;
+    }
+
+    // Also clear imageUrl fields that might be base64 (set to empty string)
+    for (let i = 0; i < approvalCount; i++) {
+      const pathUrl = `{approvals,${i},imageUrl}`;
+      await prisma.$executeRawUnsafe(
+        `UPDATE "PortalState"
+         SET data = jsonb_set(data, $1::text[], '""'::jsonb),
+             "updatedAt" = NOW()
+         WHERE "agencyId" = $2 AND "clientId" = $3
+           AND length(data #>> $1::text[]) > 500`,
+        pathUrl, agencyId, targetClientId
+      );
+    }
+
+    // Count and clear requests images
+    const reqCountRows = await prisma.$queryRaw<any[]>`
+      SELECT COALESCE(jsonb_array_length(data->'requests'), 0) as cnt
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+    `;
+    const reqCount = Number(reqCountRows[0]?.cnt || 0);
+
+    for (let i = 0; i < reqCount; i++) {
+      const path = `{requests,${i},images}`;
+      await prisma.$executeRawUnsafe(
+        `UPDATE "PortalState"
+         SET data = jsonb_set(data, $1::text[], '[]'::jsonb),
+             "updatedAt" = NOW()
+         WHERE "agencyId" = $2 AND "clientId" = $3
+           AND data #> $1::text[] IS NOT NULL`,
+        path, agencyId, targetClientId
+      );
+    }
+
+    // Get size after
+    const afterRows = await prisma.$queryRaw<any[]>`
+      SELECT length(data::text) as size_bytes
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+    `;
+    const afterBytes = Number(afterRows[0]?.size_bytes || 0);
+
+    console.log(`[cleanup-sql] ${targetClientId}: ${Math.round(beforeBytes/1024)}KB → ${Math.round(afterBytes/1024)}KB (cleared ${cleared} approvals, ${reqCount} requests)`);
+
+    res.json({
+      success: true,
+      clientId: targetClientId,
+      beforeKB: Math.round(beforeBytes / 1024),
+      afterKB: Math.round(afterBytes / 1024),
+      savedKB: Math.round((beforeBytes - afterBytes) / 1024),
+      approvalsCleared: approvalCount,
+      requestsCleared: reqCount,
     });
-
-    res.json({ success: true, rowsUpdated: updateResult, results });
   } catch (e: any) {
     console.error('[cleanup-sql] Error:', e);
     res.status(500).json({ error: e.message || 'SQL cleanup failed' });
