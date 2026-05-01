@@ -402,18 +402,39 @@ router.get('/ping', (_req: Request, res: Response) => {
 });
 
 // ─── POST /api/agent/test-post ──────────────────────────────────────────────
+// Diagnostic: inspect JSONB structure to find where base64 data lives.
 router.post('/test-post', async (req: Request, res: Response) => {
   try {
-    // prisma is statically imported at top of file
     const agencyId = await resolveAgencyId();
-    const rows = await prisma.$queryRaw<any[]>`
-      SELECT "clientId", length(data::text) as size_bytes
-      FROM "PortalState"
-      WHERE "agencyId" = ${agencyId}
-      ORDER BY length(data::text) DESC
-      LIMIT 3
+    const targetClientId = (req.body?.clientId || 'stpetersburg').toString().trim();
+
+    // Get keys and their sizes from the first approval element
+    const fieldSizes = await prisma.$queryRaw<any[]>`
+      SELECT
+        key,
+        length(value::text) as val_length,
+        jsonb_typeof(value) as val_type
+      FROM "PortalState",
+        jsonb_each(data->'approvals'->0) as kv(key, value)
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+      ORDER BY length(value::text) DESC
+      LIMIT 20
     `;
-    res.json({ success: true, agencyId, body: req.body, topRows: rows });
+
+    // Count approvals and check total size of approvals array
+    const meta = await prisma.$queryRaw<any[]>`
+      SELECT
+        jsonb_array_length(data->'approvals') as approval_count,
+        length((data->'approvals')::text) as approvals_size,
+        length((data->'requests')::text) as requests_size,
+        length((data->'assets')::text) as assets_size,
+        length((data->'activity')::text) as activity_size,
+        length(data::text) as total_size
+      FROM "PortalState"
+      WHERE "agencyId" = ${agencyId} AND "clientId" = ${targetClientId}
+    `;
+
+    res.json({ success: true, clientId: targetClientId, meta: meta[0], approvalFields: fieldSizes });
   } catch (e: any) {
     res.status(500).json({ error: e.message, stack: e.stack?.substring(0, 500) });
   }
