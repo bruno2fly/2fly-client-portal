@@ -842,7 +842,15 @@ export async function saveClient(client: Client): Promise<void> {
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
-  await prisma.client.delete({ where: { id: clientId } }).catch(() => {});
+  // Delete related rows that don't cascade automatically (FK constraint order matters)
+  await prisma.asset.deleteMany({ where: { clientId } }).catch(() => {});
+  await prisma.scheduledPost.deleteMany({ where: { clientId } }).catch(() => {});
+  await prisma.metaIntegration.deleteMany({ where: { clientId } }).catch(() => {});
+  await prisma.brandKit.deleteMany({ where: { clientId } }).catch(() => {});
+  await prisma.aIImage.deleteMany({ where: { clientId } }).catch(() => {});
+  await prisma.referenceImage.deleteMany({ where: { clientId } }).catch(() => {});
+  // Now delete the client — errors propagate so the route can return a real 500
+  await prisma.client.delete({ where: { id: clientId } });
 }
 
 // =====================================================================
