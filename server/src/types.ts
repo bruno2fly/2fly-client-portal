@@ -248,7 +248,7 @@ export interface ProductionTaskComment {
 export interface ProductionTask {
   id: string;
   agencyId: string;
-  clientId: string;
+  clientId: string | null;
   contentId: string;
   approvalId: string;
   designerId: string;

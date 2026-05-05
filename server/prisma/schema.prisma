@@ -312,10 +312,10 @@ enum ScheduledPostStatus {
 model ProductionTask {
   id              String                 @id
   agencyId        String
-  clientId        String
+  clientId        String?
   contentId       String                 @default("")
   approvalId      String                 @default("")
-  designerId      String
+  designerId      String?                @default("")
   title           String
   caption         String                 @default("")
   copyText        String                 @default("")
@@ -335,8 +335,8 @@ model ProductionTask {
 
   comments ProductionTaskComment[]
 
-  agency Agency @relation(fields: [agencyId], references: [id])
-  client Client @relation(fields: [clientId], references: [id])
+  agency Agency  @relation(fields: [agencyId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
 
   @@index([agencyId])
   @@index([designerId])

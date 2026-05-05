@@ -14013,11 +14013,12 @@ function renderProductionView() {
   var clientGroupsMap = {};
   var clientGroupOrder = [];
   tasks.forEach(function(t) {
-    if (!clientGroupsMap[t.clientId]) {
-      clientGroupsMap[t.clientId] = { name: (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || t.clientId || 'Unknown', tasks: [] };
-      clientGroupOrder.push(t.clientId);
+    var gKey = t.clientId || '__standalone__';
+    if (!clientGroupsMap[gKey]) {
+      clientGroupsMap[gKey] = { name: (clientsData && clientsData[t.clientId] && clientsData[t.clientId].name) || (t.clientId ? t.clientId : 'Custom Tasks'), tasks: [] };
+      clientGroupOrder.push(gKey);
     }
-    clientGroupsMap[t.clientId].tasks.push(t);
+    clientGroupsMap[gKey].tasks.push(t);
   });
   clientGroupOrder.sort(function(a, b) { return clientGroupsMap[a].name.localeCompare(clientGroupsMap[b].name); });
 
@@ -14332,10 +14333,10 @@ function renderProductionView() {
       renderProductionView();
     });
   });
-  // Assign task
+  // Assign task — open custom task modal
   var pvAT = document.getElementById('pvAssignTask');
   var pvGR = document.getElementById('pvGhostRow');
-  function handleAssign() { if (typeof openSendToDesignerModal === 'function' && window.__lastApprovalForAssign) openSendToDesignerModal(window.__lastApprovalForAssign); else showToast('Create an approval first, then use Send to Designer from Approvals.', 'info'); }
+  function handleAssign() { openAssignTaskModal(); }
   if (pvAT) pvAT.addEventListener('click', handleAssign);
   if (pvGR) pvGR.addEventListener('click', handleAssign);
   // Sortable headers
@@ -14599,6 +14600,213 @@ function renderProductionKanbanView(container, clientsData, tasksFiltered) {
     btn.addEventListener('click', function(e) { e.stopPropagation(); var id = btn.getAttribute('data-id'); var notes = prompt('Feedback for designer:'); if (notes === null) return; fetch(getApiBaseUrl() + '/api/production/tasks/' + id + '/review', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_changes', reviewNotes: notes }) }).then(function(r) { return r.json(); }).then(function(j) { if (!j.task) throw new Error(j.error || 'Failed'); return loadProductionTasks(); }).then(renderProductionView).catch(function(e) { showToast(e.message, 'error'); }); });
   });
 }
+/* ── Assign Task Modal (standalone custom task) ── */
+function openAssignTaskModal() {
+  var modal = document.getElementById('assignTaskModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'assignTaskModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center;overflow-y:auto;padding:20px;';
+    modal.innerHTML = '\
+<div style="background:white;border-radius:14px;padding:28px;max-width:540px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">\
+  <h3 style="margin:0 0 20px 0;font-size:18px;">Assign New Task</h3>\
+  <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Title *</label>\
+  <input type="text" id="atTitle" placeholder="e.g. Design Instagram carousel for Mother\'s Day" style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;">\
+  <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Brief / Description</label>\
+  <textarea id="atBrief" rows="5" placeholder="Full creative brief — dimensions, style, colors, copy, anything the designer needs..." style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>\
+  <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Reference Images</label>\
+  <div id="atImagePreview" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>\
+  <div id="atDropZone" style="border:2px dashed #d1d5db;border-radius:10px;padding:20px;text-align:center;cursor:pointer;margin-bottom:14px;transition:border-color 0.2s;color:#6b7280;font-size:13px;">\
+    <span style="font-size:22px;">📎</span><br>Click or drag images here<br><span style="font-size:11px;color:#9ca3af;">(Max 8 images, 10MB each)</span>\
+    <input type="file" id="atFileInput" multiple accept="image/*" style="display:none;">\
+  </div>\
+  <div style="display:flex;gap:12px;">\
+    <div style="flex:1;">\
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Client <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>\
+      <select id="atClient" style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>\
+    </div>\
+    <div style="flex:1;">\
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Assign to <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>\
+      <select id="atDesigner" style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>\
+    </div>\
+  </div>\
+  <div style="display:flex;gap:12px;">\
+    <div style="flex:1;">\
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Priority</label>\
+      <select id="atPriority" style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;">\
+        <option value="low">Low</option>\
+        <option value="medium" selected>Medium</option>\
+        <option value="high">High</option>\
+        <option value="urgent">Urgent</option>\
+      </select>\
+    </div>\
+    <div style="flex:1;">\
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Deadline *</label>\
+      <input type="date" id="atDeadline" style="width:100%;padding:10px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;">\
+    </div>\
+  </div>\
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">\
+    <button type="button" id="atCancel" style="padding:10px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;cursor:pointer;font-size:14px;">Cancel</button>\
+    <button type="button" id="atSubmit" style="padding:10px 20px;background:#1a56db;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Create Task</button>\
+  </div>\
+</div>';
+    document.body.appendChild(modal);
+    // Close handlers
+    document.getElementById('atCancel').addEventListener('click', function() { modal.style.display = 'none'; });
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+    // Drop zone
+    var dropZone = document.getElementById('atDropZone');
+    var fileInput = document.getElementById('atFileInput');
+    dropZone.addEventListener('click', function() { fileInput.click(); });
+    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor = '#1a56db'; });
+    dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = '#d1d5db'; });
+    dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.style.borderColor = '#d1d5db'; handleAssignTaskFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', function(e) { handleAssignTaskFiles(e.target.files); fileInput.value = ''; });
+    // Submit
+    document.getElementById('atSubmit').addEventListener('click', submitAssignTask);
+  }
+  // Reset state
+  window.__assignTaskImages = [];
+  document.getElementById('atTitle').value = '';
+  document.getElementById('atBrief').value = '';
+  document.getElementById('atImagePreview').innerHTML = '';
+  // Set deadline to 3 days from now
+  var d = new Date(); d.setDate(d.getDate() + 3);
+  document.getElementById('atDeadline').value = d.toISOString().slice(0, 10);
+  // Populate client dropdown
+  var clientSel = document.getElementById('atClient');
+  clientSel.innerHTML = '<option value="">— No client —</option>';
+  var clients = loadClientsRegistry();
+  if (clients && typeof clients === 'object') {
+    Object.keys(clients).forEach(function(cid) {
+      var c = clients[cid];
+      if (c && c.name) {
+        var opt = document.createElement('option');
+        opt.value = cid;
+        opt.textContent = c.name;
+        clientSel.appendChild(opt);
+      }
+    });
+  }
+  // Populate designer dropdown
+  var designerSel = document.getElementById('atDesigner');
+  designerSel.innerHTML = '<option value="">— Unassigned —</option>';
+  loadDesigners().then(function(list) {
+    list.forEach(function(ds) {
+      var opt = document.createElement('option');
+      opt.value = ds.id;
+      opt.textContent = ds.name + ' (' + ds.email + ')';
+      designerSel.appendChild(opt);
+    });
+  }).catch(function() {});
+  modal.style.display = 'flex';
+}
+
+function handleAssignTaskFiles(fileList) {
+  var files = Array.from(fileList || []);
+  if (!files.length) return;
+  var imgs = window.__assignTaskImages || [];
+  if (imgs.length + files.length > 8) {
+    showToast('Maximum 8 images allowed.', 'error');
+    return;
+  }
+  files.forEach(function(file) {
+    if (!file.type.startsWith('image/')) { showToast(file.name + ' is not an image', 'error'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast(file.name + ' exceeds 10MB limit', 'error'); return; }
+    // Compress and upload
+    showToast('Uploading ' + file.name + '...', 'info');
+    compressImage(file).then(function(compressed) {
+      var _base = typeof getApiBaseUrl === 'function' ? getApiBaseUrl() : '';
+      return fetch(_base + '/api/upload/media', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media: compressed.dataUrl, filename: compressed.name })
+      });
+    }).then(function(r) {
+      if (!r.ok) throw new Error('Upload failed (' + r.status + ')');
+      return r.json();
+    }).then(function(j) {
+      if (!j.url) throw new Error('No URL returned');
+      window.__assignTaskImages.push(j.url);
+      renderAssignTaskImagePreview();
+      showToast(file.name + ' uploaded', 'success');
+    }).catch(function(err) {
+      showToast('Upload failed: ' + (err.message || err), 'error');
+    });
+  });
+}
+
+function renderAssignTaskImagePreview() {
+  var container = document.getElementById('atImagePreview');
+  if (!container) return;
+  var imgs = window.__assignTaskImages || [];
+  container.innerHTML = '';
+  imgs.forEach(function(url, idx) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;';
+    wrap.innerHTML = '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover;">' +
+      '<button type="button" data-rm-idx="' + idx + '" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:12px;line-height:20px;text-align:center;padding:0;">×</button>';
+    container.appendChild(wrap);
+  });
+  container.querySelectorAll('[data-rm-idx]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var i = parseInt(btn.getAttribute('data-rm-idx'));
+      window.__assignTaskImages.splice(i, 1);
+      renderAssignTaskImagePreview();
+    });
+  });
+}
+
+function submitAssignTask() {
+  var title = (document.getElementById('atTitle').value || '').trim();
+  var brief = (document.getElementById('atBrief').value || '').trim();
+  var clientId = document.getElementById('atClient').value || '';
+  var designerId = document.getElementById('atDesigner').value || '';
+  var priority = document.getElementById('atPriority').value || 'medium';
+  var deadline = document.getElementById('atDeadline').value || '';
+  var images = window.__assignTaskImages || [];
+
+  if (!title) { showToast('Please enter a task title', 'error'); return; }
+  if (!deadline) { showToast('Please set a deadline', 'error'); return; }
+
+  var submitBtn = document.getElementById('atSubmit');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating...'; }
+
+  var payload = {
+    title: title,
+    briefNotes: brief,
+    referenceImages: images,
+    priority: priority,
+    deadline: new Date(deadline).toISOString()
+  };
+  if (clientId) payload.clientId = clientId;
+  if (designerId) payload.designerId = designerId;
+
+  fetch(getApiBaseUrl() + '/api/production/tasks', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json().then(function(j) { j._status = r.status; return j; }); })
+  .then(function(j) {
+    if (j._status >= 400) throw new Error(j.error || 'Failed to create task');
+    document.getElementById('assignTaskModal').style.display = 'none';
+    var msg = 'Task created';
+    if (designerId) {
+      var dSel = document.getElementById('atDesigner');
+      var dName = dSel && dSel.selectedOptions[0] ? dSel.selectedOptions[0].textContent.split(' (')[0].trim() : 'designer';
+      msg += ' and assigned to ' + dName;
+    }
+    showToast(msg, 'success');
+    loadProductionTasks().then(function() { renderProductionView(); });
+  })
+  .catch(function(err) { showToast(err.message || 'Failed', 'error'); })
+  .finally(function() {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Task'; }
+  });
+}
+
 function openSendToDesignerModal(item) {
   var modal = document.getElementById('sendToDesignerModal');
   if (!modal) {

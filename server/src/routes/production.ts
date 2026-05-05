@@ -218,11 +218,30 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
       reviewNotes: bodyReviewNotes,
     } = body;
 
-    if (!clientId || !designerId) {
-      return res.status(400).json({ error: 'clientId and designerId are required' });
+    // Title is always required; clientId and designerId are optional for standalone tasks
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ error: 'title is required' });
     }
+
+    // Validate client if provided
+    let client: any = null;
+    if (clientId) {
+      client = await getClient(clientId);
+      if (!client || client.agencyId !== agencyId) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+    }
+
+    // Validate designer if provided
+    if (designerId) {
+      const designer = await getUser(designerId);
+      if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'STAFF'].includes(designer.role)) {
+        return res.status(400).json({ error: 'Invalid designer' });
+      }
+    }
+
     // Prevent duplicate tasks — reuse existing task for the same approvalId
-    if (approvalId) {
+    if (approvalId && clientId) {
       const existingTasks = await getProductionTasksByAgency(agencyId);
       const existingTask = existingTasks.find(
         (t: ProductionTask) => t.approvalId === approvalId && t.clientId === clientId
@@ -235,7 +254,7 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
         // Task was approved/ready_to_post — reset it instead of creating a new one
         const now2 = new Date().toISOString();
         existingTask.status = (initialStatus === 'changes_requested' ? 'changes_requested' : 'assigned') as ProductionTaskStatus;
-        existingTask.designerId = designerId;
+        existingTask.designerId = designerId || existingTask.designerId;
         existingTask.priority = (priority && ['low', 'medium', 'high', 'urgent'].includes(priority)) ? priority : existingTask.priority;
         existingTask.deadline = deadline || existingTask.deadline;
         existingTask.briefNotes = briefNotes ? String(briefNotes).slice(0, 2000) : existingTask.briefNotes;
@@ -250,23 +269,15 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
         return res.json({ task: existingTask, reused: true });
       }
     }
-    const client = await getClient(clientId);
-    if (!client || client.agencyId !== agencyId) {
-      return res.status(404).json({ error: 'Client not found' });
-    }
-    const designer = await getUser(designerId);
-    if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'STAFF'].includes(designer.role)) {
-      return res.status(400).json({ error: 'Invalid designer' });
-    }
 
     const now = new Date().toISOString();
     const task: ProductionTask = {
       id: generateId('task'),
       agencyId,
-      clientId,
+      clientId: clientId || null,
       contentId: contentId || '',
       approvalId: approvalId || '',
-      designerId,
+      designerId: designerId || '',
       title: String(title || '').slice(0, 500),
       caption: String(caption || '').slice(0, 5000),
       copyText: String(copyText || '').slice(0, 5000),
@@ -286,12 +297,14 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
       approvedAt: '',
     };
     await saveProductionTask(task);
-    // Fire-and-forget push notification for task assignment
-    sendPushToUser(task.designerId, NOTIFY.taskAssigned(
-      client?.name || 'Client',
-      task.title || task.caption || 'New task',
-      task.deadline || 'TBD'
-    )).catch(() => {});
+    // Fire-and-forget push notification for task assignment (only if designer assigned)
+    if (task.designerId) {
+      sendPushToUser(task.designerId, NOTIFY.taskAssigned(
+        client?.name || 'Custom Task',
+        task.title || task.caption || 'New task',
+        task.deadline || 'TBD'
+      )).catch(() => {});
+    }
     const result: any = { success: true, task };
     res.status(201).json(result);
   } catch (e: any) {
