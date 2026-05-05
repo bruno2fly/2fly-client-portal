@@ -70,6 +70,10 @@ async function syncProductionArtToApproval(task: ProductionTask, markArtApproved
     console.warn('[production] syncProductionArtToApproval skipped: task has no finalArt');
     return;
   }
+  if (!task.clientId) {
+    console.warn('[production] syncProductionArtToApproval skipped: standalone task (no client)');
+    return;
+  }
   const state = await getPortalState(task.agencyId, task.clientId);
   if (!state || !Array.isArray(state.approvals)) {
     console.warn('[production] No portal state or approvals for client:', task.clientId);
@@ -101,6 +105,7 @@ async function updateOriginalApprovalWithFinalArt(task: ProductionTask): Promise
 
 /** When designer resubmits after changes, push the approval back to content_pending for the client. */
 async function returnApprovalToPending(task: ProductionTask): Promise<void> {
+  if (!task.clientId) return;  // standalone task — no approval to update
   const state = await getPortalState(task.agencyId, task.clientId);
   if (!state || !Array.isArray(state.approvals)) return;
   const item = state.approvals.find(
@@ -474,7 +479,7 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, async (
         sendPushToRole(task.agencyId, ['OWNER', 'ADMIN', 'STAFF'], NOTIFY.designerSubmitted(
           user.name || user.email || 'Designer',
           task.title || task.caption || 'Task',
-          (await getClient(task.clientId))?.name || 'Client'
+          (task.clientId ? (await getClient(task.clientId))?.name : null) || 'Custom Task'
         )).catch(() => {});
       }
       if (statusChange === 'approved') {
@@ -525,7 +530,7 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, async (req: Au
       // Fire-and-forget push notification for approval
       sendPushToUser(task.designerId, NOTIFY.designApproved(
         task.title || 'Task',
-        (await getClient(task.clientId))?.name || 'Client'
+        (task.clientId ? (await getClient(task.clientId))?.name : null) || 'Custom Task'
       )).catch(() => {});
     } else if (action === 'request_changes') {
       task.status = 'changes_requested';
@@ -533,7 +538,7 @@ router.post('/tasks/:id/review', authenticate, requireAgencyOnly, async (req: Au
       // Fire-and-forget push notification for revision request
       sendPushToUser(task.designerId, NOTIFY.designRevision(
         task.title || 'Task',
-        (await getClient(task.clientId))?.name || 'Client'
+        (task.clientId ? (await getClient(task.clientId))?.name : null) || 'Custom Task'
       )).catch(() => {});
     } else {
       return res.status(400).json({ error: 'action must be approve or request_changes' });
@@ -572,9 +577,10 @@ router.post('/migrate-approved-art', authenticate, requireAgencyOnly, async (req
       t.finalArt && t.finalArt.length > 0
     );
 
-    const results: { taskId: string; approvalId: string; clientId: string; status: string }[] = [];
+    const results: { taskId: string; approvalId: string; clientId: string | null; status: string }[] = [];
 
     for (const task of approvedTasks) {
+      if (!task.clientId) { results.push({ taskId: task.id, approvalId: task.approvalId, clientId: task.clientId, status: 'skipped_standalone' }); continue; }
       const state = await getPortalState(task.agencyId, task.clientId);
       if (!state || !Array.isArray(state.approvals)) continue;
 
