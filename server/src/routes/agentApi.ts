@@ -396,50 +396,6 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
   });
 });
 
-// ─── POST /api/agent/restore-portal-state ───────────────────────────────────
-// Temporary endpoint to restore portal state data from backup
-router.post('/restore-portal-state', async (req: Request, res: Response) => {
-  try {
-    const agencyId = await resolveAgencyId();
-    const { clientId, data } = req.body || {};
-    const cid = (clientId || '').toString().trim();
-    if (!cid || !data || typeof data !== 'object') {
-      return res.status(400).json({ error: 'clientId and data (object) required' });
-    }
-    // Validate client exists
-    const client = await getClient(cid);
-    if (!client || client.agencyId !== agencyId) {
-      return res.status(404).json({ error: 'Client not found for this agency' });
-    }
-    // Auto-fill missing fields
-    const state = data as any;
-    if (!state.client) {
-      state.client = { id: cid, name: client.name, whatsapp: '' };
-    }
-    if (!state.kpis) {
-      state.kpis = { scheduled: 0, waitingApproval: 0, missingAssets: 0, frustration: 0 };
-    }
-    if (!Array.isArray(state.assets)) state.assets = [];
-    if (!Array.isArray(state.activity)) state.activity = [];
-
-    await savePortalState(agencyId, cid, state);
-
-    // Verify
-    const saved = await getPortalState(agencyId, cid);
-    const approvalCount = saved?.approvals?.length || 0;
-    const requestCount = saved?.requests?.length || 0;
-    res.json({
-      success: true,
-      clientId: cid,
-      approvals: approvalCount,
-      requests: requestCount,
-    });
-  } catch (e: any) {
-    console.error('[restore-portal-state] Error:', e);
-    res.status(500).json({ error: e.message || 'Failed to restore' });
-  }
-});
-
 // ─── GET /api/agent/ping ─────────────────────────────────────────────────────
 router.get('/ping', (_req: Request, res: Response) => {
   res.json({ pong: true, version: 'v4-static-import', ts: Date.now() });
