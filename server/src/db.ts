@@ -843,12 +843,22 @@ export async function saveClient(client: Client): Promise<void> {
 
 export async function deleteClient(clientId: string): Promise<void> {
   // Delete related rows that don't cascade automatically (FK constraint order matters)
+  // 1. Comments on this client's production tasks (FK → ProductionTask)
+  const taskIds = (await prisma.productionTask.findMany({ where: { clientId }, select: { id: true } })).map(t => t.id);
+  if (taskIds.length > 0) {
+    await prisma.productionTaskComment.deleteMany({ where: { taskId: { in: taskIds } } }).catch(() => {});
+  }
+  // 2. Production tasks (the missing table that caused FK violation)
+  await prisma.productionTask.deleteMany({ where: { clientId } }).catch(() => {});
+  // 3. All other client-scoped tables
   await prisma.asset.deleteMany({ where: { clientId } }).catch(() => {});
   await prisma.scheduledPost.deleteMany({ where: { clientId } }).catch(() => {});
   await prisma.metaIntegration.deleteMany({ where: { clientId } }).catch(() => {});
   await prisma.brandKit.deleteMany({ where: { clientId } }).catch(() => {});
   await prisma.aIImage.deleteMany({ where: { clientId } }).catch(() => {});
   await prisma.referenceImage.deleteMany({ where: { clientId } }).catch(() => {});
+  // 4. Unlink any users tied to this client (don't delete users, just clear the FK)
+  await prisma.user.updateMany({ where: { clientId }, data: { clientId: null } }).catch(() => {});
   // Now delete the client — errors propagate so the route can return a real 500
   await prisma.client.delete({ where: { id: clientId } });
 }
