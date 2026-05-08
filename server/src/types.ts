@@ -252,7 +252,7 @@ export interface ProductionTask {
   contentId: string;
   approvalId: string;
   designerId: string;
-  taskType: 'demand' | 'brief';
+  taskType?: 'demand' | 'brief';
   title: string;
   caption: string;
   copyText: string;
