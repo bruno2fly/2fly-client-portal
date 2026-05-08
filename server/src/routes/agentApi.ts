@@ -21,7 +21,7 @@ import {
   stripBase64FromPortalState,
   prisma,
 } from '../db.js';
-import { generateId } from '../utils/auth.js';
+import { generateId, hashPassword } from '../utils/auth.js';
 import type { ProductionTask, ProductionTaskStatus, PortalStateData } from '../types.js';
 
 const router = Router();
@@ -394,6 +394,36 @@ router.post('/posts/schedule', (req: Request, res: Response) => {
   res.status(501).json({
     error: 'Use POST /api/posts/schedule with full auth for scheduling. Agent scheduling not yet supported.',
   });
+});
+
+// ─── POST /api/agent/activate-user ──────────────────────────────────────────
+// Activate an INVITED user by setting their password, username, and status.
+router.post('/activate-user', async (req: Request, res: Response) => {
+  try {
+    const { userId, username, password } = req.body || {};
+    if (!userId || !username || !password) {
+      return res.status(400).json({ error: 'userId, username, and password required' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const passwordHash = await hashPassword(String(password));
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        username: String(username).trim(),
+        passwordHash,
+        status: 'ACTIVE',
+        updatedAt: new Date()
+      }
+    });
+    res.json({ success: true, user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, status: updated.status, username: updated.username } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ─── GET /api/agent/ping ─────────────────────────────────────────────────────
