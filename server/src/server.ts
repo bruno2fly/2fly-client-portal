@@ -424,9 +424,10 @@ app.use('/api/agent', agentApiRoutes);
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Server error:', err);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: err.message,
+    stack: String(err.stack || '').split('\n').slice(0, 5),
   });
 });
 
