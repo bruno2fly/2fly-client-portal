@@ -97,11 +97,16 @@ app.use(cors({
     if (process.env.NODE_ENV === 'development' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
+    // Agent API uses Bearer token auth, allow any origin
+    // (callback(null,false) rejects without throwing — callback(new Error) would crash as a 500)
     console.warn('[CORS] Blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
+    callback(null, false);
   },
   credentials: true
 }));
+
+// Agent API needs open CORS (Bearer token auth, no cookies)
+app.use('/api/agent', cors());
 
 // NOTE: Do NOT set Connection/Keep-Alive response headers here.
 // HTTP/2 (RFC 9113 §8.2.2) prohibits connection-specific headers;
@@ -426,8 +431,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   console.error('Server error:', err);
   res.status(500).json({
     error: 'Internal server error',
-    message: err.message,
-    stack: String(err.stack || '').split('\n').slice(0, 5),
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
