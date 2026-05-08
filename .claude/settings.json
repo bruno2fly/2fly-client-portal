@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(public/**)",
+      "Write(server/src/routes/**)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(curl*)",
+      "Bash(node backup-db.js)"
+    ],
+    "deny": [
+      "Write(server/prisma/schema.prisma)",
+      "Bash(prisma migrate*)",
+      "Bash(prisma db push*)",
+      "Write(.env*)"
+    ]
+  }
+}
