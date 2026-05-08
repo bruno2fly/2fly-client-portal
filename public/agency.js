@@ -12318,7 +12318,7 @@ function productionStatusBadgeLabel(task, designerName) {
   switch (task.status) {
     case 'assigned': return '🎨 Design in progress — ' + name;
     case 'in_progress': return '🎨 Design in progress — ' + name;
-    case 'review': return '👀 Under review';
+    case 'review': return '🎨 ' + name + ' sent the art — go to Production to review';
     case 'changes_requested': return '✏️ Being revised';
     case 'approved':
     case 'ready_to_post': return '✅ Ready to send to client';
