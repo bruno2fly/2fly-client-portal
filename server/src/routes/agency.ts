@@ -17,6 +17,7 @@ import {
   getClientCredentials,
   saveClientCredentials,
   deleteClientCredentials,
+  stripBase64FromPortalState,
 } from '../db.js';
 import type { Client, PortalStateData } from '../types.js';
 
@@ -204,7 +205,7 @@ router.get('/portal-state', async (req: AuthenticatedRequest, res) => {
       await savePortalState(agencyId, clientId, state);
     }
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json({ success: true, data: state });
+    res.json({ success: true, data: stripBase64FromPortalState(state) });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to get portal state' });
   }

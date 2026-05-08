@@ -15049,14 +15049,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function pollClientActions() {
       // Skip polling when tab is hidden (saves memory + network)
       if (document.hidden) return;
-      var clients = loadClientsRegistry();
-      var ids = clients ? Object.keys(clients) : [];
-      ids.forEach(function(cid) {
-        fetchPortalStateFromAPI(cid).then(function() {
-          if (typeof renderNotificationBell === 'function') renderNotificationBell();
-        }).catch(function(err) {
-          console.warn('Agency poll portal state failed for', cid, err && err.message);
-        });
+      // Only poll the active client — polling ALL clients wastes bandwidth
+      var cid = window.currentClientId;
+      if (!cid) return;
+      fetchPortalStateFromAPI(cid).then(function() {
+        if (typeof renderNotificationBell === 'function') renderNotificationBell();
+      }).catch(function(err) {
+        console.warn('Agency poll portal state failed for', cid, err && err.message);
       });
     }
     // Baseline: fetch all clients so we have prev state for diffing (no notifications on first run)
