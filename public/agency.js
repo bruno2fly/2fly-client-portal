@@ -13412,6 +13412,7 @@ function renderBriefsPage(container) {
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Client</th>';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Deadline</th>';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Status</th>';
+    html += '<th style="width:48px;padding:12px 8px;"></th>';
     html += '</tr></thead><tbody>';
     briefs.forEach(function(brief) {
       var assigneeName = designerMap[brief.designerId] || brief.designerId || 'Unassigned';
@@ -13427,6 +13428,7 @@ function renderBriefsPage(container) {
       html += '<td style="padding:12px 16px;font-size:14px;color:#475569;">' + clientName + '</td>';
       html += '<td style="padding:12px 16px;font-size:14px;' + (isOverdue ? 'color:#dc2626;font-weight:600;' : 'color:#475569;') + '">' + deadlineStr + (isOverdue ? ' ⚠️' : '') + '</td>';
       html += '<td style="padding:12px 16px;"><span style="padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:' + (statusColors[brief.status] || '#e2e8f0') + ';color:' + (statusTextColors[brief.status] || '#475569') + ';">' + (statusLabels[brief.status] || brief.status) + '</span></td>';
+      html += '<td style="padding:12px 8px;text-align:center;"><button type="button" class="brief-delete-btn" data-task-id="' + brief.id + '" data-task-title="' + (brief.title || 'Untitled').replace(/"/g, '&quot;') + '" title="Delete brief" style="background:none;border:none;cursor:pointer;padding:6px;border-radius:6px;color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s;" onmouseenter="this.style.color=\'#dc2626\';this.style.background=\'#fee2e2\'" onmouseleave="this.style.color=\'#94a3b8\';this.style.background=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>';
       html += '</tr>';
     });
     html += '</tbody></table></div>';
@@ -13440,11 +13442,23 @@ function renderBriefsPage(container) {
 
   // Bind row clicks to open task detail
   container.querySelectorAll('.brief-row').forEach(function(row) {
-    row.addEventListener('click', function() {
+    row.addEventListener('click', function(e) {
+      // Don't navigate if clicking the delete button
+      if (e.target.closest('.brief-delete-btn')) return;
       var taskId = row.getAttribute('data-task-id');
       currentProductionTaskId = taskId;
       currentProductionSection = 'demands'; // reuse existing task detail view
       renderProductionView();
+    });
+  });
+
+  // Bind delete buttons
+  container.querySelectorAll('.brief-delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var taskId = btn.getAttribute('data-task-id');
+      var taskTitle = btn.getAttribute('data-task-title');
+      showDeleteTaskConfirm(taskId, taskTitle);
     });
   });
 }
