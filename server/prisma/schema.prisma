@@ -323,6 +323,7 @@ model ProductionTask {
   briefNotes      String                 @default("")
   finalArt        String[]
   designerNotes   String                 @default("")
+  taskType        String                 @default("demand")  // "demand" (designer) or "brief" (admin/staff)
   status          ProductionTaskStatus   @default(assigned)
   priority        ProductionTaskPriority @default(medium)
   deadline        DateTime

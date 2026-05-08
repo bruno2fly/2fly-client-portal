@@ -221,7 +221,9 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
       deadline,
       initialStatus,
       reviewNotes: bodyReviewNotes,
+      taskType: rawTaskType,
     } = body;
+    const taskType = rawTaskType === 'brief' ? 'brief' : 'demand';
 
     // Title is always required; clientId and designerId are optional for standalone tasks
     if (!title || !String(title).trim()) {
@@ -240,8 +242,8 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
     // Validate designer if provided
     if (designerId) {
       const designer = await getUser(designerId);
-      if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'STAFF'].includes(designer.role)) {
-        return res.status(400).json({ error: 'Invalid designer' });
+      if (!designer || designer.agencyId !== agencyId || !['DESIGNER', 'OWNER', 'ADMIN', 'STAFF'].includes(designer.role)) {
+        return res.status(400).json({ error: 'Invalid assignee' });
       }
     }
 
@@ -283,6 +285,7 @@ router.post('/tasks', authenticate, requireAgencyOnly, async (req: Authenticated
       contentId: contentId || '',
       approvalId: approvalId || '',
       designerId: designerId || '',
+      taskType,
       title: String(title || '').slice(0, 500),
       caption: String(caption || '').slice(0, 5000),
       copyText: String(copyText || '').slice(0, 5000),

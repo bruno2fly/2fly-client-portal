@@ -12397,8 +12397,8 @@ function bindProductionNav() {
       renderProductionView();
     });
   }
-  ['ai-library', 'references', 'archived'].forEach(function(section) {
-    var navId = section === 'ai-library' ? 'AILibrary' : section === 'archived' ? 'Archived' : 'References';
+  ['briefs', 'ai-library', 'references', 'archived'].forEach(function(section) {
+    var navId = section === 'briefs' ? 'Briefs' : section === 'ai-library' ? 'AILibrary' : section === 'archived' ? 'Archived' : 'References';
     var btn = document.getElementById('productionNav' + navId);
     if (btn) btn.addEventListener('click', function() {
       currentProductionSection = section;
@@ -12426,7 +12426,7 @@ function switchToProductionView() {
   document.querySelectorAll('.production-sidebar__link').forEach(function(l) { l.classList.remove('active'); });
   var activeBtn = document.querySelector('.production-sidebar__link[data-section="' + currentProductionSection + '"]');
   if (activeBtn) activeBtn.classList.add('active');
-  Promise.all([loadProductionTasks(), loadDesigners().catch(function() {})]).then(function() { renderProductionView(); }).catch(function(e) { showToast(e && e.message ? e.message : 'Failed to load', 'error'); });
+  Promise.all([loadProductionTasks(), loadDesigners().catch(function() {}), loadUsersForBriefs().catch(function() {})]).then(function() { renderProductionView(); }).catch(function(e) { showToast(e && e.message ? e.message : 'Failed to load', 'error'); });
 }
 function switchToDashboardView() {
   currentViewMode = 'dashboard';
@@ -12447,7 +12447,7 @@ function priorityColor(p) {
   return { low: '#22c55e', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444' }[p] || '#64748b';
 }
 function getFilteredDemands() {
-  var tasks = productionTasksCache.slice();
+  var tasks = productionTasksCache.filter(function(t) { return t.taskType !== 'brief'; });
   if (demandFilterStatus === 'todo') {
     tasks = tasks.filter(function(t) { return t.status === 'assigned'; });
   } else if (demandFilterStatus === 'in_progress') {
@@ -13350,6 +13350,230 @@ function hashClientIdToStripe(clientId) {
   return Math.abs(h) % PV_CLIENT_STRIPE_MOD;
 }
 
+// ─── Briefs page (admin/staff task assignments) ───────────────────────────────
+function renderBriefsPage(container) {
+  var briefs = productionTasksCache.filter(function(t) { return t.taskType === 'brief'; });
+  var clientsData = loadClientsRegistry();
+  var designerMap = {};
+  designersCache.forEach(function(d) { designerMap[d.id] = d.name || d.email || 'Team member'; });
+  // Also include staff/admin users from the users we know about
+  if (window._usersCache) {
+    window._usersCache.forEach(function(u) { designerMap[u.id] = u.name || u.email || 'Team member'; });
+  }
+
+  var todayStr = new Date().toISOString().slice(0, 10);
+  var totalCount = briefs.length;
+  var todoCount = briefs.filter(function(t) { return t.status === 'assigned'; }).length;
+  var workingCount = briefs.filter(function(t) { return ['in_progress', 'changes_requested'].includes(t.status); }).length;
+  var doneCount = briefs.filter(function(t) { return ['approved', 'ready_to_post', 'review'].includes(t.status); }).length;
+  var overdueCount = briefs.filter(function(t) { return t.deadline && t.deadline.slice(0,10) < todayStr && !['approved','ready_to_post'].includes(t.status); }).length;
+
+  // Sort: overdue first, then by deadline
+  briefs.sort(function(a, b) {
+    var now = new Date();
+    var aOverdue = a.deadline && new Date(a.deadline) < now ? 0 : 1;
+    var bOverdue = b.deadline && new Date(b.deadline) < now ? 0 : 1;
+    if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+    var aDate = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+    var bDate = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+    return aDate - bDate;
+  });
+
+  var html = '<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">';
+  html += '<div>';
+  html += '<h2 style="margin:0 0 4px 0;font-size:22px;font-weight:700;color:#1e293b;">Briefs</h2>';
+  html += '<p style="margin:0;color:#64748b;font-size:14px;">Assign tasks and briefs to your admin team</p>';
+  html += '</div>';
+  html += '<button id="btnCreateBrief" style="background:#1a56db;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">+ New Brief</button>';
+  html += '</div>';
+
+  // Stats bar
+  html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">';
+  html += '<span style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:#e2e8f0;color:#475569;">' + totalCount + ' Total</span>';
+  html += '<span style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:#dbeafe;color:#1e40af;">' + todoCount + ' To Do</span>';
+  html += '<span style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:#fef3c7;color:#92400e;">' + workingCount + ' Working</span>';
+  html += '<span style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:#d1fae5;color:#065f46;">' + doneCount + ' Done</span>';
+  if (overdueCount > 0) html += '<span style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:#fee2e2;color:#991b1b;">' + overdueCount + ' Overdue</span>';
+  html += '</div>';
+
+  if (briefs.length === 0) {
+    html += '<div style="text-align:center;padding:60px 20px;color:#94a3b8;">';
+    html += '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px;display:block;opacity:0.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    html += '<p style="font-size:16px;margin:0 0 8px 0;">No briefs yet</p>';
+    html += '<p style="font-size:14px;margin:0;">Click <strong>+ New Brief</strong> to assign a task to your team</p>';
+    html += '</div>';
+  } else {
+    // Table view
+    html += '<div style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">';
+    html += '<table style="width:100%;border-collapse:collapse;">';
+    html += '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Brief</th>';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Assigned To</th>';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Client</th>';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Deadline</th>';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Status</th>';
+    html += '</tr></thead><tbody>';
+    briefs.forEach(function(brief) {
+      var assigneeName = designerMap[brief.designerId] || brief.designerId || 'Unassigned';
+      var clientName = (clientsData && clientsData[brief.clientId] && clientsData[brief.clientId].name) || brief.clientId || '—';
+      var deadlineStr = brief.deadline ? new Date(brief.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+      var isOverdue = brief.deadline && brief.deadline.slice(0, 10) < todayStr && !['approved', 'ready_to_post'].includes(brief.status);
+      var statusColors = { assigned: '#dbeafe', in_progress: '#fef3c7', review: '#e0e7ff', changes_requested: '#fee2e2', approved: '#d1fae5', ready_to_post: '#d1fae5' };
+      var statusTextColors = { assigned: '#1e40af', in_progress: '#92400e', review: '#4338ca', changes_requested: '#991b1b', approved: '#065f46', ready_to_post: '#065f46' };
+      var statusLabels = { assigned: 'To Do', in_progress: 'Working', review: 'Review', changes_requested: 'Changes', approved: 'Done', ready_to_post: 'Done' };
+      html += '<tr class="brief-row" data-task-id="' + brief.id + '" style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">';
+      html += '<td style="padding:12px 16px;font-size:14px;font-weight:500;color:#1e293b;">' + (brief.title || 'Untitled') + '</td>';
+      html += '<td style="padding:12px 16px;font-size:14px;color:#475569;">' + assigneeName + '</td>';
+      html += '<td style="padding:12px 16px;font-size:14px;color:#475569;">' + clientName + '</td>';
+      html += '<td style="padding:12px 16px;font-size:14px;' + (isOverdue ? 'color:#dc2626;font-weight:600;' : 'color:#475569;') + '">' + deadlineStr + (isOverdue ? ' ⚠️' : '') + '</td>';
+      html += '<td style="padding:12px 16px;"><span style="padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:' + (statusColors[brief.status] || '#e2e8f0') + ';color:' + (statusTextColors[brief.status] || '#475569') + ';">' + (statusLabels[brief.status] || brief.status) + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  container.innerHTML = html;
+
+  // Bind create brief button
+  var btnCreate = document.getElementById('btnCreateBrief');
+  if (btnCreate) btnCreate.addEventListener('click', function() { openBriefModal(); });
+
+  // Bind row clicks to open task detail
+  container.querySelectorAll('.brief-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+      var taskId = row.getAttribute('data-task-id');
+      currentProductionTaskId = taskId;
+      currentProductionSection = 'demands'; // reuse existing task detail view
+      renderProductionView();
+    });
+  });
+}
+
+// ─── Brief creation modal ─────────────────────────────────────────────────────
+function openBriefModal() {
+  var clientsData = loadClientsRegistry();
+  var clientIds = clientsData ? Object.keys(clientsData) : [];
+  // Get admin/staff users for assignment
+  var staffUsers = (window._usersCache || []).filter(function(u) {
+    return ['OWNER', 'ADMIN', 'STAFF'].includes(u.role) && u.status === 'ACTIVE';
+  });
+
+  var overlay = document.createElement('div');
+  overlay.id = 'briefModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  var html = '<div style="background:white;border-radius:16px;padding:32px;width:520px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">';
+  html += '<h2 style="margin:0 0 24px 0;font-size:20px;font-weight:700;color:#1e293b;">New Brief</h2>';
+
+  html += '<label style="display:block;margin-bottom:16px;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Title *</span>';
+  html += '<input id="briefTitle" type="text" placeholder="e.g. Schedule plan for Cafe St Petersburg" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
+  html += '</label>';
+
+  html += '<label style="display:block;margin-bottom:16px;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Description / Details</span>';
+  html += '<textarea id="briefNotes" rows="4" placeholder="What needs to be done..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>';
+  html += '</label>';
+
+  html += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
+  html += '<label style="flex:1;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Assign To</span>';
+  html += '<select id="briefAssignee" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+  html += '<option value="">— Select —</option>';
+  staffUsers.forEach(function(u) { html += '<option value="' + u.id + '">' + (u.name || u.email) + ' (' + u.role + ')</option>'; });
+  html += '</select></label>';
+
+  html += '<label style="flex:1;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Client (optional)</span>';
+  html += '<select id="briefClient" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+  html += '<option value="">— None —</option>';
+  clientIds.forEach(function(cid) { html += '<option value="' + cid + '">' + (clientsData[cid].name || cid) + '</option>'; });
+  html += '</select></label>';
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:12px;margin-bottom:24px;">';
+  html += '<label style="flex:1;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Priority</span>';
+  html += '<select id="briefPriority" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+  html += '<option value="medium">Medium</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option>';
+  html += '</select></label>';
+
+  html += '<label style="flex:1;">';
+  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Deadline</span>';
+  var defaultDeadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  html += '<input id="briefDeadline" type="date" value="' + defaultDeadline + '" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
+  html += '</label>';
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:12px;justify-content:flex-end;">';
+  html += '<button id="briefCancel" style="padding:10px 20px;border:1px solid #d1d5db;border-radius:8px;background:white;color:#475569;cursor:pointer;font-size:14px;">Cancel</button>';
+  html += '<button id="briefSubmit" style="padding:10px 24px;border:none;border-radius:8px;background:#1a56db;color:white;cursor:pointer;font-size:14px;font-weight:600;">Create Brief</button>';
+  html += '</div>';
+
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  // Load users for assignee dropdown if not cached
+  if (!window._usersCache || window._usersCache.length === 0) {
+    loadUsersForBriefs().then(function() {
+      var sel = document.getElementById('briefAssignee');
+      if (sel) {
+        var staffOpts = (window._usersCache || []).filter(function(u) { return ['OWNER','ADMIN','STAFF'].includes(u.role) && u.status === 'ACTIVE'; });
+        sel.innerHTML = '<option value="">— Select —</option>';
+        staffOpts.forEach(function(u) { sel.innerHTML += '<option value="' + u.id + '">' + (u.name || u.email) + ' (' + u.role + ')</option>'; });
+      }
+    });
+  }
+
+  document.getElementById('briefCancel').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  document.getElementById('briefSubmit').addEventListener('click', function() {
+    var title = document.getElementById('briefTitle').value.trim();
+    if (!title) { showToast('Title is required', 'error'); return; }
+    var body = {
+      title: title,
+      briefNotes: document.getElementById('briefNotes').value.trim(),
+      designerId: document.getElementById('briefAssignee').value || '',
+      clientId: document.getElementById('briefClient').value || '',
+      priority: document.getElementById('briefPriority').value || 'medium',
+      deadline: document.getElementById('briefDeadline').value || new Date().toISOString().slice(0, 10),
+      taskType: 'brief'
+    };
+    var session = JSON.parse(localStorage.getItem('2fly_staff_session') || '{}');
+    var agencyId = localStorage.getItem('2fly_agency_id');
+    var btn = document.getElementById('briefSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+    fetch(getApiBaseUrl() + '/api/production/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(Object.assign(body, { agencyId: agencyId, staffSession: session }))
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.error) throw new Error(data.error);
+      overlay.remove();
+      showToast('Brief created!', 'success');
+      loadProductionTasks().then(function() { currentProductionSection = 'briefs'; renderProductionView(); });
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Create Brief';
+      showToast(err.message || 'Failed to create brief', 'error');
+    });
+  });
+}
+
+async function loadUsersForBriefs() {
+  try {
+    var res = await fetch(getApiBaseUrl() + '/api/users', { credentials: 'include' });
+    var data = await res.json();
+    window._usersCache = data.users || data || [];
+  } catch(e) {
+    console.warn('Failed to load users for briefs:', e);
+  }
+}
+
 function renderArchivedPostsSection(container) {
   var clientsData = loadClientsRegistry();
   var clientIds = clientsData ? Object.keys(clientsData) : [];
@@ -13453,6 +13677,10 @@ function renderProductionView() {
   }
   if (currentProductionSection === 'archived') {
     renderArchivedPostsSection(container);
+    return;
+  }
+  if (currentProductionSection === 'briefs') {
+    renderBriefsPage(container);
     return;
   }
   var clientsData = loadClientsRegistry();
