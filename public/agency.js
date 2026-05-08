@@ -13408,6 +13408,7 @@ function renderBriefsPage(container) {
     html += '<table style="width:100%;border-collapse:collapse;">';
     html += '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Brief</th>';
+    html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Type</th>';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Assigned To</th>';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Client</th>';
     html += '<th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Deadline</th>';
@@ -13424,6 +13425,12 @@ function renderBriefsPage(container) {
       var statusLabels = { assigned: 'To Do', in_progress: 'Working', review: 'Review', changes_requested: 'Changes', approved: 'Done', ready_to_post: 'Done' };
       html += '<tr class="brief-row" data-task-id="' + brief.id + '" style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">';
       html += '<td style="padding:12px 16px;font-size:14px;font-weight:500;color:#1e293b;">' + (brief.title || 'Untitled') + '</td>';
+      var briefType = (brief.copyText && brief.copyText.indexOf('briefType:') === 0) ? brief.copyText.split(':')[1] : '';
+      var typeTag = '';
+      if (briefType === 'content') typeTag = '<span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#dbeafe;color:#1d4ed8;">Content</span>';
+      else if (briefType === 'strategy') typeTag = '<span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#ffedd5;color:#c2410c;">Strategy</span>';
+      else typeTag = '<span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#f1f5f9;color:#64748b;">General</span>';
+      html += '<td style="padding:12px 16px;">' + typeTag + '</td>';
       html += '<td style="padding:12px 16px;font-size:14px;color:#475569;">' + assigneeName + '</td>';
       html += '<td style="padding:12px 16px;font-size:14px;color:#475569;">' + clientName + '</td>';
       html += '<td style="padding:12px 16px;font-size:14px;' + (isOverdue ? 'color:#dc2626;font-weight:600;' : 'color:#475569;') + '">' + deadlineStr + (isOverdue ? ' ⚠️' : '') + '</td>';
@@ -13465,59 +13472,154 @@ function renderBriefsPage(container) {
 
 // ─── Brief creation modal ─────────────────────────────────────────────────────
 function openBriefModal() {
+  // Step 1: Show type chooser
+  var overlay = document.createElement('div');
+  overlay.id = 'briefModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  var html = '<div style="background:white;border-radius:16px;padding:32px;width:480px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);">';
+  html += '<h2 style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#1e293b;">New Brief</h2>';
+  html += '<p style="margin:0 0 24px 0;color:#64748b;font-size:14px;">What type of brief?</p>';
+  html += '<div style="display:flex;gap:16px;">';
+  // Content button
+  html += '<button id="briefTypeContent" style="flex:1;padding:24px 16px;border:2px solid #dbeafe;border-radius:12px;background:#eff6ff;cursor:pointer;text-align:center;transition:border-color 0.15s,box-shadow 0.15s;" onmouseover="this.style.borderColor=\'#3b82f6\';this.style.boxShadow=\'0 0 0 3px rgba(59,130,246,0.15)\'" onmouseout="this.style.borderColor=\'#dbeafe\';this.style.boxShadow=\'none\'">';
+  html += '<div style="font-size:28px;margin-bottom:8px;">📝</div>';
+  html += '<div style="font-size:16px;font-weight:700;color:#1d4ed8;margin-bottom:4px;">Content</div>';
+  html += '<div style="font-size:12px;color:#64748b;">Posts, Reels, Stories, Design assets</div>';
+  html += '</button>';
+  // Strategy button
+  html += '<button id="briefTypeStrategy" style="flex:1;padding:24px 16px;border:2px solid #ffedd5;border-radius:12px;background:#fff7ed;cursor:pointer;text-align:center;transition:border-color 0.15s,box-shadow 0.15s;" onmouseover="this.style.borderColor=\'#f97316\';this.style.boxShadow=\'0 0 0 3px rgba(249,115,22,0.15)\'" onmouseout="this.style.borderColor=\'#ffedd5\';this.style.boxShadow=\'none\'">';
+  html += '<div style="font-size:28px;margin-bottom:8px;">🧠</div>';
+  html += '<div style="font-size:16px;font-weight:700;color:#c2410c;margin-bottom:4px;">Strategy</div>';
+  html += '<div style="font-size:12px;color:#64748b;">Complaints, direction changes, requests</div>';
+  html += '</button>';
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:16px;">';
+  html += '<button id="briefTypeCancel" style="padding:8px 20px;border:none;background:none;color:#94a3b8;cursor:pointer;font-size:13px;">Cancel</button>';
+  html += '</div></div>';
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  document.getElementById('briefTypeCancel').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('briefTypeContent').addEventListener('click', function() { overlay.remove(); openBriefFormModal('content'); });
+  document.getElementById('briefTypeStrategy').addEventListener('click', function() { overlay.remove(); openBriefFormModal('strategy'); });
+}
+
+function openBriefFormModal(briefType) {
   var clientsData = loadClientsRegistry();
   var clientIds = clientsData ? Object.keys(clientsData) : [];
-  // Get admin/staff users for assignment
   var staffUsers = (window._usersCache || []).filter(function(u) {
     return ['OWNER', 'ADMIN', 'STAFF'].includes(u.role) && u.status === 'ACTIVE';
   });
+  var defaultDeadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
   var overlay = document.createElement('div');
   overlay.id = 'briefModalOverlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
 
-  var html = '<div style="background:white;border-radius:16px;padding:32px;width:520px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">';
-  html += '<h2 style="margin:0 0 24px 0;font-size:20px;font-weight:700;color:#1e293b;">New Brief</h2>';
+  var isContent = briefType === 'content';
+  var typeLabel = isContent ? 'Content Brief' : 'Strategy Brief';
+  var typeBadge = isContent
+    ? '<span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#dbeafe;color:#1d4ed8;">Content</span>'
+    : '<span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#ffedd5;color:#c2410c;">Strategy</span>';
 
+  var html = '<div style="background:white;border-radius:16px;padding:32px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">';
+  html += '<h2 style="margin:0;font-size:20px;font-weight:700;color:#1e293b;">' + typeLabel + '</h2>' + typeBadge;
+  html += '</div>';
+
+  // — Common fields: Title —
   html += '<label style="display:block;margin-bottom:16px;">';
   html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Title *</span>';
-  html += '<input id="briefTitle" type="text" placeholder="e.g. Schedule plan for Cafe St Petersburg" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
+  html += '<input id="briefTitle" type="text" placeholder="' + (isContent ? 'e.g. May content for Shape Spa' : 'e.g. Client complaint — Cafe St Petersburg') + '" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
   html += '</label>';
 
-  html += '<label style="display:block;margin-bottom:16px;">';
-  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Description / Details</span>';
-  html += '<textarea id="briefNotes" rows="4" placeholder="What needs to be done..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>';
-  html += '</label>';
-
+  // — Common: Client + Assigned To —
   html += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
-  html += '<label style="flex:1;">';
-  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Assign To</span>';
+  html += '<label style="flex:1;"><span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Client</span>';
+  html += '<select id="briefClient" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+  html += '<option value="">— Select —</option>';
+  clientIds.forEach(function(cid) { html += '<option value="' + cid + '">' + (clientsData[cid].name || cid) + '</option>'; });
+  html += '</select></label>';
+  html += '<label style="flex:1;"><span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Assigned To</span>';
   html += '<select id="briefAssignee" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
   html += '<option value="">— Select —</option>';
   staffUsers.forEach(function(u) { html += '<option value="' + u.id + '">' + (u.name || u.email) + ' (' + u.role + ')</option>'; });
   html += '</select></label>';
-
-  html += '<label style="flex:1;">';
-  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Client (optional)</span>';
-  html += '<select id="briefClient" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
-  html += '<option value="">— None —</option>';
-  clientIds.forEach(function(cid) { html += '<option value="' + cid + '">' + (clientsData[cid].name || cid) + '</option>'; });
-  html += '</select></label>';
   html += '</div>';
 
-  html += '<div style="display:flex;gap:12px;margin-bottom:24px;">';
-  html += '<label style="flex:1;">';
-  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Priority</span>';
-  html += '<select id="briefPriority" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
-  html += '<option value="medium">Medium</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option>';
-  html += '</select></label>';
+  // — Common: Deadline —
+  html += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
+  html += '<label style="flex:1;"><span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Deadline</span>';
+  html += '<input id="briefDeadline" type="date" value="' + defaultDeadline + '" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" /></label>';
 
-  html += '<label style="flex:1;">';
-  html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Deadline</span>';
-  var defaultDeadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  html += '<input id="briefDeadline" type="date" value="' + defaultDeadline + '" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
-  html += '</label>';
+  if (isContent) {
+    // Content: How many pieces?
+    html += '<label style="flex:1;"><span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">How many pieces?</span>';
+    html += '<input id="briefPieceCount" type="number" min="1" value="1" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" /></label>';
+  } else {
+    // Strategy: Priority
+    html += '<label style="flex:1;"><span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Priority</span>';
+    html += '<select id="briefPriority" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+    html += '<option value="medium">Normal</option><option value="low">Low</option><option value="urgent">Urgent</option>';
+    html += '</select></label>';
+  }
   html += '</div>';
+
+  if (isContent) {
+    // Content-specific fields
+    html += '<div style="margin-bottom:16px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:8px;">What do we need?</span>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    ['Posts', 'Reels', 'Stories', 'Design asset'].forEach(function(item) {
+      var val = item.toLowerCase().replace(/\s+/g, '_');
+      html += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;color:#475569;"><input type="checkbox" name="briefNeed" value="' + val + '" style="accent-color:#1a56db;" />' + item + '</label>';
+    });
+    html += '</div></div>';
+
+    html += '<div style="margin-bottom:16px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:8px;">Platform</span>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    ['IG Feed', 'IG Reels', 'IG Stories', 'Facebook', 'TikTok'].forEach(function(item) {
+      var val = item.toLowerCase().replace(/\s+/g, '_');
+      html += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;color:#475569;"><input type="checkbox" name="briefPlatform" value="' + val + '" style="accent-color:#1a56db;" />' + item + '</label>';
+    });
+    html += '</div></div>';
+
+    html += '<label style="display:block;margin-bottom:16px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Message / Direction</span>';
+    html += '<textarea id="briefDirection" rows="4" placeholder="Tone, what to say, key message..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>';
+    html += '</label>';
+
+    html += '<label style="display:block;margin-bottom:24px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Reference Files (Drive link or notes)</span>';
+    html += '<input id="briefRefLink" type="text" placeholder="https://drive.google.com/..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;" />';
+    html += '</label>';
+
+  } else {
+    // Strategy-specific fields
+    html += '<label style="display:block;margin-bottom:16px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">What\'s happening?</span>';
+    html += '<select id="briefSituation" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:white;">';
+    html += '<option value="">— Select —</option>';
+    html += '<option value="client_complaint">Client complaint</option>';
+    html += '<option value="new_client_request">New client request</option>';
+    html += '<option value="content_not_working">Content not working</option>';
+    html += '<option value="other">Other</option>';
+    html += '</select></label>';
+
+    html += '<label style="display:block;margin-bottom:16px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">What did the client say?</span>';
+    html += '<textarea id="briefClientSaid" rows="3" placeholder="Paste their exact words here..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>';
+    html += '</label>';
+
+    html += '<label style="display:block;margin-bottom:24px;">';
+    html += '<span style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">What I need from Milena</span>';
+    html += '<textarea id="briefActionNeeded" rows="3" placeholder="Change direction / fix this / handle this..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>';
+    html += '</label>';
+  }
 
   html += '<div style="display:flex;gap:12px;justify-content:flex-end;">';
   html += '<button id="briefCancel" style="padding:10px 20px;border:1px solid #d1d5db;border-radius:8px;background:white;color:#475569;cursor:pointer;font-size:14px;">Cancel</button>';
@@ -13546,12 +13648,45 @@ function openBriefModal() {
   document.getElementById('briefSubmit').addEventListener('click', function() {
     var title = document.getElementById('briefTitle').value.trim();
     if (!title) { showToast('Title is required', 'error'); return; }
+
+    // Build briefNotes from the type-specific fields
+    var notes = '';
+    if (isContent) {
+      var needs = Array.from(document.querySelectorAll('input[name="briefNeed"]:checked')).map(function(cb) { return cb.value; });
+      var platforms = Array.from(document.querySelectorAll('input[name="briefPlatform"]:checked')).map(function(cb) { return cb.value; });
+      var pieces = document.getElementById('briefPieceCount') ? document.getElementById('briefPieceCount').value : '1';
+      var direction = document.getElementById('briefDirection') ? document.getElementById('briefDirection').value.trim() : '';
+      var refLink = document.getElementById('briefRefLink') ? document.getElementById('briefRefLink').value.trim() : '';
+
+      var parts = [];
+      if (needs.length) parts.push('Needs: ' + needs.join(', '));
+      if (pieces && pieces !== '1') parts.push('Pieces: ' + pieces);
+      if (platforms.length) parts.push('Platforms: ' + platforms.join(', '));
+      if (direction) parts.push('Direction: ' + direction);
+      if (refLink) parts.push('Reference: ' + refLink);
+      notes = parts.join('\n');
+    } else {
+      var situation = document.getElementById('briefSituation') ? document.getElementById('briefSituation').value : '';
+      var clientSaid = document.getElementById('briefClientSaid') ? document.getElementById('briefClientSaid').value.trim() : '';
+      var actionNeeded = document.getElementById('briefActionNeeded') ? document.getElementById('briefActionNeeded').value.trim() : '';
+
+      var parts2 = [];
+      if (situation) {
+        var sitLabels = { client_complaint: 'Client complaint', new_client_request: 'New client request', content_not_working: 'Content not working', other: 'Other' };
+        parts2.push('Situation: ' + (sitLabels[situation] || situation));
+      }
+      if (clientSaid) parts2.push('Client said: ' + clientSaid);
+      if (actionNeeded) parts2.push('Action needed: ' + actionNeeded);
+      notes = parts2.join('\n');
+    }
+
     var body = {
       title: title,
-      briefNotes: document.getElementById('briefNotes').value.trim(),
+      briefNotes: notes,
+      copyText: 'briefType:' + briefType,
       designerId: document.getElementById('briefAssignee').value || '',
       clientId: document.getElementById('briefClient').value || '',
-      priority: document.getElementById('briefPriority').value || 'medium',
+      priority: isContent ? 'medium' : (document.getElementById('briefPriority') ? document.getElementById('briefPriority').value : 'medium'),
       deadline: document.getElementById('briefDeadline').value || new Date().toISOString().slice(0, 10),
       taskType: 'brief'
     };
