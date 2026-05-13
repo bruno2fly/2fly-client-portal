@@ -43,8 +43,9 @@ router.get('/', authenticate, requireCanViewDashboard, (req: AuthenticatedReques
   const { agencyId } = getAgencyScope(req);
   // Same signed format as /api/meta/connect so META_REDIRECT_URI can stay on /api/auth/meta/callback
   const state = signState({ agencyId, clientId, userId: req.userId, ts: Date.now() });
-  // auth_type=rerequest forces Meta to re-ask for permissions if previously declined
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${encodeURIComponent(state)}&response_type=code&auth_type=rerequest`;
+  // auth_type=reauthorize forces Meta to re-show the Pages/Assets picker on every connect
+  // (rerequest only re-asks for declined permissions; reauthorize forces the full flow)
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(META_REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&state=${encodeURIComponent(state)}&response_type=code&auth_type=reauthorize`;
   res.json({ authUrl });
 });
 
