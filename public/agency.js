@@ -8742,6 +8742,12 @@ async function getAllMediaUrlsForApprovalPanel() {
   if (uploadedImages && uploadedImages.length > 0) {
     var uploaded = [];
     for (var ui = 0; ui < uploadedImages.length; ui++) {
+      // Already-uploaded CDN URL (from Vercel Blob upload)
+      if (uploadedImages[ui].url && String(uploadedImages[ui].url).startsWith('http')) {
+        uploaded.push(uploadedImages[ui].url);
+        continue;
+      }
+      // Legacy base64 path
       var base64 = uploadedImages[ui].dataUrl || uploadedImages[ui].data;
       if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
         var url = await uploadBase64(base64);
@@ -8753,6 +8759,12 @@ async function getAllMediaUrlsForApprovalPanel() {
   if (item.uploadedImages && item.uploadedImages.length > 0) {
     var savedUploaded = [];
     for (var si = 0; si < item.uploadedImages.length; si++) {
+      // Already-uploaded CDN URL (from Vercel Blob upload)
+      if (item.uploadedImages[si].url && String(item.uploadedImages[si].url).startsWith('http')) {
+        savedUploaded.push(item.uploadedImages[si].url);
+        continue;
+      }
+      // Legacy base64 path
       var sb64 = item.uploadedImages[si].dataUrl || item.uploadedImages[si].data;
       if (sb64 && (String(sb64).startsWith('data:image/') || String(sb64).startsWith('data:video/'))) {
         var su = await uploadBase64(sb64);
@@ -8795,6 +8807,12 @@ async function getAllMediaUrlsForApprovalId(approvalId) {
   if (typeof uploadedImages !== 'undefined' && uploadedImages.length > 0) {
     var uploaded = [];
     for (var i = 0; i < uploadedImages.length; i++) {
+      // Already-uploaded CDN URL (from Vercel Blob upload)
+      if (uploadedImages[i].url && String(uploadedImages[i].url).startsWith('http')) {
+        uploaded.push(uploadedImages[i].url);
+        continue;
+      }
+      // Legacy base64 path
       var base64 = uploadedImages[i].dataUrl || uploadedImages[i].data;
       if (base64 && (String(base64).startsWith('data:image/') || String(base64).startsWith('data:video/'))) {
         var url = await uploadBase64(base64);
@@ -8807,6 +8825,12 @@ async function getAllMediaUrlsForApprovalId(approvalId) {
   if (item && item.uploadedImages && item.uploadedImages.length > 0) {
     var savedUploaded = [];
     for (var j = 0; j < item.uploadedImages.length; j++) {
+      // Already-uploaded CDN URL (from Vercel Blob upload)
+      if (item.uploadedImages[j].url && String(item.uploadedImages[j].url).startsWith('http')) {
+        savedUploaded.push(item.uploadedImages[j].url);
+        continue;
+      }
+      // Legacy base64 path
       var b64 = item.uploadedImages[j].dataUrl || item.uploadedImages[j].data;
       if (b64 && (String(b64).startsWith('data:image/') || String(b64).startsWith('data:video/'))) {
         var u = await uploadBase64(b64);
