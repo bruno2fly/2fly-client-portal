@@ -121,8 +121,8 @@ if (process.env.NODE_ENV === 'production') {
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images served cross-origin
   }));
 }
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Direct file serving disabled — all media is served via Vercel Blob CDN.
 // The old express.static('/uploads') line was costing ~$320/month in Railway
@@ -462,26 +462,29 @@ app.get('/api/migration-status', authenticate, async (req: any, res: any) => {
     }
     const { PrismaClient } = await import('@prisma/client');
     const p = new PrismaClient();
-    const counts: Record<string, number> = {
-      agencies: await p.agency.count(),
-      clients: await p.client.count(),
-      users: await p.user.count(),
-      portalStates: await p.portalState.count(),
-      assets: await p.asset.count(),
-      metaIntegrations: await p.metaIntegration.count(),
-      scheduledPosts: await p.scheduledPost.count(),
-      productionTasks: await p.productionTask.count(),
-      productionTaskComments: await p.productionTaskComment.count(),
-      inviteTokens: await p.inviteToken.count(),
-      passwordResetTokens: await p.passwordResetToken.count(),
-      auditLogs: await p.auditLog.count(),
-      pushSubscriptions: await p.pushSubscription.count(),
-      brandKits: await p.brandKit.count(),
-      aiImages: await p.aIImage.count(),
-      references: await p.referenceImage.count(),
-    };
-    await p.$disconnect();
-    res.json({ success: true, postgres: counts });
+    try {
+      const counts: Record<string, number> = {
+        agencies: await p.agency.count(),
+        clients: await p.client.count(),
+        users: await p.user.count(),
+        portalStates: await p.portalState.count(),
+        assets: await p.asset.count(),
+        metaIntegrations: await p.metaIntegration.count(),
+        scheduledPosts: await p.scheduledPost.count(),
+        productionTasks: await p.productionTask.count(),
+        productionTaskComments: await p.productionTaskComment.count(),
+        inviteTokens: await p.inviteToken.count(),
+        passwordResetTokens: await p.passwordResetToken.count(),
+        auditLogs: await p.auditLog.count(),
+        pushSubscriptions: await p.pushSubscription.count(),
+        brandKits: await p.brandKit.count(),
+        aiImages: await p.aIImage.count(),
+        references: await p.referenceImage.count(),
+      };
+      res.json({ success: true, postgres: counts });
+    } finally {
+      await p.$disconnect();
+    }
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to check migration status' });
   }
