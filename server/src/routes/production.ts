@@ -389,6 +389,8 @@ router.put('/tasks/:id', authenticate, requireAgencyOnly, async (req: Authentica
     }
     if (body.deadline != null) task.deadline = body.deadline;
     if (body.briefNotes != null) task.briefNotes = String(body.briefNotes).slice(0, 2000);
+    if (body.caption != null) task.caption = String(body.caption).slice(0, 5000);
+    if (body.copyText != null) task.copyText = String(body.copyText).slice(0, 5000);
     if (body.designerId != null) {
       const designer = await getUser(body.designerId);
       if (designer && designer.agencyId === agencyId && designer.role === 'DESIGNER') {

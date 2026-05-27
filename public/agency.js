@@ -9193,6 +9193,19 @@ function setupApprovalHandlers() {
     });
     
     save(state);
+    // Sync copy changes to designer's Creative Brief if already sent to production
+    if (approvalData.productionTaskId) {
+      var syncBody = {};
+      if (approvalData.copyText) syncBody.copyText = approvalData.copyText;
+      if (approvalData.caption) syncBody.caption = approvalData.caption;
+      if (syncBody.copyText || syncBody.caption) {
+        fetch(getApiBaseUrl() + '/api/production/tasks/' + approvalData.productionTaskId, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(syncBody)
+        }).catch(function() { /* silent — approval save already succeeded */ });
+      }
+    }
     if (showPipelineModal()) {
       // First time sending for approval: pipeline modal shown
     }
