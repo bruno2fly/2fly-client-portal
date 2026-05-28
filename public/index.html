@@ -2463,6 +2463,11 @@ function renderThisMonthClient() {
   body.style.cssText = 'padding:0 20px 20px;display:' + (isOpen?'block':'none') + ';';
   shell.appendChild(body);
 
+  var subtitle = document.createElement('p');
+  subtitle.textContent = 'Share your goals, promotions, and upcoming events so we can align your content strategy around what matters most to your business.';
+  subtitle.style.cssText = 'margin:0 0 12px;font-size:13px;line-height:1.5;color:#64748b;';
+  body.appendChild(subtitle);
+
   header.addEventListener('click', function() {
     var open = body.style.display !== 'none';
     var next = !open;
