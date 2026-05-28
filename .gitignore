@@ -28,3 +28,5 @@ Thumbs.db
 # Live server data (do not track in git so deploys do not overwrite production)
 server/data/*.json
 .env*.local
+public/agency.src.js
+public/agency.min.js
