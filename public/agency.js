@@ -15427,11 +15427,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupNotificationBell(); } catch (e) { console.error('Error setting up notification bell:', e); }
     try { initDashboardPanels(); } catch (e) { console.error('Error initializing dashboard panels:', e); }
 
-    // One-time check for cross-client Meta connection conflicts on dashboard load
-    try { checkMetaConflictsOnLoad(); } catch (e) { console.error('Error checking Meta conflicts:', e); }
-
-    // One-time self-heal: sync production final art back to approvals for historical data
-    try { syncProductionArtOnLoad(); } catch (e) { console.error('Error syncing production art:', e); }
+    // Defer non-critical checks so the page renders immediately
+    setTimeout(function() {
+      try { checkMetaConflictsOnLoad(); } catch (e) { console.error('Error checking Meta conflicts:', e); }
+      try { syncProductionArtOnLoad(); } catch (e) { console.error('Error syncing production art:', e); }
+    }, 5000);
 
     // Poll portal state so client-side actions create agency notifications live (no refresh)
     // Runs every 30s (was 5s with duplicate intervals — caused memory bloat & Chrome tab crashes)
