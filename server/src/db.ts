@@ -1312,18 +1312,7 @@ export async function deleteMetaIntegrationByClient(agencyId: string, clientId: 
 // =====================================================================
 
 export async function getScheduledPosts(): Promise<ScheduledPost[]> {
-  // Only fetch posts that the cron actually needs (scheduled or recently failed)
-  // instead of loading the entire table into memory every 2 minutes
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const rows = await prisma.scheduledPost.findMany({
-    where: {
-      OR: [
-        { status: 'scheduled' },
-        { status: 'publishing' },
-        { status: 'failed', updatedAt: { gte: oneDayAgo } },
-      ],
-    },
-  });
+  const rows = await prisma.scheduledPost.findMany();
   return rows.map(mapScheduledPost);
 }
 
