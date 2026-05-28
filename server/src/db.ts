@@ -26,15 +26,7 @@ import type {
   PushSubscriptionRecord,
 } from './types.js';
 
-// Limit Prisma connection pool to 5 (default 10) to reduce memory usage
-// Append ?connection_limit=5 if not already set
-const _dbUrl = process.env.DATABASE_URL || '';
-const _pooledUrl = _dbUrl.includes('connection_limit') ? _dbUrl :
-  _dbUrl + (_dbUrl.includes('?') ? '&' : '?') + 'connection_limit=5';
-
-const prisma = new PrismaClient({
-  datasources: { db: { url: _pooledUrl } },
-});
+const prisma = new PrismaClient();
 export { prisma };
 
 // ─── helpers ───────────────────────────────────────────────────
