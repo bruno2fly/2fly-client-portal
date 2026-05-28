@@ -2450,7 +2450,8 @@ function renderThisMonthClient() {
   chev.style.cssText = 'display:inline-block;font-size:11px;color:#64748b;transition:transform 0.15s;transform:rotate(' + (isOpen?'0':'-90') + 'deg);';
   header.appendChild(chev);
   var title = document.createElement('span');
-  title.textContent = "This Month's Strategy";
+  var _monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  title.textContent = _monthNames[new Date().getMonth()] + "'s Goals";
   title.style.cssText = 'font-size:18px;font-weight:700;color:#0f172a;';
   header.appendChild(title);
   var pill = document.createElement('span');
@@ -2501,27 +2502,114 @@ function renderThisMonthClient() {
     return b;
   }
 
-  // ── Goals (blue) ──
-  var goals = section('Goals', '#2563eb');
-  body.appendChild(goals.el);
-  var kmWrap = document.createElement('div');
-  kmWrap.appendChild(labelEl('This Month Goals'));
-  var kmTa = document.createElement('textarea');
-  kmTa.rows = 3;
-  kmTa.placeholder = 'What do you want to accomplish this month?';
-  kmTa.value = tm.keyMessage || '';
-  kmTa.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;';
-  kmWrap.appendChild(kmTa);
-  goals.el.appendChild(kmWrap);
-  var kT = null;
-  kmTa.addEventListener('input', function() {
-    tm.keyMessage = kmTa.value;
-    clearTimeout(kT); kT = setTimeout(persist, 400);
-  });
-  kmTa.addEventListener('blur', persist);
-
-  // Expand/collapse state shared across promos + events so only the new/edited card is expanded at a time
+  // Expand/collapse state shared across goals, promos + events
   var expandedIds = new Set();
+
+  // ── Goals (blue) ──
+  var goalsSec = section('Goals', '#2563eb');
+  body.appendChild(goalsSec.el);
+  var addGoalBtn = blueBtn('+ Add Goal');
+  addGoalBtn.style.marginLeft = 'auto';
+  goalsSec.head.appendChild(addGoalBtn);
+  var goalList = document.createElement('div');
+  goalList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+  goalsSec.el.appendChild(goalList);
+  // Migrate legacy keyMessage to goals array
+  if (!Array.isArray(tm.goals)) {
+    tm.goals = [];
+    if (tm.keyMessage && tm.keyMessage.trim()) {
+      tm.goals.push({ id: newId('goal'), description: tm.keyMessage.trim() });
+    }
+  }
+  function _goalSummary(g) {
+    var title = (g.description || '').trim() || 'Untitled goal';
+    return { title: title, sub: '', flyerUrl: '', link: '' };
+  }
+  function renderGoals() {
+    goalList.innerHTML = '';
+    if (!Array.isArray(tm.goals)) tm.goals = [];
+    if (tm.goals.length === 0) {
+      var empty = document.createElement('div');
+      empty.textContent = 'No goals yet.';
+      empty.style.cssText = 'padding:10px 4px;font-size:13px;color:#94a3b8;';
+      goalList.appendChild(empty); return;
+    }
+    tm.goals.forEach(function(g, idx) {
+      goalList.appendChild(buildGoalCard(g, idx));
+    });
+  }
+  function buildGoalCard(g, idx) {
+    var expanded = expandedIds.has(g.id);
+    if (!expanded) {
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.03);display:flex;gap:12px;align-items:center;cursor:pointer;color:#0f172a;';
+      row.addEventListener('mouseover', function(){ row.style.background = '#f8fafc'; });
+      row.addEventListener('mouseout',  function(){ row.style.background = '#fff'; });
+      row.addEventListener('click', function(e) {
+        if (e.target && e.target.getAttribute && e.target.getAttribute('data-stop')) return;
+        expandedIds.add(g.id); renderGoals();
+      });
+      var textCol = document.createElement('div');
+      textCol.style.cssText = 'flex:1;min-width:0;';
+      var t = document.createElement('div');
+      t.textContent = (g.description || '').trim() || '(untitled goal)';
+      t.style.cssText = 'font-size:14px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      textCol.appendChild(t);
+      row.appendChild(textCol);
+      var editHint = document.createElement('span');
+      editHint.textContent = 'Edit';
+      editHint.style.cssText = 'flex:0 0 auto;font-size:11px;color:#2563eb;font-weight:600;';
+      row.appendChild(editHint);
+      var rm = document.createElement('button');
+      rm.type = 'button'; rm.textContent = '✕'; rm.title = 'Delete';
+      rm.setAttribute('data-stop', '1');
+      rm.style.cssText = 'flex:0 0 auto;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px;line-height:1;';
+      rm.addEventListener('mouseover', function(){ rm.style.color = '#dc2626'; });
+      rm.addEventListener('mouseout',  function(){ rm.style.color = '#94a3b8'; });
+      rm.addEventListener('click', function(e) { e.stopPropagation(); expandedIds.delete(g.id); tm.goals.splice(idx,1); renderGoals(); persist(); });
+      row.appendChild(rm);
+      return row;
+    }
+    // Expanded edit card
+    var card = document.createElement('div');
+    card.style.cssText = 'padding:14px;background:#fff;border:1px solid #93c5fd;border-radius:10px;box-shadow:0 1px 3px rgba(37,99,235,0.12);color:#0f172a;';
+    var lbl = labelEl('Goal description');
+    card.appendChild(lbl);
+    var ta = document.createElement('textarea');
+    ta.rows = 3;
+    ta.placeholder = 'What do you want to accomplish this month?';
+    ta.value = g.description || '';
+    ta.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;margin-bottom:10px;';
+    ta.addEventListener('input', function() { g.description = ta.value; });
+    card.appendChild(ta);
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+    var saveBtn = blueBtn('Save');
+    saveBtn.addEventListener('click', function() { g.description = ta.value; expandedIds.delete(g.id); persist(); renderGoals(); });
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button'; cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = 'padding:7px 14px;background:#f1f5f9;color:#0f172a;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;';
+    cancelBtn.addEventListener('click', function() {
+      if (!g.description || !g.description.trim()) { tm.goals.splice(idx,1); }
+      expandedIds.delete(g.id); renderGoals(); persist();
+    });
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(saveBtn);
+    card.appendChild(btnRow);
+    return card;
+  }
+  addGoalBtn.addEventListener('click', function() {
+    if (!Array.isArray(tm.goals)) tm.goals = [];
+    tm.goals.forEach(function(g){ expandedIds.delete(g.id); });
+    if (Array.isArray(tm.promotions)) tm.promotions.forEach(function(p){ expandedIds.delete(p.id); });
+    if (Array.isArray(tm.events)) tm.events.forEach(function(ev){ expandedIds.delete(ev.id); });
+    var id = newId('goal');
+    tm.goals.push({ id:id, description:'' });
+    expandedIds.add(id);
+    renderGoals(); renderPromos(); renderEvents(); persist();
+  });
+  renderGoals();
+
   function _promoSummary(p) {
     var title = (p.name || '').trim() || 'Untitled promo';
     var bits = [];
