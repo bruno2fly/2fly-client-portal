@@ -15448,19 +15448,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.warn('Agency poll portal state failed for', cid, err && err.message);
       });
     }
-    // Baseline: fetch all clients so we have prev state for diffing (no notifications on first run)
+    // Baseline: active client was already fetched above — just start the poll timer.
+    // Previous code fetched ALL clients here (8+ parallel API calls), blocking page load.
+    // Now we lazy-load other clients when the user switches to them.
     (function baselineThenPoll() {
-      var clients = loadClientsRegistry();
-      var ids = clients ? Object.keys(clients) : [];
-      if (ids.length === 0) {
-        _pollTimer = setInterval(pollClientActions, 30000);
-        return;
-      }
-      Promise.all(ids.map(function(cid) { return fetchPortalStateFromAPI(cid).catch(function() {}); })).then(function() {
-        if (typeof renderNotificationBell === 'function') renderNotificationBell();
-        _pollTimer = setInterval(pollClientActions, 30000);
-        if (typeof maybeGenerateMonthlyProgressSummaryNotifications === 'function') maybeGenerateMonthlyProgressSummaryNotifications();
-      });
+      if (typeof renderNotificationBell === 'function') renderNotificationBell();
+      _pollTimer = setInterval(pollClientActions, 30000);
+      if (typeof maybeGenerateMonthlyProgressSummaryNotifications === 'function') maybeGenerateMonthlyProgressSummaryNotifications();
     })();
 
     try {
