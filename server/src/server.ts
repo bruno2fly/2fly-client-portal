@@ -13,7 +13,7 @@ import * as Sentry from "@sentry/node";
 Sentry.init({
   dsn: "https://1a0c9421ed1ec7eccc7654116dd84f3f@o4511276627853312.ingest.us.sentry.io/4511276637421568",
   environment: process.env.NODE_ENV || "production",
-  tracesSampleRate: 0.1,
+  tracesSampleRate: 0,  // Disabled — tracing holds request spans in memory and causes OOM on 2GB
 });
 
 import express from 'express';
@@ -499,10 +499,10 @@ const server = app.listen(PORT, () => {
   console.log(`📁 Uploads directory: ${join(process.cwd(), 'uploads')}`);
   console.log(`💾 Data directory: ${join(process.cwd(), 'data')}`);
 
-  // ── Built-in publish timer (every 2 minutes) ──
+  // ── Built-in publish timer (every 5 minutes) ──
   // The Vercel cron in vercel.json only works on Vercel, not Railway.
   // This timer runs inside the Express process to publish due scheduled posts.
-  const PUBLISH_INTERVAL = 2 * 60 * 1000; // 2 minutes
+  const PUBLISH_INTERVAL = 5 * 60 * 1000; // 5 minutes (was 2 — reduced to save memory)
   setInterval(async () => {
     try {
       const baseUrl = `http://localhost:${PORT}`;
@@ -517,7 +517,7 @@ const server = app.listen(PORT, () => {
       console.error('[auto-publish] Timer error:', err.message);
     }
   }, PUBLISH_INTERVAL);
-  console.log(`⏰ Auto-publish timer started (every 2 min)`);
+  console.log(`⏰ Auto-publish timer started (every 5 min)`);
 
   // ── Token refresh timer (every 6 hours) ──
   const REFRESH_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours

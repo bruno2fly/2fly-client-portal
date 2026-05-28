@@ -26,7 +26,15 @@ import type {
   PushSubscriptionRecord,
 } from './types.js';
 
-const prisma = new PrismaClient();
+// Limit Prisma connection pool to 5 (default 10) to reduce memory usage
+// Append ?connection_limit=5 if not already set
+const _dbUrl = process.env.DATABASE_URL || '';
+const _pooledUrl = _dbUrl.includes('connection_limit') ? _dbUrl :
+  _dbUrl + (_dbUrl.includes('?') ? '&' : '?') + 'connection_limit=5';
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: _pooledUrl } },
+});
 export { prisma };
 
 // ─── helpers ───────────────────────────────────────────────────
@@ -1312,7 +1320,18 @@ export async function deleteMetaIntegrationByClient(agencyId: string, clientId: 
 // =====================================================================
 
 export async function getScheduledPosts(): Promise<ScheduledPost[]> {
-  const rows = await prisma.scheduledPost.findMany();
+  // Only fetch posts that the cron actually needs (scheduled or recently failed)
+  // instead of loading the entire table into memory every 2 minutes
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await prisma.scheduledPost.findMany({
+    where: {
+      OR: [
+        { status: 'scheduled' },
+        { status: 'publishing' },
+        { status: 'failed', updatedAt: { gte: oneDayAgo } },
+      ],
+    },
+  });
   return rows.map(mapScheduledPost);
 }
 
