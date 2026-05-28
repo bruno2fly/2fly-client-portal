@@ -2798,15 +2798,7 @@ function switchTab(tabName) {
     case 'needs':
       renderNeedsTab();
       break;
-    case 'contentlibrary':
-      renderContentLibraryTab();
-      break;
-    case 'ailibrary':
-      renderAILibraryTab();
-      break;
-    case 'stories':
-      renderStoriesTab();
-      break;
+    // contentlibrary, ailibrary, stories tabs removed
     case 'scheduled':
       renderScheduledPostsTab();
       break;
