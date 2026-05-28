@@ -752,6 +752,7 @@
     body.has-bottom-nav[data-active-tab="content"] .main-content-area .calendar-section{display:block !important;}
     body.has-bottom-nav[data-active-tab="requests"] .main-content-area [data-show-tabs="requests"]{display:block !important;}
     body.has-bottom-nav[data-active-tab="activity"] .main-content-area [data-show-tabs="activity"]{display:block !important;}
+    body.has-bottom-nav[data-active-tab="activity"] .main-content-area .calendar-section{display:none !important;}
     body.has-bottom-nav[data-active-tab="strategy"] .main-content-area [data-show-tabs="strategy"]{display:block !important;}
   }
   @keyframes tabFadeIn{ from{ opacity:0; } to{ opacity:1; } }
@@ -1133,7 +1134,7 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         </div>
         <div class="title">
           <h1 id="clientName">Loading...</h1>
-          <div class="sub">Real-time status • Approvals • Requests</div>
+          <div class="sub">Real-time status • Approvals • Requests • <a href="#" id="reportsHeaderLink" style="color:#fff;opacity:0.9;text-decoration:underline;font-weight:600;" onclick="event.preventDefault();document.getElementById('monthlyReportsMount')&&document.getElementById('monthlyReportsMount').scrollIntoView({behavior:'smooth',block:'start'});">Reports</a></div>
         </div>
       </div>
       <div class="header-brand-mobile">
@@ -1343,15 +1344,17 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         <div id="requests" class="list" aria-live="polite"></div>
       </section>
 
-      <!-- Calendar (card format) -->
+      <!-- Calendar (card format) — hidden on mobile (shown on content tab via CSS), visible on desktop activity -->
       <section class="panel calendar-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;" aria-label="Calendar" data-show-tabs="activity">
         <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0 0 20px 0;">Calendar</h3>
         <div id="calendarView"></div>
       </section>
 
-      <!-- Upcoming Posts — removed from client view -->
-
-      <!-- Progress — removed from client view -->
+      <!-- Monthly Reports -->
+      <section class="panel reports-section" style="grid-column: span 12;background:transparent;border:none;box-shadow:none;padding:0;" aria-label="Monthly Reports" data-show-tabs="activity">
+        <h3 style="font-size:18px;font-weight:600;color:#1e40af;margin:0 0 16px 0;">Monthly Reports</h3>
+        <div id="monthlyReportsMount"></div>
+      </section>
     </div>
 
     <!-- Recent Activity (moved to bottom) -->
@@ -1375,9 +1378,9 @@ body[data-theme="dark"] .kpi-card .pill.pill--success{
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         <span>Content</span>
       </button>
-      <button type="button" class="bottom-nav-btn" data-tab="activity" aria-label="Calendar">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span>Calendar</span>
+      <button type="button" class="bottom-nav-btn" data-tab="activity" aria-label="Reports">
+        <svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        <span>Reports</span>
       </button>
       <button type="button" class="bottom-nav-btn" data-tab="requests" aria-label="Requests">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -2366,6 +2369,9 @@ function render(){
   // This Month's Strategy (client-facing; Do Not Post hidden)
   try { renderThisMonthClient(); } catch(e){ console.warn("This Month render skipped:", e); }
 
+  // Monthly Reports
+  try { renderMonthlyReports(); } catch(e){ console.warn("Monthly reports render skipped:", e); }
+
   // Client notifications (Action Required)
   try {
     renderClientNotificationBell();
@@ -2375,6 +2381,85 @@ function render(){
     const unreadActionCount = notifications.filter(n => n.type === 'ACTION' && !readIds.includes(n.id)).length;
     const topAction = notifications.filter(n => n.type === 'ACTION')[0];
   } catch (e) { console.warn('Client notification render:', e); }
+}
+
+/* ================== Monthly Reports (client-facing, read-only) ================== */
+function renderMonthlyReports() {
+  var mount = document.getElementById('monthlyReportsMount');
+  if (!mount) return;
+  var state = load();
+  var reports = (state && state.monthlyReports) || [];
+  mount.innerHTML = '';
+
+  if (reports.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'padding:24px;text-align:center;background:#fff;border-radius:14px;border:1px solid #e2e8f0;color:#64748b;font-size:14px;';
+    empty.textContent = 'No reports yet. Your agency will share monthly performance reports here.';
+    mount.appendChild(empty);
+    return;
+  }
+
+  var _mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Sort newest first
+  reports.sort(function(a, b) {
+    var aKey = (a.year || 0) * 100 + (a.month || 0);
+    var bKey = (b.year || 0) * 100 + (b.month || 0);
+    return bKey - aKey;
+  });
+
+  reports.forEach(function(report) {
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;margin-bottom:16px;';
+
+    // Header with month/year
+    var head = document.createElement('div');
+    head.style.cssText = 'padding:16px 20px;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;';
+    var monthLabel = document.createElement('h4');
+    var mName = _mNames[(report.month || 1) - 1] || 'Unknown';
+    monthLabel.textContent = mName + ' ' + (report.year || '');
+    monthLabel.style.cssText = 'margin:0;font-size:18px;font-weight:700;';
+    head.appendChild(monthLabel);
+    if (report.title) {
+      var titleEl = document.createElement('div');
+      titleEl.textContent = report.title;
+      titleEl.style.cssText = 'margin-top:4px;font-size:13px;opacity:0.85;';
+      head.appendChild(titleEl);
+    }
+    card.appendChild(head);
+
+    // Body
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:16px 20px;';
+
+    // Summary
+    if (report.summary) {
+      var summary = document.createElement('p');
+      summary.textContent = report.summary;
+      summary.style.cssText = 'margin:0 0 14px;font-size:14px;line-height:1.6;color:#334155;';
+      body.appendChild(summary);
+    }
+
+    // Highlights
+    if (Array.isArray(report.highlights) && report.highlights.length > 0) {
+      var hlTitle = document.createElement('div');
+      hlTitle.textContent = 'Highlights';
+      hlTitle.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:8px;';
+      body.appendChild(hlTitle);
+      var hlList = document.createElement('ul');
+      hlList.style.cssText = 'margin:0;padding:0 0 0 18px;';
+      report.highlights.forEach(function(hl) {
+        var li = document.createElement('li');
+        li.textContent = hl;
+        li.style.cssText = 'font-size:13px;line-height:1.6;color:#334155;margin-bottom:4px;';
+        hlList.appendChild(li);
+      });
+      body.appendChild(hlList);
+    }
+
+    card.appendChild(body);
+    mount.appendChild(card);
+  });
 }
 
 /* ================== This Month's Strategy (client-facing) ================== */
