@@ -2389,9 +2389,11 @@ function renderMonthlyReports() {
   if (!mount) return;
   var state = load();
   var reports = (state && state.monthlyReports) || [];
+  // Only show published reports to clients
+  var published = reports.filter(function(r){ return r.status === 'published'; });
   mount.innerHTML = '';
 
-  if (reports.length === 0) {
+  if (published.length === 0) {
     var empty = document.createElement('div');
     empty.style.cssText = 'padding:24px;text-align:center;background:#fff;border-radius:14px;border:1px solid #e2e8f0;color:#64748b;font-size:14px;';
     empty.textContent = 'No reports yet. Your agency will share monthly performance reports here.';
@@ -2399,63 +2401,161 @@ function renderMonthlyReports() {
     return;
   }
 
-  var _mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var _mN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var statusLabels = { 'on-track': 'On Track', 'ahead': 'Ahead of Schedule', 'needs-attention': 'Needs Attention' };
+  var statusColors = { 'on-track': '#059669', 'ahead': '#2563eb', 'needs-attention': '#ea580c' };
 
-  // Sort newest first
-  reports.sort(function(a, b) {
-    var aKey = (a.year || 0) * 100 + (a.month || 0);
-    var bKey = (b.year || 0) * 100 + (b.month || 0);
-    return bKey - aKey;
-  });
+  published.sort(function(a,b){ return (b.year*100+b.month) - (a.year*100+a.month); });
 
-  reports.forEach(function(report) {
+  function sectionBlock(title, color, contentEls) {
+    if (!contentEls || contentEls.length === 0) return null;
+    var sec = document.createElement('div');
+    sec.style.cssText = 'margin-top:16px;padding:14px 16px;border-left:3px solid '+color+';background:#fafbfc;border-radius:0 10px 10px 0;';
+    var h = document.createElement('div');
+    h.textContent = title;
+    h.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:'+color+';margin-bottom:10px;';
+    sec.appendChild(h);
+    contentEls.forEach(function(el){ sec.appendChild(el); });
+    return sec;
+  }
+  function textBlock(label, text) {
+    if (!text) return null;
+    var d = document.createElement('div');
+    d.style.cssText = 'margin-bottom:10px;';
+    var l = document.createElement('div');
+    l.textContent = label;
+    l.style.cssText = 'font-size:11px;font-weight:600;color:#64748b;margin-bottom:3px;';
+    d.appendChild(l);
+    var p = document.createElement('div');
+    p.textContent = text;
+    p.style.cssText = 'font-size:13px;line-height:1.6;color:#334155;white-space:pre-wrap;';
+    d.appendChild(p);
+    return d;
+  }
+  function metricCard(label, value) {
+    if (!value && value !== 0) return null;
+    var d = document.createElement('div');
+    d.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;text-align:center;';
+    var v = document.createElement('div');
+    v.textContent = value;
+    v.style.cssText = 'font-size:20px;font-weight:700;color:#0f172a;';
+    d.appendChild(v);
+    var l = document.createElement('div');
+    l.textContent = label;
+    l.style.cssText = 'font-size:11px;color:#64748b;margin-top:2px;';
+    d.appendChild(l);
+    return d;
+  }
+
+  published.forEach(function(r) {
     var card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;margin-bottom:16px;';
+    card.style.cssText = 'background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;margin-bottom:20px;';
 
-    // Header with month/year
+    // Header
     var head = document.createElement('div');
-    head.style.cssText = 'padding:16px 20px;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;';
-    var monthLabel = document.createElement('h4');
-    var mName = _mNames[(report.month || 1) - 1] || 'Unknown';
-    monthLabel.textContent = mName + ' ' + (report.year || '');
-    monthLabel.style.cssText = 'margin:0;font-size:18px;font-weight:700;';
-    head.appendChild(monthLabel);
-    if (report.title) {
-      var titleEl = document.createElement('div');
-      titleEl.textContent = report.title;
-      titleEl.style.cssText = 'margin-top:4px;font-size:13px;opacity:0.85;';
-      head.appendChild(titleEl);
+    head.style.cssText = 'padding:18px 20px;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;display:flex;align-items:center;justify-content:space-between;';
+    var headLeft = document.createElement('div');
+    var mLabel = document.createElement('h4');
+    mLabel.textContent = _mN[(r.month||1)-1] + ' ' + (r.year||'');
+    mLabel.style.cssText = 'margin:0;font-size:20px;font-weight:700;';
+    headLeft.appendChild(mLabel);
+    head.appendChild(headLeft);
+    if (r.progressStatus) {
+      var statusPill = document.createElement('span');
+      statusPill.textContent = statusLabels[r.progressStatus] || r.progressStatus;
+      statusPill.style.cssText = 'padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(255,255,255,0.2);color:#fff;';
+      head.appendChild(statusPill);
     }
     card.appendChild(head);
 
-    // Body
     var body = document.createElement('div');
-    body.style.cssText = 'padding:16px 20px;';
+    body.style.cssText = 'padding:18px 20px;';
 
-    // Summary
-    if (report.summary) {
-      var summary = document.createElement('p');
-      summary.textContent = report.summary;
-      summary.style.cssText = 'margin:0 0 14px;font-size:14px;line-height:1.6;color:#334155;';
-      body.appendChild(summary);
+    // Executive Summary
+    if (r.executiveSummary) {
+      var sum = document.createElement('p');
+      sum.textContent = r.executiveSummary;
+      sum.style.cssText = 'margin:0 0 16px;font-size:14px;line-height:1.7;color:#334155;';
+      body.appendChild(sum);
     }
 
-    // Highlights
-    if (Array.isArray(report.highlights) && report.highlights.length > 0) {
-      var hlTitle = document.createElement('div');
-      hlTitle.textContent = 'Highlights';
-      hlTitle.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:8px;';
-      body.appendChild(hlTitle);
-      var hlList = document.createElement('ul');
-      hlList.style.cssText = 'margin:0;padding:0 0 0 18px;';
-      report.highlights.forEach(function(hl) {
-        var li = document.createElement('li');
-        li.textContent = hl;
-        li.style.cssText = 'font-size:13px;line-height:1.6;color:#334155;margin-bottom:4px;';
-        hlList.appendChild(li);
+    // Key Metrics grid
+    var km = r.keyMetrics || {};
+    var metricEls = [
+      metricCard('Posts Published', km.postsPublished),
+      metricCard('Engagement', km.engagement),
+      metricCard('Reach', km.reach),
+      metricCard('Growth', km.growth)
+    ].filter(Boolean);
+    if (metricEls.length > 0) {
+      var mg = document.createElement('div');
+      mg.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px;';
+      metricEls.forEach(function(el){ mg.appendChild(el); });
+      body.appendChild(mg);
+    }
+
+    // Strategy
+    var stratEls = [
+      textBlock('SEO Strategy', r.seoStrategy),
+      textBlock('Content Strategy', r.contentStrategy),
+      textBlock('Paid Ads Strategy', r.paidAdsStrategy),
+      textBlock('Social Media Strategy', r.socialMediaStrategy)
+    ].filter(Boolean);
+    var stratSec = sectionBlock('Strategy', '#16a34a', stratEls);
+    if (stratSec) body.appendChild(stratSec);
+
+    // Implementation - Action Items
+    if (Array.isArray(r.actionItems) && r.actionItems.length > 0) {
+      var implEls = [];
+      var itemsList = document.createElement('div');
+      r.actionItems.forEach(function(item) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;';
+        var check = document.createElement('span');
+        check.textContent = item.done ? '✓' : '○';
+        check.style.cssText = 'font-size:14px;width:20px;text-align:center;flex-shrink:0;' + (item.done ? 'color:#059669;font-weight:700;' : 'color:#94a3b8;');
+        row.appendChild(check);
+        var txt = document.createElement('span');
+        txt.textContent = item.text || '';
+        txt.style.cssText = 'font-size:13px;color:#334155;flex:1;' + (item.done ? 'text-decoration:line-through;color:#94a3b8;' : '');
+        row.appendChild(txt);
+        if (item.deadline) {
+          var dl = document.createElement('span');
+          dl.textContent = item.deadline;
+          dl.style.cssText = 'font-size:11px;color:#64748b;flex-shrink:0;';
+          row.appendChild(dl);
+        }
+        itemsList.appendChild(row);
       });
-      body.appendChild(hlList);
+      implEls.push(itemsList);
+      var implSec = sectionBlock('Implementation', '#9333ea', implEls);
+      if (implSec) body.appendChild(implSec);
     }
+
+    // Performance
+    var an = r.analytics || {};
+    var perfEls = [];
+    var resultsEl = textBlock('Monthly Results', r.monthlyResults);
+    if (resultsEl) perfEls.push(resultsEl);
+    var perfMetrics = [
+      metricCard('Impressions', an.impressions),
+      metricCard('Clicks', an.clicks),
+      metricCard('Conversions', an.conversions),
+      metricCard('ROI', an.roi)
+    ].filter(Boolean);
+    if (perfMetrics.length > 0) {
+      var pg = document.createElement('div');
+      pg.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px;';
+      perfMetrics.forEach(function(el){ pg.appendChild(el); });
+      perfEls.push(pg);
+    }
+    var perfSec = sectionBlock('Performance', '#ea580c', perfEls);
+    if (perfSec) body.appendChild(perfSec);
+
+    // Next Steps
+    var nextEls = [textBlock('Next Steps', r.nextSteps)].filter(Boolean);
+    var nextSec = sectionBlock('What\'s Next', '#64748b', nextEls);
+    if (nextSec) body.appendChild(nextSec);
 
     card.appendChild(body);
     mount.appendChild(card);

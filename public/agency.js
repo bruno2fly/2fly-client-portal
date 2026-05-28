@@ -10780,59 +10780,331 @@ function setupNewClientHandlers() {
 }
 
 /* ================== Reports Tab ================== */
+/* ================== Monthly Reports Builder ================== */
+var _reportEditId = null; // currently editing report id
+
 function renderReportsTab() {
-  const container = $('#reportsContent');
-  if (!container) return;
-  container.innerHTML = '';
+  var root = document.getElementById('reportsRoot');
+  if (!root) return;
+  if (_reportEditId) { _renderReportEditor(root); return; }
+  _renderReportsList(root);
+}
 
-  var monthKey = typeof getMonthKey === 'function' ? getMonthKey() : '';
-  var ledger = typeof getProgressSummaryLedger === 'function' ? getProgressSummaryLedger() : {};
-  var clients = loadClientsRegistry();
-  var clientIds = clients && typeof clients === 'object' ? Object.keys(clients) : [];
-  var sentThisMonth = clientIds.filter(function (cid) {
-    return ledger[cid] && ledger[cid][monthKey];
-  });
-  var clientNames = sentThisMonth.map(function (cid) {
-    return (clients[cid] && clients[cid].name) || cid;
-  });
+function _renderReportsList(root) {
+  var state = loadPortalState();
+  var reports = (state && state.monthlyReports) || [];
+  var _m = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  root.innerHTML = '';
 
-  var progressCard = el('div', { class: 'report-card' });
-  progressCard.appendChild(el('div', { class: 'report-card__header' },
-    el('div', { class: 'report-card__title' }, 'Monthly progress summaries')
-  ));
-  progressCard.appendChild(el('div', { class: 'card__sub', style: 'margin-bottom: 12px;' },
-    'One PROGRESS notification per client per month. Clients see it in their bell and can open the Progress page. You see it in your notifications with a link to this client and the Reports tab.'
-  ));
-  progressCard.appendChild(el('div', { class: 'card__sub', style: 'margin-bottom: 8px;' },
-    'Current month: ' + (monthKey || '—')
-  ));
-  progressCard.appendChild(el('div', { class: 'card__sub', style: 'margin-bottom: 12px;' },
-    sentThisMonth.length === 0
-      ? 'Summary not sent for any client this month yet.'
-      : 'Sent for: ' + clientNames.join(', ')
-  ));
-  var runBtn = el('button', { class: 'btn btn-primary', type: 'button' }, 'Run monthly summary');
-  runBtn.addEventListener('click', function () {
-    if (typeof maybeGenerateMonthlyProgressSummaryNotifications === 'function') {
-      maybeGenerateMonthlyProgressSummaryNotifications();
-      if (typeof renderNotificationBell === 'function') renderNotificationBell();
-      renderReportsTab();
-    }
+  // Header
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;';
+  var h = document.createElement('h3');
+  h.textContent = 'Monthly Reports';
+  h.style.cssText = 'margin:0;font-size:20px;font-weight:700;color:#0f172a;';
+  hdr.appendChild(h);
+  var addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-primary';
+  addBtn.textContent = '+ New Report';
+  addBtn.addEventListener('click', function() {
+    var now = new Date();
+    var id = 'report_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    var report = {
+      id: id, month: now.getMonth() + 1, year: now.getFullYear(), status: 'draft',
+      executiveSummary: '', progressStatus: 'on-track',
+      keyMetrics: { postsPublished: 0, engagement: '', reach: '', growth: '', customMetrics: [] },
+      seoStrategy: '', contentStrategy: '', paidAdsStrategy: '', socialMediaStrategy: '',
+      actionItems: [],
+      monthlyResults: '',
+      analytics: { impressions: '', clicks: '', conversions: '', roi: '' },
+      notes: '', nextSteps: ''
+    };
+    if (!state.monthlyReports) state.monthlyReports = [];
+    state.monthlyReports.push(report);
+    savePortalState(state);
+    _reportEditId = id;
+    renderReportsTab();
   });
-  progressCard.appendChild(runBtn);
-  container.appendChild(progressCard);
+  hdr.appendChild(addBtn);
+  root.appendChild(hdr);
 
-  var r = loadReports();
-  var w = (r && r.work) ? r.work : {};
-  var ads = (r && r.ads) ? r.ads : {};
-  var summaryEl = $('#reportsDataSummary');
-  if (summaryEl) {
-    var period = (r && r.period) ? r.period : '—';
-    var running = (ads && typeof ads.running === 'number') ? ads.running : 0;
-    var posts = (w && typeof w.posts === 'number') ? w.posts : 0;
-    var reels = (w && typeof w.reels === 'number') ? w.reels : 0;
-    summaryEl.textContent = 'Current: ' + period + ' • ' + running + ' ads running • ' + posts + ' posts, ' + reels + ' reels.';
+  if (reports.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'padding:40px;text-align:center;background:#fff;border-radius:14px;border:1px solid #e2e8f0;color:#64748b;font-size:14px;';
+    empty.innerHTML = '<div style="font-size:32px;margin-bottom:12px;">📊</div>No reports yet. Click <strong>+ New Report</strong> to create your first monthly report.';
+    root.appendChild(empty);
+    return;
   }
+
+  // Sort newest first
+  var sorted = reports.slice().sort(function(a,b) { return (b.year*100+b.month) - (a.year*100+a.month); });
+
+  sorted.forEach(function(r) {
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:box-shadow 0.15s;';
+    card.addEventListener('mouseover', function(){ card.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'; });
+    card.addEventListener('mouseout', function(){ card.style.boxShadow='none'; });
+    card.addEventListener('click', function() { _reportEditId = r.id; renderReportsTab(); });
+
+    var badge = document.createElement('div');
+    badge.style.cssText = 'width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0;' +
+      (r.status === 'published' ? 'background:linear-gradient(135deg,#059669,#10b981);' : 'background:linear-gradient(135deg,#64748b,#94a3b8);');
+    badge.textContent = (_m[(r.month||1)-1] || '').slice(0,3).toUpperCase();
+    card.appendChild(badge);
+
+    var info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;color:#0f172a;';
+    title.textContent = _m[(r.month||1)-1] + ' ' + (r.year||'');
+    info.appendChild(title);
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:12px;color:#64748b;margin-top:2px;';
+    sub.textContent = (r.executiveSummary || '').slice(0,80) || 'No summary yet';
+    if (r.executiveSummary && r.executiveSummary.length > 80) sub.textContent += '…';
+    info.appendChild(sub);
+    card.appendChild(info);
+
+    var statusPill = document.createElement('span');
+    statusPill.style.cssText = 'padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;flex-shrink:0;' +
+      (r.status === 'published' ? 'background:#dcfce7;color:#166534;' : 'background:#f1f5f9;color:#64748b;');
+    statusPill.textContent = r.status === 'published' ? 'Published' : 'Draft';
+    card.appendChild(statusPill);
+
+    root.appendChild(card);
+  });
+}
+
+function _renderReportEditor(root) {
+  var state = loadPortalState();
+  var reports = state.monthlyReports || [];
+  var report = reports.find(function(r){ return r.id === _reportEditId; });
+  if (!report) { _reportEditId = null; _renderReportsList(root); return; }
+
+  var _m = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  root.innerHTML = '';
+
+  function persist() { savePortalState(state); }
+  function makeField(label, value, placeholder, onInput, opts) {
+    opts = opts || {};
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:14px;';
+    var lbl = document.createElement('label');
+    lbl.textContent = label;
+    lbl.style.cssText = 'display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:6px;';
+    wrap.appendChild(lbl);
+    if (opts.type === 'textarea') {
+      var ta = document.createElement('textarea');
+      ta.rows = opts.rows || 3;
+      ta.placeholder = placeholder || '';
+      ta.value = value || '';
+      ta.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;';
+      ta.addEventListener('input', function(){ onInput(ta.value); });
+      ta.addEventListener('blur', persist);
+      wrap.appendChild(ta);
+    } else if (opts.type === 'select') {
+      var sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;';
+      (opts.options || []).forEach(function(o){
+        var opt = document.createElement('option');
+        opt.value = o.value; opt.textContent = o.label;
+        if (o.value === value) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', function(){ onInput(sel.value); persist(); });
+      wrap.appendChild(sel);
+    } else {
+      var inp = document.createElement('input');
+      inp.type = opts.inputType || 'text';
+      inp.placeholder = placeholder || '';
+      inp.value = value || '';
+      inp.style.cssText = 'width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;';
+      inp.addEventListener('input', function(){ onInput(inp.value); });
+      inp.addEventListener('blur', persist);
+      wrap.appendChild(inp);
+    }
+    return wrap;
+  }
+
+  function makeSection(title, color, contentFn) {
+    var sec = document.createElement('div');
+    sec.style.cssText = 'background:#fff;border-radius:12px;border:1px solid #e2e8f0;border-left:4px solid '+color+';margin-bottom:16px;overflow:hidden;';
+    var hdr = document.createElement('button');
+    hdr.type = 'button';
+    hdr.style.cssText = 'width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:transparent;border:none;cursor:pointer;text-align:left;';
+    var chev = document.createElement('span');
+    chev.textContent = '▼';
+    chev.style.cssText = 'font-size:10px;color:#64748b;transition:transform 0.15s;';
+    hdr.appendChild(chev);
+    var t = document.createElement('span');
+    t.textContent = title;
+    t.style.cssText = 'font-size:15px;font-weight:700;color:#0f172a;';
+    hdr.appendChild(t);
+    sec.appendChild(hdr);
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:0 18px 18px;';
+    contentFn(body);
+    sec.appendChild(body);
+    hdr.addEventListener('click', function(){
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      chev.style.transform = open ? 'rotate(-90deg)' : 'rotate(0)';
+    });
+    return sec;
+  }
+
+  // Back + title bar
+  var topBar = document.createElement('div');
+  topBar.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:20px;';
+  var backBtn = document.createElement('button');
+  backBtn.className = 'btn btn-secondary';
+  backBtn.textContent = '← Back';
+  backBtn.addEventListener('click', function(){ _reportEditId = null; renderReportsTab(); });
+  topBar.appendChild(backBtn);
+  var titleEl = document.createElement('h3');
+  titleEl.textContent = _m[(report.month||1)-1] + ' ' + (report.year||'') + ' Report';
+  titleEl.style.cssText = 'margin:0;font-size:20px;font-weight:700;color:#0f172a;flex:1;';
+  topBar.appendChild(titleEl);
+
+  // Month/Year selectors
+  var monthSel = document.createElement('select');
+  monthSel.style.cssText = 'padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;';
+  _m.forEach(function(m,i){ var o = document.createElement('option'); o.value = i+1; o.textContent = m; if(i+1===report.month) o.selected=true; monthSel.appendChild(o); });
+  monthSel.addEventListener('change', function(){ report.month = parseInt(monthSel.value); persist(); titleEl.textContent = _m[report.month-1]+' '+report.year+' Report'; });
+  topBar.appendChild(monthSel);
+  var yearInp = document.createElement('input');
+  yearInp.type = 'number';
+  yearInp.value = report.year || new Date().getFullYear();
+  yearInp.style.cssText = 'width:80px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;';
+  yearInp.addEventListener('change', function(){ report.year = parseInt(yearInp.value); persist(); titleEl.textContent = _m[report.month-1]+' '+report.year+' Report'; });
+  topBar.appendChild(yearInp);
+
+  // Publish / Draft toggle
+  var pubBtn = document.createElement('button');
+  pubBtn.className = 'btn ' + (report.status === 'published' ? 'btn-secondary' : 'btn-primary');
+  pubBtn.textContent = report.status === 'published' ? 'Unpublish' : 'Publish to Client';
+  pubBtn.addEventListener('click', function(){
+    report.status = report.status === 'published' ? 'draft' : 'published';
+    persist();
+    renderReportsTab();
+  });
+  topBar.appendChild(pubBtn);
+
+  // Delete
+  var delBtn = document.createElement('button');
+  delBtn.className = 'btn';
+  delBtn.textContent = '🗑';
+  delBtn.title = 'Delete report';
+  delBtn.style.cssText = 'padding:6px 10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;cursor:pointer;font-size:14px;';
+  delBtn.addEventListener('click', function(){
+    if (!confirm('Delete this report?')) return;
+    state.monthlyReports = reports.filter(function(r){ return r.id !== report.id; });
+    persist(); _reportEditId = null; renderReportsTab();
+  });
+  topBar.appendChild(delBtn);
+  root.appendChild(topBar);
+
+  // ── 1. OVERVIEW ──
+  root.appendChild(makeSection('Overview', '#2563eb', function(body) {
+    body.appendChild(makeField('Executive Summary', report.executiveSummary, 'High-level summary of this month\'s work and results...', function(v){ report.executiveSummary = v; }, { type:'textarea', rows:4 }));
+    body.appendChild(makeField('Progress Status', report.progressStatus, '', function(v){ report.progressStatus = v; }, {
+      type:'select', options:[
+        { value:'on-track', label:'On Track' },
+        { value:'ahead', label:'Ahead of Schedule' },
+        { value:'needs-attention', label:'Needs Attention' }
+      ]
+    }));
+    // Key Metrics
+    var km = report.keyMetrics || {};
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+    grid.appendChild(makeField('Posts Published', km.postsPublished||'', '0', function(v){ km.postsPublished = v; report.keyMetrics = km; }, { inputType:'number' }));
+    grid.appendChild(makeField('Engagement', km.engagement||'', 'e.g. 4.2%', function(v){ km.engagement = v; report.keyMetrics = km; }));
+    grid.appendChild(makeField('Reach', km.reach||'', 'e.g. 15,000', function(v){ km.reach = v; report.keyMetrics = km; }));
+    grid.appendChild(makeField('Growth', km.growth||'', 'e.g. +120 followers', function(v){ km.growth = v; report.keyMetrics = km; }));
+    body.appendChild(grid);
+  }));
+
+  // ── 2. STRATEGY SECTIONS ──
+  root.appendChild(makeSection('Strategy', '#16a34a', function(body) {
+    body.appendChild(makeField('SEO Strategy', report.seoStrategy, 'SEO actions taken or planned...', function(v){ report.seoStrategy = v; }, { type:'textarea', rows:3 }));
+    body.appendChild(makeField('Content Strategy', report.contentStrategy, 'Content themes, posting schedule...', function(v){ report.contentStrategy = v; }, { type:'textarea', rows:3 }));
+    body.appendChild(makeField('Paid Ads Strategy', report.paidAdsStrategy, 'Ad campaigns, budget allocation...', function(v){ report.paidAdsStrategy = v; }, { type:'textarea', rows:3 }));
+    body.appendChild(makeField('Social Media Strategy', report.socialMediaStrategy, 'Platform focus, engagement tactics...', function(v){ report.socialMediaStrategy = v; }, { type:'textarea', rows:3 }));
+  }));
+
+  // ── 3. IMPLEMENTATION ──
+  root.appendChild(makeSection('Implementation', '#9333ea', function(body) {
+    // Action items with checkboxes
+    if (!Array.isArray(report.actionItems)) report.actionItems = [];
+    var itemsWrap = document.createElement('div');
+    itemsWrap.id = 'reportActionItems';
+
+    function renderActionItems() {
+      itemsWrap.innerHTML = '';
+      report.actionItems.forEach(function(item, idx) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!item.done;
+        cb.style.cssText = 'width:18px;height:18px;accent-color:#2563eb;cursor:pointer;flex-shrink:0;';
+        cb.addEventListener('change', function(){ item.done = cb.checked; persist(); });
+        row.appendChild(cb);
+        var txt = document.createElement('input');
+        txt.type = 'text';
+        txt.value = item.text || '';
+        txt.placeholder = 'Action item...';
+        txt.style.cssText = 'flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;' + (item.done ? 'text-decoration:line-through;color:#94a3b8;' : '');
+        txt.addEventListener('input', function(){ item.text = txt.value; });
+        txt.addEventListener('blur', persist);
+        row.appendChild(txt);
+        var deadline = document.createElement('input');
+        deadline.type = 'date';
+        deadline.value = item.deadline || '';
+        deadline.style.cssText = 'width:140px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;flex-shrink:0;';
+        deadline.addEventListener('change', function(){ item.deadline = deadline.value; persist(); });
+        row.appendChild(deadline);
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.textContent = '✕';
+        rm.style.cssText = 'background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;padding:4px;flex-shrink:0;';
+        rm.addEventListener('click', function(){ report.actionItems.splice(idx,1); persist(); renderActionItems(); });
+        row.appendChild(rm);
+        itemsWrap.appendChild(row);
+      });
+    }
+    renderActionItems();
+    body.appendChild(itemsWrap);
+
+    var addItemBtn = document.createElement('button');
+    addItemBtn.type = 'button';
+    addItemBtn.textContent = '+ Add Action Item';
+    addItemBtn.style.cssText = 'margin-top:10px;padding:7px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;';
+    addItemBtn.addEventListener('click', function(){
+      report.actionItems.push({ text:'', done:false, deadline:'', assignee:'' });
+      persist(); renderActionItems();
+    });
+    body.appendChild(addItemBtn);
+  }));
+
+  // ── 4. PERFORMANCE ──
+  root.appendChild(makeSection('Performance', '#ea580c', function(body) {
+    body.appendChild(makeField('Monthly Results', report.monthlyResults, 'Summary of what was achieved this month...', function(v){ report.monthlyResults = v; }, { type:'textarea', rows:3 }));
+    var an = report.analytics || {};
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+    grid.appendChild(makeField('Impressions', an.impressions||'', 'e.g. 50,000', function(v){ an.impressions = v; report.analytics = an; }));
+    grid.appendChild(makeField('Clicks', an.clicks||'', 'e.g. 1,200', function(v){ an.clicks = v; report.analytics = an; }));
+    grid.appendChild(makeField('Conversions', an.conversions||'', 'e.g. 45 leads', function(v){ an.conversions = v; report.analytics = an; }));
+    grid.appendChild(makeField('ROI', an.roi||'', 'e.g. 3.2x return', function(v){ an.roi = v; report.analytics = an; }));
+    body.appendChild(grid);
+  }));
+
+  // ── 5. RESOURCES ──
+  root.appendChild(makeSection('Resources', '#64748b', function(body) {
+    body.appendChild(makeField('Notes / Updates', report.notes, 'Internal notes, client communications...', function(v){ report.notes = v; }, { type:'textarea', rows:3 }));
+    body.appendChild(makeField('Next Steps', report.nextSteps, 'What\'s planned for next month...', function(v){ report.nextSteps = v; }, { type:'textarea', rows:3 }));
+  }));
 }
 
 // Setup PIN-based invite handlers

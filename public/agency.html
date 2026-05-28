@@ -2418,65 +2418,7 @@
 
 
       <div id="tabReports" class="tab-content">
-        <p class="section-desc">Monthly progress summaries and report data that power the client Progress page.</p>
-        <div id="reportsContent"></div>
-        <div class="card" style="margin-top: 24px;">
-          <div class="edit-panel__title">Report data</div>
-          <p class="muted" style="margin: 0 0 12px 0; font-size: 14px;">Numbers used for the client Progress page and monthly summary notifications.</p>
-          <p id="reportsDataSummary" class="card__sub" style="margin-bottom: 12px;"></p>
-          <button class="btn btn-primary" id="openReportsAdmin">Edit report data</button>
-        </div>
-        <div id="reportsAdmin" class="card" style="display:none; margin-top: 24px;">
-          <div class="edit-panel__title">Update report (Team)</div>
-          <form id="reportsForm">
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="password" class="form-input" id="repPin" placeholder="Team PIN" />
-                <input type="text" class="form-input" id="repPeriod" placeholder="Period (e.g., Nov 2025)" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repAdsRunning" placeholder="Ads running" />
-                <input type="number" class="form-input" id="repImpressions" placeholder="Impressions" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repClicks" placeholder="Clicks" />
-                <input type="number" class="form-input" id="repLeads" placeholder="Leads" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repGmbViews" placeholder="GMB views" />
-                <input type="number" class="form-input" id="repProfileSearches" placeholder="Profile searches" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repWebsiteClicks" placeholder="Website clicks" />
-                <input type="number" class="form-input" id="repIgFollowers" placeholder="IG followers change" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repPosts" placeholder="Posts published" />
-                <input type="number" class="form-input" id="repReels" placeholder="Reels edited" />
-              </div>
-            </div>
-            <div class="form-group">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <input type="number" class="form-input" id="repCampaigns" placeholder="Campaigns launched" />
-                <input type="number" class="form-input" id="repRequests" placeholder="Requests resolved" />
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" id="cancelReports">Cancel</button>
-              <button type="submit" class="btn btn-primary">Save Report</button>
-            </div>
-          </form>
-        </div>
+        <div id="reportsRoot"></div>
       </div>
 
       </div><!-- /clientContentWrap -->
