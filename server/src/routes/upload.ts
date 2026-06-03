@@ -215,6 +215,122 @@ router.post('/media', authenticate, async (req: AuthenticatedRequest, res) => {
 });
 
 /**
+ * POST /api/upload/video-direct
+ * Direct binary video upload — browser sends raw file via FormData,
+ * skipping base64 encoding. Uses ~40% less memory than the base64 path.
+ * Max 100MB.
+ */
+router.post('/video-direct', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    // Parse multipart boundary from content-type header
+    const contentTypeHeader = req.headers['content-type'] || '';
+    if (!contentTypeHeader.includes('multipart/form-data')) {
+      return res.status(400).json({ error: 'multipart/form-data required' });
+    }
+
+    const blobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      return res.status(503).json({ error: 'Upload not configured. BLOB token not set.' });
+    }
+
+    let put: any;
+    try {
+      const blobModule = await import('@vercel/blob');
+      put = blobModule.put;
+    } catch {
+      return res.status(503).json({ error: 'Upload not available. Install @vercel/blob.' });
+    }
+
+    let agencyId: string;
+    try {
+      const scope = getAgencyScope(req);
+      agencyId = scope.agencyId;
+    } catch (scopeErr: any) {
+      return res.status(400).json({ error: 'Cannot determine agency: ' + scopeErr?.message });
+    }
+
+    // Collect raw body chunks (Express doesn't parse multipart by default)
+    const chunks: Buffer[] = [];
+    let totalSize = 0;
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+
+    await new Promise<void>((resolve, reject) => {
+      req.on('data', (chunk: Buffer) => {
+        totalSize += chunk.length;
+        if (totalSize > MAX_SIZE) {
+          reject(new Error('File too large (100MB max)'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      req.on('end', resolve);
+      req.on('error', reject);
+    });
+
+    const raw = Buffer.concat(chunks);
+
+    // Parse multipart manually to extract the file
+    const boundary = contentTypeHeader.split('boundary=')[1];
+    if (!boundary) {
+      return res.status(400).json({ error: 'Missing multipart boundary' });
+    }
+
+    const boundaryBuffer = Buffer.from('--' + boundary);
+    const parts = [];
+    let start = 0;
+    while (true) {
+      const idx = raw.indexOf(boundaryBuffer, start);
+      if (idx === -1) break;
+      if (start > 0) parts.push(raw.slice(start, idx));
+      start = idx + boundaryBuffer.length;
+    }
+
+    let fileBuffer: Buffer | null = null;
+    let fileName = 'video.mp4';
+    let fileContentType = 'video/mp4';
+
+    for (const part of parts) {
+      const headerEnd = part.indexOf('\r\n\r\n');
+      if (headerEnd === -1) continue;
+      const headers = part.slice(0, headerEnd).toString('utf-8');
+      if (!headers.includes('filename=')) continue;
+
+      const nameMatch = headers.match(/filename="([^"]+)"/);
+      if (nameMatch) fileName = nameMatch[1];
+      const ctMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
+      if (ctMatch) fileContentType = ctMatch[1].trim();
+
+      // File data starts after \r\n\r\n, ends before trailing \r\n
+      fileBuffer = part.slice(headerEnd + 4, part.length - 2);
+      break;
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: 'No file found in upload' });
+    }
+
+    // Determine extension
+    let ext = 'mp4';
+    const extMatch = fileName.match(/\.(\w+)$/);
+    if (extMatch) ext = extMatch[1].toLowerCase();
+    if (ext === 'quicktime') ext = 'mov';
+
+    const blobFilename = `posts/${agencyId}/${Date.now()}.${ext}`;
+    const blob = await put(blobFilename, fileBuffer, {
+      access: 'public',
+      contentType: fileContentType,
+      token: blobToken,
+    });
+
+    console.log(`[upload] Video uploaded: ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(1)}MB) -> ${blob.url}`);
+    return res.json({ success: true, url: blob.url, mediaType: 'video' });
+  } catch (e: any) {
+    console.error('Video direct upload error:', e?.message);
+    res.status(500).json({ error: e?.message || 'Video upload failed' });
+  }
+});
+
+/**
  * POST /api/upload/asset
  * Upload an image for the Image Library (Assets tab).
  * Uses Vercel Blob for persistent storage (local filesystem is ephemeral on Vercel).
