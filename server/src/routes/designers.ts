@@ -27,7 +27,7 @@ const router = Router();
 router.get('/', authenticate, requireProductionAccess, async (req: AuthenticatedRequest, res) => {
   try {
     const { agencyId } = getAgencyScope(req);
-    const users = (await getUsersByAgency(agencyId)).filter((u: User) => u.role === 'DESIGNER');
+    const users = (await getUsersByAgency(agencyId)).filter((u: User) => ['DESIGNER', 'OWNER', 'ADMIN', 'STAFF'].includes(u.role));
     const result: any = {
       success: true,
       designers: users.map((u: User) => ({
