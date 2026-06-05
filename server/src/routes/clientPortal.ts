@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask, getScheduledPostsByAgency } from '../db.js';
+import { getPortalState, savePortalState, getClient, getProductionTasksByAgency, saveProductionTask, getScheduledPostsByAgency, stripBase64FromPortalState } from '../db.js';
 import type { PortalStateData } from '../types.js';
 import { sendPushToRole, sendPushToUser, NOTIFY } from '../lib/pushService.js';
 
@@ -86,7 +86,10 @@ router.put('/portal-state', async (req, res) => {
     if (!state.client || !state.kpis || !Array.isArray(state.assets)) {
       return res.status(400).json({ error: 'Invalid portal state shape' });
     }
-    await savePortalState(ctx.agencyId, ctx.clientId, state);
+    // Strip base64 image data from requests to prevent JSONB bloat
+    // (images are already on Vercel Blob CDN, only URLs needed)
+    const cleaned = stripBase64FromPortalState(state);
+    await savePortalState(ctx.agencyId, ctx.clientId, cleaned);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to save portal state' });

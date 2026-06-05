@@ -1712,7 +1712,17 @@ if (!session) {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ data: state })
-    }).then(r => { if (!r.ok) console.warn('Portal state save failed'); }).catch(e => console.warn('Portal state save error:', e));
+    }).then(r => {
+      if (!r.ok) {
+        console.warn('Portal state save failed', r.status);
+        var t = document.getElementById("toastContainer");
+        if (t) { t.style.display="block"; t.textContent="Changes could not be saved. Please refresh and try again."; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); setTimeout(function(){ t.style.display="none"; },250); },4000); }
+      }
+    }).catch(e => {
+      console.warn('Portal state save error:', e);
+      var t = document.getElementById("toastContainer");
+      if (t) { t.style.display="block"; t.textContent="Connection error — changes not saved."; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); setTimeout(function(){ t.style.display="none"; },250); },4000); }
+    });
   }
 
   /* ---- MIGRATION: ensure approvals exist (if state was wiped) ---- */
