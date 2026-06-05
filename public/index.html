@@ -4002,7 +4002,7 @@ if (reqFileInput) {
 
 if (requestForm) {
   if (reqTypeEl) reqTypeEl.removeAttribute("aria-invalid");
-  requestForm.addEventListener("submit", e=>{
+  requestForm.addEventListener("submit", async function(e){
   e.preventDefault();
   const reqType = reqTypeEl ? reqTypeEl.value : $("#reqType").value;
   if (!reqType) {
@@ -4015,48 +4015,90 @@ if (requestForm) {
     return;
   }
   if (reqTypeEl) { reqTypeEl.setAttribute("aria-invalid", "false"); if (reqTypeErrorEl) reqTypeErrorEl.style.display = "none"; }
-  
-  const s = load();
-  const req = {
-    id:"r"+Math.random().toString(36).slice(2,7),
-    type: reqType,
-    by: $("#reqContact").value.trim() || "Client",
-    details: $("#reqDetails").value.trim() || "(no details)",
-    link: $("#reqLink").value.trim(),
-    images: reqUploadedImages.map(function(img) { return img.data; }),
-    status: "open",
-    createdAt: Date.now()
-  };
 
-  if (!s.requests) s.requests = [];
-  s.requests.push(req);
-  if (!s.activity) s.activity = [];
-  const activityText = '📩 New request: ' + req.type + (req.details !== "(no details)" ? " - " + req.details.substring(0, 50) + (req.details.length > 50 ? "..." : "") : "");
-  s.activity.unshift({when:Date.now(), text:activityText});
+  // Disable submit button while processing
+  var submitBtn = requestForm.querySelector('button[type="submit"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
 
-  save(s);
-  e.target.reset();
-  reqUploadedImages = [];
-  var namesEl2 = document.getElementById('reqFileNames');
-  var previewsEl2 = document.getElementById('reqImagePreviews');
-  if (namesEl2) namesEl2.textContent = '';
-  if (previewsEl2) previewsEl2.innerHTML = '';
-  if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
-  
-  var toast = document.getElementById("toastContainer");
-  if (toast) {
-    toast.style.display = "block";
-    toast.textContent = "Request submitted!";
-    toast.classList.add("show");
-    setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
+  try {
+    // Step 1: Upload images to Vercel Blob CDN (get URLs, not base64)
+    var imageUrls = [];
+    var token = (session && session.token) || null;
+    for (var i = 0; i < reqUploadedImages.length; i++) {
+      var imgData = reqUploadedImages[i].data;
+      if (!imgData || !imgData.startsWith('data:image/')) continue;
+      try {
+        var uploadRes = await fetch(API_BASE + '/api/client/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ image: imgData })
+        });
+        var uploadJson = await uploadRes.json();
+        if (uploadJson && uploadJson.url) {
+          imageUrls.push(uploadJson.url);
+        }
+      } catch (uploadErr) {
+        console.warn('Image upload failed for ' + reqUploadedImages[i].name, uploadErr);
+      }
+    }
+
+    // Step 2: Submit request via atomic endpoint (URLs only, no base64)
+    var submitRes = await fetch(API_BASE + '/api/client/submit-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        type: reqType,
+        by: $("#reqContact").value.trim() || "Client",
+        details: $("#reqDetails").value.trim() || "(no details)",
+        link: $("#reqLink").value.trim(),
+        images: imageUrls
+      })
+    });
+    var submitJson = await submitRes.json();
+    if (!submitRes.ok) throw new Error(submitJson.error || 'Failed to submit request');
+
+    // Step 3: Success — reset form and refresh
+    e.target.reset();
+    reqUploadedImages = [];
+    var namesEl2 = document.getElementById('reqFileNames');
+    var previewsEl2 = document.getElementById('reqImagePreviews');
+    if (namesEl2) namesEl2.textContent = '';
+    if (previewsEl2) previewsEl2.innerHTML = '';
+    if (reqTypeEl) reqTypeEl.setAttribute("aria-invalid", "false");
+
+    var toast = document.getElementById("toastContainer");
+    if (toast) {
+      toast.style.display = "block";
+      toast.textContent = "Request submitted!";
+      toast.classList.add("show");
+      setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
+    }
+
+    // Refresh portal state from server to show the new request
+    try {
+      var refreshRes = await fetch(API_BASE + '/api/client/portal-state', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      var refreshJson = await refreshRes.json();
+      if (refreshJson && refreshJson.data) { portalStateCache = refreshJson.data; }
+    } catch (refreshErr) { console.warn('Portal state refresh failed', refreshErr); }
+    render(); renderRequestStats();
+    setTimeout(function() {
+      var requestsEl = document.querySelector('#requests');
+      if (requestsEl) requestsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  } catch (err) {
+    console.error('Request submission failed:', err);
+    var toast = document.getElementById("toastContainer");
+    if (toast) {
+      toast.style.display = "block";
+      toast.textContent = "Failed to submit request. Please try again.";
+      toast.classList.add("show");
+      setTimeout(function(){ toast.classList.remove("show"); setTimeout(function(){ toast.style.display = "none"; }, 250); }, 3000);
+    }
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit request'; }
   }
-  
-  render();
-  renderRequestStats();
-  setTimeout(function() {
-    var requestsEl = document.querySelector('#requests');
-    if (requestsEl) requestsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 100);
   });
 }
 function closeRequest(id){
