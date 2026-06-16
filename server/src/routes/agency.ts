@@ -238,7 +238,9 @@ router.put('/portal-state', async (req: AuthenticatedRequest, res) => {
     if (!Array.isArray(state.assets)) {
       state.assets = [];
     }
-    await savePortalState(agencyId, cid, state);
+    // Strip base64 image data to prevent JSONB bloat (images are on Vercel Blob CDN)
+    const cleaned = stripBase64FromPortalState(state);
+    await savePortalState(agencyId, cid, cleaned);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to save portal state' });
