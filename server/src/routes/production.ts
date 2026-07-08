@@ -17,6 +17,7 @@ import {
   getUser,
   getPortalState,
   savePortalState,
+  stripBase64FromPortalState,
 } from '../db.js';
 import { generateId } from '../utils/auth.js';
 import type { ProductionTask, ProductionTaskStatus, ProductionTaskPriority, ProductionTaskComment, ProductionTaskCommentAuthorRole } from '../types.js';
@@ -94,7 +95,9 @@ async function syncProductionArtToApproval(task: ProductionTask, markArtApproved
     originalItem.productionStatus = 'art_approved';
   }
   originalItem.updatedAt = new Date().toISOString();
-  await savePortalState(task.agencyId, task.clientId, state);
+  // Strip base64 to prevent JSONB bloat when syncing art back to portal state
+  const cleanedState = stripBase64FromPortalState(state);
+  await savePortalState(task.agencyId, task.clientId, cleanedState);
   console.log('[production] Synced final art to approval:', originalItem.id, 'markArtApproved=', markArtApproved);
 }
 
@@ -492,7 +495,7 @@ router.post('/tasks/:id/comment', authenticate, requireProductionAccess, async (
         task.reviewNotes = '';
         if (user.role !== 'DESIGNER') {
           try {
-            updateOriginalApprovalWithFinalArt(task);
+            await updateOriginalApprovalWithFinalArt(task);
           } catch (autoErr: any) {
             console.error('[production] Failed to update original item with art:', autoErr?.message);
           }
