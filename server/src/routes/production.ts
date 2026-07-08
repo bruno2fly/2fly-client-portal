@@ -610,7 +610,8 @@ router.post('/migrate-approved-art', authenticate, requireAgencyOnly, async (req
       item.productionTaskId = task.id;
       item.updatedAt = new Date().toISOString();
 
-      await savePortalState(task.agencyId, task.clientId, state);
+      const cleanState = stripBase64FromPortalState(state);
+      await savePortalState(task.agencyId, task.clientId, cleanState);
       results.push({ taskId: task.id, approvalId: item.id, clientId: task.clientId, status: 'migrated' });
     }
 
