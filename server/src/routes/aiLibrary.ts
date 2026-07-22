@@ -179,6 +179,63 @@ async function generateWithGptImage1(
 }
 
 /**
+ * Generate an image using gpt-image-1 edits API with reference images.
+ * Sends the actual uploaded photos so the AI can SEE the venue/subject.
+ */
+async function generateWithReferenceImages(
+  prompt: string,
+  referenceImages: string[],   // array of base64 data URLs (data:image/...)
+  size: '1024x1024' | '1024x1536' | '1536x1024',
+  quality: 'low' | 'medium' | 'high' = 'medium'
+): Promise<{ url: string; revisedPrompt: string; b64: string }> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+
+  // Build the images array for the edits endpoint
+  const images = referenceImages.map(dataUrl => ({ image_url: dataUrl }));
+
+  console.log(`[AI Library] Calling gpt-image-1 EDITS with ${images.length} reference image(s) (size: ${size}, quality: ${quality})...`);
+  const res = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-image-1',
+      images,
+      prompt,
+      n: 1,
+      size,
+      quality,
+      input_fidelity: 'high',   // maximize faithfulness to the source images
+    })
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    console.error('[AI Library] gpt-image-1 edits error:', errBody);
+    let errMsg = 'gpt-image-1 edit generation failed';
+    try {
+      const errJson = JSON.parse(errBody);
+      errMsg = errJson.error?.message || errMsg;
+    } catch {}
+    throw new Error(errMsg);
+  }
+
+  const data = await res.json() as any;
+  const imageB64 = data.data?.[0]?.b64_json;
+
+  if (!imageB64) throw new Error('No image data in gpt-image-1 edits response');
+
+  // Upload to Vercel Blob for persistence
+  const imageUrl = await uploadToVercelBlob(imageB64, `ai-library/ai_${generateId()}_${Date.now()}.png`);
+  console.log(`[AI Library] Image (with refs) uploaded to Vercel Blob: ${imageUrl}`);
+
+  return { url: imageUrl, revisedPrompt: prompt, b64: imageB64 };
+}
+
+/**
  * Upload base64 image data to Vercel Blob
  */
 async function uploadToVercelBlob(base64Data: string, pathname: string): Promise<string> {
@@ -932,11 +989,12 @@ router.post('/generate', authenticate, async (req: AuthenticatedRequest, res) =>
 // No DB save — returns the image immediately.
 router.post('/generate-image-from-prompt', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const { clientId, prompt, format, quality } = req.body as {
+    const { clientId, prompt, format, quality, referenceImages } = req.body as {
       clientId?: string;
       prompt?: string;
       format?: string;
       quality?: 'low' | 'medium' | 'high';
+      referenceImages?: string[];  // base64 data URLs from the upload slots
     };
 
     if (!clientId || !prompt) return res.status(400).json({ error: 'clientId and prompt required' });
@@ -954,8 +1012,14 @@ router.post('/generate-image-from-prompt', authenticate, async (req: Authenticat
     const size = sizeMap[format || ''] || '1024x1024';
     const q = quality || 'medium';
 
-    console.log(`[AI Library] generate-image-from-prompt: client=${clientId}, size=${size}, quality=${q}`);
-    const result = await generateWithGptImage1(prompt, size, q);
+    // If reference images are provided, use the edits endpoint (image-to-image)
+    // Otherwise fall back to text-only generation
+    const hasRefs = referenceImages && referenceImages.length > 0;
+    console.log(`[AI Library] generate-image-from-prompt: client=${clientId}, size=${size}, quality=${q}, refs=${hasRefs ? referenceImages!.length : 0}`);
+
+    const result = hasRefs
+      ? await generateWithReferenceImages(prompt, referenceImages!, size, q)
+      : await generateWithGptImage1(prompt, size, q);
 
     res.json({
       success: true,
