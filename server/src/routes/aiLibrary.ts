@@ -594,6 +594,19 @@ function buildPromptFromKit(
   lines.push('- You may adjust camera angle, zoom, and crop, but the space must be IMMEDIATELY RECOGNIZABLE as the same real place.');
   lines.push('- NEVER invent architectural elements, materials, or decor that are not visible in the ambient reference.');
   lines.push('');
+  lines.push('OBJECT FIDELITY (CRITICAL):');
+  lines.push('- ONLY include objects that are clearly visible in the uploaded reference photos.');
+  lines.push('- Do NOT invent or add props, tableware, decorations, flowers, bottles, candles, or food items that are not in the source images.');
+  lines.push('- If the subject photo shows one dish in a black cast iron pot, show exactly that — do not add extra dishes, garnishes, or plating that isn\'t there.');
+  lines.push('- If the ambient photo shows specific items on the table (bottle type, glass style, candle holder), reproduce THOSE exact items, not generic replacements.');
+  lines.push('');
+  lines.push('SCENE LOGIC (CRITICAL):');
+  lines.push('- The scene must make practical sense as a real dining moment.');
+  lines.push('- If there are 2 wine glasses, there must be 2 place settings (plates, cutlery, napkins).');
+  lines.push('- If there is 1 dish, it belongs to 1 person — don\'t orphan it on a table set for more.');
+  lines.push('- Count the covers: glasses, plates, and cutlery must match — every seat implied by one element must be complete with the others.');
+  lines.push('- The arrangement should look like a real table that a real server set up, not a random collection of objects.');
+  lines.push('');
 
   // Camera setup
   lines.push('CAMERA & LENS SETUP:');
