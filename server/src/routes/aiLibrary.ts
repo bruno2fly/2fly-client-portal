@@ -586,15 +586,6 @@ function buildPromptFromKit(
   lines.push(`VENUE: ${kit.venue}`);
   lines.push('');
 
-  // VENUE FIDELITY — the ambient reference is the ground truth
-  lines.push('VENUE FIDELITY (CRITICAL):');
-  lines.push('- The ambient/venue reference photo is the GROUND TRUTH. The generated image MUST look like THIS specific venue.');
-  lines.push('- Preserve exactly: wall colors & textures, lighting fixture styles (pendants, sconces, LEDs), furniture, flooring, architectural details, signage.');
-  lines.push('- Match the venue\'s color palette — if the real venue has blue LED under-bar glow and warm white walls, the output must have the same.');
-  lines.push('- You may adjust camera angle, zoom, and crop, but the space must be IMMEDIATELY RECOGNIZABLE as the same real place.');
-  lines.push('- NEVER invent architectural elements, materials, or decor that are not visible in the ambient reference.');
-  lines.push('');
-
   // Camera setup
   lines.push('CAMERA & LENS SETUP:');
   lines.push(`- Shot with a ${lens} prime lens`);
