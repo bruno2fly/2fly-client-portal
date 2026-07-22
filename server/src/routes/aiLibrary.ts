@@ -327,6 +327,190 @@ const FORMAT_PIXEL_LABEL: Record<string, string> = {
   story: '1080x1920',
 };
 
+// ── Content Goal Presets ──
+// Each goal defines camera/lighting/composition defaults that produce the best
+// prompt for that type of social media content. Users can override in Advanced mode.
+type ContentGoal = 'hero-dish' | 'cocktail' | 'vibe' | 'table-scene' | 'behind-the-scenes' | 'event-promo';
+
+interface GoalPreset {
+  label: string;
+  shotType: string;
+  lens: string;
+  angle: string;
+  mood: string;
+  format: string;
+  compositionRules: string[];
+  lightingNotes: string[];
+  specialDetails: string[];
+  requiredSlots: string[];   // which upload slots the UI should show
+  optionalSlots: string[];
+}
+
+const CONTENT_GOAL_PRESETS: Record<ContentGoal, GoalPreset> = {
+  'hero-dish': {
+    label: 'Hero Dish',
+    shotType: 'Table Shot',
+    lens: '85mm f/1.8',
+    angle: '45-overhead',
+    mood: 'moody-warm',
+    format: 'portrait',
+    compositionRules: [
+      'Subject (the dish) is the hero, filling 60-70% of the frame',
+      'Tight crop — dish dominates, minimal negative space',
+      'Plate positioned slightly off-center for visual interest',
+      'Shallow depth of field — garnishes sharp, background melts away',
+    ],
+    lightingNotes: [
+      'Side key light from the left, creating texture on the food surface',
+      'Warm rim light on the back edge of the plate',
+      'Subtle fill from the right to open shadows without flattening',
+    ],
+    specialDetails: [
+      'Visible steam or heat haze rising from hot dishes',
+      'Sauce drizzle or glaze glistening under the light',
+      'Fresh herb garnish with visible texture and color contrast',
+      'Droplets of condensation on cold elements',
+    ],
+    requiredSlots: ['subject', 'ambient'],
+    optionalSlots: ['reference'],
+  },
+  'cocktail': {
+    label: 'Cocktail / Drink',
+    shotType: 'Bar Shot',
+    lens: '50mm f/1.4',
+    angle: 'low-frontal',
+    mood: 'dark-luxe',
+    format: 'portrait',
+    compositionRules: [
+      'Glass is the hero, positioned center-left of frame',
+      'Rule of thirds: glass occupies left 2/3, right 1/3 reveals blurred bar',
+      'Bar/counter surface in foreground, slightly out of focus',
+      'Low camera angle (10°) — makes the drink look tall and elegant',
+    ],
+    lightingNotes: [
+      'Backlit bottle shelf creating warm amber glow behind the glass',
+      'Rim lighting on the glass edge creating a golden halo effect',
+      'Dark moody background with selective highlights',
+    ],
+    specialDetails: [
+      'Condensation droplets on the glass surface',
+      'Ice cubes or crushed ice catching the light',
+      'Perfect garnish (citrus wheel, herb sprig, cherry) as accent',
+      'Pour action or liquid motion if dynamic shot',
+    ],
+    requiredSlots: ['subject', 'ambient'],
+    optionalSlots: ['reference'],
+  },
+  'vibe': {
+    label: 'Vibe / Atmosphere',
+    shotType: 'Ambient Wide',
+    lens: '35mm f/2.0',
+    angle: 'low-frontal',
+    mood: 'moody-warm',
+    format: 'portrait',
+    compositionRules: [
+      'Wide establishing shot showing depth and space',
+      'People present in the scene — not posed, candid energy',
+      'Leading lines from the bar, tables, or architecture draw the eye',
+      'Multiple depth layers: foreground element, mid-ground activity, background glow',
+    ],
+    lightingNotes: [
+      'Natural venue lighting only — warm pendants, candles, bar glow',
+      'No added flash — authenticity is key',
+      'Bokeh from background lights creating magical atmosphere',
+    ],
+    specialDetails: [
+      'Motion blur on moving figures — sense of energy',
+      'Warm color temperature throughout',
+      'Visible laughter, clinking glasses, social interaction',
+      'Beautiful bokeh from distant light sources',
+    ],
+    requiredSlots: ['ambient'],
+    optionalSlots: ['reference'],
+  },
+  'table-scene': {
+    label: 'Table Scene / Spread',
+    shotType: 'Overhead',
+    lens: '35mm f/2.0',
+    angle: '45-overhead',
+    mood: 'bright-fresh',
+    format: 'feed',
+    compositionRules: [
+      'Multiple dishes and drinks arranged artfully on the table',
+      'Overhead or 45° angle showing the full spread',
+      'Hands reaching for food or holding drinks — human element',
+      'Table fills the entire frame — abundance and generosity',
+    ],
+    lightingNotes: [
+      'Overhead soft light with gentle fill from sides',
+      'Even illumination across the table — no harsh shadows on food',
+      'Warm color temperature for appetizing look',
+    ],
+    specialDetails: [
+      'Utensils, napkins, and glasses as styling props',
+      'Mix of textures — plates, wood, linen, glass',
+      'Color contrast between dishes for visual variety',
+      'Casual, lived-in feel — not perfectly arranged, naturally inviting',
+    ],
+    requiredSlots: ['subject', 'ambient'],
+    optionalSlots: ['reference'],
+  },
+  'behind-the-scenes': {
+    label: 'Behind the Scenes',
+    shotType: 'Action Shot',
+    lens: '50mm f/1.4',
+    angle: 'side',
+    mood: 'editorial',
+    format: 'portrait',
+    compositionRules: [
+      'Focus on the person (chef, bartender) and their craft',
+      'Action frozen mid-motion — plating, pouring, flipping',
+      'Shallow depth of field isolating the subject from kitchen clutter',
+      'Side profile or three-quarter angle for dramatic effect',
+    ],
+    lightingNotes: [
+      'Kitchen overhead lights as practical source',
+      'Rim light separating subject from background',
+      'Allow natural shadows — adds drama and authenticity',
+    ],
+    specialDetails: [
+      'Hands in action — the craft is the story',
+      'Tools of the trade visible — knives, pans, shakers',
+      'Fire, steam, or smoke as dynamic elements',
+      'Professional uniform or apron adding context',
+    ],
+    requiredSlots: ['ambient'],
+    optionalSlots: ['subject', 'reference'],
+  },
+  'event-promo': {
+    label: 'Event Promo',
+    shotType: 'Bar Shot',
+    lens: '35mm f/2.0',
+    angle: 'low-frontal',
+    mood: 'game-day',
+    format: 'portrait',
+    compositionRules: [
+      'Dynamic, energetic composition with slight diagonal lines',
+      'Leave negative space for text overlay (event name, date, time)',
+      'Crowd or activity visible but not overwhelming',
+      'Low angle for power and excitement',
+    ],
+    lightingNotes: [
+      'TV screens casting blue-white glow (for sports events)',
+      'Warm ambient venue lighting mixed with colored accents',
+      'Festive or themed lighting if applicable',
+    ],
+    specialDetails: [
+      'Themed elements — sports on screens, holiday decor, music setup',
+      'Crowd energy and social atmosphere',
+      'Featured drinks or specials prominently placed',
+      'Text-friendly composition with clear space for overlay',
+    ],
+    requiredSlots: ['ambient'],
+    optionalSlots: ['subject', 'reference'],
+  },
+};
+
 interface AdvancedOptions {
   shotType?: string;
   angle?: string;
@@ -366,44 +550,89 @@ function buildPromptFromKit(
     moodSlug: string;
     format: string;
     imageDescriptions: ImageDescriptions;
+    contentGoal?: ContentGoal;
   }
 ): string {
-  const { shotType, lens, angleSlug, moodSlug, format, imageDescriptions } = opts;
+  const { shotType, lens, angleSlug, moodSlug, format, imageDescriptions, contentGoal } = opts;
   const mood = resolveMood(moodSlug);
   const angleText = resolveAngle(angleSlug);
   const formatLabel = resolveFormatLabel(format, kit);
-  const refCount = imageDescriptions.reference ? 3 : 2;
+  const goalPreset = contentGoal ? CONTENT_GOAL_PRESETS[contentGoal] : null;
 
+  // Build reference image list
   const refList: string[] = [];
-  refList.push(`(1) ${imageDescriptions.subject}`);
-  refList.push(`(2) the ${kit.venue} — ${imageDescriptions.ambient || kit.ambientDescription}`);
-  if (imageDescriptions.reference) refList.push(`(3) ${imageDescriptions.reference}`);
+  let refIdx = 1;
+  if (imageDescriptions.subject) {
+    refList.push(`(${refIdx++}) ${imageDescriptions.subject}`);
+  }
+  if (imageDescriptions.ambient || kit.ambientDescription) {
+    refList.push(`(${refIdx++}) the ${kit.venue} — ${imageDescriptions.ambient || kit.ambientDescription}`);
+  }
+  if (imageDescriptions.reference) {
+    refList.push(`(${refIdx++}) ${imageDescriptions.reference}`);
+  }
 
   const lines: string[] = [];
-  lines.push(`I am providing ${refCount} reference images: ${refList.join(', and ')}.`);
+
+  // Reference images intro
+  if (refList.length > 0) {
+    lines.push(`I am providing ${refList.length} reference image${refList.length > 1 ? 's' : ''}: ${refList.join(', and ')}.`);
+    lines.push('');
+  }
+
+  // Task description — goal-aware
+  const goalLabel = goalPreset ? goalPreset.label : shotType;
+  lines.push(`TASK: Create a high-end ${goalLabel} photography shot${refList.length > 1 ? ' combining the references' : ''} for ${kit.clientName}.`);
+  lines.push(`VENUE: ${kit.venue}`);
   lines.push('');
-  lines.push(`TASK: Create a high-end ${shotType} photography shot combining both references.`);
-  lines.push('');
+
+  // Camera setup
   lines.push('CAMERA & LENS SETUP:');
   lines.push(`- Shot with a ${lens} prime lens`);
   lines.push(`- Aperture: f/2.0 — subject tack-sharp, background beautifully blurred`);
   lines.push(`- ${angleText}`);
   lines.push(`- Camera placed 30-40cm from the subject`);
   lines.push('');
+
+  // Composition — use goal-specific rules if available, otherwise generic
   lines.push('COMPOSITION:');
-  lines.push('- Subject is the hero, positioned center-left of frame');
-  lines.push('- Rule of thirds composition');
-  lines.push(`- ${kit.ambientDescription} visible in background, out of focus`);
-  lines.push('');
-  lines.push('LIGHTING:');
-  lines.push('- Warm key light from the right');
-  lines.push(`- ${mood.lighting}`);
-  if (kit.forbiddenElements && kit.forbiddenElements.length > 0) {
-    lines.push(`- IMPORTANT: Do NOT include ${kit.forbiddenElements.join(', ')} in the image`);
+  if (goalPreset && goalPreset.compositionRules.length > 0) {
+    goalPreset.compositionRules.forEach(rule => lines.push(`- ${rule}`));
+  } else {
+    lines.push('- Subject is the hero, positioned center-left of frame');
+    lines.push('- Rule of thirds composition');
+    lines.push(`- ${kit.ambientDescription} visible in background, out of focus`);
   }
   lines.push('');
+
+  // Lighting — use goal-specific notes if available
+  lines.push('LIGHTING:');
+  if (goalPreset && goalPreset.lightingNotes.length > 0) {
+    goalPreset.lightingNotes.forEach(note => lines.push(`- ${note}`));
+  } else {
+    lines.push('- Warm key light from the right');
+    lines.push(`- ${mood.lighting}`);
+  }
+  lines.push('');
+
+  // Special details — goal-specific enhancements
+  if (goalPreset && goalPreset.specialDetails.length > 0) {
+    lines.push('KEY DETAILS (make these visible):');
+    goalPreset.specialDetails.forEach(detail => lines.push(`- ${detail}`));
+    lines.push('');
+  }
+
+  // Forbidden elements
+  if (kit.forbiddenElements && kit.forbiddenElements.length > 0) {
+    lines.push(`FORBIDDEN — do NOT include: ${kit.forbiddenElements.join(', ')}`);
+    lines.push('');
+  }
+
+  // Mood
   lines.push(`MOOD: ${mood.label}. ${mood.description}`);
   lines.push('');
+
+  // Output
   lines.push(`OUTPUT: ${formatLabel} pixels. Photorealistic. Commercial photography quality. No text, no watermarks.`);
   return lines.join('\n');
 }
@@ -485,13 +714,31 @@ function buildDesignBrief(
   return lines.join('\n');
 }
 
+// GET /api/ai-library/content-goals
+// Returns available content goals with their presets (so the frontend can render the picker)
+router.get('/content-goals', authenticate, async (_req: AuthenticatedRequest, res) => {
+  const goals = Object.entries(CONTENT_GOAL_PRESETS).map(([key, preset]) => ({
+    id: key,
+    label: preset.label,
+    shotType: preset.shotType,
+    lens: preset.lens,
+    angle: preset.angle,
+    mood: preset.mood,
+    format: preset.format,
+    requiredSlots: preset.requiredSlots,
+    optionalSlots: preset.optionalSlots,
+  }));
+  res.json({ goals });
+});
+
 // POST /api/ai-library/generate-prompt
 router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
-    const { clientId, mode, outputType, advancedOptions, imageDescriptions, briefOptions } = req.body as {
+    const { clientId, mode, outputType, contentGoal, advancedOptions, imageDescriptions, briefOptions } = req.body as {
       clientId?: string;
       mode?: 'quick' | 'advanced';
       outputType?: 'photography-prompt' | 'design-brief';
+      contentGoal?: ContentGoal;
       advancedOptions?: AdvancedOptions;
       imageDescriptions?: ImageDescriptions;
       briefOptions?: BriefOptions;
@@ -503,10 +750,13 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
     if (!kit) return res.status(404).json({ error: `No brand kit found for client "${clientId}"` });
 
     const runMode: 'quick' | 'advanced' = mode === 'advanced' ? 'advanced' : 'quick';
+
+    // Determine output type — contentGoal takes precedence over legacy outputType
+    // Event Promo can optionally use design-brief, all others use photography-prompt
     const runOutputType: 'photography-prompt' | 'design-brief' =
-      outputType === 'design-brief' || outputType === 'photography-prompt'
-        ? outputType
-        : (kit.defaultOutputType || 'photography-prompt');
+      outputType === 'design-brief'
+        ? 'design-brief'
+        : (contentGoal ? 'photography-prompt' : (kit.defaultOutputType || 'photography-prompt'));
 
     // ── Design Brief branch ──
     if (runOutputType === 'design-brief') {
@@ -517,21 +767,41 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
           client: kit.clientName,
           template: 'design-brief',
           clientType: kit.clientType,
+          contentGoal: contentGoal || null,
           timestamp: new Date().toISOString(),
         },
       });
     }
 
-    // ── Photography Prompt branch (original behavior) ──
-    if (!imageDescriptions || !imageDescriptions.ambient || !imageDescriptions.subject) {
-      return res.status(400).json({ error: 'imageDescriptions.ambient and imageDescriptions.subject are required' });
-    }
+    // ── Photography Prompt branch ──
+    // Resolve camera settings: Advanced overrides > Content Goal presets > Brand Kit defaults
+    const goalPreset = contentGoal ? CONTENT_GOAL_PRESETS[contentGoal] : null;
 
-    const shotType = (runMode === 'advanced' && advancedOptions?.shotType) || inferShotTypeFromTemplate(kit.photographerTemplate);
-    const lens = (runMode === 'advanced' && advancedOptions?.lens) || kit.defaultLens;
-    const angleSlug = (runMode === 'advanced' && advancedOptions?.angle) || kit.defaultAngle;
-    const moodSlug = (runMode === 'advanced' && advancedOptions?.mood) || kit.defaultMood;
-    const format = (runMode === 'advanced' && advancedOptions?.format) || kit.outputFormat;
+    const shotType = (runMode === 'advanced' && advancedOptions?.shotType)
+      || (goalPreset?.shotType)
+      || inferShotTypeFromTemplate(kit.photographerTemplate);
+    const lens = (runMode === 'advanced' && advancedOptions?.lens)
+      || (goalPreset?.lens)
+      || kit.defaultLens;
+    const angleSlug = (runMode === 'advanced' && advancedOptions?.angle)
+      || (goalPreset?.angle)
+      || kit.defaultAngle;
+    const moodSlug = (runMode === 'advanced' && advancedOptions?.mood)
+      || (goalPreset?.mood)
+      || kit.defaultMood;
+    const format = (runMode === 'advanced' && advancedOptions?.format)
+      || (goalPreset?.format)
+      || kit.outputFormat;
+
+    // For goals that don't require a subject (vibe, behind-the-scenes, event-promo),
+    // relax the validation — only require what the goal needs
+    const requiredSlots = goalPreset?.requiredSlots || ['ambient', 'subject'];
+    if (requiredSlots.includes('ambient') && (!imageDescriptions || !imageDescriptions.ambient)) {
+      return res.status(400).json({ error: 'An ambient/venue image is required for this content goal' });
+    }
+    if (requiredSlots.includes('subject') && (!imageDescriptions || !imageDescriptions.subject)) {
+      return res.status(400).json({ error: 'A subject image is required for this content goal' });
+    }
 
     const prompt = buildPromptFromKit(kit, {
       shotType,
@@ -539,7 +809,8 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
       angleSlug,
       moodSlug,
       format,
-      imageDescriptions,
+      imageDescriptions: imageDescriptions || { ambient: kit.ambientDescription, subject: '' },
+      contentGoal: contentGoal || undefined,
     });
 
     return res.json({
@@ -548,6 +819,7 @@ router.post('/generate-prompt', authenticate, async (req: AuthenticatedRequest, 
         client: kit.clientName,
         template: kit.photographerTemplate,
         clientType: kit.clientType,
+        contentGoal: contentGoal || null,
         timestamp: new Date().toISOString(),
       },
     });
