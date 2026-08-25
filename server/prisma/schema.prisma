@@ -494,3 +494,67 @@ model Staff {
   workspaceId String
   createdAt   DateTime @default(now())
 }
+
+// ─────────────────────── Content Automation v2 (Sheets → Meta) ───────────────────────
+// Parallel to ScheduledPost. Nothing here touches the legacy scheduling pipeline.
+
+model AutomatedContentSheet {
+  id            String    @id
+  agencyId      String
+  clientId      String    @unique
+  spreadsheetId String
+  tabName       String    @default("Schedule")
+  enabled       Boolean   @default(true)
+  lastSyncedAt  DateTime?
+  lastSyncError String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([agencyId])
+}
+
+model AutomatedContentPost {
+  id       String @id
+  agencyId String
+  clientId String
+
+  // Sheet provenance
+  spreadsheetId  String
+  sheetRowId     String
+  sheetRowNumber Int
+  platform       String
+
+  caption   String
+  pillar    String?
+  assetLink String
+  mediaUrl  String?
+
+  scheduledAt DateTime
+  timezone    String   @default("America/New_York")
+
+  status       AutomatedContentStatus @default(pending)
+  attemptCount Int                    @default(0)
+  lastError    String?
+
+  publishedAt DateTime?
+  igPostId    String?
+  fbPostId    String?
+  liveUrl     String?
+  writtenBack Boolean   @default(false)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, sheetRowId])
+  @@index([status, scheduledAt])
+  @@index([clientId])
+}
+
+enum AutomatedContentStatus {
+  pending
+  publishing
+  published
+  failed
+  failed_terminal
+}

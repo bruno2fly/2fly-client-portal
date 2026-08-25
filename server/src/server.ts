@@ -39,6 +39,7 @@ import aiCopilotRoutes from './routes/aiCopilot.js';
 import notificationRoutes from './routes/notifications.js';
 import aiLibraryRoutes from './routes/aiLibrary.js';
 import agentApiRoutes from './routes/agentApi.js';
+import contentAutomationRoutes, { INTERNAL_AUTOMATION_SECRET } from './routes/contentAutomation.js';
 import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import {
@@ -425,6 +426,8 @@ app.use('/api/ai-copilot', aiCopilotRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai-library', aiLibraryRoutes);
 app.use('/api/agent', agentApiRoutes);
+// Content Automation v2 (Sheets → Meta). Parallel to /api/posts and /api/cron.
+app.use('/api/content-automation', contentAutomationRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -534,6 +537,45 @@ const server = app.listen(PORT, () => {
     }
   }, REFRESH_INTERVAL);
   console.log(`🔑 Token refresh timer started (every 6 hours)`);
+
+  // ── Content Automation v2 (Sheets → Meta) ──
+  // Separate from the legacy publish timer above on purpose. The router trusts
+  // no address, so these calls carry the same secret any other caller needs.
+  const CONTENT_SYNC_INTERVAL = 15 * 60 * 1000; // 15 min
+  const CONTENT_PUBLISH_INTERVAL = 5 * 60 * 1000; // 5 min
+  const automationUrl = (path: string) =>
+    `http://localhost:${PORT}/api/content-automation/${path}?secret=${encodeURIComponent(INTERNAL_AUTOMATION_SECRET)}`;
+
+  setInterval(async () => {
+    try {
+      const r = await fetch(automationUrl('sync'));
+      const data = (await r.json()) as { imported?: number; error?: string };
+      if (data.error) {
+        console.error('[content-sync] ', data.error);
+      } else if ((data.imported ?? 0) > 0) {
+        console.log(`[content-sync] Imported ${data.imported} row(s) from Sheets`);
+      }
+    } catch (err: any) {
+      console.error('[content-sync] Timer error:', err.message);
+    }
+  }, CONTENT_SYNC_INTERVAL);
+  console.log(`📄 Content sync timer started (every 15 min)`);
+
+  setInterval(async () => {
+    try {
+      const r = await fetch(automationUrl('publish'));
+      const data = (await r.json()) as { processed?: number; published?: number; results?: unknown };
+      if ((data.processed ?? 0) > 0) {
+        console.log(
+          `[content-publish] Processed ${data.processed}, published ${data.published}:`,
+          JSON.stringify(data.results),
+        );
+      }
+    } catch (err: any) {
+      console.error('[content-publish] Timer error:', err.message);
+    }
+  }, CONTENT_PUBLISH_INTERVAL);
+  console.log(`📣 Content publish timer started (every 5 min)`);
 
   // ── Keep Railway from cold-starting — ping self every 4 minutes ──
   if (process.env.NODE_ENV === 'production') {
