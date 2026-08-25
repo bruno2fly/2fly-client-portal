@@ -41,7 +41,7 @@ const PUBLISH_BATCH = 10;
 // from outside until someone deliberately sets the env var.
 
 export const INTERNAL_AUTOMATION_SECRET =
-  process.env.CONTENT_AUTOMATION_SECRET || randomBytes(32).toString('hex');
+  process.env.CONTENT_AUTOMATION_SECRET?.trim() || randomBytes(32).toString('hex');
 
 export const AUTOMATION_SECRET_IS_EXPLICIT = Boolean(process.env.CONTENT_AUTOMATION_SECRET);
 
@@ -53,9 +53,12 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 function automationAuth(req: Request, res: Response, next: NextFunction): void {
-  const header = req.headers['authorization'] || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
-  const provided = bearer || (req.query.secret as string) || (req.headers['x-api-key'] as string) || '';
+  const header = req.headers.authorization || '';
+  const bearer = typeof header === 'string' ? header.match(/^Bearer\s+(.+)$/i)?.[1] : undefined;
+  const querySecret = typeof req.query.secret === 'string' ? req.query.secret : '';
+  const apiKeyHeader = req.headers['x-api-key'];
+  const apiKey = typeof apiKeyHeader === 'string' ? apiKeyHeader : '';
+  const provided = (bearer || querySecret || apiKey).trim();
 
   if (!provided || !timingSafeEqual(provided, INTERNAL_AUTOMATION_SECRET)) {
     res.status(401).json({ error: 'Unauthorized' });
