@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Schedule · 2FLY Flow</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel-2:#1e222b; --line:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa3b2; --accent:#4f8cff; --accent-ink:#fff;
+    --ok:#2ea86b; --warn:#d99a2b; --err:#d9534f; --info:#4f8cff; --dead:#8b3b3b;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--accent)}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12px}
+  .spacer{flex:1}
+  button,select,input,textarea{font:inherit;color:inherit}
+  .btn{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:8px 14px;border-radius:8px;cursor:pointer}
+  .btn:hover{border-color:#3a4150}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+  .btn.primary:disabled{opacity:.5;cursor:not-allowed}
+  .btn.danger{border-color:#4a2b2b;color:#ff9a95;background:transparent}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  select,input[type=text],input[type=datetime-local],textarea{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+  textarea{resize:vertical;min-height:96px}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:20px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field{margin-bottom:14px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+
+  .post{display:flex;gap:14px;padding:14px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--panel);margin-bottom:10px}
+  .thumb{width:76px;height:76px;border-radius:8px;object-fit:cover;background:var(--panel-2);flex:none}
+  .thumb.ph{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+  .post .body{flex:1;min-width:0}
+  .post .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 6px}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--muted)}
+  .badge{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;color:#080b10}
+  .b-pending{background:var(--warn)} .b-publishing{background:var(--info);color:#fff}
+  .b-published{background:var(--ok);color:#fff} .b-failed{background:#e07b39}
+  .b-failed_terminal{background:var(--err);color:#fff}
+  .err{color:#ff9a95;font-size:12px;margin-top:6px;word-break:break-word}
+  .empty{color:var(--muted);text-align:center;padding:48px 0}
+  .daylabel{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin:22px 0 8px}
+
+  table.cal{width:100%;border-collapse:collapse;table-layout:fixed}
+  table.cal th{color:var(--muted);font-size:11px;font-weight:600;padding:6px;text-align:left}
+  table.cal td{border:1px solid var(--line);vertical-align:top;height:104px;padding:6px;background:var(--panel)}
+  td.other{opacity:.35}
+  .dnum{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .ev{font-size:11px;border-radius:5px;padding:2px 5px;margin-bottom:3px;cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#080b10}
+  .banner{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px}
+  .banner.err{background:#3a1e1e;color:#ffb9b4;border:1px solid #5a2b2b}
+  .banner.ok{background:#14301f;color:#a5e6c3;border:1px solid #235c3c}
+  .hide{display:none}
+  .preview{max-width:150px;border-radius:8px;margin-top:8px;display:block}
+  .hint{font-size:11px;color:var(--muted);margin-top:5px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Content Schedule</h1>
+    <div class="sub">Posts flow through the live content-automation publisher</div>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" href="/agency">← Dashboard</a>
+  <button class="btn primary" id="toggleForm">+ Add Post</button>
+</header>
+
+<div class="wrap">
+  <div id="banner" class="hide"></div>
+
+  <!-- ── Add Post ─────────────────────────────────────────────── -->
+  <div class="card hide" id="formCard">
+    <div class="grid2">
+      <div class="field">
+        <label for="fClient">Client</label>
+        <select id="fClient"></select>
+        <div class="hint" id="clientHint"></div>
+      </div>
+      <div class="field">
+        <label for="fPlatform">Platform</label>
+        <select id="fPlatform">
+          <option value="both">Instagram + Facebook</option>
+          <option value="instagram">Instagram only</option>
+          <option value="facebook">Facebook only</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="fWhen">When (Eastern Time)</label>
+        <input type="datetime-local" id="fWhen">
+        <div class="hint">
+          <label style="display:inline-flex;gap:6px;align-items:center;margin-top:6px;color:var(--text)">
+            <input type="checkbox" id="fNow" style="width:auto"> Post as soon as possible
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fMedia">Image or video</label>
+        <input type="file" id="fMedia" accept="image/*,video/*">
+        <div class="hint" id="mediaHint">Uploaded to Blob storage; Meta downloads it from there.</div>
+        <img id="fPreview" class="preview hide" alt="">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fCaption">Caption <span id="capCount" class="hint" style="float:right"></span></label>
+      <textarea id="fCaption" maxlength="2200" placeholder="What should this post say?"></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn primary" id="fSubmit">Schedule post</button>
+      <button class="btn" id="fCancel">Cancel</button>
+      <span class="hint" id="formStatus"></span>
+    </div>
+  </div>
+
+  <!-- ── Filters ──────────────────────────────────────────────── -->
+  <div class="toolbar">
+    <select id="filterClient" style="width:auto;min-width:180px"><option value="">All clients</option></select>
+    <select id="filterStatus" style="width:auto">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="publishing">Publishing</option>
+      <option value="published">Published</option>
+      <option value="failed">Failed (retrying)</option>
+      <option value="failed_terminal">Failed (gave up)</option>
+    </select>
+    <button class="btn" id="viewList">List</button>
+    <button class="btn" id="viewCal">Calendar</button>
+    <div class="spacer"></div>
+    <span class="hint" id="lastRefresh"></span>
+    <button class="btn" id="refresh">Refresh</button>
+  </div>
+
+  <div id="listView"></div>
+  <div id="calView" class="hide">
+    <div class="toolbar">
+      <button class="btn" id="prevMonth">‹</button>
+      <strong id="monthLabel"></strong>
+      <button class="btn" id="nextMonth">›</button>
+    </div>
+    <table class="cal">
+      <thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+      <tbody id="calBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ── API ──────────────────────────────────────────────────────────
+function apiBase() {
+  var h = window.location.hostname;
+  return (h === 'localhost' || h === '127.0.0.1')
+    ? (window.__2FLY_API_BASE__ || 'http://localhost:3004')
+    : 'https://api.2flyflow.com';
+}
+function staffLoginUrl() {
+  return window.location.hostname === 'localhost' ? '/staff-login.html' : '/staff-login';
+}
+async function api(path, opts) {
+  var res = await fetch(apiBase() + path, Object.assign({ credentials: 'include' }, opts || {}));
+  if (res.status === 401) { window.location.href = staffLoginUrl(); throw new Error('Not signed in'); }
+  var data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+  return data;
+}
+
+// ── State ────────────────────────────────────────────────────────
+var POSTS = [], CLIENTS = [], calMonth = new Date();
+var $ = function (id) { return document.getElementById(id); };
+
+function banner(msg, kind) {
+  var el = $('banner');
+  if (!msg) { el.className = 'hide'; return; }
+  el.className = 'banner ' + (kind || 'ok');
+  el.textContent = msg;
+  if (kind !== 'err') setTimeout(function () { el.className = 'hide'; }, 6000);
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+  return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+var ET = { timeZone: 'America/New_York' };
+function fmtDateTime(iso) {
+  return new Date(iso).toLocaleString('en-US', Object.assign({
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, ET)) + ' ET';
+}
+function fmtDay(iso) {
+  return new Date(iso).toLocaleDateString('en-US', Object.assign({
+    weekday: 'long', month: 'long', day: 'numeric' }, ET));
+}
+function dayKey(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', ET); // YYYY-MM-DD in ET
+}
+var STATUS_LABEL = {
+  pending: 'Pending', publishing: 'Publishing', published: 'Published',
+  failed: 'Retrying', failed_terminal: 'Failed'
+};
+var STATUS_COLOR = {
+  pending: '#d99a2b', publishing: '#4f8cff', published: '#2ea86b',
+  failed: '#e07b39', failed_terminal: '#d9534f'
+};
+
+// ── Load ─────────────────────────────────────────────────────────
+async function loadClients() {
+  var d = await api('/api/content-schedule/clients');
+  CLIENTS = d.clients || [];
+  var fc = $('fClient'), flt = $('filterClient');
+  fc.innerHTML = '';
+  flt.innerHTML = '<option value="">All clients</option>';
+  CLIENTS.forEach(function (c) {
+    var o = document.createElement('option');
+    o.value = c.id; o.textContent = c.name + (c.canPublish ? '' : ' (not connected)');
+    if (!c.canPublish) o.disabled = true;
+    fc.appendChild(o);
+    var o2 = document.createElement('option');
+    o2.value = c.id; o2.textContent = c.name;
+    flt.appendChild(o2);
+  });
+  updateClientHint();
+}
+function updateClientHint() {
+  var c = CLIENTS.filter(function (x) { return x.id === $('fClient').value; })[0];
+  if (!c) { $('clientHint').textContent = ''; return; }
+  var bits = [];
+  if (c.pageName) bits.push('FB: ' + c.pageName);
+  if (c.instagramUsername) bits.push('IG: @' + c.instagramUsername);
+  $('clientHint').textContent = bits.join('  ·  ');
+}
+
+async function loadPosts() {
+  var q = [];
+  if ($('filterClient').value) q.push('clientId=' + encodeURIComponent($('filterClient').value));
+  if ($('filterStatus').value) q.push('status=' + encodeURIComponent($('filterStatus').value));
+  var d = await api('/api/content-schedule/posts' + (q.length ? '?' + q.join('&') : ''));
+  POSTS = d.posts || [];
+  render();
+  $('lastRefresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+// ── Render: list ─────────────────────────────────────────────────
+function postCard(p) {
+  var thumb = p.mediaUrl && /^https?:/i.test(p.mediaUrl)
+    ? '<img class="thumb" src="' + esc(p.mediaUrl) + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'thumb ph\',textContent:\'no preview\'}))">'
+    : '<div class="thumb ph">no media</div>';
+
+  var live = p.liveUrl
+    ? ' · <a href="' + esc(p.liveUrl) + '" target="_blank" rel="noopener">View live post ↗</a>' : '';
+  var attempts = (p.status === 'failed' || p.status === 'failed_terminal')
+    ? ' · attempt ' + p.attemptCount + '/' + p.maxAttempts : '';
+  var err = p.lastError ? '<div class="err">' + esc(p.lastError) + '</div>' : '';
+  var cancel = p.cancellable
+    ? '<button class="btn danger" data-cancel="' + esc(p.id) + '" style="padding:4px 10px;font-size:12px">Cancel</button>' : '';
+
+  return '<div class="post">' + thumb +
+    '<div class="body">' +
+      '<div class="meta"><span class="badge b-' + esc(p.status) + '">' + (STATUS_LABEL[p.status] || p.status) + '</span>' +
+        '<strong style="color:var(--text)">' + esc(p.clientName) + '</strong>' +
+        '<span class="chip">' + esc(p.platform === 'both' ? 'IG + FB' : p.platform) + '</span>' +
+        '<span class="chip">' + esc(p.source === 'manual' ? 'manual' : 'sheet') + '</span>' +
+      '</div>' +
+      '<div class="cap">' + esc(p.caption) + '</div>' +
+      '<div class="meta">' + esc(fmtDateTime(p.scheduledAt)) + attempts + live + '</div>' +
+      err +
+    '</div>' +
+    '<div>' + cancel + '</div>' +
+  '</div>';
+}
+
+function render() {
+  var host = $('listView');
+  if (!POSTS.length) {
+    host.innerHTML = '<div class="empty">Nothing scheduled yet.<br>Use <strong>+ Add Post</strong> to create one.</div>';
+    renderCalendar(); return;
+  }
+  var groups = {};
+  POSTS.forEach(function (p) { (groups[dayKey(p.scheduledAt)] = groups[dayKey(p.scheduledAt)] || []).push(p); });
+  var days = Object.keys(groups).sort().reverse();
+  host.innerHTML = days.map(function (d) {
+    return '<div class="daylabel">' + esc(fmtDay(groups[d][0].scheduledAt)) + '</div>' +
+      groups[d].map(postCard).join('');
+  }).join('');
+  renderCalendar();
+}
+
+// ── Render: calendar ─────────────────────────────────────────────
+function renderCalendar() {
+  var y = calMonth.getFullYear(), m = calMonth.getMonth();
+  $('monthLabel').textContent = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  var first = new Date(y, m, 1), start = new Date(first);
+  start.setDate(1 - first.getDay());
+
+  var byDay = {};
+  POSTS.forEach(function (p) { (byDay[dayKey(p.scheduledAt)] = byDay[dayKey(p.scheduledAt)] || []).push(p); });
+
+  var html = '', cur = new Date(start);
+  for (var w = 0; w < 6; w++) {
+    html += '<tr>';
+    for (var d = 0; d < 7; d++) {
+      var key = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') +
+                '-' + String(cur.getDate()).padStart(2, '0');
+      var evs = byDay[key] || [];
+      html += '<td class="' + (cur.getMonth() === m ? '' : 'other') + '">' +
+        '<div class="dnum">' + cur.getDate() + '</div>' +
+        evs.map(function (p) {
+          return '<div class="ev" style="background:' + STATUS_COLOR[p.status] + '" title="' +
+            esc(p.clientName + ' — ' + p.caption) + '">' + esc(p.caption.slice(0, 28)) + '</div>';
+        }).join('') + '</td>';
+      cur.setDate(cur.getDate() + 1);
+    }
+    html += '</tr>';
+    if (cur.getMonth() !== m && w >= 3) break;
+  }
+  $('calBody').innerHTML = html;
+}
+
+// ── Create ───────────────────────────────────────────────────────
+var uploadedUrl = '';
+
+$('fMedia').addEventListener('change', function (e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var isVideo = /^video\//.test(file.type);
+  $('mediaHint').textContent = 'Uploading ' + file.name + '…';
+  var reader = new FileReader();
+  reader.onload = async function () {
+    try {
+      var payload = isVideo ? { media: reader.result, filename: file.name } : { image: reader.result };
+      var d = await api('/api/upload/' + (isVideo ? 'media' : 'image'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      uploadedUrl = d.url || '';
+      $('mediaHint').textContent = uploadedUrl ? 'Uploaded ✓' : 'Upload returned no URL';
+      if (uploadedUrl && !isVideo) { $('fPreview').src = uploadedUrl; $('fPreview').className = 'preview'; }
+    } catch (err) {
+      uploadedUrl = '';
+      $('mediaHint').textContent = 'Upload failed: ' + err.message;
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+$('fCaption').addEventListener('input', function () {
+  $('capCount').textContent = $('fCaption').value.length + ' / 2200';
+});
+
+$('fSubmit').addEventListener('click', async function () {
+  var btn = this;
+  var postNow = $('fNow').checked;
+  var when = $('fWhen').value; // "YYYY-MM-DDTHH:MM", read as Eastern
+  if (!postNow && !when) { $('formStatus').textContent = 'Pick a date/time, or tick "as soon as possible".'; return; }
+  if (!uploadedUrl) { $('formStatus').textContent = 'Upload an image or video first.'; return; }
+
+  btn.disabled = true; $('formStatus').textContent = 'Saving…';
+  try {
+    var d = await api('/api/content-schedule/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: $('fClient').value,
+        platform: $('fPlatform').value,
+        caption: $('fCaption').value,
+        mediaUrl: uploadedUrl,
+        postNow: postNow,
+        scheduledAt: postNow ? 'now' : when.replace('T', ' ')
+      })
+    });
+    banner(postNow
+      ? 'Scheduled — it will publish on the next run, within 5 minutes.'
+      : 'Scheduled for ' + fmtDateTime(d.post.scheduledAt) + '.', 'ok');
+    $('fCaption').value = ''; $('fWhen').value = ''; $('fNow').checked = false;
+    $('fMedia').value = ''; $('fPreview').className = 'preview hide';
+    $('mediaHint').textContent = 'Uploaded to Blob storage; Meta downloads it from there.';
+    uploadedUrl = ''; $('formStatus').textContent = ''; $('capCount').textContent = '';
+    $('formCard').className = 'card hide';
+    loadPosts();
+  } catch (err) {
+    $('formStatus').textContent = '';
+    banner(err.message, 'err');
+  } finally { btn.disabled = false; }
+});
+
+document.addEventListener('click', async function (e) {
+  var id = e.target.getAttribute && e.target.getAttribute('data-cancel');
+  if (!id) return;
+  if (!window.confirm('Cancel this post? It will not be published.')) return;
+  try {
+    await api('/api/content-schedule/posts/' + encodeURIComponent(id), { method: 'DELETE' });
+    banner('Post cancelled.', 'ok');
+    loadPosts();
+  } catch (err) { banner(err.message, 'err'); }
+});
+
+// ── Wiring ───────────────────────────────────────────────────────
+$('toggleForm').onclick = function () {
+  var c = $('formCard');
+  c.className = c.className.indexOf('hide') > -1 ? 'card' : 'card hide';
+};
+$('fCancel').onclick = function () { $('formCard').className = 'card hide'; };
+$('fClient').onchange = updateClientHint;
+$('refresh').onclick = loadPosts;
+$('filterClient').onchange = loadPosts;
+$('filterStatus').onchange = loadPosts;
+$('viewList').onclick = function () { $('listView').className = ''; $('calView').className = 'hide'; };
+$('viewCal').onclick = function () { $('listView').className = 'hide'; $('calView').className = ''; renderCalendar(); };
+$('prevMonth').onclick = function () { calMonth.setMonth(calMonth.getMonth() - 1); renderCalendar(); };
+$('nextMonth').onclick = function () { calMonth.setMonth(calMonth.getMonth() + 1); renderCalendar(); };
+
+(async function init() {
+  try {
+    await loadClients();
+    await loadPosts();
+  } catch (e) { banner(e.message, 'err'); }
+  setInterval(function () { loadPosts().catch(function () {}); }, 60000);
+})();
+</script>
+</body>
+</html>

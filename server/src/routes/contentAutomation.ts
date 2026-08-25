@@ -432,17 +432,21 @@ async function publishOne(post: any): Promise<{ status: string; detail: string }
 
   // Write the result back to the Sheet. A writeback failure must not turn a
   // successful post into a "failed" one — record it and move on.
+  // Manual posts (created in the Content Schedule page) have no Sheet row, so
+  // there is nothing to write back and no spreadsheet to touch.
   let writtenBack = false;
-  try {
-    await writeBackRow(post.spreadsheetId, await tabNameFor(post.clientId), post.sheetRowNumber, {
-      status: SHEET_STATUS.posted,
-      liveUrl: liveUrl || '',
-      postId: [igPostId, fbPostId].filter(Boolean).join(' / '),
-      notes: '',
-    });
-    writtenBack = true;
-  } catch (e: any) {
-    console.error(`[content-automation] writeback failed for ${post.id}:`, e?.message);
+  if (post.source !== 'manual') {
+    try {
+      await writeBackRow(post.spreadsheetId, await tabNameFor(post.clientId), post.sheetRowNumber, {
+        status: SHEET_STATUS.posted,
+        liveUrl: liveUrl || '',
+        postId: [igPostId, fbPostId].filter(Boolean).join(' / '),
+        notes: '',
+      });
+      writtenBack = true;
+    } catch (e: any) {
+      console.error(`[content-automation] writeback failed for ${post.id}:`, e?.message);
+    }
   }
 
   if (writtenBack) {
@@ -477,13 +481,17 @@ async function handleFailure(post: any, err: any): Promise<{ status: string; det
     },
   });
 
-  try {
-    await writeBackRow(post.spreadsheetId, await tabNameFor(post.clientId), post.sheetRowNumber, {
-      status: terminal ? SHEET_STATUS.failed : SHEET_STATUS.synced,
-      notes: note,
-    });
-  } catch (e: any) {
-    console.error(`[content-automation] failure writeback failed for ${post.id}:`, e?.message);
+  // Manual posts have no Sheet row — the error lives on the record and is shown
+  // in the Content Schedule page instead.
+  if (post.source !== 'manual') {
+    try {
+      await writeBackRow(post.spreadsheetId, await tabNameFor(post.clientId), post.sheetRowNumber, {
+        status: terminal ? SHEET_STATUS.failed : SHEET_STATUS.synced,
+        notes: note,
+      });
+    } catch (e: any) {
+      console.error(`[content-automation] failure writeback failed for ${post.id}:`, e?.message);
+    }
   }
 
   return { status: terminal ? 'failed_terminal' : 'failed', detail: message };

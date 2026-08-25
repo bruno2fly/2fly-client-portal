@@ -23,7 +23,7 @@ No legacy scheduling or publishing code was changed.
 ## Verify after deployment
 
 ```sh
-curl -X POST -H "Authorization: Bearer 4ad55d14b1ba59d8deb31322c193703cf36019121ad66a4087aec601d32adc42" \
+curl -X POST -H "Authorization: Bearer $CONTENT_AUTOMATION_SECRET" \
   -H "Content-Type: application/json" \
   "https://api.2flyflow.com/api/content-automation/sheets" \
   -d '{"clientId":"estoqui","spreadsheetId":"1KqAd-Tl2foryYqRY3zKh90f90aAKxIQqr2lIkwY5azw","tabName":"Sheet1"}'
@@ -38,8 +38,12 @@ After deploying, run the Estoqui command above, confirm the Cafe St. Petersburg
 tab name through the Sheets API, then register it (expected tab name shown):
 
 ```sh
-curl -X POST -H "Authorization: Bearer 4ad55d14b1ba59d8deb31322c193703cf36019121ad66a4087aec601d32adc42" \
+curl -X POST -H "Authorization: Bearer $CONTENT_AUTOMATION_SECRET" \
   -H "Content-Type: application/json" \
   "https://api.2flyflow.com/api/content-automation/sheets" \
   -d '{"clientId":"stpetersburg","spreadsheetId":"1-zD-swDoQrr1E14-0vlmpwqa0aW1ceMw0MJvQqzUT5U","tabName":"Schedule"}'
 ```
+
+> The secret is intentionally not written here. Export it in your shell first:
+> `export CONTENT_AUTOMATION_SECRET='...'` (read the value from Render → Environment).
+> Never paste the secret into a file in this repo.

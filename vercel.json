@@ -6,7 +6,8 @@
     { "source": "/staff-login", "destination": "/staff-login.html" },
     { "source": "/accept-invite", "destination": "/accept-invite.html" },
     { "source": "/forgot-password", "destination": "/forgot-password.html" },
-    { "source": "/reset-password", "destination": "/reset-password.html" }
+    { "source": "/reset-password", "destination": "/reset-password.html" },
+    { "source": "/content-schedule", "destination": "/content-schedule.html" }
   ],
   "crons": [
     {

@@ -1987,6 +1987,9 @@
       <div id="viewSwitcherInHeader" class="header-view-switcher" style="display: flex; align-items: center; gap: 4px; background:rgba(255,255,255,0.1); border-radius:8px; padding:3px;" data-view-switcher>
         <button type="button" id="btnViewDashboardHeader" class="view-switch-btn view-switch-btn--active" data-view="dashboard" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; border: none; background: rgba(255,255,255,0.25); color: white; font-weight: 600; cursor: pointer;">Dashboard</button>
         <button type="button" id="btnViewProductionHeader" class="view-switch-btn" data-view="production" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; border: none; background: transparent; color: rgba(255,255,255,0.8); font-weight: 500; cursor: pointer;">Production</button>
+        <!-- Plain link, deliberately not a data-view button: this navigates to a
+             separate page and must not be picked up by the view-switcher JS. -->
+        <a id="lnkContentSchedule" href="/content-schedule" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; background: transparent; color: rgba(255,255,255,0.8); font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block;">Schedule</a>
       </div>
       <!-- Global Status -->
       <span class="header-status" id="headerSystemStatus" title="All systems operational" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;background:rgba(255,255,255,0.1);cursor:default;">

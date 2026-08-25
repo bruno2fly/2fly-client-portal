@@ -40,6 +40,7 @@ import notificationRoutes from './routes/notifications.js';
 import aiLibraryRoutes from './routes/aiLibrary.js';
 import agentApiRoutes from './routes/agentApi.js';
 import contentAutomationRoutes, { INTERNAL_AUTOMATION_SECRET } from './routes/contentAutomation.js';
+import contentScheduleRoutes from './routes/contentSchedule.js';
 import type { UserRole } from './types.js';
 import { authenticate, requireCanManageUsers } from './middleware/auth.js';
 import {
@@ -428,6 +429,8 @@ app.use('/api/ai-library', aiLibraryRoutes);
 app.use('/api/agent', agentApiRoutes);
 // Content Automation v2 (Sheets → Meta). Parallel to /api/posts and /api/cron.
 app.use('/api/content-automation', contentAutomationRoutes);
+// Content Schedule page API — dashboard-auth reads/writes over the same table.
+app.use('/api/content-schedule', contentScheduleRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

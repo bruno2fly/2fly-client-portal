@@ -522,6 +522,10 @@ model AutomatedContentPost {
   spreadsheetId  String
   sheetRowId     String
   sheetRowNumber Int
+  // "sheet" = imported from a client Google Sheet, "manual" = created in the
+  // Content Schedule page. Manual posts have no Sheet row, so nothing is
+  // written back to a spreadsheet for them.
+  source         String @default("sheet")
   platform       String
 
   caption   String
